@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import time
 
 from dccommon.drivers.openstack import vim
@@ -11,7 +12,6 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
-
 
 # Applying the vim update strategy may result in a loss of communication
 # where API calls fail. The max time in this phase is 30 minutes
@@ -45,31 +45,37 @@ class ApplyingVIMStrategyState(BaseState):
         self.wait_attempts = wait_attempts
         self.wait_interval = wait_interval
 
-    def _get_vim_strategy(self, vim_client, region, strategy_step):
+    def _get_vim_strategy(self, vim_client, strategy_step):
         """Get the initial VIM strategy, raising an exception if necessary."""
         try:
             subcloud_strategy = vim_client.get_strategy(
                 strategy_name=self.strategy_name, raise_error_if_missing=False
             )
-        except vim_exc.VIMClientException as e:
-            raise exceptions.ApplyVIMStrategyFailedException(
-                subcloud=strategy_step.subcloud.name,
-                name=self.strategy_name,
-                details=f"Failed to get VIM strategy: {str(e)}",
+        except vim_exc.VIMClientException as exc:
+            details = "Failed to get VIM strategy."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.ApplyVIMStrategyFailedException,
+                exc=exc,
+                strategy_name=self.strategy_name,
             )
         return subcloud_strategy
 
-    def _apply_vim_strategy(self, vim_client, region, strategy_step):
+    def _apply_vim_strategy(self, vim_client, strategy_step):
         """Attempt to apply the VIM strategy and handle exceptions."""
         try:
             subcloud_strategy = vim_client.apply_strategy(
                 strategy_name=self.strategy_name
             )
-        except vim_exc.VIMClientException as e:
-            raise exceptions.ApplyVIMStrategyFailedException(
-                subcloud=strategy_step.subcloud.name,
-                name=self.strategy_name,
-                details=f"Failed to apply VIM strategy: {str(e)}",
+        except vim_exc.VIMClientException as exc:
+            details = "Failed to apply VIM strategy."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.ApplyVIMStrategyFailedException,
+                exc=exc,
+                strategy_name=self.strategy_name,
             )
 
         if subcloud_strategy.state == vim.STATE_APPLYING:
@@ -89,28 +95,25 @@ class ApplyingVIMStrategyState(BaseState):
             subcloud_strategy.apply_phase.response
             or subcloud_strategy.apply_phase.reason
         )
-        db_api.subcloud_update(
-            self.context,
-            strategy_step.subcloud_id,
-            error_description=apply_error,
-        )
         if subcloud_strategy.state in [vim.STATE_APPLY_FAILED, vim.STATE_APPLY_TIMEOUT]:
-            raise exceptions.ApplyVIMStrategyFailedException(
-                subcloud=strategy_step.subcloud.name,
-                name=self.strategy_name,
+            details = f"VIM strategy apply failed: {apply_error}"
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.ApplyVIMStrategyFailedException,
                 state=subcloud_strategy.state,
-                details=f"VIM strategy apply failed: {apply_error}",
+                strategy_name=self.strategy_name,
             )
-        raise exceptions.ApplyVIMStrategyFailedException(
-            subcloud=strategy_step.subcloud.name,
-            name=self.strategy_name,
+        details = "VIM strategy unexpected apply state."
+        self.handle_exception(
+            strategy_step,
+            details,
+            exceptions.ApplyVIMStrategyFailedException,
             state=subcloud_strategy.state,
-            details="VIM strategy unexpected apply state.",
+            strategy_name=self.strategy_name,
         )
 
-    def _wait_for_strategy_apply(
-        self, vim_client, region, strategy_step, subcloud_strategy
-    ):
+    def _wait_for_strategy_apply(self, vim_client, strategy_step, subcloud_strategy):
         """Monitor the progress of the VIM strategy application."""
         wait_count = 0
         get_fail_count = 0
@@ -123,10 +126,12 @@ class ApplyingVIMStrategyState(BaseState):
             # break out of the loop if the max number of attempts is reached
             wait_count += 1
             if wait_count >= self.wait_attempts:
-                raise exceptions.ApplyVIMStrategyFailedException(
-                    subcloud=strategy_step.subcloud.name,
-                    name=self.strategy_name,
-                    details="Timeout applying vim strategy.",
+                details = "Timeout waiting for VIM strategy to apply."
+                self.handle_exception(
+                    strategy_step,
+                    details,
+                    exceptions.ApplyVIMStrategyFailedException,
+                    strategy_name=self.strategy_name,
                 )
             # every loop we wait, even the first one
             time.sleep(self.wait_interval)
@@ -136,7 +141,7 @@ class ApplyingVIMStrategyState(BaseState):
                     strategy_name=self.strategy_name, raise_error_if_missing=False
                 )
                 get_fail_count = 0
-            except vim_exc.VIMClientException as e:
+            except vim_exc.VIMClientException as exc:
                 # When applying the strategy to a subcloud, the VIM can
                 # be unreachable for a significant period of time when
                 # there is a controller swact, the VIM service restarts,
@@ -150,24 +155,25 @@ class ApplyingVIMStrategyState(BaseState):
                     ),
                 )
                 if get_fail_count >= self.max_failed_queries:
-                    raise exceptions.ApplyVIMStrategyFailedException(
-                        subcloud=strategy_step.subcloud.name,
-                        name=self.strategy_name,
+                    details = "Timeout during recovery of VIM strategy."
+                    self.handle_exception(
+                        strategy_step,
+                        details,
+                        exceptions.ApplyVIMStrategyFailedException,
+                        exc=exc,
                         state=subcloud_strategy.state,
-                        details=(
-                            f"Timeout during recovery of VIM strategy. "
-                            f"Details: {str(e)}"
-                        ),
+                        strategy_name=self.strategy_name,
                     )
                 continue
 
             if subcloud_strategy is None:
-                raise exceptions.ApplyVIMStrategyFailedException(
-                    subcloud=strategy_step.subcloud.name,
-                    name=self.strategy_name,
-                    details="VIM Strategy no longer exists.",
+                details = "VIM Strategy no longer exists."
+                self.handle_exception(
+                    strategy_step,
+                    details,
+                    exceptions.ApplyVIMStrategyFailedException,
+                    strategy_name=self.strategy_name,
                 )
-
             if subcloud_strategy.state == vim.STATE_APPLYING:
                 self._log_apply_progress(strategy_step, subcloud_strategy, last_details)
             elif subcloud_strategy.state == vim.STATE_APPLIED:
@@ -216,25 +222,26 @@ class ApplyingVIMStrategyState(BaseState):
 
         try:
             vim_client = self.get_vim_client(region)
-        except Exception as e:
-            raise exceptions.ApplyVIMStrategyFailedException(
-                subcloud=strategy_step.subcloud.name,
-                name=self.strategy_name,
-                details=f"Failed to get VIM client: {str(e)}",
+        except Exception as exc:
+            details = "Failed to get VIM client."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.ApplyVIMStrategyFailedException,
+                exc=exc,
+                strategy_name=self.strategy_name,
             )
-        subcloud_strategy = self._get_vim_strategy(vim_client, region, strategy_step)
+        subcloud_strategy = self._get_vim_strategy(vim_client, strategy_step)
 
         # We have a VIM strategy, but need to check if it is ready to apply
         if subcloud_strategy.state == vim.STATE_READY_TO_APPLY:
-            self._apply_vim_strategy(vim_client, region, strategy_step)
+            self._apply_vim_strategy(vim_client, strategy_step)
 
         # wait for new strategy to apply or the existing strategy to complete.
         # Loop until the strategy applies. Repeatedly query the API
         # This can take a long time.
         # Waits for up to 60 minutes for the current phase or completion
         # percentage to change before giving up.
-        self._wait_for_strategy_apply(
-            vim_client, region, strategy_step, subcloud_strategy
-        )
+        self._wait_for_strategy_apply(vim_client, strategy_step, subcloud_strategy)
 
         return self.next_state

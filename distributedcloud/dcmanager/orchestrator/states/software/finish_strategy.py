@@ -35,9 +35,9 @@ class FinishStrategyState(BaseState):
         software_version = self._get_software_version(subcloud_releases)
 
         if not software_version:
-            raise exceptions.MissingDeployedRelease(
-                subcloud=strategy_step.subcloud.name,
-                details="Unable to find a deployed release after deployment",
+            details = "Unable to find a deployed release after deployment"
+            self.handle_exception(
+                strategy_step, details, exceptions.SoftwareFinishStrategyException
             )
 
         if strategy_step.subcloud.software_version != software_version:
@@ -73,12 +73,13 @@ class FinishStrategyState(BaseState):
         try:
             software_client = self.get_software_client(self.region_name)
             subcloud_releases = software_client.list()
-        except Exception:
-            message = "Cannot retrieve subcloud releases. Please see logs for details."
-            self.exception_log(strategy_step, message)
-            raise exceptions.SoftwareListFailedException(
-                subcloud=strategy_step.subcloud.name,
-                details=message,
+        except Exception as exc:
+            details = "Cannot retrieve subcloud releases."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.SoftwareFinishStrategyException,
+                exc=exc,
             )
 
         self.debug_log(strategy_step, f"Releases for subcloud: {subcloud_releases}")
@@ -130,14 +131,13 @@ class FinishStrategyState(BaseState):
         self.info_log(strategy_step, f"Deleting releases {releases_to_delete}")
         try:
             software_client.delete(releases_to_delete)
-        except Exception:
-            message = (
-                "Cannot delete releases from subcloud. Please see logs for details."
-            )
-            self.exception_log(strategy_step, message)
-            raise exceptions.SoftwareDeleteFailedException(
-                subcloud=strategy_step.subcloud.name,
-                details=message,
+        except Exception as exc:
+            details = "Cannot delete releases from subcloud."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.SoftwareFinishStrategyException,
+                exc=exc,
             )
 
     def _handle_deploy_commit(self, strategy_step, software_client, releases_to_commit):
@@ -145,6 +145,8 @@ class FinishStrategyState(BaseState):
 
     # If there are releases in deploying state and it's deployed in the regionone,
     # they should be finished executing the deploy delete operation.
+    # TODO(nicodemos): This will be removed after VIM Deploy Orchestration handles
+    # the software deploy delete operation.
     def _handle_deploy_delete(
         self,
         strategy_step,
@@ -161,8 +163,7 @@ class FinishStrategyState(BaseState):
                 f"Deploying release found on subcloud {strategy_step.subcloud.name} "
                 "and is not deployed in System Controller. Aborting."
             )
-            self.error_log(strategy_step, message)
-            raise exceptions.SoftwareDeployDeleteFailedException(
+            raise exceptions.SoftwareFinishStrategyException(
                 subcloud=strategy_step.subcloud.name,
                 details=message,
             )
@@ -176,8 +177,7 @@ class FinishStrategyState(BaseState):
             message = (
                 "Cannot finish deploy delete on subcloud. Please see logs for details."
             )
-            self.exception_log(strategy_step, message)
-            raise exceptions.SoftwareDeployDeleteFailedException(
+            raise exceptions.SoftwareFinishStrategyException(
                 subcloud=strategy_step.subcloud.name,
                 details=message,
             )

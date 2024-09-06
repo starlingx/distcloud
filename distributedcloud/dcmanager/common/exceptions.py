@@ -237,16 +237,6 @@ class CertificateUploadError(DCManagerException):
     message = _("Error while uploading rootca certificate. %(err)s")
 
 
-class LicenseInstallError(DCManagerException):
-    message = _(
-        "Error while installing license on subcloud: %(subcloud_id)s. %(error_message)s"
-    )
-
-
-class LicenseMissingError(DCManagerException):
-    message = _("License does not exist on subcloud: %(subcloud_id)s")
-
-
 class KubeUpgradeFailedException(DCManagerException):
     message = _("Subcloud: %(subcloud)s kube upgrade failed: %(details)s")
 
@@ -259,52 +249,42 @@ class PreCheckFailedException(DCManagerException):
     message = _("Subcloud %(subcloud)s upgrade precheck failed: %(details)s")
 
 
-class SoftwarePreCheckFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s software deploy precheck failed: %(details)s")
+class DCOrchestrationFailedException(DCManagerException):
+    """Base Exception for DC Orchestration Failures."""
 
+    base_message = "Failed for subcloud %(subcloud)s: %(details)s"
 
-class VIMStrategyFailedException(DCManagerException):
-    """Base Exception for VIM Strategy Failures."""
+    def __init__(self, **kwargs):
+        # Check if 'state' is provided and not None
+        state = kwargs.get("state")
+        strategy_name = kwargs.get("strategy_name")
+        if state is not None:
+            self.base_message = f"{self.base_message} State: {state}"
+        if strategy_name is not None:
+            self.base_message = f"{self.base_message} Strategy: {strategy_name}"
 
-    def __init__(self, base_message, **kwargs):
-        if "state" in kwargs:
-            base_message += " State: %(state)s"
-        if "details" in kwargs:
-            base_message += " Details: %(details)s"
-        self.message = base_message
+        self.message = _(self.base_message)
         super().__init__(**kwargs)
 
 
-class CreateVIMStrategyFailedException(VIMStrategyFailedException):
-    def __init__(self, **kwargs):
-        base_message = _("Subcloud %(subcloud)s create VIM %(name)s strategy failed.")
-        super().__init__(base_message, **kwargs)
+class SoftwarePreCheckFailedException(DCOrchestrationFailedException):
+    """Exception for sw-deploy pre-check failures."""
 
 
-class ApplyVIMStrategyFailedException(VIMStrategyFailedException):
-    def __init__(self, **kwargs):
-        base_message = _("Subcloud %(subcloud)s apply VIM %(name)s strategy failed.")
-        super().__init__(base_message, **kwargs)
+class SoftwareInstallLicenseFailedException(DCOrchestrationFailedException):
+    """Exception for sw-deploy installation license failures."""
 
 
-class SoftwareListFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s software list failed: %(details)s")
+class CreateVIMStrategyFailedException(DCOrchestrationFailedException):
+    """Exception for VIM strategy creation failures."""
 
 
-class SoftwareDeleteFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s software delete failed: %(details)s")
+class ApplyVIMStrategyFailedException(DCOrchestrationFailedException):
+    """Exception for VIM strategy apply failures."""
 
 
-class SoftwareDeployCommitFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s software deploy commit failed: %(details)s")
-
-
-class SoftwareDeployDeleteFailedException(DCManagerException):
-    message = _("Subcloud %(subcloud)s software deploy delete failed: %(details)s")
-
-
-class MissingDeployedRelease(DCManagerException):
-    message = _("Subcloud %(subcloud)s is missing a deployed release: %(details)s")
+class SoftwareFinishStrategyException(DCOrchestrationFailedException):
+    """Exception for sw-deploy finish strategy failures."""
 
 
 class PrestagePreCheckFailedException(DCManagerException):

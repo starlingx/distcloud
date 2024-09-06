@@ -130,11 +130,11 @@ STRATEGY_STATE_APPLYING_VIM_PATCH_STRATEGY = "applying VIM patch strategy"
 STRATEGY_STATE_FINISHING_PATCH_STRATEGY = "finishing patch strategy"
 
 # Software orchestration states
-STRATEGY_STATE_SW_PRE_CHECK = "software pre check"
-STRATEGY_STATE_SW_INSTALL_LICENSE = "software install license"
-STRATEGY_STATE_SW_CREATE_VIM_STRATEGY = "create VIM software strategy"
-STRATEGY_STATE_SW_APPLY_VIM_STRATEGY = "apply VIM software strategy"
-STRATEGY_STATE_SW_FINISH_STRATEGY = "finish software strategy"
+STRATEGY_STATE_SW_PRE_CHECK = "sw-deploy pre-check"
+STRATEGY_STATE_SW_INSTALL_LICENSE = "sw-deploy install license"
+STRATEGY_STATE_SW_CREATE_VIM_STRATEGY = "create VIM sw-deploy strategy"
+STRATEGY_STATE_SW_APPLY_VIM_STRATEGY = "apply VIM sw-deploy strategy"
+STRATEGY_STATE_SW_FINISH_STRATEGY = "finish sw-deploy strategy"
 
 # Firmware update orchestration states
 STRATEGY_STATE_IMPORTING_FIRMWARE = "importing firmware"
@@ -212,6 +212,7 @@ DEPLOY_STATE_PRE_INIT_ENROLL_FAILED = "pre-init-enroll-failed"
 DEPLOY_STATE_INITIATING_ENROLL = "initiating-enroll"
 DEPLOY_STATE_INIT_ENROLL_FAILED = "init-enroll-failed"
 DEPLOY_STATE_INIT_ENROLL_COMPLETE = "init-enroll-complete"
+DEPLOY_STATE_APPLY_STRATEGY_FAILED = "apply-strategy-failed"
 DEPLOY_STATE_SW_DEPLOY_IN_PROGRESS = "sw-deploy-in-progress"
 # If any of the following rehoming or secondary statuses
 # are modified, cert-mon code will need to be updated.
