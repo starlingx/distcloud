@@ -35,6 +35,7 @@ from dccommon.exceptions import OAMAddressesNotFound
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.common import consts
+from dcmanager.common.exceptions import InternalError
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
@@ -3055,14 +3056,15 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             "prestage for software deploy.",
         )
 
-    def test_prestage_for_sw_deploy_fails_with_invalid_subcloud_release(self):
-        """Test prestage for sw deploy fails with invalid subcloud release"""
+    @mock.patch.object(cutils, "has_usm_service")
+    def test_prestage_for_sw_deploy_fails_with_keystone_error_on_subcloud(
+        self, mock_has_usm_service
+    ):
+        """Test prestage for sw deploy fails with invalid release"""
 
-        self.params["release"] = "24.09"
         self.params["for_sw_deploy"] = "true"
 
-        mock_subcloud = mock.MagicMock()
-        mock_subcloud.get.return_value = "22.12"
+        mock_has_usm_service.side_effect = InternalError()
 
         self.mock_get_validated_sw_version_for_prestage.side_effect = (
             self.original_get_validated_sw_version_for_prestage
@@ -3073,9 +3075,31 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Prestage failed '{self.subcloud.name}': The subcloud release version "
-            "is different than that of the system controller, cannot prestage for "
-            "software deploy.",
+            f"Prestage failed '{self.subcloud.name}': Unable to check USM "
+            "service for subcloud, cannot prestage for software deploy.",
+        )
+
+    @mock.patch.object(cutils, "has_usm_service")
+    def test_prestage_for_sw_deploy_fails_with_usm_endpoint_not_found_on_subcloud(
+        self, mock_has_usm_service
+    ):
+        """Test prestage for sw deploy fails with invalid release"""
+
+        self.params["for_sw_deploy"] = "true"
+
+        mock_has_usm_service.return_value = False
+
+        self.mock_get_validated_sw_version_for_prestage.side_effect = (
+            self.original_get_validated_sw_version_for_prestage
+        )
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage failed '{self.subcloud.name}': USM service not found "
+            "for subcloud, cannot prestage for software deploy.",
         )
 
     def test_prestage_for_sw_deploy_fails_with_22_12_release(self):

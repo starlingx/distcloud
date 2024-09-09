@@ -1335,7 +1335,6 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
     for_install = not for_sw_deploy
     software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE)
     subcloud = {} if subcloud is None else subcloud
-    subcloud_sw_version = subcloud.get("software_version")
 
     # If the release parameter is present in the payload, it validates if
     # the format is MM.mm. Otherwise it will return error.
@@ -1380,13 +1379,25 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
                 "Only base release is deployed, cannot prestage for software deploy."
             )
 
-        # Ensures that system controller and subcloud have the same
-        # software version to apply the sw deploy
-        if subcloud and subcloud_sw_version and subcloud_sw_version != software_version:
-            return None, (
-                "The subcloud release version is different than that of the "
-                "system controller, cannot prestage for software deploy."
+        # We want to check if the USM API is available on the subcloud. This allows us
+        # to determine if the prestage should be run for N-1 subcloud.
+        if subcloud and subcloud.software_version < consts.SOFTWARE_VERSION_24_09:
+            LOG.info(
+                f"Checking USM service availability for {subcloud.name} with software "
+                f"version: {subcloud.software_version}"
             )
+            try:
+                if not has_usm_service(subcloud.region_name):
+                    return None, (
+                        "USM service not found for subcloud, cannot prestage for "
+                        "software deploy."
+                    )
+            except exceptions.InternalError:
+                return None, (
+                    "Unable to check USM service for subcloud, cannot prestage "
+                    "for software deploy."
+                )
+
     else:
         # Check for install release param
         if not is_software_ready_to_be_prestaged_for_install(
@@ -2235,7 +2246,22 @@ def validate_software_strategy(release_id: str):
         pecan.abort(400, _(message))
 
 
-def has_usm_service(subcloud_region, keystone_session):
+def has_usm_service(subcloud_region, keystone_session=None):
+
+    # Lookup keystone client session if not specified
+    if not keystone_session:
+        try:
+            os_client = OpenStackDriver(
+                region_name=subcloud_region,
+                region_clients=None,
+                fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
+            )
+            keystone_session = os_client.keystone_client.session
+        except Exception:
+            LOG.exception(
+                f"Failed to get keystone client for subcloud_region: {subcloud_region}"
+            )
+            raise exceptions.InternalError()
     try:
         # Try to get the usm endpoint for the subcloud.
         software_v1.SoftwareClient(keystone_session, region=subcloud_region)

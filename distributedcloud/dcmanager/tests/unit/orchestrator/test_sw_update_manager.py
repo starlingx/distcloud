@@ -320,7 +320,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_steps[0]["subcloud_id"], 1)
 
     @mock.patch.object(prestage, "global_prestage_validate")
-    def test_create_prestage_strategy_sw_deploy_with_invalid_release_with_cloud_name(
+    def test_create_prestage_strategy_sw_deploy_with_keystone_client_error_on_subcloud(
         self,
         mock_global_prestage_validate,
     ):
@@ -330,6 +330,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.fake_group2.id,
             is_managed=True,
             is_online=True,
+            sw_version="22.12",
         )
         self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
 
@@ -339,8 +340,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["release"] = "24.09"
         data["cloud_name"] = fake_subcloud1.name
 
-        mock_subcloud = mock.MagicMock()
-        mock_subcloud.get.return_value = "22.12"
         mock_global_prestage_validate.return_value = None
 
         um = sw_update_manager.SwUpdateManager()
@@ -349,13 +348,52 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             um.create_sw_update_strategy(self.ctxt, payload=data)
         except exceptions.BadRequest as e:
             expected_msg = (
-                "Bad strategy request: The subcloud release version is different than "
-                "that of the system controller, cannot prestage for software deploy."
+                "Bad strategy request: Unable to check USM service for "
+                "subcloud, cannot prestage for software deploy."
             )
+
             self.assertEqual(str(e), expected_msg)
 
     @mock.patch.object(prestage, "global_prestage_validate")
-    def test_create_prestage_strategy_sw_deploy_with_invalid_subcloud_release(
+    @mock.patch.object(cutils, "has_usm_service")
+    def test_create_prestage_strategy_sw_deploy_with_usm_endpoint_not_found_on_subcloud(
+        self,
+        mock_global_prestage_validate,
+        mock_has_usm_service,
+    ):
+        fake_subcloud1 = self.create_subcloud(
+            self.ctxt,
+            "subcloud1",
+            self.fake_group2.id,
+            is_managed=True,
+            is_online=True,
+            sw_version="22.12",
+        )
+        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        data["max-parallel-subclouds"] = "1"
+        data["for_sw_deploy"] = "true"
+        data["release"] = "24.09"
+        data["cloud_name"] = fake_subcloud1.name
+
+        mock_global_prestage_validate.return_value = None
+        mock_has_usm_service.return_value = False
+
+        um = sw_update_manager.SwUpdateManager()
+        # Handle the exception to validate expected message
+        try:
+            um.create_sw_update_strategy(self.ctxt, payload=data)
+        except exceptions.BadRequest as e:
+            expected_msg = (
+                "Bad strategy request: USM service not found for subcloud, "
+                "cannot prestage for software deploy."
+            )
+
+            self.assertEqual(str(e), expected_msg)
+
+    @mock.patch.object(prestage, "global_prestage_validate")
+    def test_create_prestage_strategy_sw_deploy_with_keystone_client_error(
         self,
         mock_global_prestage_validate,
     ):
@@ -365,6 +403,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.fake_group2.id,
             is_managed=True,
             is_online=True,
+            sw_version="22.12",
         )
         self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
 
@@ -373,8 +412,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["for_sw_deploy"] = "true"
         data["release"] = "24.09"
 
-        mock_subcloud = mock.MagicMock()
-        mock_subcloud.get.return_value = "22.12"
         mock_global_prestage_validate.return_value = None
 
         um = sw_update_manager.SwUpdateManager()
@@ -389,8 +426,49 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
             self.mock_log.warn.assert_called_once_with(
                 f"Excluding subcloud from prestage strategy: {fake_subcloud1.name} "
-                "due to: The subcloud release version is different than that of the "
-                "system controller, cannot prestage for software deploy."
+                "due to: Unable to check USM service for subcloud, "
+                "cannot prestage for software deploy."
+            )
+
+    @mock.patch.object(prestage, "global_prestage_validate")
+    @mock.patch.object(cutils, "has_usm_service")
+    def test_create_prestage_strategy_sw_deploy_with_usm_endpoint_not_found(
+        self,
+        mock_global_prestage_validate,
+        mock_has_usm_service,
+    ):
+        fake_subcloud1 = self.create_subcloud(
+            self.ctxt,
+            "subcloud1",
+            self.fake_group2.id,
+            is_managed=True,
+            is_online=True,
+            sw_version="22.12",
+        )
+        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+
+        data = copy.copy(FAKE_SW_PRESTAGE_DATA)
+        data["max-parallel-subclouds"] = "1"
+        data["for_sw_deploy"] = "true"
+        data["release"] = "24.09"
+
+        mock_global_prestage_validate.return_value = None
+        mock_has_usm_service.return_value = False
+
+        um = sw_update_manager.SwUpdateManager()
+
+        # Handle the exception to validate expected LOG.warn message
+        try:
+            um.create_sw_update_strategy(self.ctxt, payload=data)
+        except exceptions.BadRequest as e:
+            self.assertEqual(
+                str(e), "Bad strategy request: Strategy has no steps to apply"
+            )
+
+            self.mock_log.warn.assert_called_once_with(
+                f"Excluding subcloud from prestage strategy: {fake_subcloud1.name} "
+                "due to: USM service not found for subcloud, cannot prestage for "
+                "software deploy."
             )
 
     def test_create_sw_update_strategy_parallel_for_a_single_group(self):

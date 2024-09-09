@@ -150,7 +150,7 @@ class TestPrestagePreCheckState(TestPrestage):
             extra_args=self.required_extra_args_with_oam,
         )
 
-    def test_prestage_pre_check_succeds_with_prestage_software_version(self):
+    def test_prestage_pre_check_succeeds_with_prestage_software_version(self):
         """Test prestage pre check succeeds with prestage software version"""
 
         extra_args = copy.copy(REQUIRED_EXTRA_ARGS)

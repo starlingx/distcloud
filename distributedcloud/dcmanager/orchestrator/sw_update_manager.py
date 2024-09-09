@@ -274,18 +274,29 @@ class SwUpdateManager(manager.Manager):
 
             # TODO(rlima): move prestage to its validator
             if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-                # For sw deploy, the system controller and subcloud SW version
-                # should be the same
+                # For sw deploy we need to check the USM availability on the subcloud
+                # to have deploy compatibility in cases subcloud N-1 release
                 if (
                     for_sw_deploy
-                    and payload.get(consts.PRESTAGE_REQUEST_RELEASE)
-                    != subcloud.software_version
+                    and subcloud.software_version < consts.SOFTWARE_VERSION_24_09
                 ):
-                    msg = (
-                        "The subcloud release version is different than that of the "
-                        "system controller, cannot prestage for software deploy."
-                    )
-                    raise exceptions.BadRequest(resource="strategy", msg=str(msg))
+                    try:
+                        if not utils.has_usm_service(subcloud.region_name):
+                            msg = (
+                                "USM service not found for subcloud, cannot prestage "
+                                "for software deploy."
+                            )
+                            raise exceptions.BadRequest(
+                                resource="strategy", msg=str(msg)
+                            )
+                    except exceptions.InternalError as ex:
+                        msg = (
+                            "Unable to check USM service for subcloud, cannot prestage "
+                            "for software deploy."
+                        )
+                        raise exceptions.BadRequest(
+                            resource="strategy", msg=str(msg)
+                        ) from ex
 
                 # Do initial validation for subcloud
                 try:
@@ -407,25 +418,34 @@ class SwUpdateManager(manager.Manager):
             filtered_valid_subclouds = []
             for subcloud, sync_status in valid_subclouds:
                 warn_msg = f"Excluding subcloud from prestage strategy: {subcloud.name}"
-                # For sw deploy, the system controller and subcloud SW version
-                # should be the same
+                # For sw deploy we need to check the USM availability on the subcloud
+                # to have deploy compatibility in cases subcloud N-1 release
                 if (
                     for_sw_deploy
-                    and payload.get(consts.PRESTAGE_REQUEST_RELEASE)
-                    != subcloud.software_version
+                    and subcloud.software_version < consts.SOFTWARE_VERSION_24_09
                 ):
-                    msg = (
-                        "The subcloud release version is different than that of the "
-                        "system controller, cannot prestage for software deploy."
-                    )
-                    LOG.warn(f"{warn_msg} due to: {msg}")
-                else:
-                    # Do initial validation for subcloud
                     try:
-                        prestage.initial_subcloud_validate(subcloud)
-                        filtered_valid_subclouds.append((subcloud, sync_status))
-                    except exceptions.PrestagePreCheckFailedException:
-                        LOG.warn(warn_msg)
+                        if not utils.has_usm_service(subcloud.region_name):
+                            msg = (
+                                "USM service not found for subcloud, cannot prestage "
+                                "for software deploy."
+                            )
+                            LOG.warn(f"{warn_msg} due to: {msg}")
+                            continue
+                    except exceptions.InternalError:
+                        msg = (
+                            "Unable to check USM service for subcloud, cannot prestage "
+                            "for software deploy."
+                        )
+                        LOG.warn(f"{warn_msg} due to: {msg}")
+                        continue
+
+                # Do initial validation for subcloud
+                try:
+                    prestage.initial_subcloud_validate(subcloud)
+                    filtered_valid_subclouds.append((subcloud, sync_status))
+                except exceptions.PrestagePreCheckFailedException:
+                    LOG.warn(warn_msg)
             valid_subclouds = filtered_valid_subclouds
 
         if not valid_subclouds:
