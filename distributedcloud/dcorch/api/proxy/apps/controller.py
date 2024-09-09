@@ -686,7 +686,7 @@ class LocalStorage(object):
 
 
 class USMAPIController(APIController):
-    ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+    ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_USM
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,
         webob.exc.HTTPAccepted.code,

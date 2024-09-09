@@ -288,7 +288,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         )
         num_default_subcloud_statuses = len(default_subcloud_statuses)
         self.assertEqual(
-            num_default_subcloud_statuses, len(dccommon_consts.ENDPOINT_TYPES_LIST)
+            num_default_subcloud_statuses, len(dccommon_consts.AUDIT_TYPES_LIST)
         )
 
         endpoint_type1 = "testendpoint1"
@@ -496,7 +496,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
         )
         num_default_subcloud_statuses = len(default_subcloud_statuses)
         self.assertEqual(
-            num_default_subcloud_statuses, len(dccommon_consts.ENDPOINT_TYPES_LIST)
+            num_default_subcloud_statuses, len(dccommon_consts.AUDIT_TYPES_LIST)
         )
 
         endpoint_type1 = "testendpoint1"

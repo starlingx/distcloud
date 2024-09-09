@@ -727,7 +727,7 @@ class SubcloudStateManager(manager.Manager):
                 # unknown.
                 endpoint_data = dict()
 
-                for endpoint in dccommon_consts.ENDPOINT_TYPES_LIST:
+                for endpoint in dccommon_consts.AUDIT_TYPES_LIST:
                     endpoint_data[endpoint] = dccommon_consts.SYNC_STATUS_UNKNOWN
 
                 self._bulk_update_subcloud_endpoint_status(

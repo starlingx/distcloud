@@ -134,7 +134,7 @@ class SubcloudAuditManager(manager.Manager):
                     self.context, subcloud.id
                 )
                 # Use set difference to find missing endpoints
-                endpoint_type_set = set(dccommon_consts.ENDPOINT_TYPES_LIST)
+                endpoint_type_set = set(dccommon_consts.AUDIT_TYPES_LIST)
                 subcloud_set = set()
                 for subcloud_status in subcloud_statuses:
                     subcloud_set.add(subcloud_status.endpoint_type)

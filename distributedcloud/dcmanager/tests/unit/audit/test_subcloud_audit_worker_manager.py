@@ -415,7 +415,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         FIRMWARE = dccommon_consts.ENDPOINT_TYPE_FIRMWARE
         KUBERNETES = dccommon_consts.ENDPOINT_TYPE_KUBERNETES
         KUBE_ROOTCA = dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA
-        SOFTWARE = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+        SOFTWARE = dccommon_consts.AUDIT_TYPE_SOFTWARE
 
         self.endpoint_data.update(
             {

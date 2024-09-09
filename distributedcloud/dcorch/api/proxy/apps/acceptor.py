@@ -46,13 +46,14 @@ class Acceptor(Router):
             consts.ENDPOINT_TYPE_VOLUME: self._default_dispatcher,
             consts.ENDPOINT_TYPE_NETWORK: self._default_dispatcher,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY: self._default_dispatcher,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE: self._default_dispatcher,
+            dccommon_consts.ENDPOINT_TYPE_USM: self._default_dispatcher,
         }
         if CONF.type in self.forwarder_map:
             forwarder = self.forwarder_map[CONF.type]
         else:
             forwarder = None
 
+        # NOTE(nicodemos): Remove patching after is no longer supported
         self.route_map = {
             consts.ENDPOINT_TYPE_COMPUTE: self.add_compute_routes,
             dccommon_consts.ENDPOINT_TYPE_PLATFORM: self.add_platform_routes,
@@ -60,7 +61,7 @@ class Acceptor(Router):
             consts.ENDPOINT_TYPE_NETWORK: self.add_network_routes,
             dccommon_consts.ENDPOINT_TYPE_PATCHING: self.add_patch_routes,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY: self.add_identity_routes,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE: self.add_usm_routes,
+            dccommon_consts.ENDPOINT_TYPE_USM: self.add_usm_routes,
         }
         self._conf = conf
         mapper = routes.Mapper()

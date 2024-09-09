@@ -359,7 +359,7 @@ ROUTE_METHOD_MAP = {
         consts.RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS: ["PUT", "DELETE"],
         consts.RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS: ["DELETE"],
     },
-    dccommon_consts.ENDPOINT_TYPE_SOFTWARE: {
+    dccommon_consts.ENDPOINT_TYPE_USM: {
         consts.RESOURCE_TYPE_USM_RELEASE: ["PUT", "POST", "DELETE"],
     },
 }

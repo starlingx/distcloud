@@ -107,16 +107,26 @@ ENDPOINT_TYPE_KUBERNETES = "kubernetes"
 ENDPOINT_TYPE_KUBE_ROOTCA = "kube-rootca"
 ENDPOINT_TYPE_USM = "usm"
 ENDPOINT_TYPE_PLATFORM = "platform"
-ENDPOINT_TYPE_SOFTWARE = "usm"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
 # TODO(nicodemos): Remove patching/load after patching is no longer supported
 ENDPOINT_TYPE_LOAD = "load"
 ENDPOINT_TYPE_PATCHING = "patching"
 
+# TODO(nicodemos): Rename all other audit to use AUDIT_TYPE_
+AUDIT_TYPE_SOFTWARE = "software"
+
 # All endpoint types
-# TODO(nicodemos): Remove patching/load after is no longer supported
+# TODO(nicodemos): Remove patching after is no longer supported
 ENDPOINT_TYPES_LIST = [
+    ENDPOINT_TYPE_PLATFORM,
+    ENDPOINT_TYPE_PATCHING,
+    ENDPOINT_TYPE_IDENTITY,
+    ENDPOINT_TYPE_USM,
+]
+
+# TODO(nicodemos): Remove patching/load after is no longer supported
+AUDIT_TYPES_LIST = [
     ENDPOINT_TYPE_PLATFORM,
     ENDPOINT_TYPE_PATCHING,
     ENDPOINT_TYPE_IDENTITY,
@@ -125,12 +135,13 @@ ENDPOINT_TYPES_LIST = [
     ENDPOINT_TYPE_FIRMWARE,
     ENDPOINT_TYPE_KUBERNETES,
     ENDPOINT_TYPE_KUBE_ROOTCA,
-    ENDPOINT_TYPE_SOFTWARE,
+    AUDIT_TYPE_SOFTWARE,
 ]
+
 
 # All endpoint audit requests
 # TODO(nicodemos): Remove patching/load after is no longer supported
-# TODO(nicodemos): The ENDPOINT_TYPE_SOFTWARE will use the 'spare_audit_requested'
+# TODO(nicodemos): The AUDIT_TYPE_SOFTWARE will use the 'spare_audit_requested'
 # temporarily until the USM feature is fully complete. Afterward, the software audit
 # will replace the patch audit.
 ENDPOINT_AUDIT_REQUESTS = {
@@ -139,7 +150,7 @@ ENDPOINT_AUDIT_REQUESTS = {
     ENDPOINT_TYPE_KUBE_ROOTCA: "kube_rootca_update_audit_requested",
     ENDPOINT_TYPE_LOAD: "load_audit_requested",
     ENDPOINT_TYPE_PATCHING: "patch_audit_requested",
-    ENDPOINT_TYPE_SOFTWARE: "spare_audit_requested",
+    AUDIT_TYPE_SOFTWARE: "spare_audit_requested",
 }
 
 # TODO(nicodemos): Remove patching/load after is no longer supported
@@ -164,7 +175,7 @@ DCAGENT_ENDPOINT_TYPE_MAP = {
     FIRMWARE_AUDIT: ENDPOINT_TYPE_FIRMWARE,
     KUBERNETES_AUDIT: ENDPOINT_TYPE_KUBERNETES,
     KUBE_ROOTCA_AUDIT: ENDPOINT_TYPE_KUBE_ROOTCA,
-    SOFTWARE_AUDIT: ENDPOINT_TYPE_SOFTWARE,
+    SOFTWARE_AUDIT: AUDIT_TYPE_SOFTWARE,
 }
 
 MIN_VERSION_FOR_DCAGENT = "24.09"

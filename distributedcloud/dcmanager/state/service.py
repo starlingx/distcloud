@@ -146,7 +146,7 @@ class DCManagerStateService(service.Service):
         # If the software sync status is being set to unknown, trigger the
         # software audit so it can update the sync status ASAP.
         if (
-            endpoint_type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+            endpoint_type == dccommon_consts.AUDIT_TYPE_SOFTWARE
             and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
         ):
             self.audit_rpc_client.trigger_software_audit(context)

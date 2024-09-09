@@ -128,10 +128,7 @@ FAKE_SERVICES = [
         dccommon_consts.ENDPOINT_NAME_VIM, dccommon_consts.ENDPOINT_TYPE_NFV, 5
     ),
     FakeService(
-        dccommon_consts.ENDPOINT_TYPE_DC_CERT, dccommon_consts.ENDPOINT_TYPE_DC_CERT, 6
-    ),
-    FakeService(
-        dccommon_consts.ENDPOINT_NAME_USM, dccommon_consts.ENDPOINT_TYPE_SOFTWARE, 7
+        dccommon_consts.ENDPOINT_NAME_USM, dccommon_consts.ENDPOINT_TYPE_USM, 6
     ),
 ]
 
@@ -318,7 +315,7 @@ SERVICE_ENDPOINTS = [
     dccommon_consts.ENDPOINT_TYPE_PATCHING,
     dccommon_consts.ENDPOINT_TYPE_FM,
     dccommon_consts.ENDPOINT_TYPE_NFV,
-    dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+    dccommon_consts.AUDIT_TYPE_SOFTWARE,
 ]
 
 
@@ -2661,7 +2658,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         ssm = subcloud_state_manager.SubcloudStateManager()
 
         # create sync statuses for endpoints and set them to in-sync
-        for endpoint in dccommon_consts.ENDPOINT_TYPES_LIST:
+        for endpoint in dccommon_consts.AUDIT_TYPES_LIST:
             db_api.subcloud_status_create(self.ctx, self.subcloud.id, endpoint)
             ssm.update_subcloud_endpoint_status(
                 self.ctx,
@@ -2729,7 +2726,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
 
     def test_update_subcloud_identity_endpoint(self):
         self.assertIsNotNone(self.subcloud)
-        for endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
+        for endpoint_type in dccommon_consts.AUDIT_TYPES_LIST:
             subcloud_status = db_api.subcloud_status_get(
                 self.ctx, self.subcloud.id, endpoint_type
             )
