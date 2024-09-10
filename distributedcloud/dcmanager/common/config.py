@@ -156,10 +156,10 @@ scheduler_opts = [
 common_opts = [
     cfg.IntOpt("workers", default=1, help="number of workers"),
     cfg.IntOpt("orch_workers", default=1, help="number of orchestrator workers"),
-    cfg.IntOpt("state_workers", default=4, help="number of state workers"),
+    cfg.IntOpt("state_workers", default=8, help="number of state workers"),
     cfg.IntOpt("audit_workers", default=1, help="number of audit workers"),
     cfg.IntOpt(
-        "audit_worker_workers", default=4, help="number of audit-worker workers"
+        "audit_worker_workers", default=8, help="number of audit-worker workers"
     ),
     cfg.StrOpt("host", default="localhost", help="hostname of the machine"),
     cfg.IntOpt(

@@ -286,7 +286,7 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
     def test_post_fails_with_invalid_max_parallel_subclouds(self):
         """Test post fails with invalid max parallel subclouds"""
 
-        invalid_values = ["fake", 0, 501, -2]
+        invalid_values = ["fake", 0, 5001, -2]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
             self.params["max-parallel-subclouds"] = invalid_value

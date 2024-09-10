@@ -52,6 +52,8 @@ FORCE_ALL_TYPES = [
     consts.SW_UPDATE_TYPE_PRESTAGE,
 ]
 
+MAX_PARALLEL_SUBCLOUDS_LIMIT = 5000
+
 
 class SwUpdateStrategyController(object):
 
@@ -186,7 +188,10 @@ class SwUpdateStrategyController(object):
                     max_parallel_subclouds = int(max_parallel_subclouds_str)
                 except ValueError:
                     pecan.abort(400, _("max-parallel-subclouds invalid"))
-                if max_parallel_subclouds < 1 or max_parallel_subclouds > 500:
+                if (
+                    max_parallel_subclouds < 1
+                    or max_parallel_subclouds > MAX_PARALLEL_SUBCLOUDS_LIMIT
+                ):
                     pecan.abort(400, _("max-parallel-subclouds invalid"))
 
             stop_on_failure = payload.get("stop-on-failure")

@@ -231,7 +231,7 @@ class TestSubcloudGroupPost(BaseTestSubcloudGroupController, PostJSONMixin):
         The acceptable range is between 1 and 500
         """
 
-        invalid_values = [0, 501, -1, "fake"]
+        invalid_values = [0, 5001, -1, "fake"]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
             self.params["max_parallel_subclouds"] = invalid_value
@@ -442,7 +442,7 @@ class TestSubcloudGroupPatch(BaseTestSubcloudGroupController, UpdateMixin):
     def test_patch_fails_with_invalid_max_parallel_subclouds(self):
         """Test patch fails with invalid max parallel subclouds"""
 
-        invalid_values = [0, 501, -1, "fake"]
+        invalid_values = [0, 5001, -1, "fake"]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
             self.params = {"max_parallel_subclouds": str(invalid_value)}
