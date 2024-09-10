@@ -192,9 +192,12 @@ class OrchThread(threading.Thread):
             details = "%s: %s" % (last_state, info)
         else:
             details = str(info)
-        # details cannot exceed 255 chars. truncate and add '..'
-        if len(details) > 255:
-            details = details[:253] + ".."
+        # details cannot exceed 1000 chars. inform user to check full logs
+        if len(details) > 1000:
+            details = (
+                "Error message longer than 1000 characters, "
+                "please check orchestrator logs for additional details."
+            )
         return details
 
     def determine_state_operator(self, strategy_step):
