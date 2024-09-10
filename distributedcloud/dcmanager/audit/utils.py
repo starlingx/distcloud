@@ -50,7 +50,8 @@ def request_subcloud_audits(
         values["kube_rootca_update_audit_requested"] = True
     if audit_software:
         values["spare_audit_requested"] = True
-    db_api.subcloud_audits_update_all(context, values)
+    if values:
+        db_api.subcloud_audits_update_all(context, values)
 
 
 def filter_endpoint_data(context, subcloud, endpoint_data):

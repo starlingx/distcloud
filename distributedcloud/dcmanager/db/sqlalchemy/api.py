@@ -272,7 +272,7 @@ def subcloud_audits_bulk_end_audit(context, audits_finished):
     for subcloud_audit in subcloud_audits:
         audit_finished = audits_finished[subcloud_audit.subcloud_id]
         entry = {
-            "id": subcloud_audit.subcloud_id,
+            "id": subcloud_audit.id,
             "audit_finished_at": audit_finished["timestamp"],
             "state_update_requested": False,
             **{
