@@ -392,44 +392,28 @@ class SyncThread(object):
         )
 
         actual_sync_requests = []
-        alarmable = False
         for req in sync_requests:
             # Failed orch requests were taken into consideration when reporting
             # sync status to the dcmanager. They need to be removed from the
             # orch requests list before proceeding.
             if req.state != consts.ORCH_REQUEST_STATE_FAILED:
                 actual_sync_requests.append(req)
-            else:
-                # Any failed state should be alarmable
-                alarmable = True
-
-            # Do not raise an alarm if all the sync requests are due to
-            # a fernet key rotation, as these are expected to occur
-            # periodically.
-            if req.orch_job.source_resource_id != FERNET_REPO_MASTER_ID:
-                alarmable = True
-
-        # todo: for each request look up sync handler based on
-        # resource type (I'm assuming here we're not storing a python
-        # object in the DB)
-        # Update dcmanager with the current sync status.
-        self.set_sync_status(
-            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, alarmable=alarmable
-        )
-        sync_status_start = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         if not actual_sync_requests:
             LOG.info(
                 "Sync resources done for subcloud - no valid sync requests",
                 extra=self.log_extra,
             )
-            return
+            # We got FAILED requests, set sync_status=out-of-sync
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
+            raise exceptions.ResourceOutOfSync()
         elif not self.is_subcloud_enabled():
             LOG.info(
                 "Sync resources done for subcloud - subcloud is disabled",
                 extra=self.log_extra,
             )
-            return
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
+            raise exceptions.ResourceOutOfSync()
 
         # Subcloud is enabled and there are pending sync requests, so
         # we have work to do.
@@ -489,19 +473,25 @@ class SyncThread(object):
                         request.save()
                         retry_count += 1
                         # we'll retry
-                    except exceptions.SyncRequestFailed:
+                    except (
+                        exceptions.SyncRequestFailed,
+                        exceptions.SyncRequestAbortedBySystem,
+                    ):
                         request.state = consts.ORCH_REQUEST_STATE_FAILED
                         request.save()
                         retry_count = self.MAX_RETRY
-                    except exceptions.SyncRequestAbortedBySystem:
+                    except Exception as e:
+                        LOG.error(
+                            f"Unexpected error during sync: {e}",
+                            extra=self.log_extra,
+                        )
                         request.state = consts.ORCH_REQUEST_STATE_FAILED
-                        request.save()
-                        retry_count = self.MAX_RETRY
                         request_aborted = True
+                        break
 
-                # If we fall out of the retry loop we either succeeded
-                # or failed multiple times and want to move to the next
-                # request.
+                # If retry_count reaches MAX_RETRY, mark the request as aborted
+                if retry_count >= self.MAX_RETRY:
+                    request_aborted = True
 
         except exceptions.EndpointNotReachable:
             # Endpoint not reachable, throw away all the sync requests.
@@ -513,6 +503,7 @@ class SyncThread(object):
             )
             # del sync_requests[:] #This fails due to:
             # 'OrchRequestList' object does not support item deletion
+            request_aborted = True
 
         sync_requests = orchrequest.OrchRequestList.get_by_attrs(
             self.ctxt,
@@ -520,27 +511,31 @@ class SyncThread(object):
             target_region_name=region_name,
             states=self.PENDING_SYNC_REQUEST_STATES,
         )
+        alarmable = False
+        for req in sync_requests:
+            # Any failed state should be alarmable
+            if req.state == consts.ORCH_REQUEST_STATE_FAILED:
+                alarmable = True
 
-        if (
-            sync_requests
-            and sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        ):
-            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
+            # Do not raise an alarm if all the sync requests are due to
+            # a fernet key rotation, as these are expected to occur
+            # periodically.
+            if req.orch_job.source_resource_id != FERNET_REPO_MASTER_ID:
+                alarmable = True
+
+        # If there are pending or aborted requests, update the status to out-of-sync
+        if sync_requests or request_aborted:
+            self.set_sync_status(
+                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, alarmable=alarmable
+            )
+
             LOG.info(
-                "End of resource sync out-of-sync. {} sync request(s)".format(
-                    len(sync_requests)
-                ),
+                "End of resource sync out-of-sync. {} sync "
+                "request(s).".format(len(sync_requests)),
                 extra=self.log_extra,
             )
-        elif sync_requests and request_aborted:
-            if sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
-                self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-            LOG.info(
-                "End of resource sync out-of-sync. {} sync request(s): "
-                "request_aborted".format(len(sync_requests)),
-                extra=self.log_extra,
-            )
-        elif sync_status_start != dccommon_consts.SYNC_STATUS_IN_SYNC:
+            raise exceptions.ResourceOutOfSync()
+        else:
             self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
             LOG.info(
                 "End of resource sync in-sync. {} sync request(s)".format(

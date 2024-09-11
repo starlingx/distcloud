@@ -120,6 +120,8 @@ class GenericSyncWorkerManager(object):
                 raise  # not my timeout
             LOG.exception(f"Sync timed out for {subcloud_name}/{endpoint_type}.")
             new_state = dco_consts.SYNC_STATUS_FAILED
+        except exceptions.ResourceOutOfSync:
+            new_state = dco_consts.SYNC_STATUS_FAILED
         except Exception as e:
             LOG.exception(f"Sync failed for {subcloud_name}/{endpoint_type}: {e}")
             new_state = dco_consts.SYNC_STATUS_FAILED
