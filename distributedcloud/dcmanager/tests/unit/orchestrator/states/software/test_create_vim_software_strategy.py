@@ -81,6 +81,7 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             "relaxed",
             release=RELEASE_ID,
             rollback=False,
+            delete=True,
         )
 
         # On success, the state should transition to the next state

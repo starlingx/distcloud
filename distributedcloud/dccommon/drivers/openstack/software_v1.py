@@ -81,12 +81,6 @@ class SoftwareClient(base.DriverBase):
         response = requests.post(url, headers=self.headers, timeout=timeout)
         return self._handle_response(response, operation="Deploy precheck")
 
-    def deploy_delete(self, timeout=REST_DELETE_TIMEOUT):
-        """Deploy delete"""
-        url = self.endpoint + "/deploy"
-        response = requests.delete(url, headers=self.headers, timeout=timeout)
-        return self._handle_response(response, operation="Deploy delete")
-
     def show_deploy(self, timeout=REST_DEFAULT_TIMEOUT):
         """Show deploy"""
         url = self.endpoint + "/deploy"

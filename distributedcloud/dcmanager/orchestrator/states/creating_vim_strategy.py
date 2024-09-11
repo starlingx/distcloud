@@ -44,10 +44,13 @@ class CreatingVIMStrategyState(BaseState):
             opts_dict["release_id"] = release_id
             # Create rollback = False since DC orchestration do not support rollback
             opts_dict["rollback"] = False
+            # Create delete = True to enable VIM Orch to perform `sofware deploy delete`
+            opts_dict["delete"] = True
 
         try:
             # Call the API to build the VIM strategy
-            # release and rollback will be sent as a **kwargs value for sw-deploy
+            # release, rollback and delete will be sent as a **kwargs value
+            # for sw-deploy strategy
             subcloud_strategy = self.get_vim_client(region).create_strategy(
                 self.strategy_name,
                 opts_dict["storage-apply-type"],
@@ -57,6 +60,7 @@ class CreatingVIMStrategyState(BaseState):
                 opts_dict["alarm-restriction-type"],
                 release=opts_dict.get("release_id"),
                 rollback=opts_dict.get("rollback"),
+                delete=opts_dict.get("delete"),
             )
         except vim_exc.VIMClientException as exc:
             details = "Failed to create VIM strategy."

@@ -88,7 +88,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list = mock.MagicMock()
         self.software_client.delete = mock.MagicMock()
         self.software_client.commit_patch = mock.MagicMock()
-        self.software_client.deploy_delete = mock.MagicMock()
         self._read_from_cache = mock.MagicMock()
 
     def test_finish_strategy_success(self):
@@ -105,7 +104,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.assertItemsEqual(["starlingx-9.0.4"], call_args[0])
 
         self.software_client.commit_patch.assert_not_called()
-        self.software_client.deploy_delete.assert_called_once()
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
@@ -162,23 +160,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
         mock_base_stopped.return_value = True
-
-        self.worker.perform_state_action(self.strategy_step)
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
-        )
-
-    def test_finish_strategy_fails_when_deploy_delete_exception(self):
-        """Test finish strategy fails when software client deploy_delete
-
-        raises exception
-        """
-
-        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
-
-        self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
-        self.software_client.deploy_delete.side_effect = Exception()
 
         self.worker.perform_state_action(self.strategy_step)
 
