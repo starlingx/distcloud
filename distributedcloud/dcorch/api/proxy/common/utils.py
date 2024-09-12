@@ -34,6 +34,7 @@ def is_space_available(partition, size):
     return False if available_space < size else True
 
 
+# TODO(nicodemos): Remove patching when is no longer supported
 def get_host_port_options(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.bind_host, cfg.compute.bind_port
@@ -41,7 +42,7 @@ def get_host_port_options(cfg):
         return cfg.platform.bind_host, cfg.platform.bind_port
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.bind_host, cfg.network.bind_port
-    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_USM:
         return cfg.usm.bind_host, cfg.usm.bind_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
         return cfg.patching.bind_host, cfg.patching.bind_port
@@ -54,6 +55,7 @@ def get_host_port_options(cfg):
         return None, None
 
 
+# TODO(nicodemos): Remove patching when is no longer supported
 def get_remote_host_port_options(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.remote_host, cfg.compute.remote_port
@@ -61,7 +63,7 @@ def get_remote_host_port_options(cfg):
         return cfg.platform.remote_host, cfg.platform.remote_port
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.remote_host, cfg.network.remote_port
-    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_SOFTWARE:
+    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_USM:
         return cfg.usm.remote_host, cfg.usm.remote_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
         return cfg.patching.remote_host, cfg.patching.remote_port
@@ -74,6 +76,7 @@ def get_remote_host_port_options(cfg):
         return None, None
 
 
+# TODO(nicodemos): Remove patching when is no longer supported
 def get_sync_endpoint(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.sync_endpoint

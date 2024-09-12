@@ -154,7 +154,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         if endpoint:
             endpoint_type = endpoint
         else:
-            endpoint_type = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+            endpoint_type = dccommon_consts.AUDIT_TYPE_SOFTWARE
         if status:
             sync_status = status
         else:
@@ -405,7 +405,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
@@ -418,7 +418,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud2.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
@@ -458,7 +458,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
@@ -471,7 +471,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud2.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         mock_global_prestage_validate.return_value = None
@@ -513,7 +513,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
@@ -522,7 +522,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.ctxt, "subcloud2", 1, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud2.id, dccommon_consts.ENDPOINT_TYPE_SOFTWARE, None
+            self.ctxt, fake_subcloud2.id, dccommon_consts.AUDIT_TYPE_SOFTWARE, None
         )
 
         # Subcloud3 will be prestaged load out of sync
@@ -532,7 +532,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud3.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -543,7 +543,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud4.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_UNKNOWN,
         )
 
@@ -588,7 +588,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
@@ -601,7 +601,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud2.id,
-            endpoint=dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         mock_initial_subcloud_validate.return_value = None
@@ -1418,7 +1418,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -1433,7 +1433,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud2.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -1448,7 +1448,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud3.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
@@ -1483,7 +1483,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -1498,7 +1498,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud2.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -1513,7 +1513,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud3.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
@@ -1546,7 +1546,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
@@ -1574,7 +1574,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctxt,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_SOFTWARE,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_UNKNOWN,
         )
 

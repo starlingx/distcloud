@@ -25,7 +25,7 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
     def __init__(self):
         super().__init__()
 
-        self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+        self.endpoint_type = dccommon_consts.AUDIT_TYPE_SOFTWARE
 
     def build_extra_args(self, payload):
         """Builds the extra args for a strategy

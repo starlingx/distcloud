@@ -53,8 +53,9 @@ CONF.register_opts(patch_opts, CONF.type)
 
 class PatchAPIController(Middleware):
 
+    # TODO(nicodemos): Remove patching when is no longer supported
     ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_PATCHING
-    USM_ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+    USM_ENDPOINT_TYPE = dccommon_consts.ENDPOINT_TYPE_USM
 
     OK_STATUS_CODE = [
         webob.exc.HTTPOk.code,

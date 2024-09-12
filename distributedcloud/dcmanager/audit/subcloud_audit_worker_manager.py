@@ -491,10 +491,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 )
                 audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
             if do_software_audit and not software_audit_data:
-                endpoint_data[dccommon_consts.ENDPOINT_TYPE_SOFTWARE] = (
+                endpoint_data[dccommon_consts.AUDIT_TYPE_SOFTWARE] = (
                     dccommon_consts.SYNC_STATUS_IN_SYNC
                 )
-                audits_done.append(dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+                audits_done.append(dccommon_consts.AUDIT_TYPE_SOFTWARE)
             LOG.debug(
                 f"Skipping following audits for subcloud {subcloud_name} because "
                 f"RegionOne audit data is not available: {audits_done}"
@@ -748,20 +748,19 @@ class SubcloudAuditWorkerManager(manager.Manager):
             # Perform software audit
             if do_software_audit:
                 try:
-                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_SOFTWARE] = (
+                    endpoint_data[dccommon_consts.AUDIT_TYPE_SOFTWARE] = (
                         self.software_audit.subcloud_software_audit(
                             keystone_client.session,
                             subcloud,
                             software_audit_data,
                         )
                     )
-                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+                    audits_done.append(dccommon_consts.AUDIT_TYPE_SOFTWARE)
                 except Exception:
                     LOG.exception(
-                        failmsg
-                        % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+                        failmsg % (subcloud.name, dccommon_consts.AUDIT_TYPE_SOFTWARE)
                     )
-                    failures.append(dccommon_consts.ENDPOINT_TYPE_SOFTWARE)
+                    failures.append(dccommon_consts.AUDIT_TYPE_SOFTWARE)
 
         # Filter the endpoint_data to remove values that did not had any modification
         # from the available data on subcloud table

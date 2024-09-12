@@ -24,10 +24,10 @@ class PrestageStrategyValidator(StrategyValidationBase):
     def __init__(self):
         super().__init__()
 
-        # For prestage we reuse the ENDPOINT_TYPE_SOFTWARE.
+        # For prestage we reuse the AUDIT_TYPE_SOFTWARE.
         # We just need to key off a unique endpoint,
         # so that the strategy is created only once.
-        self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_SOFTWARE
+        self.endpoint_type = dccommon_consts.AUDIT_TYPE_SOFTWARE
 
     # TODO(rlima): move prestage validations here
     def build_sync_status_filter(self, force):
