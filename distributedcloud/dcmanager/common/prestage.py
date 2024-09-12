@@ -119,7 +119,11 @@ def initial_subcloud_validate(subcloud):
             details="Prestage operation is not allowed while backup is in progress.",
         )
 
-    if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+    # The apply-strategy-failed state could be due to a missing prestage operation
+    if subcloud.deploy_status not in [
+        consts.DEPLOY_STATE_DONE,
+        consts.DEPLOY_STATE_APPLY_STRATEGY_FAILED,
+    ]:
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
             orch_skip=True,
