@@ -17,7 +17,7 @@ __ALL__ = ("get_major_release_version", "get_component_and_versions", "parse_upl
 
 
 def parse_upload(resp):
-    files = []
+    files = {}
     resp_str = str(resp)
     try:
         data = json.loads(resp_str)
@@ -30,16 +30,7 @@ def parse_upload(resp):
         return files
 
     for upload_file in upload_info:
-        for filename in upload_file:
-            filedata = upload_file[filename]
-            sw_release = filedata.get("sw_release")
-            release_id = filedata.get("id")
-            if sw_release and release_id:
-                files.append(
-                    {
-                        "filename": filename,
-                        "release_id": release_id,
-                        "sw_release": sw_release,
-                    }
-                )
+        for filename, info in upload_file.items():
+            files[filename] = info
+
     return files
