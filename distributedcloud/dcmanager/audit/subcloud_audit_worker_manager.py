@@ -652,10 +652,14 @@ class SubcloudAuditWorkerManager(manager.Manager):
         ):
             # Get alarm summary and store in db,
             if fm_client:
-                alarm_updates = self.alarm_aggr.get_alarm_summary(
-                    fm_client, subcloud_name
-                )
-                self.alarm_aggr.update_alarm_summary(subcloud_name, alarm_updates)
+                try:
+                    alarm_updates = self.alarm_aggr.get_alarm_summary(
+                        fm_client, subcloud_name
+                    )
+                    self.alarm_aggr.update_alarm_summary(subcloud_name, alarm_updates)
+                except Exception:
+                    # Exception was logged already
+                    pass
 
             failmsg = "Audit failure subcloud: %s, endpoint: %s"
             # TODO(nicodemos): Remove this when patching is no longer supported

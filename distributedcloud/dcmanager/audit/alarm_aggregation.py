@@ -47,6 +47,7 @@ class AlarmAggregation(object):
         except Exception as e:
             msg = f"Failed to get alarms. Error: {e}"
             log_subcloud_msg(LOG.error, msg, name)
+            raise
 
     def update_alarm_summary(self, name: str, alarm_updates: dict):
         LOG.debug(f"Updating alarm summary for {name}")

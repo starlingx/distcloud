@@ -129,6 +129,7 @@ class SysinvClient(base.DriverBase):
         timeout: int = consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
         endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
         endpoint: str = None,
+        token: str = None,
     ):
         self.region_name = region
 
@@ -141,7 +142,7 @@ class SysinvClient(base.DriverBase):
                 interface=endpoint_type,
             )
 
-        token = session.get_token()
+        token = token if token else session.get_token()
         self.sysinv_client = client.Client(
             API_VERSION, endpoint=endpoint, token=token, timeout=timeout
         )
