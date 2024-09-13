@@ -1067,7 +1067,7 @@ class SubcloudManager(manager.Manager):
             phases_to_run.append(consts.DEPLOY_PHASE_ENROLL)
         else:
             phases_to_run.append(consts.DEPLOY_PHASE_BOOTSTRAP)
-        if not enroll and consts.DEPLOY_CONFIG in payload:
+        if consts.DEPLOY_CONFIG in payload:
             phases_to_run.append(consts.DEPLOY_PHASE_CONFIG)
         else:
             phases_to_run.append(consts.DEPLOY_PHASE_COMPLETE)
@@ -1931,7 +1931,7 @@ class SubcloudManager(manager.Manager):
                     subcloud.software_version,
                     state="enroll",
                 )
-                self._run_subcloud_enroll(
+                return self._run_subcloud_enroll(
                     context,
                     subcloud,
                     enroll_playbook_command,
@@ -1950,7 +1950,7 @@ class SubcloudManager(manager.Manager):
         else:
             LOG.error(f"Initial enrollment failed for subcloud {subcloud.name}")
 
-        return subcloud
+        return True
 
     def subcloud_deploy_bootstrap(
         self, context, subcloud_id, payload, initial_deployment=False
@@ -2944,6 +2944,7 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_ENROLL_FAILED,
                 error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
             )
+
             return False
 
         # Ensure rehomed=False after bootstrapped from central cloud, it
