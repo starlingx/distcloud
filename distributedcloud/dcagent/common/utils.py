@@ -41,17 +41,18 @@ def cache_wrapper(cls):
             # Return the cached result if available
             use_cache = getattr(self, "use_cache", False)
             if use_cache and method.__name__ in self.__class__._results:
+                response = self.__class__._results[method.__name__]
                 LOG.debug(
                     f"Returning cached response for {method.__name__} "
-                    f"from {self.__class__.__name__}"
+                    f"from {self.__class__.__name__}. Response: {response}"
                 )
-                return self.__class__._results[method.__name__]
+                return response
 
             result = method(self, *args, **kwargs)
             # Cache the results in the '_result' class variable
             LOG.debug(
                 f"Saving new response for {method.__name__} "
-                f"in {self.__class__.__name__}"
+                f"in {self.__class__.__name__}. Response: {result}"
             )
             with self.__class__._lock:
                 self.__class__._results[method.__name__] = result
@@ -214,7 +215,10 @@ class BaseAuditManager(object):
         self.software_client = None
 
     def initialize_clients(
-        self, use_cache: bool = True, restart_keystone_cache: bool = False
+        self,
+        use_cache: bool = True,
+        restart_keystone_cache: bool = False,
+        request_token: str = None,
     ):
         region_name = tsc.region_1_name
         self.keystone_client = KeystoneCache(
@@ -226,16 +230,19 @@ class BaseAuditManager(object):
             region_name,
             auth_session,
             endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
+            token=request_token,
         )
         self.fm_client = CachedFmClient(
             region_name,
             auth_session,
             endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
+            token=request_token,
         )
         self.software_client = CachedSoftwareClient(
             auth_session,
             region=region_name,
             endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
+            token=request_token,
         )
         self.sysinv_client.use_cache = use_cache
         self.fm_client.use_cache = use_cache

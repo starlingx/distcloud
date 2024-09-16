@@ -33,15 +33,23 @@ class FmClient(base.DriverBase):
         session,
         endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT,
         endpoint=None,
+        token=None,
     ):
         self.region_name = region
+        token = token if token else session.get_token()
+        if not endpoint:
+            endpoint = session.get_endpoint(
+                service_type=dccommon_consts.ENDPOINT_TYPE_FM,
+                region_name=region,
+                interface=endpoint_type,
+            )
         try:
             self.fm = fmclient.Client(
                 API_VERSION,
-                session=session,
                 region_name=region,
                 endpoint_type=endpoint_type,
                 endpoint=endpoint,
+                auth_token=token,
             )
         except exceptions.ServiceUnavailable:
             raise

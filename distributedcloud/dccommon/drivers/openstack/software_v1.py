@@ -38,6 +38,7 @@ class SoftwareClient(base.DriverBase):
         region: str = None,
         endpoint: str = None,
         endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
+        token: str = None,
     ):
         # Get an endpoint and token.
         if not endpoint:
@@ -53,7 +54,7 @@ class SoftwareClient(base.DriverBase):
         # and the subcloud endpoint don't. The slash is removed to standardize
         # with the other endpoints.
         self.endpoint = self.endpoint.rstrip("/") + "/v1"
-        self.token = session.get_token()
+        self.token = token if token else session.get_token()
         self.headers = {"X-Auth-Token": self.token}
 
     def list(self, timeout=REST_DEFAULT_TIMEOUT):

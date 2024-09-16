@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from cgtsclient.exc import HTTPUnauthorized
 import eventlet
 from eventlet.greenpool import GreenPool
 from oslo_config import cfg
@@ -47,7 +48,7 @@ class PeriodicAudit(utils.BaseAuditManager):
     def periodic_audit_loop(self):
         while True:
             try:
-                self.initialize_clients(use_cache=False, restart_keystone_cache=True)
+                self.initialize_clients(use_cache=False)
                 self._run_periodic_audit_loop()
                 eventlet.greenthread.sleep(CONF.scheduler.dcagent_audit_interval)
             except eventlet.greenlet.GreenletExit:
@@ -56,35 +57,72 @@ class PeriodicAudit(utils.BaseAuditManager):
             except Exception:
                 LOG.exception("Error in periodic audit loop")
 
+    def _run_with_retry_if_unauthorized(self, func, arg_getter, **kwargs):
+        # If any exception is raised, we just ignore them and wait
+        # for the next audit cycle to get fresh data. The only exception
+        # we don't ignore is unauthorized by keystone, and we'll try
+        # to get a new token and retry the function once in this case
+        try:
+            return func(*arg_getter(), **kwargs)
+        except Exception as ex:
+            # Since FM doesn't have a specific exception for unauthorized like
+            # cgtsclient (raising only a generic HTTPClientError), we also handle
+            # the exception here by the message returned by keystone itself
+            if isinstance(
+                ex, HTTPUnauthorized
+            ) or "The request you have made requires authentication" in str(ex):
+                try:
+                    LOG.warn(
+                        "Getting new keystone token and retrying "
+                        f"call to {func.__name__}"
+                    )
+                    self.initialize_clients(
+                        use_cache=False, restart_keystone_cache=True
+                    )
+
+                    return func(*arg_getter(), **kwargs)
+                except Exception:
+                    pass
+            # The exception was previouslly logged by the called function,
+            # so we don't need to log it again here
+
     def _run_periodic_audit_loop(self):
+        # We call dcorch resources first because, differently from dcmanager resources,
+        # they'll raise an exception if an error occurs, which is a way of checking if
+        # current keystone token is valid
+        # The args are lambda functions so we can refresh them when changing keystone
+        # token upon unauthorized exception
         # NOTE: We don't care about the return value of the audit functions
         # as the execution here is only used as a way to refresh the cache
-        get_subcloud_base_audit(
-            sysinv_client=self.sysinv_client, fm_client=self.fm_client
-        )
-        FirmwareAudit.get_subcloud_audit_data(self.sysinv_client)
-        KubernetesAudit.get_subcloud_audit_data(self.sysinv_client)
-        KubeRootcaUpdateAudit.get_subcloud_audit_data(
-            self.sysinv_client, self.fm_client
-        )
-        SoftwareAudit.get_subcloud_audit_data(self.software_client)
+        functions = [
+            (SysinvSyncThread.get_certificates_resources, lambda: [self.sysinv_client]),
+            (SysinvSyncThread.get_user_resource, lambda: [self.sysinv_client]),
+            (SysinvSyncThread.get_fernet_resources, lambda: [self.sysinv_client]),
+            (get_subcloud_base_audit, lambda: [self.sysinv_client, self.fm_client]),
+            (FirmwareAudit.get_subcloud_audit_data, lambda: [self.sysinv_client]),
+            (KubernetesAudit.get_subcloud_audit_data, lambda: [self.sysinv_client]),
+            (
+                KubeRootcaUpdateAudit.get_subcloud_audit_data,
+                lambda: [self.sysinv_client, self.fm_client],
+            ),
+            (SoftwareAudit.get_subcloud_audit_data, lambda: [self.software_client]),
+        ]
 
-        # Dcorch resources
-        SysinvSyncThread.get_certificates_resources(self.sysinv_client)
-        SysinvSyncThread.get_user_resource(self.sysinv_client)
-        SysinvSyncThread.get_fernet_resources(self.sysinv_client)
+        for func, arg_getter in functions:
+            self._run_with_retry_if_unauthorized(func, arg_getter)
 
 
 class RequestedAudit(utils.BaseAuditManager):
-    def __init__(self, use_cache: bool = True):
+    def __init__(self, request_token: str, use_cache: bool = True):
         super().__init__()
+        self.request_token = request_token
         self.use_cache = use_cache
 
     def get_single_audit_status(self, audit_type, regionone_audit_data):
         # Since this run in parallel, we need to initialize the clients
         # here to not use the same socket in every call
         sysinv_client, fm_client, software_client = self.initialize_clients(
-            use_cache=self.use_cache
+            use_cache=self.use_cache, request_token=self.request_token
         )
         if audit_type == dccommon_consts.BASE_AUDIT:
             (availability, inactive_sg, alarms) = get_subcloud_base_audit(

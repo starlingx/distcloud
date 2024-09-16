@@ -13,6 +13,7 @@ import pecan
 from pecan import expose
 from pecan import request
 
+from dcagent.api.controllers import restcomm
 from dcagent.common.audit_manager import RequestedAudit
 from dcagent.common.exceptions import UnsupportedAudit
 from dcagent.common.i18n import _
@@ -31,6 +32,8 @@ class AuditController(object):
     def patch(self):
         """Return the audit information."""
 
+        context = restcomm.extract_context_from_environ()
+
         # Convert JSON string in request to Python dict
         try:
             payload = json.loads(request.body)
@@ -40,10 +43,15 @@ class AuditController(object):
         if not payload:
             pecan.abort(http.client.BAD_REQUEST, _("Body required"))
 
+        LOG.debug(f"Payload sent by system controller: {payload}")
+
         try:
             # Delete "use_cache" from payload so it doesn't get passed as an audit
             use_cache = payload.pop("use_cache", True)
-            requested_audit = RequestedAudit(use_cache=use_cache)
+            # request_token is used for calls not involving cache
+            requested_audit = RequestedAudit(
+                request_token=context.auth_token, use_cache=use_cache
+            )
             return requested_audit.get_sync_status(payload)
 
         except UnsupportedAudit as ex:
