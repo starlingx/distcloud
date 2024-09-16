@@ -82,7 +82,7 @@ class OrchThread(threading.Thread):
         self.context = context.get_admin_context()
         self._stop = threading.Event()
         # Keeps track of greenthreads we create to do work.
-        self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=500)
+        self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=5000)
         # Track worker created for each subcloud.
         self.subcloud_workers = dict()
         # Track if the strategy setup function was executed
@@ -104,7 +104,6 @@ class OrchThread(threading.Thread):
 
     def pre_apply_setup(self):
         """Subclass can override this method"""
-        pass
 
     def _post_delete_teardown(self):
         """Cleanup code executed once after deleting a strategy"""
@@ -115,7 +114,6 @@ class OrchThread(threading.Thread):
 
     def post_delete_teardown(self):
         """Subclass can override this method"""
-        pass
 
     def stopped(self):
         return self._stop.isSet()
