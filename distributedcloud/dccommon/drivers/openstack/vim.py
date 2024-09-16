@@ -130,7 +130,6 @@ class VimClient(base.DriverBase):
             # legacy patch orchestration
             if strategy_name == STRATEGY_NAME_SW_PATCH:
                 return self._create_strategy_sw_patch(
-                    strategy_name,
                     default_instance_action,
                     storage_apply_type,
                     worker_apply_type,
@@ -167,47 +166,43 @@ class VimClient(base.DriverBase):
     # TODO(nicodemos): Delete this method once sw-patch is deprecated
     def _create_strategy_sw_patch(
         self,
-        strategy_name,
         default_instance_action,
         storage_apply_type,
         worker_apply_type,
         max_parallel_worker_hosts,
         alarm_restrictions,
     ):
-        api_cmd = self.endpoint + "/api/orchestration/%s/strategy" % strategy_name
+        """Create strategy for legacy SW patch orchestration"""
 
-        api_cmd_headers = dict()
-        api_cmd_headers["Content-Type"] = "application/json"
-        api_cmd_headers["X-User"] = self.username
-        api_cmd_headers["X-Tenant"] = self.tenant
-        api_cmd_headers["X-User-Domain-Name"] = self.user_domain_name
-        api_cmd_headers["X-Auth-Token"] = self.token
+        api_cmd_payload = {
+            "controller-apply-type": APPLY_TYPE_SERIAL,
+            "swift-apply-type": APPLY_TYPE_IGNORE,
+            "default-instance-action": default_instance_action,
+            "storage-apply-type": storage_apply_type,
+            "worker-apply-type": worker_apply_type,
+            "alarm-restrictions": alarm_restrictions,
+        }
 
-        api_cmd_payload = dict()
-        api_cmd_payload["controller-apply-type"] = APPLY_TYPE_SERIAL
-        api_cmd_payload["swift-apply-type"] = APPLY_TYPE_IGNORE
-        api_cmd_payload["default-instance-action"] = default_instance_action
-        api_cmd_payload["storage-apply-type"] = storage_apply_type
-        api_cmd_payload["worker-apply-type"] = worker_apply_type
         if max_parallel_worker_hosts is not None:
             api_cmd_payload["max-parallel-worker-hosts"] = max_parallel_worker_hosts
-        api_cmd_payload["alarm-restrictions"] = alarm_restrictions
 
-        response = rest_api.request(
-            self.token, "POST", api_cmd, api_cmd_headers, json.dumps(api_cmd_payload)
+        response = self._send_api_request(
+            "POST",
+            f"/api/orchestration/{STRATEGY_NAME_SW_PATCH}/strategy",
+            api_cmd_payload,
         )
-
-        # Check if the response is valid and update response value
-        if response.get("strategy"):
-            response["strategy"]["build-phase"]["response"] = "success"
-
-        return sw_update._get_strategy_object_from_response(response)
+        return self._add_strategy_response(response)
 
     def get_strategy(self, strategy_name, raise_error_if_missing=True):
         """Get VIM orchestration strategy"""
 
         url = self.endpoint
         try:
+            # TODO(nicodemos): Remove once sw-patch is deprecated
+            # Use the REST Api directly to the subcloud to get the strategy for
+            # legacy patch orchestration
+            if strategy_name == STRATEGY_NAME_SW_PATCH:
+                return self._get_strategy_sw_patch()
             strategy = sw_update.get_strategies(
                 self.token,
                 url,
@@ -226,6 +221,15 @@ class VimClient(base.DriverBase):
 
         LOG.debug("Strategy: %s" % strategy)
         return strategy
+
+    # # TODO(nicodemos): Delete this method once sw-patch is deprecated
+    def _get_strategy_sw_patch(self):
+        """Get legacy SW patch strategy"""
+
+        response = self._send_api_request(
+            "GET", f"/api/orchestration/{STRATEGY_NAME_SW_PATCH}/strategy"
+        )
+        return self._add_strategy_response(response)
 
     def get_current_strategy(self):
         """Get the current active VIM orchestration strategy"""
@@ -266,6 +270,11 @@ class VimClient(base.DriverBase):
 
         url = self.endpoint
         try:
+            # TODO(nicodemos): Remove once sw-patch is deprecated
+            # Use the REST Api directly to the subcloud to apply the strategy for
+            # legacy patch orchestration
+            if strategy_name == STRATEGY_NAME_SW_PATCH:
+                return self._apply_strategy_sw_patch()
             strategy = sw_update.apply_strategy(
                 self.token,
                 url,
@@ -283,6 +292,45 @@ class VimClient(base.DriverBase):
 
         LOG.debug("Strategy applied: %s" % strategy)
         return strategy
+
+    # # TODO(nicodemos): Delete this method once sw-patch is deprecated
+    def _apply_strategy_sw_patch(self):
+        """Apply strategy for legacy SW patch orchestration"""
+
+        api_cmd_payload = {"action": "apply-all"}
+        response = self._send_api_request(
+            "POST",
+            f"/api/orchestration/{STRATEGY_NAME_SW_PATCH}/strategy/actions",
+            api_cmd_payload,
+        )
+        return self._add_strategy_response(response)
+
+    # # TODO(nicodemos): Delete this method once sw-patch is deprecated
+    def _send_api_request(self, method, api_path, payload=None):
+        """Helper to send an API request to the VIM orchestration system"""
+        api_cmd = f"{self.endpoint}{api_path}"
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-User": self.username,
+            "X-Tenant": self.tenant,
+            "X-User-Domain-Name": self.user_domain_name,
+            "X-Auth-Token": self.token,
+        }
+
+        if method == "POST" and payload:
+            payload = json.dumps(payload)
+
+        return rest_api.request(self.token, method, api_cmd, headers, payload)
+
+    # # TODO(nicodemos): Delete this method once sw-patch is deprecated
+    def _add_strategy_response(self, response):
+        """Add response for all strategy phases"""
+        if response.get("strategy"):
+            for phase in ["build-phase", "apply-phase", "abort-phase"]:
+                response["strategy"][phase]["response"] = "success"
+
+        return sw_update._get_strategy_object_from_response(response)
 
     def abort_strategy(self, strategy_name):
         """Abort the current orchestration strategy"""

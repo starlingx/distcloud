@@ -25,7 +25,7 @@ class CreatingVIMPatchStrategyState(CreatingVIMStrategyState):
         )
 
         self.SKIP_REASON = "no software patches need to be applied"
-        self.SKIP_STATE = consts.STRATEGY_STATE_FINISHING_PATCH_STRATEGY
+        self.SKIP_STATE = consts.STRATEGY_STATE_COMPLETE
 
         # Change CreatingVIMStrategyState default values
         self.sleep_duration = DEFAULT_SLEEP_DURATION

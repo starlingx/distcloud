@@ -44,7 +44,7 @@ class TestCreatingVIMPatchStrategyStage(CreatingVIMStrategyStageMixin, TestPatch
             consts.STRATEGY_STATE_CREATING_VIM_PATCH_STRATEGY,
             consts.STRATEGY_STATE_APPLYING_VIM_PATCH_STRATEGY,
         )
-        self.skip_state = consts.STRATEGY_STATE_FINISHING_PATCH_STRATEGY
+        self.skip_state = consts.STRATEGY_STATE_COMPLETE
 
     def test_skip_if_not_needed(self):
         """Test creating VIM strategy when no patches need to be applied.

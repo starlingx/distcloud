@@ -30,7 +30,7 @@ class UpdatingPatchesState(BaseState):
         self.region_one_patches = None
         self.region_one_applied_patch_ids = None
 
-    def upload_patch(self, patch_file, strategy_step):
+    def _upload_patch(self, patch_file, strategy_step):
         """Upload a patch file to the subcloud"""
 
         self.info_log(
@@ -38,6 +38,18 @@ class UpdatingPatchesState(BaseState):
             f"Patch {patch_file} will be uploaded to subcloud",
         )
         self.get_patching_client(self.region_name).upload([patch_file])
+        if self.stopped():
+            self.info_log(strategy_step, "Exiting because task is stopped")
+            raise StrategyStoppedException()
+
+    def _remove_patch(self, patch_id, strategy_step):
+        """Remove a patch from the subcloud"""
+
+        self.info_log(
+            strategy_step,
+            f"Patch {patch_id} will be removed from subcloud",
+        )
+        self.get_patching_client(self.region_name).remove([patch_id])
         if self.stopped():
             self.info_log(strategy_step, "Exiting because task is stopped")
             raise StrategyStoppedException()
@@ -62,29 +74,37 @@ class UpdatingPatchesState(BaseState):
             f"{consts.PATCH_VAULT_DIR}/{consts.PATCHING_SW_VERSION}/"
             f"{patch_id}.patch"
         )
+        remove = extra_args.get(consts.EXTRA_ARGS_REMOVE)
 
-        if patch_id in subcloud_patch_ids:
-            message = f"Patch {patch_id} is already present in the subcloud."
-            self.info_log(strategy_step, message)
+        if remove:
+            if patch_id not in subcloud_patch_ids:
+                message = f"Patch {patch_id} is not present in the subcloud."
+                self.exception_log(strategy_step, message)
+                raise Exception(message)
+            self._remove_patch(patch_id, strategy_step)
         else:
-            self.upload_patch(patch_file, strategy_step)
+            if patch_id in subcloud_patch_ids:
+                message = f"Patch {patch_id} is already present in the subcloud."
+                self.info_log(strategy_step, message)
+            else:
+                self._upload_patch(patch_file, strategy_step)
 
-        upload_only = extra_args.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
+            upload_only = extra_args.get(consts.EXTRA_ARGS_UPLOAD_ONLY)
 
-        if upload_only:
+            if upload_only:
+                self.info_log(
+                    strategy_step,
+                    f"{consts.EXTRA_ARGS_UPLOAD_ONLY} option enabled, skipping "
+                    f"execution. Forward to state: {consts.STRATEGY_STATE_COMPLETE}",
+                )
+                return consts.STRATEGY_STATE_COMPLETE
+
+            # Apply the patch to the subcloud
             self.info_log(
                 strategy_step,
-                f"{consts.EXTRA_ARGS_UPLOAD_ONLY} option enabled, skipping "
-                f"execution. Forward to state: {consts.STRATEGY_STATE_COMPLETE}",
+                f"Patch {patch_id} will be applied to subcloud",
             )
-            return consts.STRATEGY_STATE_COMPLETE
-
-        # Apply the patch to the subcloud
-        self.info_log(
-            strategy_step,
-            f"Patch {patch_id} will be applied to subcloud",
-        )
-        self.get_patching_client(self.region_name).apply([patch_id])
+            self.get_patching_client(self.region_name).apply([patch_id])
 
         # Now that we have applied/removed/uploaded patches, we need to give
         # the patch controller on this subcloud time to determine whether

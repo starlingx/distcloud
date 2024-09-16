@@ -470,7 +470,7 @@ class SwUpdateManager(manager.Manager):
         )
         db_api.strategy_step_bulk_create(
             context,
-            [subcloud.id for subcloud, sync_status in valid_subclouds],
+            [subcloud.id for subcloud, _ in valid_subclouds],
             stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_CREATED,
             state=consts.STRATEGY_STATE_INITIAL,
             details="",

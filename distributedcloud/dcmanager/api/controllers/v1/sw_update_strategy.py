@@ -170,7 +170,7 @@ class SwUpdateStrategyController(object):
 
             # TODO(nicodemos): Remove once sw-patch is deprecated
             if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                utils.validate_patch_strategy(payload.get("patch_id"))
+                utils.validate_patch_strategy(payload)
             elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
                 utils.validate_software_strategy(payload.get("release_id"))
             elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
