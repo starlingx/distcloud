@@ -514,6 +514,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         """Mock ostree_mount validate_ostree_iso_mount"""
 
         mock_patch = mock.patch.object(ostree_mount, "validate_ostree_iso_mount")
+        self.addCleanup(mock_patch.stop)
         self.mock_validate_ostree_iso_mount = mock_patch.start()
 
     def _mock_subcloud_manager_run_subcloud_enroll(self):
