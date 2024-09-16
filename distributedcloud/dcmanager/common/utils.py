@@ -1241,7 +1241,6 @@ def get_systemcontroller_installed_releases_ids() -> List[str]:
     return get_systemcontroller_deployed_releases(software_list, key="release_id")
 
 
-# TODO(cmondo) - validate the appropriate mechanism for N-1 scenario
 def is_software_ready_to_be_prestaged_for_install(software_list, software_version):
     """Check if software is ready to be prestaged for install
 
@@ -1264,18 +1263,19 @@ def is_software_ready_to_be_prestaged_for_install(software_list, software_versio
         bool: `True` if software version matches, otherwise `False`
 
     """
-
     # It is assumed that if the requested release matches the release deployed
     # on the system controller, checking against the software list is not required.
     if software_version == tsc.SW_VERSION:
         return True
 
     # It is necessary to query the list for the requested release,
-    # whose status must be available or deployed to be able to install it
+    # whose status must be available, unavailable or deployed to be
+    # able to install it
     return any(
         is_base_release(release["sw_version"])
         and get_major_release(release["sw_version"]) == software_version
-        and release["state"] in (software_v1.AVAILABLE, software_v1.DEPLOYED)
+        and release["state"]
+        in (software_v1.AVAILABLE, software_v1.DEPLOYED, software_v1.UNAVAILABLE)
         for release in software_list
     )
 
@@ -1388,7 +1388,6 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
                 "system controller, cannot prestage for software deploy."
             )
     else:
-        # TODO(cmondo) - validate the appropriate mechanism for N-1 scenario
         # Check for install release param
         if not is_software_ready_to_be_prestaged_for_install(
             software_list, software_version
@@ -1894,6 +1893,10 @@ def is_base_release(version):
         `False` if the version is a not valid base release.
 
     """
+
+    if version < consts.SOFTWARE_VERSION_24_09:
+        return is_major_release(version)
+
     pattern = r"^\d{2}\.\d{2}\.\d{1}$"
     if not re.match(pattern, version):
         return False
