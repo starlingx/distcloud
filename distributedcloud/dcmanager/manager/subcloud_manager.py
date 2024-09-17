@@ -1280,10 +1280,12 @@ class SubcloudManager(manager.Manager):
             subcloud.id,
             description=payload.get("description"),
             management_subnet=utils.get_primary_management_subnet(payload),
-            management_gateway_ip=utils.get_management_gateway_address(payload),
+            management_gateway_ip=utils.get_primary_management_gateway_address(payload),
             management_start_ip=utils.get_primary_management_start_address(payload),
             management_end_ip=utils.get_primary_management_end_address(payload),
-            systemcontroller_gateway_ip=payload.get("systemcontroller_gateway_address"),
+            systemcontroller_gateway_ip=(
+                utils.get_primary_systemcontroller_gateway_address(payload)
+            ),
             location=payload.get("location"),
             deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP,
         )
@@ -1655,7 +1657,7 @@ class SubcloudManager(manager.Manager):
                     mgmt_if_uuid,
                     str(subcloud_subnet.ip),
                     subcloud_subnet.prefixlen,
-                    payload["systemcontroller_gateway_address"],
+                    utils.get_primary_systemcontroller_gateway_address(payload),
                     1,
                 )
 
@@ -3041,7 +3043,7 @@ class SubcloudManager(manager.Manager):
         # Subcloud accesses systemcontroller mgmt subnet (system_controller_subnet)
         # through subcloud's primary mgmt network/gateway. So
         # system_controller_subnet should be populated of same IP family
-        # as of primary subcloud mgmt network. This IP family is not
+        # as of subcloud's primary mgmt network. This IP family is not
         # necessarily primary management subnet of system-controller.
         # eg: dual-stack (IPv4 primary, IPv6 secondary) mgmt systemcontroller
         # and IPv6-only management subcloud.
@@ -3053,11 +3055,11 @@ class SubcloudManager(manager.Manager):
         try:
             mgmt_pool = utils.get_pool_by_ip_family(
                 system_controller_mgmt_pools,
-                utils.get_management_gateway_address_ip_family(payload),
+                utils.get_primary_management_gateway_address_ip_family(payload),
             )
         except Exception as e:
             raise Exception(
-                f"subcloud management gateway address IP family does not "
+                f"subcloud primary management gateway address IP family does not "
                 f"exist on system controller managements: {e}"
             )
 
@@ -3643,7 +3645,8 @@ class SubcloudManager(manager.Manager):
         # Update route if the systemcontroller_gateway_ip has been updated
         if (
             systemcontroller_gateway_ip is not None
-            and systemcontroller_gateway_ip != subcloud.systemcontroller_gateway_ip
+            and systemcontroller_gateway_ip.split(",")[0]
+            != subcloud.systemcontroller_gateway_ip
         ):
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
@@ -3669,7 +3672,11 @@ class SubcloudManager(manager.Manager):
             deploy_status=deploy_status,
             peer_group_id=peer_group_id,
             rehome_data=rehome_data,
-            systemcontroller_gateway_ip=systemcontroller_gateway_ip,
+            systemcontroller_gateway_ip=(
+                systemcontroller_gateway_ip
+                if systemcontroller_gateway_ip is None
+                else systemcontroller_gateway_ip.split(",")[0]
+            ),
         )
 
         # Inform orchestrators that subcloud has been updated
@@ -3921,7 +3928,7 @@ class SubcloudManager(manager.Manager):
                 mgmt_if_uuid,
                 str(subcloud_subnet.ip),
                 subcloud_subnet.prefixlen,
-                systemcontroller_gateway_ip,
+                systemcontroller_gateway_ip.split(",")[0],
                 1,
             )
 

@@ -158,18 +158,18 @@ class TestCommonUtils(DCManagerTestCase):
             f"IPv{ip_family} pool not found in pools {POOLS_IPV4}",
         )
 
-    def test_get_management_gateway_address_ip_family(self):
+    def test_get_primary_management_gateway_address_ip_family(self):
         payload = {
             "admin_gateway_address": "192.168.1.1",
             "management_gateway_address": "fd00::1",
         }
-        ip_family = utils.get_management_gateway_address_ip_family(payload)
+        ip_family = utils.get_primary_management_gateway_address_ip_family(payload)
         self.assertEqual(ip_family, 4)
 
         payload = {
             "management_gateway_address": "fd00::1",
         }
-        ip_family = utils.get_management_gateway_address_ip_family(payload)
+        ip_family = utils.get_primary_management_gateway_address_ip_family(payload)
         self.assertEqual(ip_family, 6)
 
         invalid_ip = "fd00::INV"
@@ -179,7 +179,7 @@ class TestCommonUtils(DCManagerTestCase):
 
         err = self.assertRaises(
             exceptions.ValidateFail,
-            utils.get_management_gateway_address_ip_family,
+            utils.get_primary_management_gateway_address_ip_family,
             payload,
         )
         self.assertEqual(

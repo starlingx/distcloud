@@ -1028,25 +1028,37 @@ class SubcloudsController(object):
                             % subcloud.deploy_status
                         ),
                     )
+
+                if payload.get("management_gateway_ip") is None:
+                    mandatory_params = ", ".join(
+                        "--{}".format(param.replace("_", "-"))
+                        for param in SUBCLOUD_MANDATORY_NETWORK_PARAMS
+                    )
+                    abort_msg = (
+                        "The following parameters are necessary for "
+                        "subcloud network reconfiguration: {}".format(mandatory_params)
+                    )
+                    pecan.abort(422, _(abort_msg))
+
                 # reconfigure network update provides management_gateway_ip instead of
                 # management_gateway_address on payload.
-                # Needed for get_management_gateway_address_ip_family
+                # Needed for get_primary_management_gateway_address_ip_family
                 payload["management_gateway_address"] = payload.get(
                     "management_gateway_ip", None
                 )
 
                 system_controller_mgmt_pools = psd_common.get_network_address_pools()
-                # Subcloud will use single-stack management_gateway_address to
+                # Subcloud will use primary management_gateway_address to
                 # access one of dual-stack systemcontroller admin/mgmt subnets, based
-                # upon IP family of gateway address.
+                # upon IP family of primary gateway address.
                 try:
                     system_controller_mgmt_pool = utils.get_pool_by_ip_family(
                         system_controller_mgmt_pools,
-                        utils.get_management_gateway_address_ip_family(payload),
+                        utils.get_primary_management_gateway_address_ip_family(payload),
                     )
                 except Exception as e:
                     error_msg = (
-                        "subcloud management gateway IP's IP family does "
+                        "subcloud primary management gateway IP's IP family does "
                         "not exist on system controller managements"
                     )
                     LOG.exception(error_msg)
@@ -1094,7 +1106,7 @@ class SubcloudsController(object):
                 )
 
                 if systemcontroller_gateway_address is not None and (
-                    systemcontroller_gateway_address
+                    systemcontroller_gateway_address.split(",")[0]
                     != subcloud.systemcontroller_gateway_ip
                 ):
                     psd_common.validate_systemcontroller_gateway_address(
