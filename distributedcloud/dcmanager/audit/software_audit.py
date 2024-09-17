@@ -20,13 +20,11 @@ LOG = logging.getLogger(__name__)
 
 
 class SoftwareAuditData(object):
-    def __init__(self, releases, deployed_release_ids):
-        self.releases = releases
+    def __init__(self, deployed_release_ids):
         self.deployed_release_ids = deployed_release_ids
 
     def to_dict(self):
         return {
-            "releases": self.releases,
             "deployed_release_ids": self.deployed_release_ids,
         }
 
@@ -79,7 +77,7 @@ class SoftwareAudit(object):
             if release["state"] == software_v1.DEPLOYED:
                 deployed_release_ids.append(release["release_id"])
         LOG.debug(f"RegionOne deployed_release_ids: {deployed_release_ids}")
-        return SoftwareAuditData(regionone_releases, deployed_release_ids)
+        return SoftwareAuditData(deployed_release_ids)
 
     @classmethod
     def get_subcloud_audit_data(

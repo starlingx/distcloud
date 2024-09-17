@@ -123,6 +123,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         do_openstack_audit,
         kube_rootca_update_audit_data,
         software_audit_data,
+        use_cache,
     ):
         """Run audits of the specified subcloud(s)"""
 
@@ -183,6 +184,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     do_kubernetes_audit,
                     do_kube_rootca_update_audit,
                     do_software_audit,
+                    use_cache,
                 )
             )
 
@@ -269,6 +271,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         do_kubernetes_audit: bool,
         do_kube_rootca_update_audit: bool,
         do_software_audit: bool,
+        use_cache: bool,
     ):
         audits_done = list()
         failures = list()
@@ -289,6 +292,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 do_kubernetes_audit,
                 do_kube_rootca_update_audit,
                 do_software_audit,
+                use_cache,
             )
         except Exception:
             LOG.exception("Got exception auditing subcloud: %s" % subcloud.name)
@@ -334,6 +338,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         do_kubernetes_audit,
         do_kube_rootca_update_audit,
         do_software_audit,
+        use_cache,
     ):
         audit_payload = {dccommon_consts.BASE_AUDIT: ""}
         if self._should_perform_additional_audit(
@@ -351,6 +356,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 )
             if do_software_audit and software_audit_data:
                 audit_payload[dccommon_consts.SOFTWARE_AUDIT] = software_audit_data
+        # If the audit was forced, we don't want to use the cache
+        if not use_cache:
+            audit_payload["use_cache"] = use_cache
         return audit_payload
 
     def _audit_subcloud(
@@ -369,6 +377,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         do_kubernetes_audit: bool,
         do_kube_rootca_update_audit: bool,
         do_software_audit: bool,
+        use_cache: bool,
     ):
         """Audit a single subcloud."""
 
@@ -511,6 +520,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 do_kubernetes_audit,
                 do_kube_rootca_update_audit,
                 do_software_audit,
+                use_cache,
             )
             audit_results = {}
             try:

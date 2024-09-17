@@ -241,6 +241,7 @@ class DCManagerAuditWorkerService(service.Service):
         do_openstack_audit,
         kube_rootca_update_audit_data,
         software_audit_data,
+        use_cache,
     ):
         """Used to trigger audits of the specified subcloud(s)"""
         self.subcloud_audit_worker_manager.audit_subclouds(
@@ -252,6 +253,7 @@ class DCManagerAuditWorkerService(service.Service):
             do_openstack_audit,
             kube_rootca_update_audit_data,
             software_audit_data,
+            use_cache,
         )
 
     @request_context

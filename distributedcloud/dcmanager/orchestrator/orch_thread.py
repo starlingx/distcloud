@@ -321,8 +321,7 @@ class OrchThread(threading.Thread):
                             state=consts.SW_UPDATE_STATE_FAILED,
                             update_type=self.update_type,
                         )
-                    # Trigger audit to update the sync status for
-                    # each subcloud.
+                    # Trigger audit to update the sync status for each subcloud.
                     self.trigger_audit()
                     return
                 elif sw_update_strategy.stop_on_failure:
@@ -358,9 +357,10 @@ class OrchThread(threading.Thread):
                         state=consts.SW_UPDATE_STATE_COMPLETE,
                         update_type=self.update_type,
                     )
-
             self.subcloud_workers.clear()
+
             # Trigger audit to update the sync status for each subcloud.
+            LOG.info(f"Trigger audit for {self.update_type}")
             self.trigger_audit()
             return
 

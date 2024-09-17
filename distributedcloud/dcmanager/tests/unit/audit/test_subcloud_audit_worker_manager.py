@@ -482,6 +482,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         do_software_audit = True
+        use_cache = True
         (
             patch_audit_data,
             firmware_audit_data,
@@ -513,6 +514,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit,
             do_kube_rootca_update_audit,
             do_software_audit,
+            use_cache,
         )
 
         # Verify the subcloud was set to online
@@ -596,6 +598,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         do_software_audit = True
+        use_cache = True
         (
             patch_audit_data,
             firmware_audit_data,
@@ -627,6 +630,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit,
             do_kube_rootca_update_audit,
             do_software_audit,
+            use_cache,
         )
 
         # Verify the subcloud was set to online
@@ -685,6 +689,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         do_kubernetes_audit = True
         do_kube_rootca_update_audit = True
         do_software_audit = True
+        use_cache = True
         (
             patch_audit_data,
             firmware_audit_data,
@@ -716,6 +721,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit,
             do_kube_rootca_update_audit,
             do_software_audit,
+            use_cache,
         )
 
         # Verify the subcloud was set to online
@@ -787,6 +793,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit=False,
             do_kube_rootca_update_audit=False,
             do_software_audit=False,
+            use_cache=True,
         )
 
         # Verify the subcloud state was not updated
@@ -842,6 +849,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit=False,
             do_kube_rootca_update_audit=False,
             do_software_audit=False,
+            use_cache=True,
         )
 
         # Verify the subcloud state was updated
@@ -942,6 +950,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit=do_kubernetes_audit,
             do_kube_rootca_update_audit=do_kube_rootca_update_audit,
             do_software_audit=do_software_audit,
+            use_cache=True,
         )
 
         # Verify alarm update is called once
@@ -1019,6 +1028,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit=do_kubernetes_audit,
             do_kube_rootca_update_audit=do_kube_rootca_update_audit,
             do_software_audit=do_software_audit,
+            use_cache=True,
         )
 
         audit_fail_count = audit_fail_count + 1
@@ -1109,6 +1119,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit=do_kubernetes_audit,
             do_kube_rootca_update_audit=do_kube_rootca_update_audit,
             do_software_audit=do_software_audit,
+            use_cache=True,
         )
 
         # Verify the subcloud state was not updated
@@ -1175,6 +1186,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_openstack_audit=False,
             kube_rootca_update_audit_data=True,
             software_audit_data=False,
+            use_cache=True,
         )
 
         # Verify if audit was not skipped
@@ -1241,6 +1253,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit=do_kubernetes_audit,
             do_kube_rootca_update_audit=do_kube_rootca_update_audit,
             do_software_audit=do_software_audit,
+            use_cache=True,
         )
 
         # Verify that the subcloud was updated to offline
@@ -1309,6 +1322,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit=do_kubernetes_audit,
             do_kube_rootca_update_audit=do_kube_rootca_update_audit,
             do_software_audit=do_software_audit,
+            use_cache=True,
         )
 
         # Verify the audit fail count was updated in the DB.
@@ -1393,6 +1407,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             False,  # do_kubernetes_audit
             False,  # do_kube_rootca_audit
             False,  # do_software_audit
+            True,  # use_cache
         )
 
         # Verify the subcloud state was not updated
@@ -1470,6 +1485,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             False,  # do_kubernetes_audit
             False,  # do_kube_rootca_update_audit
             False,  # do_software_audit
+            True,  # use_cache
         )
 
         # Verify the subcloud state was not updated
@@ -1549,6 +1565,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             False,  # do_kubernetes_audit
             False,  # do_kube_rootca_update_audit
             False,  # do_software_audit
+            True,  # use_cache
         )
 
         # Verify the subcloud state was not updated
@@ -1657,6 +1674,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             do_kubernetes_audit,
             do_kube_rootca_audit,
             do_software_audit,
+            use_cache=True,
         )
 
         # Verify patch audit is called
