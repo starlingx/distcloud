@@ -62,9 +62,12 @@ def filter_endpoint_data(context, subcloud, endpoint_data):
         subcloud_statuses = db_api.subcloud_status_get_all(context, subcloud.id)
         for subcloud_status in subcloud_statuses:
             endpoint_type = subcloud_status.endpoint_type
-            if (
-                endpoint_type in endpoint_data
-                and endpoint_data[endpoint_type] == subcloud_status.sync_status
+            # If an audit needs to be skipped, DCAgent will return a SKIP_AUDIT status,
+            # which is converted to None in the endpoint_data and needs to be
+            # removed to avoid sending it to state.
+            if endpoint_type in endpoint_data and (
+                endpoint_data[endpoint_type] == subcloud_status.sync_status
+                or endpoint_data[endpoint_type] is None
             ):
                 del endpoint_data[endpoint_type]
         LOG.debug(
