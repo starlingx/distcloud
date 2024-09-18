@@ -281,7 +281,7 @@ class StrategyStep(BASE, DCManagerBase):
     )
     stage = Column(Integer)
     state = Column(String(255))
-    details = Column(String(255))
+    details = Column(String(1000))
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
     subcloud = relationship(
