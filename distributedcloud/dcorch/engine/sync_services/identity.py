@@ -93,6 +93,7 @@ class IdentitySyncThread(SyncThread):
                 "dcorch",
                 "heat_admin",
                 "smapi",
+                "usm",
                 "fm",
                 "cinder" + self.region_name,
             ],
