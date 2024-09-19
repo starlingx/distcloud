@@ -173,15 +173,10 @@ class TestPeerGroupAudit(DCManagerTestCase):
         self.remote_peer_group = copy.deepcopy(FAKE_SITE1_PEER_GROUP_DATA)
         self.remote_peer_group2 = copy.deepcopy(FAKE_SITE2_PEER_GROUP_DATA)
 
-        # Initialize mock objects
-        self.mock_update_sync_status = mock.patch.object(
-            SystemPeerManager, "update_sync_status"
-        ).start()
-        mock_get_local_system = mock.patch.object(utils, "get_local_system").start()
-
-        # Cleanup mock objects after test finishes
-        self.addCleanup(self.mock_update_sync_status.stop())
-        self.addCleanup(mock_get_local_system.stop())
+        mock_patch = mock.patch.object(SystemPeerManager, "update_sync_status")
+        self.addCleanup(mock_patch.stop)
+        self.mock_update_sync_status = mock_patch.start()
+        self._mock_object(utils, "get_local_system", "get_local_system")
 
     def run_audit(self, remote_peer_group=None):
         remote_peer_group = remote_peer_group or self.remote_peer_group

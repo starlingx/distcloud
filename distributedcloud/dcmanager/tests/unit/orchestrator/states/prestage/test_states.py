@@ -10,6 +10,7 @@ import threading
 
 import mock
 
+from dccommon import ostree_mount
 from dccommon.utils import AnsiblePlaybook
 from dcmanager.common import consts
 from dcmanager.common.consts import STRATEGY_STATE_COMPLETE
@@ -166,6 +167,9 @@ class TestPrestagePackagesState(TestPrestage):
 
         self._mock_builtins_open()
         self._mock_ansible_playbook()
+        self._mock_object(
+            ostree_mount, "validate_ostree_iso_mount", "validate_ostree_iso_mount"
+        )
 
     def _mock_ansible_playbook(self):
         mock_patch_object = mock.patch.object(AnsiblePlaybook, "run_playbook")
