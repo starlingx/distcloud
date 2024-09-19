@@ -45,6 +45,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         super().setUp()
 
         self.on_success_state = consts.STRATEGY_STATE_SW_INSTALL_LICENSE
+        self.on_success_state_patch = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
 
         # Add the subcloud being processed by this unit test
         self.subcloud = self.setup_subcloud()
@@ -77,6 +78,21 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
+
+    def test_pre_check_success_patch_release(self):
+        """Test pre-check when the API call succeeds."""
+
+        self.strategy_step.subcloud.software_version = "9.0"
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_not_called()
+        self.software_client.list.assert_called()
+
+        # On success, the state should transition to the next state for patch release
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, self.on_success_state_patch
+        )
 
     def test_pre_check_success_valid_software_strategy(self):
         """Test pre-check when the API call succeeds with a valid VIM strategy."""

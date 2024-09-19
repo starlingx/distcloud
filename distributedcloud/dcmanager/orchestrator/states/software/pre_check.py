@@ -128,6 +128,10 @@ class PreCheckState(BaseState):
             subcloud_releases,
         )
 
+        # We should skip the install_license state if it's a minor release.
+        if strategy_step.subcloud.software_version == utils.extract_version(release_id):
+            self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
+
         return self.next_state
 
     def _handle_sw_deploy_strategy(self, vim_client, strategy_step, strategy_state):

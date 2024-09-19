@@ -17,7 +17,7 @@ FAKE_ID = "1"
 FAKE_URL = "/v1.0/subclouds"
 WRONG_URL = "/v1.0/wrong"
 
-FAKE_SOFTWARE_VERSION = "22.12"
+FAKE_SOFTWARE_VERSION = "10.0"
 
 FAKE_HEADERS = {
     "X-Tenant-Id": FAKE_TENANT,

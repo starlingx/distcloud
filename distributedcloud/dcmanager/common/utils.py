@@ -1915,6 +1915,28 @@ def is_base_release(version):
     return 0 <= MM <= 99 and 0 <= mm <= 99 and 0 == p
 
 
+def extract_version(release_id: str) -> str:
+    """Extract the MM.mm part of a release_id.
+
+    Args:
+        release_id: The release_id. Example: stx-10.0.1
+
+    Returns:
+        str: The extracted major.minor version in the format MM.mm, or
+             None if not found.
+    """
+    # Regular expression to match the MM.mm part of the version
+    pattern = r"(\d{1,2}\.\d{1,2})"
+
+    # Search for the MM.mm pattern in the version_string
+    match = re.search(pattern, release_id)
+
+    # Return the MM.mm part if found, otherwise return None
+    if match:
+        return match.group(1)
+    return None
+
+
 def get_major_release(version):
     """Returns the YY.MM portion of the given version string"""
     split_version = version.split(".")
