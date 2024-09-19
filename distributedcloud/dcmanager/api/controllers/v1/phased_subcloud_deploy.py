@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
 import http.client as httpclient
 import os
 
@@ -609,6 +608,7 @@ class PhasedSubcloudDeployController(object):
             pecan.abort(400, _(msg))
 
         has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
+        has_install_values = consts.INSTALL_VALUES in request.POST
 
         payload = psd_common.get_request_data(
             request, subcloud, SUBCLOUD_ENROLL_GET_FILE_CONTENTS
@@ -619,7 +619,7 @@ class PhasedSubcloudDeployController(object):
         if os.path.exists(override_file):
             if not has_bootstrap_values:
                 psd_common.populate_payload_with_pre_existing_data(
-                    payload, subcloud, SUBCLOUD_ENROLL_GET_FILE_CONTENTS
+                    payload, subcloud, [consts.BOOTSTRAP_VALUES]
                 )
         elif not has_bootstrap_values:
             msg = (
@@ -627,6 +627,11 @@ class PhasedSubcloudDeployController(object):
                 f"not previously available at {override_file}"
             )
             pecan.abort(400, _(msg))
+
+        if not has_install_values:
+            psd_common.populate_payload_with_pre_existing_data(
+                payload, subcloud, [consts.INSTALL_VALUES]
+            )
 
         psd_common.validate_enroll_parameter(payload)
 
