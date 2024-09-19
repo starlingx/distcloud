@@ -184,7 +184,11 @@ class SubcloudInstall(object):
 
         with open(rvmc_config_file, "w") as f_out_rvmc_config_file:
             for k, v in payload.items():
-                if k in consts.BMC_INSTALL_VALUES or k == "image":
+                if (
+                    k in consts.BMC_INSTALL_VALUES
+                    or k in consts.OPTIONAL_BMC_INSTALL_VALUES
+                    or k == "image"
+                ):
                     f_out_rvmc_config_file.write(f'{k}: "{v}"\n')
 
     def create_install_override_file(self, override_path, payload):
@@ -600,7 +604,7 @@ class SubcloudInstall(object):
         self.create_rvmc_config_file(override_path, payload)
 
         # remove the bmc values from the payload
-        for k in consts.BMC_INSTALL_VALUES:
+        for k in consts.BMC_INSTALL_VALUES + consts.OPTIONAL_BMC_INSTALL_VALUES:
             if k in payload:
                 del payload[k]
 
