@@ -232,6 +232,19 @@ class OrchThread(threading.Thread):
             finished_at=finished_at,
         )
 
+    def _update_subcloud_deploy_status(self, subcloud):
+        # If an exception occurs during the create/apply of the VIM strategy, the
+        # deploy_status will be set to 'apply-strategy-failed'. If we retry the
+        # orchestration and the process completes successfully, we need to update the
+        # deploy_status to 'complete'.
+        if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+            # Update deploy state for subclouds to complete
+            db_api.subcloud_update(
+                self.context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_DONE,
+            )
+
     def _delete_subcloud_worker(self, region, subcloud_id):
         db_api.strategy_step_update(
             self.context,
@@ -294,6 +307,8 @@ class OrchThread(threading.Thread):
         abort_detected = False
         for strategy_step in strategy_steps:
             if strategy_step.state == consts.STRATEGY_STATE_COMPLETE:
+                # Update deploy state for subclouds to complete
+                self._update_subcloud_deploy_status(strategy_step.subcloud)
                 # This step is complete
                 self._delete_subcloud_worker(
                     strategy_step.subcloud.region_name, strategy_step.subcloud_id
