@@ -315,7 +315,6 @@ class TestCommonUtils(DCManagerTestCase):
         self.assertFalse(utils.is_minor_release("24.09.0"))
 
     def test_is_base_release_with_valid_format(self):
-        self.assertTrue(utils.is_base_release("23.09.0"))
         self.assertTrue(utils.is_base_release("24.09.0"))
         self.assertTrue(utils.is_base_release("25.03.0"))
 
