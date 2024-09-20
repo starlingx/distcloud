@@ -763,16 +763,24 @@ class USMAPIController(APIController):
             new_request.content_type = "text/plain"
             new_request.body = json.dumps(self.upload_files).encode(new_request.charset)
             self.my_copy = True
-
-        application = self.process_request(new_request)
-        response = req.get_response(application)
-        resp = self.process_response(environ, new_request, response)
-        self._cleanup_temp_storage()
+        try:
+            application = self.process_request(new_request)
+            response = req.get_response(application)
+            resp = self.process_response(environ, new_request, response)
+        except Exception:
+            msg = "Unexpected software proxy failure"
+            LOG.exception(msg)
+            msg += ". Please check dcorch log for details."
+            ret = {"info": "", "warning": "", "error": msg}
+            return Response(body=json.dumps(ret), status=500)
+        finally:
+            self._cleanup_temp_storage()
         return resp
 
     def _cleanup_temp_storage(self):
         if self.tmp_dir:
             shutil.rmtree(self.tmp_dir, ignore_errors=True)
+            LOG.info(f"removed {self.tmp_dir}")
             self.tmp_dir = None
 
     def _save_upload_file(self, file_item):
@@ -800,9 +808,6 @@ class USMAPIController(APIController):
         return target_file
 
     def _process_response(self, environ, request, response):
-        def is_usm_software(fn):
-            return os.path.splitext(fn)[-1] in [".iso", ".patch"]
-
         try:
             resource_type = self._get_resource_type_from_environ(environ)
             operation_type = proxy_utils.get_operation_type(environ)
@@ -810,17 +815,25 @@ class USMAPIController(APIController):
                 LOG.info("resource type %s" % resource_type)
                 if resource_type == consts.RESOURCE_TYPE_USM_RELEASE:
                     if operation_type == consts.OPERATION_TYPE_POST:
-                        body = response.body
-                        if isinstance(body, bytes):
-                            body = body.decode()
+                        # Decode response body
+                        response_body = response.body
+                        if isinstance(response_body, bytes):
+                            response_body = response_body.decode("utf-8")
 
-                        files = usm_util.parse_upload(body)
-                        releases = [f for f in files if is_usm_software(f["filename"])]
-                        for release in releases:
-                            sw_version = usm_util.get_major_release_version(
-                                release["sw_release"]
-                            )
-                            self._save_load_to_vault(sw_version)
+                        response_data = usm_util.parse_upload(response_body)
+
+                        # Add the iso data to the signature data dict since it
+                        # comes empty from the response
+                        for filename, data in response_data.items():
+                            suffix = pathlib.Path(filename).suffix
+                            if suffix == ".sig":
+                                iso_filename = (
+                                    pathlib.Path(filename).with_suffix(".iso").name
+                                )
+                                iso_data = response_data.get(iso_filename)
+                                data.update(iso_data)
+
+                        self._save_loads_to_vault(response_data)
 
             sw_versions = self._get_major_releases(environ, request)
             LOG.info("current available software versions %s" % sw_versions)
@@ -866,28 +879,38 @@ class USMAPIController(APIController):
                 self._remove_load_from_vault(dcvault_ver)
 
     def _create_temp_storage(self):
-        self.tmp_dir = tempfile.mkdtemp(prefix="upload", dir="/scratch")
-        LOG.info("created %s" % self.tmp_dir)
+        if self.tmp_dir is None or not os.path.exists(self.tmp_dir):
+            self.tmp_dir = tempfile.mkdtemp(prefix="upload", dir="/scratch")
+            LOG.info("created %s" % self.tmp_dir)
         return self.tmp_dir
 
-    def _save_load_to_vault(self, sw_version):
-        versioned_vault = os.path.join(self.software_vault, sw_version)
-        pathlib.Path(versioned_vault).mkdir(parents=True, exist_ok=True)
-        if not self.my_copy:
-            self._create_temp_storage()
-            for upload_file in self.upload_files:
-                base_name = os.path.basename(upload_file)
-                target_file = os.path.join(self.tmp_dir, base_name)
-                shutil.copy(upload_file, target_file)
-
-        # Move the files to the final location
+    def _save_loads_to_vault(self, response_data):
         for upload_file in self.upload_files:
             base_name = os.path.basename(upload_file)
-            target_file = os.path.join(versioned_vault, base_name)
-            src_file = os.path.join(self.tmp_dir, base_name)
-            shutil.move(src_file, target_file)
+            data = response_data.get(base_name)
 
-        LOG.info("Release %s (%s) saved to vault." % (self.upload_files, sw_version))
+            if data is None:
+                LOG.warning(f"Upload mismatch: {base_name} not found in response")
+                continue
+
+            major_version = usm_util.get_major_release_version(data["sw_release"])
+
+            # Create the dc-vault software release directory
+            versioned_vault = os.path.join(self.software_vault, major_version)
+            pathlib.Path(versioned_vault).mkdir(parents=True, exist_ok=True)
+
+            # If it's a local upload, copy the files to the temp storage first
+            if not self.my_copy:
+                self._create_temp_storage()
+                target_file = os.path.join(self.tmp_dir, base_name)
+                LOG.info(f"Copying {upload_file} to {target_file}")
+                shutil.copy(upload_file, target_file)
+
+            # Then copy file files from the temp storage to dc-vault
+            src_file = os.path.join(self.tmp_dir, base_name)
+            target_file = os.path.join(versioned_vault, base_name)
+            LOG.info(f"Moving {src_file} to {target_file}")
+            shutil.move(src_file, target_file)
 
     def _remove_load_from_vault(self, sw_version):
         versioned_vault = os.path.join(self.software_vault, sw_version)

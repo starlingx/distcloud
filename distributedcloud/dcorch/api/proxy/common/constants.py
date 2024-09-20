@@ -76,7 +76,7 @@ CERTIFICATE_PATHS = ["/v1/certificate/certificate_install", "/v1/certificate/{uu
 
 USER_PATHS = ["/v1/iuser/{uuid}"]
 
-RELEASE_PATHS = ["//v1/release", "//v1/release/{rel_id}"]
+RELEASE_PATHS = ["/v1/release", "/v1/release/{rel_id}"]
 
 DEVICE_IMAGE_PATHS = ["/v1/device_images", "/v1/device_images/{uuid}"]
 

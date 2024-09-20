@@ -29,6 +29,8 @@ LOG = log.getLogger(__name__)
 # ${explanation}<br /><br />
 WEBOB_EXPL_SEP = "<br /><br />"
 
+SOFTWARE_RELEASE_PATH = "/v1/release"
+
 
 class ParseError(Middleware):
     """WSGI middleware to replace the plain text message body of an
@@ -71,8 +73,13 @@ class ParseError(Middleware):
                 return start_response(status, headers, exc_info)
 
         app_iter = self.app(environ, replacement_start_response)
-        if (state["status_code"] // 100) not in (2, 3):
-            req = webob.Request(environ)
+        req = webob.Request(environ)
+        # NOTE: The SOFTWARE_RELEASE_PATH is excluded because the software client
+        # does not expect the same error_message format like cgts client does
+        if (state["status_code"] // 100) not in (
+            2,
+            3,
+        ) and SOFTWARE_RELEASE_PATH not in req.path:
             if (
                 req.accept.best_match(["application/json", "application/xml"])
                 == "application/xml"
