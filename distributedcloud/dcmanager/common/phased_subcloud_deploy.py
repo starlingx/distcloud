@@ -186,7 +186,7 @@ def validate_migrate_parameter(payload, request):
 
 def validate_enroll_parameter(payload):
     install_values = payload.get("install_values")
-    if not "install_values":
+    if not install_values:
         pecan.abort(400, _("Install values is necessary for subcloud enrollment"))
 
     # Update the install values in payload

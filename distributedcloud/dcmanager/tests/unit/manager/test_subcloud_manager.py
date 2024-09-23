@@ -562,6 +562,15 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self.mock_subcloud_init_enroll = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
+    def _mock_subcloud_manager_complete(self):
+        """Mock subcloud manager completion process"""
+
+        mock_patch = mock.patch.object(
+            subcloud_manager.SubcloudManager, "subcloud_deploy_complete"
+        )
+        self.mock_subcloud_deploy_complete = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
     def _mock_subcloud_get_region_name(self):
         """Mock region name"""
 
@@ -1535,6 +1544,7 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self._mock_subcloud_manager_init_enroll()
         self._mock_subcloud_get_region_name()
         self._mock_subcloud_manager_run_subcloud_enroll()
+        self._mock_subcloud_manager_complete()
         self.fake_install_values = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self.fake_install_values["software_version"] = SW_VERSION
 
@@ -1707,6 +1717,27 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self.mock_create_subcloud_inventory.assert_called_once()
         self.mock_write_subcloud_ansible_config.assert_called()
         self.mock_create_intermediate_ca_cert.assert_called_once()
+
+    def test_add_subcloud_with_init_enroll_fail(self):
+        """Test subcloud add with init enroll fail"""
+
+        values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
+        values["deploy_status"] = consts.DEPLOY_STATE_NONE
+        values["enroll"] = "true"
+        values["install_values"] = self.fake_install_values
+        sysadmin_password = values["sysadmin_password"]
+
+        subcloud = self.create_subcloud_static(
+            self.ctx, name=values["name"], region_name=values["region_name"]
+        )
+
+        self.sm.add_subcloud(self.ctx, subcloud.id, payload=values)
+
+        self.mock_keyring.get_password.return_value = sysadmin_password
+        self.mock_subcloud_init_enroll.return_value = False
+
+        self.mock_subcloud_init_enroll.assert_called_once()
+        self.mock_subcloud_deploy_complete.assert_not_called()
 
 
 class TestSubcloudDelete(BaseTestSubcloudManager):

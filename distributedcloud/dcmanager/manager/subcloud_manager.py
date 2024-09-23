@@ -1951,8 +1951,7 @@ class SubcloudManager(manager.Manager):
                 return False
         else:
             LOG.error(f"Initial enrollment failed for subcloud {subcloud.name}")
-
-        return True
+            return False
 
     def subcloud_deploy_bootstrap(
         self, context, subcloud_id, payload, initial_deployment=False

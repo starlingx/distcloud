@@ -1244,6 +1244,7 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
             ("bootstrap_values", "bootstrap_fake_filename", fake_content),
             ("install_values", "install_values_fake_filename", install_fake_content),
         ]
+        self._mock_get_subcloud_db_install_values()
 
     def test_patch_enroll_fails_invalid_deploy_status(self):
         """Test patch enroll fails with invalid deploy status"""
@@ -1258,3 +1259,14 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
             "Subcloud deploy status must be either: "
             f"{', '.join(psd_api.VALID_STATES_FOR_DEPLOY_ENROLL)}",
         )
+
+    def test_patch_enroll_succeeds_without_install_values_on_request(self):
+        """Test patch enroll succeeds without install values on request"""
+
+        del self.install_payload["install_values"]
+        self.mock_get_subcloud_db_install_values.return_value = self.data_install
+
+        request_response = self._send_request()
+
+        self._assert_response(request_response)
+        self.mock_rpc_client().subcloud_deploy_enroll.assert_called_once()
