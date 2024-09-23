@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import errno
+import fcntl
 import grp
 import json
 import os
@@ -21,6 +23,7 @@ import pwd
 import shutil
 import tempfile
 import threading
+import time
 
 from eventlet.green import subprocess
 from oslo_config import cfg
@@ -725,6 +728,9 @@ class USMAPIController(APIController):
         self.my_copy = False
         self.tmp_dir = None
         self.software_vault = dccommon_consts.SOFTWARE_VAULT_DIR
+        self.metadata_file = os.path.join(
+            self.software_vault, dccommon_consts.SOFTWARE_VAULT_METADATA
+        )
 
     @webob.dec.wsgify(RequestClass=Request)
     def __call__(self, req):
@@ -737,12 +743,17 @@ class USMAPIController(APIController):
         new_request = req
         new_request.body = req.body
 
-        if content_type == "text/plain":
+        operation_type = proxy_utils.get_operation_type(environ)
+
+        if (
+            content_type == "text/plain"
+            and operation_type == consts.OPERATION_TYPE_POST
+        ):
             # --local
             self.upload_files = list(json.loads(req.body))
             self.my_copy = False
-        else:
-            LOG.info("save uploaded files to local storage")
+        elif operation_type == consts.OPERATION_TYPE_POST:
+            LOG.info("Save uploaded files to local storage")
             # upload. save files to scratch then perform a --local
             request_data = list(req.POST.items())
             uploaded_files = sorted(set(request_data))
@@ -780,7 +791,7 @@ class USMAPIController(APIController):
     def _cleanup_temp_storage(self):
         if self.tmp_dir:
             shutil.rmtree(self.tmp_dir, ignore_errors=True)
-            LOG.info(f"removed {self.tmp_dir}")
+            LOG.info(f"Removed temp. dir: {self.tmp_dir}")
             self.tmp_dir = None
 
     def _save_upload_file(self, file_item):
@@ -812,7 +823,7 @@ class USMAPIController(APIController):
             resource_type = self._get_resource_type_from_environ(environ)
             operation_type = proxy_utils.get_operation_type(environ)
             if self.get_status_code(response) in self.OK_STATUS_CODE:
-                LOG.info("resource type %s" % resource_type)
+                LOG.info(f"Resource type: {resource_type}")
                 if resource_type == consts.RESOURCE_TYPE_USM_RELEASE:
                     if operation_type == consts.OPERATION_TYPE_POST:
                         # Decode response body
@@ -835,17 +846,15 @@ class USMAPIController(APIController):
 
                         self._save_loads_to_vault(response_data)
 
-            sw_versions = self._get_major_releases(environ, request)
-            LOG.info("current available software versions %s" % sw_versions)
-            if sw_versions:
-                dcvault_versions = self._get_version_from_dcvault()
-                LOG.info("software in dcvault %s" % dcvault_versions)
-                self._audit_dcvault(sw_versions, dcvault_versions)
+            releases = self._get_releases(environ, request)
+            if releases is not None:
+                LOG.info(f"Current available releases {list(releases)}")
+                self._audit_dcvault(releases)
             return response
         finally:
             proxy_utils.cleanup(environ)
 
-    def _get_major_releases(self, environ, request):
+    def _get_releases(self, environ, request):
         new_request = request
         new_request.body = None
         new_environ = environ
@@ -856,33 +865,178 @@ class USMAPIController(APIController):
         application = self.process_request(new_request)
         resp = new_request.get_response(application)
         if self.get_status_code(resp) not in self.OK_STATUS_CODE:
-            # can't retrieve software list at the moment
+            # can't retrieve releases at the moment
+            LOG.warning(
+                "Unable to retrieve releases from software "
+                f"API ({self.get_status_code(resp)})"
+            )
             return None
 
-        data = json.loads(resp.body)
-        sw_versions = []
-        for d in data:
-            sw_version = usm_util.get_component_and_versions(d["release_id"])[2]
-            if sw_version and sw_version not in sw_versions:
-                sw_versions.append(sw_version)
-        return sw_versions
+        release_list = json.loads(resp.body)
 
-    def _get_version_from_dcvault(self):
-        if os.path.exists(self.software_vault):
-            dirs = os.listdir(self.software_vault)
-            return dirs
-        return []
+        # Transform the list into a dict where the key is the release ID
+        releases = {}
+        for release in release_list:
+            releases[release["release_id"]] = release
 
-    def _audit_dcvault(self, sw_versions, dcvalut_versions):
-        for dcvault_ver in dcvalut_versions:
-            if dcvault_ver not in sw_versions:
-                self._remove_load_from_vault(dcvault_ver)
+        return releases
+
+    def _audit_dcvault(self, releases):
+        metadata = self.read_metadata()
+        LOG.info(f"Current dc-vault releases {list(metadata)}")
+
+        # Delete loads from dc-vault if they were deleted from USM
+        for vault_release_id, vault_files in metadata.items():
+            if vault_release_id not in releases:
+                for file in vault_files:
+                    pathlib.Path(file).unlink(missing_ok=True)
+                    LOG.info(f"Removed {file} ({vault_release_id})")
+                    self.remove_release_from_metadata(vault_release_id)
+
+        self._remove_empty_dirs(self.software_vault)
+
+    @staticmethod
+    def _remove_empty_dirs(directory):
+        for folder in pathlib.Path(directory).iterdir():
+            if not folder.is_dir():
+                continue
+            try:
+                folder.rmdir()
+                LOG.info(f"Deleted empty folder: {folder.name}")
+            except OSError as e:
+                if e.errno == errno.ENOTEMPTY:
+                    # Directory is not empty
+                    pass
+                else:
+                    # Other errors
+                    LOG.error(f"Failed to delete {folder.name}: {e}")
 
     def _create_temp_storage(self):
         if self.tmp_dir is None or not os.path.exists(self.tmp_dir):
             self.tmp_dir = tempfile.mkdtemp(prefix="upload", dir="/scratch")
-            LOG.info("created %s" % self.tmp_dir)
+            LOG.info(f"Created temp. dir: {self.tmp_dir}")
         return self.tmp_dir
+
+    @staticmethod
+    def _acquire_fd_lock(file_descriptor, shared=False, max_retry=2, wait_interval=2):
+        if shared:
+            operation = fcntl.LOCK_SH | fcntl.LOCK_NB
+        else:
+            operation = fcntl.LOCK_EX | fcntl.LOCK_NB
+
+        attempt = 0
+        while attempt < max_retry:
+            try:
+                fcntl.flock(file_descriptor, operation)
+                LOG.debug(f"Successfully acquired lock (fd={file_descriptor})")
+                return
+            except BlockingIOError as e:
+                attempt += 1
+                if attempt < max_retry:
+                    LOG.info(
+                        f"Could not acquire lock({file_descriptor}): "
+                        f"{str(e)} ({attempt}/{max_retry}), will retry"
+                    )
+                    time.sleep(wait_interval)
+                else:
+                    LOG.exception(f"Failed to acquire lock (fd={file_descriptor})")
+                    raise
+
+    @staticmethod
+    def _release_fd_lock(file_descriptor):
+        try:
+            fcntl.flock(file_descriptor, fcntl.LOCK_UN)
+            LOG.debug(f"Successfully released lock (fd={file_descriptor})")
+        except Exception:
+            LOG.exception(f"Failed to release lock (fd={file_descriptor})")
+            raise
+
+    @staticmethod
+    def _open_create(name, flags):
+        # Custom opener to open a file while creating it
+        # if it doesn't exists in a single open() call
+        return os.open(name, flags | os.O_CREAT)
+
+    def write_metadata(self, target_filename, release_id):
+        with open(
+            self.metadata_file, "r+", encoding="utf-8", opener=self._open_create
+        ) as f:
+            self._acquire_fd_lock(f)
+            try:
+                f.seek(0)
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    LOG.warning(
+                        f"Invalid JSON in file {self.metadata_file}. "
+                        "Starting with an empty dictionary."
+                    )
+                    data = {}
+
+                # Update the dictionary with the new release version and paths
+                files = data.get(release_id, [])
+                if target_filename not in files:
+                    files.append(target_filename)
+                    data[release_id] = files
+                    LOG.info(
+                        f"Added file '{target_filename}' to release "
+                        f"{release_id} in metadata file"
+                    )
+
+                f.seek(0)
+                json.dump(data, f, indent=4, sort_keys=True)
+                f.truncate()
+            except Exception as e:
+                LOG.error(f"Error occurred while writing metadata: {str(e)}")
+                raise
+            finally:
+                self._release_fd_lock(f)
+
+    def read_metadata(self):
+        with open(self.metadata_file, "r", encoding="utf-8") as f:
+            # Use a shared lock for reading
+            self._acquire_fd_lock(f, shared=True)
+            try:
+                data = json.load(f)
+                return data
+            except json.JSONDecodeError:
+                LOG.warning(
+                    f"Invalid JSON in file {self.metadata_file}. "
+                    "Returning empty dictionary."
+                )
+                return {}
+            finally:
+                self._release_fd_lock(f)
+
+        return {}
+
+    def remove_release_from_metadata(self, release_id):
+        with open(
+            self.metadata_file, "r+", encoding="utf-8", opener=self._open_create
+        ) as f:
+            self._acquire_fd_lock(f)
+            try:
+                f.seek(0)
+                try:
+                    data = json.load(f)
+                except Exception:
+                    LOG.error(
+                        f"Invalid JSON in file {self.metadata_file}, "
+                        "unable to remove metadata"
+                    )
+                    return
+
+                if data.pop(release_id, None):
+                    LOG.info(f"Removed release '{release_id}' from metadata file")
+
+                f.seek(0)
+                json.dump(data, f, indent=4, sort_keys=True)
+                f.truncate()
+            except Exception as e:
+                LOG.error(f"Error occurred while removing metadata: {str(e)}")
+                raise
+            finally:
+                self._release_fd_lock(f)
 
     def _save_loads_to_vault(self, response_data):
         for upload_file in self.upload_files:
@@ -899,6 +1053,11 @@ class USMAPIController(APIController):
             versioned_vault = os.path.join(self.software_vault, major_version)
             pathlib.Path(versioned_vault).mkdir(parents=True, exist_ok=True)
 
+            # Store the release ID and filename to a file to be used during
+            # software delete
+            dc_vault_target_file = os.path.join(versioned_vault, base_name)
+            self.write_metadata(dc_vault_target_file, data["id"])
+
             # If it's a local upload, copy the files to the temp storage first
             if not self.my_copy:
                 self._create_temp_storage()
@@ -908,16 +1067,8 @@ class USMAPIController(APIController):
 
             # Then copy file files from the temp storage to dc-vault
             src_file = os.path.join(self.tmp_dir, base_name)
-            target_file = os.path.join(versioned_vault, base_name)
-            LOG.info(f"Moving {src_file} to {target_file}")
-            shutil.move(src_file, target_file)
-
-    def _remove_load_from_vault(self, sw_version):
-        versioned_vault = os.path.join(self.software_vault, sw_version)
-
-        if os.path.isdir(versioned_vault):
-            shutil.rmtree(versioned_vault)
-            LOG.info("Load (%s) removed from vault." % sw_version)
+            LOG.info(f"Moving {src_file} to {dc_vault_target_file}")
+            shutil.move(src_file, dc_vault_target_file)
 
 
 class IdentityAPIController(APIController):
