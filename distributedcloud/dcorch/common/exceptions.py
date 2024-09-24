@@ -187,10 +187,6 @@ class SyncRequestTimeout(OrchestratorException):
     message = _("The sync operation timed out")
 
 
-class ResourceOutOfSync(OrchestratorException):
-    message = _("The resource is out-of-sync")
-
-
 class ResourceNotFound(NotFound):
     message = _("Resource not available")
 
