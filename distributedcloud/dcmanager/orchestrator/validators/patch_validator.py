@@ -37,7 +37,24 @@ class PatchStrategyValidator(StrategyValidationBase):
         """
 
         upload_only_bool = payload.get(consts.EXTRA_ARGS_UPLOAD_ONLY) == "true"
+        remove_bool = payload.get(consts.EXTRA_ARGS_REMOVE) == "true"
         return {
             consts.EXTRA_ARGS_UPLOAD_ONLY: upload_only_bool,
             consts.EXTRA_ARGS_PATCH_ID: payload.get(consts.EXTRA_ARGS_PATCH_ID),
+            consts.EXTRA_ARGS_REMOVE: remove_bool,
         }
+
+    def build_sync_status_filter(self, force):
+        """Builds the sync status filter for valid subclouds
+
+        :param force: if the strategy should be forced to execute
+        :return: sync status to filter
+        :rtype: list
+        """
+
+        # NOTE(nicodemos): For patching, we should only consider subclouds that are
+        # out-of-sync or not available.
+        return [
+            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
+            dccommon_consts.SYNC_STATUS_NOT_AVAILABLE,
+        ]

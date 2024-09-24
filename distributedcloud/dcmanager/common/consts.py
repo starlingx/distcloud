@@ -327,6 +327,7 @@ EXTRA_ARGS_FORCE = "force"
 # extra_args for patching
 EXTRA_ARGS_UPLOAD_ONLY = "upload-only"
 EXTRA_ARGS_PATCH_ID = "patch_id"
+EXTRA_ARGS_REMOVE = "remove"
 
 # TODO(nicodemos): Remove after patching is no longer supported
 # sw_version supported for patching legacy

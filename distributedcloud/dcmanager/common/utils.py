@@ -2218,7 +2218,8 @@ def format_address(ip_address: str) -> str:
         raise
 
 
-def validate_patch_strategy(patch_id: str):
+def validate_patch_strategy(payload: dict):
+    patch_id = payload.get("patch_id")
     if not patch_id:
         message = (
             "patch_id parameter is required for "
@@ -2231,6 +2232,10 @@ def validate_patch_strategy(patch_id: str):
     )
     if not os.path.isfile(patch_file):
         message = f"Patch file {patch_file} is missing in DC Vault patches."
+        pecan.abort(400, _(message))
+
+    if payload.get("remove") and payload.get("upload-only"):
+        message = "Both remove and upload-only parameters cannot be used together."
         pecan.abort(400, _(message))
 
 
