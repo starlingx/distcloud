@@ -327,9 +327,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
     def _build_dcagent_payload(
         self,
-        subcloud_management_state,
-        subcloud_avail_status,
-        first_identity_sync_complete,
+        should_perform_additional_audit,
         firmware_audit_data,
         kubernetes_audit_data,
         kube_rootca_update_audit_data,
@@ -341,11 +339,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         use_cache,
     ):
         audit_payload = {dccommon_consts.BASE_AUDIT: ""}
-        if self._should_perform_additional_audit(
-            subcloud_management_state,
-            subcloud_avail_status,
-            first_identity_sync_complete,
-        ):
+        if should_perform_additional_audit:
             if do_firmware_audit and firmware_audit_data:
                 audit_payload[dccommon_consts.FIRMWARE_AUDIT] = firmware_audit_data
             if do_kubernetes_audit and kubernetes_audit_data:
@@ -484,34 +478,38 @@ class SubcloudAuditWorkerManager(manager.Manager):
             LOG.debug(f"Starting dcagent audit for subcloud: {subcloud_name}")
             # If we don't have the audit data, we won't send the request to the
             # dcagent service, so we set the status to "in sync"
-            if do_firmware_audit and not firmware_audit_data:
-                endpoint_data[dccommon_consts.ENDPOINT_TYPE_FIRMWARE] = (
-                    dccommon_consts.SYNC_STATUS_IN_SYNC
-                )
-                audits_done.append(dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
-            if do_kubernetes_audit and not kubernetes_audit_data:
-                endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBERNETES] = (
-                    dccommon_consts.SYNC_STATUS_IN_SYNC
-                )
-                audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBERNETES)
-            if do_kube_rootca_update_audit and not kube_rootca_update_audit_data:
-                endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA] = (
-                    dccommon_consts.SYNC_STATUS_IN_SYNC
-                )
-                audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
-            if do_software_audit and not software_audit_data:
-                endpoint_data[dccommon_consts.AUDIT_TYPE_SOFTWARE] = (
-                    dccommon_consts.SYNC_STATUS_IN_SYNC
-                )
-                audits_done.append(dccommon_consts.AUDIT_TYPE_SOFTWARE)
+            shoud_perform_additional_audit = self._should_perform_additional_audit(
+                subcloud.management_state,
+                avail_status_current,
+                subcloud.first_identity_sync_complete,
+            )
+            if shoud_perform_additional_audit:
+                if do_firmware_audit and not firmware_audit_data:
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_FIRMWARE] = (
+                        dccommon_consts.SYNC_STATUS_IN_SYNC
+                    )
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_FIRMWARE)
+                if do_kubernetes_audit and not kubernetes_audit_data:
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBERNETES] = (
+                        dccommon_consts.SYNC_STATUS_IN_SYNC
+                    )
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBERNETES)
+                if do_kube_rootca_update_audit and not kube_rootca_update_audit_data:
+                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA] = (
+                        dccommon_consts.SYNC_STATUS_IN_SYNC
+                    )
+                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
+                if do_software_audit and not software_audit_data:
+                    endpoint_data[dccommon_consts.AUDIT_TYPE_SOFTWARE] = (
+                        dccommon_consts.SYNC_STATUS_IN_SYNC
+                    )
+                    audits_done.append(dccommon_consts.AUDIT_TYPE_SOFTWARE)
             LOG.debug(
                 f"Skipping following audits for subcloud {subcloud_name} because "
                 f"RegionOne audit data is not available: {audits_done}"
             )
             audit_payload = self._build_dcagent_payload(
-                subcloud.management_state,
-                avail_status_current,
-                subcloud.first_identity_sync_complete,
+                shoud_perform_additional_audit,
                 firmware_audit_data,
                 kubernetes_audit_data,
                 kube_rootca_update_audit_data,
