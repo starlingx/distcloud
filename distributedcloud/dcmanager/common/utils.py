@@ -2234,7 +2234,10 @@ def validate_patch_strategy(payload: dict):
         message = f"Patch file {patch_file} is missing in DC Vault patches."
         pecan.abort(400, _(message))
 
-    if payload.get("remove") and payload.get("upload-only"):
+    remove = payload.get("remove", "").lower() == "true"
+    upload_only = payload.get("upload-only", "").lower() == "true"
+
+    if remove and upload_only:
         message = "Both remove and upload-only parameters cannot be used together."
         pecan.abort(400, _(message))
 
