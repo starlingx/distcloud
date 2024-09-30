@@ -26,7 +26,6 @@ class KubernetesStrategyValidator(StrategyValidationBase):
         super().__init__()
 
         self.endpoint_type = dccommon_consts.ENDPOINT_TYPE_KUBERNETES
-        self.accepts_force = True
 
     def build_extra_args(self, payload):
         """Builds the extra args for a strategy
@@ -39,18 +38,3 @@ class KubernetesStrategyValidator(StrategyValidationBase):
         return {
             consts.EXTRA_ARGS_TO_VERSION: payload.get(consts.EXTRA_ARGS_TO_VERSION),
         }
-
-    def build_sync_status_filter(self, force):
-        """Builds the sync status filter for valid subclouds
-
-        :param force: if the strategy should be forced to execute
-        :return: sync status to filter
-        :rtype: list
-        """
-
-        if self.accepts_force and force:
-            return [
-                dccommon_consts.SYNC_STATUS_IN_SYNC,
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-            ]
-        return [dccommon_consts.SYNC_STATUS_OUT_OF_SYNC]
