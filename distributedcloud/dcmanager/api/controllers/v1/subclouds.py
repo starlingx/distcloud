@@ -569,9 +569,12 @@ class SubcloudsController(object):
                     if deploy_config_state is not None:
                         deploy_config_sync_status = deploy_config_state
 
+                # The region name is also sent as 'region_name' to maintain backwards
+                # compatibility with previous DC client versions
                 extra_details = {
                     "oam_floating_ip": oam_floating_ip,
                     "deploy_config_sync_status": deploy_config_sync_status,
+                    "region_name": subcloud_region,
                 }
 
                 subcloud_dict.update(extra_details)
