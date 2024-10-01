@@ -2857,8 +2857,8 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         )
 
 
-class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
-    """Test class for patch requests with prestage verb"""
+class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
+    """Base test class for patch requests with prestage verb"""
 
     FAKE_SOFTWARE_LIST_ONE_DEPLOYED_RELEASE = [
         {"sw_version": "24.09.0", "state": "deployed"},
@@ -2976,6 +2976,176 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         mock_get_host = mock.MagicMock()
         mock_get_host.capabilities = {"Personality": personality}
         self.mock_sysinv_client_prestage().get_host.return_value = mock_get_host
+
+
+class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
+    """Test class for subclouds patch prestage"""
+
+    def setUp(self):
+        super().setUp()
+
+    def test_patch_prestage_succeds_without_mgmt_alarm(self):
+        """Test patch prestage succeeds without management alarm"""
+
+        self.mock_sysinv_client_prestage().get_system_health.return_value = (
+            health_report_no_mgmt_alarm
+        )
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().prestage_subcloud.assert_called_once()
+
+    def test_patch_prestage_fails_with_mgmt_alarm(self):
+        """Test patch prestage fails with management alarm"""
+
+        self.mock_sysinv_client_prestage().get_system_health.return_value = (
+            health_report_mgmt_alarm
+        )
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage failed '{self.subcloud.name}': Subcloud has management "
+            "affecting alarm(s). Please resolve the alarm condition(s) or use "
+            "--force option and try again.",
+        )
+
+    def test_patch_prestage_succeeds_with_mgmt_alarm_when_forced(self):
+        """Test patch prestage succeeds with management alarm when forced"""
+
+        self.params["force"] = "True"
+
+        self.mock_sysinv_client_prestage().get_system_health.return_value = (
+            health_report_mgmt_alarm
+        )
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().prestage_subcloud.assert_called_once()
+
+    def test_patch_prestage_fails_with_invalid_force(self):
+        """Test patch prestage fails with invalid force"""
+
+        self.params["force"] = "invalid"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Invalid value for force option: {self.params['force']}",
+        )
+
+    def test_patch_prestage_fails_with_system_controller_software_deploy(self):
+        """Test patch prestage fails when system controller has a deploy in-progress"""
+
+        self.mock_software_client().show_deploy.return_value = [
+            {"to_release": "24.09.0"}
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Prestage failed 'SystemController': Prestage operations are not "
+            "allowed while system controller has a software deployment in progress.",
+        )
+
+    def test_patch_prestage_fails_without_payload(self):
+        """Test patch prestage fails without payload"""
+
+        self.params = {}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "sysadmin_password is required."
+        )
+
+    def test_patch_prestage_fails_without_encoded_sysadmin_password(self):
+        """Test patch prestage fails without encoded sysadmin password"""
+
+        self.params["sysadmin_password"] = "sysadmin_password"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Failed to decode subcloud sysadmin_password, "
+            "verify the password is base64 encoded",
+        )
+
+    @mock.patch.object(json, "loads")
+    def test_patch_prestage_fails_with_json_loads_generic_exception(self, mock_json):
+        """Test patch prestage fails with json.loads generic exception"""
+
+        mock_json.side_effect = Exception()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Request body is malformed."
+        )
+
+    def test_patch_prestage_succeeds_with_invalid_parameter(self):
+        """Test patch prestage succeeds with invalid parameter"""
+
+        self.params["key"] = "value"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().prestage_subcloud.assert_called_once()
+
+    def test_patch_prestage_fails_with_subcloud_in_secondary_state(self):
+        """Test patch prestage fails with subcloud in secondary state"""
+
+        invalid_states = [
+            consts.DEPLOY_STATE_SECONDARY,
+            consts.DEPLOY_STATE_SECONDARY_FAILED,
+        ]
+
+        for index, state in enumerate(invalid_states, start=1):
+            self._update_subcloud(deploy_status=state)
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response,
+                http.client.INTERNAL_SERVER_ERROR,
+                f"Cannot perform on {self.subcloud.deploy_status} state subcloud",
+                index,
+            )
+
+    def test_patch_prestage_fails_with_rpc_client_remote_error(self):
+        """Test patch prestage fails with rpc client remote error"""
+
+        self.mock_rpc_client().prestage_subcloud.side_effect = RemoteError(
+            "msg", "value"
+        )
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.UNPROCESSABLE_ENTITY, "value"
+        )
+
+    def test_patch_prestage_fails_with_rpc_client_generic_exception(self):
+        """Test patch prestage fails with rpc client generic exception"""
+
+        self.mock_rpc_client().prestage_subcloud.side_effect = Exception()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.INTERNAL_SERVER_ERROR, "Unable to prestage subcloud"
+        )
 
     def test_for_sw_deploy_prestage_succeeds(self):
         """Test for sw deploy prestage succeeds"""
@@ -3180,12 +3350,22 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             "not allowed when subcloud deploy is in progress.",
         )
 
+
+class TestSubcloudsPatchPrestageDuplex(BaseTestSubcloudsPatchPrestage):
+    """Test class for subclouds patch prestage duplex"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_get_system = mock.MagicMock()
+        self.mock_get_system.system_mode = consts.SYSTEM_MODE_DUPLEX
+        self.mock_sysinv_client_prestage().get_system.return_value = (
+            self.mock_get_system
+        )
+
     def test_patch_prestage_fails_with_duplex_subcloud(self):
         """Test patch prestage fails with duplex subcloud"""
 
-        mock_get_system = mock.MagicMock()
-        mock_get_system.system_mode = consts.SYSTEM_MODE_DUPLEX
-        self.mock_sysinv_client_prestage().get_system.return_value = mock_get_system
         self.params["for_install"] = "true"
         self._setup_mock_sysinv_client_prestage_get_host("Controller-Standby")
 
@@ -3201,10 +3381,6 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
     def test_prestage_for_sw_deploy_with_duplex_subcloud(self):
         """Test patch prestage success for-sw-deploy with duplex subcloud"""
 
-        mock_get_system = mock.MagicMock()
-        mock_get_system.system_mode = consts.SYSTEM_MODE_DUPLEX
-        self.mock_sysinv_client_prestage().get_system.return_value = mock_get_system
-
         self.params["for_sw_deploy"] = "true"
         self._setup_mock_sysinv_client_prestage_get_host("Controller-Active")
 
@@ -3216,10 +3392,6 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
     def test_prestage_for_install_with_duplex_subcloud(self):
         """Test patch prestage success for-install with duplex subcloud"""
 
-        mock_get_system = mock.MagicMock()
-        mock_get_system.system_mode = consts.SYSTEM_MODE_DUPLEX
-        self.mock_sysinv_client_prestage().get_system.return_value = mock_get_system
-
         self._setup_mock_sysinv_client_prestage_get_host("Controller-Active")
         self.params["for_install"] = "true"
 
@@ -3227,169 +3399,6 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
 
         self._assert_response(response)
         self.mock_rpc_client().prestage_subcloud.assert_called_once()
-
-    def test_patch_prestage_succeds_without_mgmt_alarm(self):
-        """Test patch prestage succeeds without management alarm"""
-
-        self.mock_sysinv_client_prestage().get_system_health.return_value = (
-            health_report_no_mgmt_alarm
-        )
-
-        response = self._send_request()
-
-        self._assert_response(response)
-        self.mock_rpc_client().prestage_subcloud.assert_called_once()
-
-    def test_patch_prestage_fails_with_mgmt_alarm(self):
-        """Test patch prestage fails with management alarm"""
-
-        self.mock_sysinv_client_prestage().get_system_health.return_value = (
-            health_report_mgmt_alarm
-        )
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            f"Prestage failed '{self.subcloud.name}': Subcloud has management "
-            "affecting alarm(s). Please resolve the alarm condition(s) or use "
-            "--force option and try again.",
-        )
-
-    def test_patch_prestage_succeeds_with_mgmt_alarm_when_forced(self):
-        """Test patch prestage succeeds with management alarm when forced"""
-
-        self.params["force"] = "True"
-
-        self.mock_sysinv_client_prestage().get_system_health.return_value = (
-            health_report_mgmt_alarm
-        )
-
-        response = self._send_request()
-
-        self._assert_response(response)
-        self.mock_rpc_client().prestage_subcloud.assert_called_once()
-
-    def test_patch_prestage_fails_with_invalid_force(self):
-        """Test patch prestage fails with invalid force"""
-
-        self.params["force"] = "invalid"
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            f"Invalid value for force option: {self.params['force']}",
-        )
-
-    def test_patch_prestage_fails_with_system_controller_software_deploy(self):
-        """Test patch prestage fails when system controller has a deploy in-progress"""
-
-        self.mock_software_client().show_deploy.return_value = [
-            {"to_release": "24.09.0"}
-        ]
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            "Prestage failed 'SystemController': Prestage operations are not "
-            "allowed while system controller has a software deployment in progress.",
-        )
-
-    def test_patch_prestage_fails_without_payload(self):
-        """Test patch prestage fails without payload"""
-
-        self.params = {}
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "sysadmin_password is required."
-        )
-
-    def test_patch_prestage_fails_without_encoded_sysadmin_password(self):
-        """Test patch prestage fails without encoded sysadmin password"""
-
-        self.params["sysadmin_password"] = "sysadmin_password"
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            "Failed to decode subcloud sysadmin_password, "
-            "verify the password is base64 encoded",
-        )
-
-    @mock.patch.object(json, "loads")
-    def test_patch_prestage_fails_with_json_loads_generic_exception(self, mock_json):
-        """Test patch prestage fails with json.loads generic exception"""
-
-        mock_json.side_effect = Exception()
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Request body is malformed."
-        )
-
-    def test_patch_prestage_succeeds_with_invalid_parameter(self):
-        """Test patch prestage succeeds with invalid parameter"""
-
-        self.params["key"] = "value"
-
-        response = self._send_request()
-
-        self._assert_response(response)
-        self.mock_rpc_client().prestage_subcloud.assert_called_once()
-
-    def test_patch_prestage_fails_with_subcloud_in_secondary_state(self):
-        """Test patch prestage fails with subcloud in secondary state"""
-
-        invalid_states = [
-            consts.DEPLOY_STATE_SECONDARY,
-            consts.DEPLOY_STATE_SECONDARY_FAILED,
-        ]
-
-        for index, state in enumerate(invalid_states, start=1):
-            self._update_subcloud(deploy_status=state)
-
-            response = self._send_request()
-
-            self._assert_pecan_and_response(
-                response,
-                http.client.INTERNAL_SERVER_ERROR,
-                f"Cannot perform on {self.subcloud.deploy_status} state subcloud",
-                index,
-            )
-
-    def test_patch_prestage_fails_with_rpc_client_remote_error(self):
-        """Test patch prestage fails with rpc client remote error"""
-
-        self.mock_rpc_client().prestage_subcloud.side_effect = RemoteError(
-            "msg", "value"
-        )
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response, http.client.UNPROCESSABLE_ENTITY, "value"
-        )
-
-    def test_patch_prestage_fails_with_rpc_client_generic_exception(self):
-        """Test patch prestage fails with rpc client generic exception"""
-
-        self.mock_rpc_client().prestage_subcloud.side_effect = Exception()
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response, http.client.INTERNAL_SERVER_ERROR, "Unable to prestage subcloud"
-        )
 
 
 class TestSubcloudsDelete(BaseTestSubcloudsController):
