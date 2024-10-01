@@ -75,7 +75,7 @@ class SubcloudEnrollmentInit(object):
             msg = f"No directory exists: {path}"
             raise exceptions.EnrollInitExecutionFailed(reason=msg)
 
-        subnet_prefix = iso_values["external_oam_subnet"].split("/")[1]
+        subnet_prefix = iso_values["external_oam_subnet"].split(",")[0].split("/")[1]
 
         network_element = {
             "type": "physical",
@@ -84,11 +84,11 @@ class SubcloudEnrollmentInit(object):
                 {
                     "type": "static",
                     "address": (
-                        iso_values["external_oam_floating_address"]
+                        iso_values["external_oam_floating_address"].split(",")[0]
                         + "/"
                         + subnet_prefix
                     ),
-                    "gateway": iso_values["external_oam_gateway_address"],
+                    "gateway": iso_values["external_oam_gateway_address"].split(",")[0],
                 }
             ],
         }
@@ -170,8 +170,10 @@ class SubcloudEnrollmentInit(object):
 
         if iso_values["system_mode"] == dcmanager_consts.SYSTEM_MODE_DUPLEX:
             reconfig_command += (
-                f" --oam_c0_ip {iso_values['external_oam_node_0_address']}"
-                f" --oam_c1_ip {iso_values['external_oam_node_1_address']}"
+                f" --oam_c0_ip "
+                f"{iso_values['external_oam_node_0_address'].split(',')[0]}"
+                f" --oam_c1_ip "
+                f"{iso_values['external_oam_node_1_address'].split(',')[0]}"
             )
 
         runcmd = [
