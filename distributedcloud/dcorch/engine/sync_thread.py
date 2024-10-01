@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import collections
+import eventlet
 import threading
 
 from oslo_concurrency import lockutils
@@ -48,6 +49,8 @@ from keystoneclient import client as keystoneclient
 # The pylint check is temporarily skipped on this file
 # pylint: skip-file
 LOG = logging.getLogger(__name__)
+
+SYNC_TIMEOUT = 600  # Timeout for subcloud sync
 
 # sync request states, should be in SyncRequest class
 STATE_QUEUED = "queued"
@@ -363,12 +366,11 @@ class SyncThread(object):
             },
         )
 
-    def sync(self, engine_id):
+    def sync(self):
         LOG.debug(
             "{}: starting sync routine".format(self.subcloud_name), extra=self.log_extra
         )
         region_name = self.subcloud_name
-        sync_requests = []
 
         sync_requests = orchrequest.OrchRequestList.get_by_attrs(
             self.ctxt,
@@ -392,48 +394,33 @@ class SyncThread(object):
         )
 
         actual_sync_requests = []
-        alarmable = False
         for req in sync_requests:
             # Failed orch requests were taken into consideration when reporting
             # sync status to the dcmanager. They need to be removed from the
             # orch requests list before proceeding.
             if req.state != consts.ORCH_REQUEST_STATE_FAILED:
                 actual_sync_requests.append(req)
-            else:
-                # Any failed state should be alarmable
-                alarmable = True
-
-            # Do not raise an alarm if all the sync requests are due to
-            # a fernet key rotation, as these are expected to occur
-            # periodically.
-            if req.orch_job.source_resource_id != FERNET_REPO_MASTER_ID:
-                alarmable = True
-
-        # todo: for each request look up sync handler based on
-        # resource type (I'm assuming here we're not storing a python
-        # object in the DB)
-        # Update dcmanager with the current sync status.
-        self.set_sync_status(
-            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, alarmable=alarmable
-        )
-        sync_status_start = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         if not actual_sync_requests:
             LOG.info(
                 "Sync resources done for subcloud - no valid sync requests",
                 extra=self.log_extra,
             )
+            # We got FAILED requests, set sync_status=out-of-sync
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
             return
         elif not self.is_subcloud_enabled():
             LOG.info(
                 "Sync resources done for subcloud - subcloud is disabled",
                 extra=self.log_extra,
             )
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
             return
 
         # Subcloud is enabled and there are pending sync requests, so
         # we have work to do.
         request_aborted = False
+        timeout = eventlet.timeout.Timeout(SYNC_TIMEOUT)
         try:
             for request in actual_sync_requests:
                 if not self.is_subcloud_enabled() or self.should_exit():
@@ -478,30 +465,71 @@ class SyncThread(object):
                         request.save()
                         retry_count += 1
                         if retry_count >= self.MAX_RETRY:
-                            # todo: raise "unable to sync this
-                            # subcloud/endpoint" alarm with fmapi
                             raise exceptions.EndpointNotReachable()
                     except exceptions.SyncRequestFailedRetry:
-                        # todo: raise "unable to sync this
-                        # subcloud/endpoint" alarm with fmapi
+                        LOG.info(
+                            "SyncRequestFailedRetry for {}/{}".format(
+                                self.subcloud_name, self.endpoint_type
+                            ),
+                            extra=self.log_extra,
+                        )
                         request.try_count += 1
                         request.state = consts.ORCH_REQUEST_STATE_FAILED
                         request.save()
                         retry_count += 1
-                        # we'll retry
+
+                        # Incremental backoff retry is implemented to define the wait
+                        # time between each attempt to retry the sync.
+                        #   1st retry: 1s.
+                        #   2nd retry: 3s.
+                        if retry_count < self.MAX_RETRY:
+                            # Only sleep if this is not the last retry
+                            sleep_duration = 1 + (retry_count - 1) * 2
+                            eventlet.greenthread.sleep(sleep_duration)
+                        else:
+                            LOG.error(
+                                "SyncRequestFailedRetry: max retries reached "
+                                "for {}/{}".format(
+                                    self.subcloud_name, self.endpoint_type
+                                ),
+                                extra=self.log_extra,
+                            )
                     except exceptions.SyncRequestFailed:
+                        LOG.error(
+                            "SyncRequestFailed for {}/{}".format(
+                                self.subcloud_name, self.endpoint_type
+                            ),
+                            extra=self.log_extra,
+                        )
                         request.state = consts.ORCH_REQUEST_STATE_FAILED
                         request.save()
                         retry_count = self.MAX_RETRY
+                        request_aborted = True
                     except exceptions.SyncRequestAbortedBySystem:
                         request.state = consts.ORCH_REQUEST_STATE_FAILED
                         request.save()
                         retry_count = self.MAX_RETRY
                         request_aborted = True
+                    except Exception as e:
+                        LOG.error(
+                            f"Unexpected error during sync: {e}",
+                            extra=self.log_extra,
+                        )
+                        request.state = consts.ORCH_REQUEST_STATE_FAILED
+                        request.save()
+                        retry_count = self.MAX_RETRY
 
                 # If we fall out of the retry loop we either succeeded
                 # or failed multiple times and want to move to the next
                 # request.
+
+        except eventlet.timeout.Timeout:
+            # The entire sync operation timed out, covering all sync requests.
+            # Just log the exception and continue to check if there are
+            # pending requests.
+            LOG.exception(
+                f"Sync timed out for {self.subcloud_name}/{self.endpoint_type}."
+            )
 
         except exceptions.EndpointNotReachable:
             # Endpoint not reachable, throw away all the sync requests.
@@ -514,6 +542,9 @@ class SyncThread(object):
             # del sync_requests[:] #This fails due to:
             # 'OrchRequestList' object does not support item deletion
 
+        finally:
+            timeout.cancel()
+
         sync_requests = orchrequest.OrchRequestList.get_by_attrs(
             self.ctxt,
             self.endpoint_type,
@@ -521,26 +552,53 @@ class SyncThread(object):
             states=self.PENDING_SYNC_REQUEST_STATES,
         )
 
-        if (
-            sync_requests
-            and sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        ):
-            self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-            LOG.info(
-                "End of resource sync out-of-sync. {} sync request(s)".format(
-                    len(sync_requests)
-                ),
-                extra=self.log_extra,
-            )
-        elif sync_requests and request_aborted:
-            if sync_status_start != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
+        alarmable = False
+        for req in sync_requests:
+            # Any failed state should be alarmable
+            if req.state == consts.ORCH_REQUEST_STATE_FAILED:
+                alarmable = True
+
+            # Do not raise an alarm if all the sync requests are due to
+            # a fernet key rotation, as these are expected to occur
+            # periodically.
+            if req.orch_job.source_resource_id != FERNET_REPO_MASTER_ID:
+                alarmable = True
+
+        # If there are pending requests, update the status to out-of-sync.
+        if sync_requests:
+            # If the request was aborted due to an expired certificate,
+            # update the status to 'out-of-sync' and just return so the
+            # sync_request is updated to "completed". This way, the sync
+            # job won't attemp to retry the sync in the next cycle.
+            if request_aborted:
                 self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
-            LOG.info(
-                "End of resource sync out-of-sync. {} sync request(s): "
-                "request_aborted".format(len(sync_requests)),
-                extra=self.log_extra,
-            )
-        elif sync_status_start != dccommon_consts.SYNC_STATUS_IN_SYNC:
+                LOG.info(
+                    "End of resource sync out-of-sync. {} sync request(s): "
+                    "request_aborted".format(len(sync_requests)),
+                    extra=self.log_extra,
+                )
+                return
+            # Otherwise, e.g. timeout or EndpointNotReachable,
+            # update the status and raise an exception to set the sync_request to
+            # 'failed', so the sync job will re-attempt the sync in the next
+            # sync cycle.
+            else:
+                self.set_sync_status(
+                    dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, alarmable=alarmable
+                )
+                LOG.info(
+                    "End of resource sync out-of-sync. {} sync request(s)".format(
+                        len(sync_requests)
+                    ),
+                    extra=self.log_extra,
+                )
+                msg = (
+                    f"There are {len(sync_requests)} pending requests to sync. "
+                    "Will retry in next sync cycle."
+                )
+                raise Exception(msg)
+
+        else:
             self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
             LOG.info(
                 "End of resource sync in-sync. {} sync request(s)".format(

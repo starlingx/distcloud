@@ -20,7 +20,7 @@ from dcorch.objects import subcloud
 
 LOG = logging.getLogger(__name__)
 
-SYNC_TIMEOUT = 600  # Timeout for subcloud sync
+AUDIT_TIMEOUT = 600  # Timeout for subcloud audit
 
 # sync object endpoint type and subclass mappings
 sync_object_class_map = {
@@ -112,19 +112,11 @@ class GenericSyncWorkerManager(object):
             subcloud_name, endpoint_type, management_ip, software_version
         )
         new_state = dco_consts.SYNC_STATUS_COMPLETED
-        timeout = eventlet.timeout.Timeout(SYNC_TIMEOUT)
         try:
-            sync_obj.sync(self.engine_id)
-        except eventlet.timeout.Timeout as t:
-            if t is not timeout:
-                raise  # not my timeout
-            LOG.exception(f"Sync timed out for {subcloud_name}/{endpoint_type}.")
+            sync_obj.sync()
+        except Exception:
+            LOG.exception(f"Sync failed for {subcloud_name}/{endpoint_type}")
             new_state = dco_consts.SYNC_STATUS_FAILED
-        except Exception as e:
-            LOG.exception(f"Sync failed for {subcloud_name}/{endpoint_type}: {e}")
-            new_state = dco_consts.SYNC_STATUS_FAILED
-        finally:
-            timeout.cancel()
 
         db_api.subcloud_sync_update(
             context, subcloud_name, endpoint_type, values={"sync_request": new_state}
@@ -359,7 +351,7 @@ class GenericSyncWorkerManager(object):
 
     def _audit_subcloud(self, context, subcloud_name, endpoint_type, sync_obj):
         new_state = dco_consts.AUDIT_STATUS_COMPLETED
-        timeout = eventlet.timeout.Timeout(SYNC_TIMEOUT)
+        timeout = eventlet.timeout.Timeout(AUDIT_TIMEOUT)
         try:
             sync_obj.run_sync_audit(self.engine_id)
         except eventlet.timeout.Timeout as t:

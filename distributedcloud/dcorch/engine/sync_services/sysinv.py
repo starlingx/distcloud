@@ -23,6 +23,8 @@ from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_utils import timeutils
 
+from cgtsclient.exc import CommunicationError
+
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
@@ -163,6 +165,7 @@ class SysinvSyncThread(SyncThread):
             exceptions.TimeOut,
             keystone_exceptions.connection.ConnectTimeout,
             keystone_exceptions.ConnectFailure,
+            CommunicationError,
         ) as e:
             LOG.info(
                 "{} {} region_name {} exception {}".format(
@@ -555,6 +558,7 @@ class SysinvSyncThread(SyncThread):
             exceptions.TimeOut,
             keystone_exceptions.connection.ConnectTimeout,
             keystone_exceptions.ConnectFailure,
+            CommunicationError,
         ) as e:
             LOG.info(
                 "get subcloud_resources {}: subcloud {} is not reachable [{}]".format(
