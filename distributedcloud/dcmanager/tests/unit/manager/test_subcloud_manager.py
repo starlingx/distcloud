@@ -629,6 +629,16 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
 
+    def create_simplified_subcloud(self, subcloud):
+        return {
+            "id": subcloud.id,
+            "name": subcloud.name,
+            "availability_status": subcloud.availability_status,
+            "management_state": subcloud.management_state,
+            "deploy_status": subcloud.deploy_status,
+            "region_name": subcloud.region_name,
+        }
+
     @staticmethod
     def create_subcloud_peer_group_static(ctxt, **kwargs):
         values = {
@@ -2547,7 +2557,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         }
         endpoints = db_api.subcloud_status_get_all(self.ctx, self.subcloud.id)
 
-        db_api.subcloud_update(
+        self.subcloud = db_api.subcloud_update(
             self.ctx,
             self.subcloud.id,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
@@ -2557,8 +2567,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         ssm = subcloud_state_manager.SubcloudStateManager()
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.subcloud.name,
-            self.subcloud.region_name,
+            self.create_simplified_subcloud(self.subcloud),
             availability_data,
             endpoint_data,
         )
@@ -2611,7 +2620,10 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
 
         ssm = subcloud_state_manager.SubcloudStateManager()
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
-            self.ctx, self.subcloud.name, self.subcloud.region_name, None, endpoint_data
+            self.ctx,
+            self.create_simplified_subcloud(self.subcloud),
+            None,
+            endpoint_data,
         )
 
         self.assertEqual(mock_db.call_count, 1)
@@ -2619,23 +2631,13 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         # Re-executing the method should result in the same amount of call counts
         # for the database query since there are no updates
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
-            self.ctx, self.subcloud.name, self.subcloud.region_name, None, endpoint_data
+            self.ctx,
+            self.create_simplified_subcloud(self.subcloud),
+            None,
+            endpoint_data,
         )
 
         self.assertEqual(mock_db.call_count, 2)
-
-    def test_bulk_update_fails_with_invalid_region(self):
-        ssm = subcloud_state_manager.SubcloudStateManager()
-
-        self.assertRaises(
-            exceptions.SubcloudRegionNameNotFound,
-            ssm.bulk_update_subcloud_availability_and_endpoint_status,
-            self.ctx,
-            self.subcloud.name,
-            "fake",
-            None,
-            None,
-        )
 
     @mock.patch.object(
         subcloud_state_manager.SubcloudStateManager,

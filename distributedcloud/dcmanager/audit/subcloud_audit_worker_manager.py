@@ -791,13 +791,22 @@ class SubcloudAuditWorkerManager(manager.Manager):
         bulk_update_subcloud_availability_and_endpoint_status = (
             self.state_rpc_client.bulk_update_subcloud_availability_and_endpoint_status
         )
+
         if availability_data or (endpoint_data and any(endpoint_data.values())):
+            simplified_subcloud = {
+                "id": subcloud.id,
+                "name": subcloud.name,
+                "availability_status": subcloud.availability_status,
+                "management_state": subcloud.management_state,
+                "deploy_status": subcloud.deploy_status,
+                "region_name": subcloud.region_name,
+            }
+
             try:
                 # If a value is not None, an update should be sent to the rpc client
                 bulk_update_subcloud_availability_and_endpoint_status(
                     self.context,
-                    subcloud_name,
-                    subcloud_region,
+                    simplified_subcloud,
                     availability_data,
                     endpoint_data,
                 )

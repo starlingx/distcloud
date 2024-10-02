@@ -192,14 +192,14 @@ class DCManagerStateService(service.Service):
         )
 
     def bulk_update_subcloud_availability_and_endpoint_status(
-        self, context, subcloud_name, subcloud_region, availability_data, endpoint_data
+        self, context, simplified_subcloud, availability_data, endpoint_data
     ):
         LOG.debug(
             "Handling bulk_update_subcloud_availability_and_endpoint_status request "
-            f"for subcloud: {subcloud_name}"
+            f"for subcloud: {simplified_subcloud['name']}"
         )
 
         manager = self.subcloud_state_manager
         manager.bulk_update_subcloud_availability_and_endpoint_status(
-            context, subcloud_name, subcloud_region, availability_data, endpoint_data
+            context, simplified_subcloud, availability_data, endpoint_data
         )

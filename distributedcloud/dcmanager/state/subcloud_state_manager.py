@@ -32,6 +32,7 @@ from dcmanager.common import exceptions
 from dcmanager.common import manager
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy.models import Subcloud
 from dcmanager.rpc import client as rpc_client
 from dcorch.rpc import client as dcorch_rpc_client
 
@@ -416,21 +417,19 @@ class SubcloudStateManager(manager.Manager):
         )
 
     def bulk_update_subcloud_availability_and_endpoint_status(
-        self, context, subcloud_name, subcloud_region, availability_data, endpoint_data
+        self, context, simplified_subcloud, availability_data, endpoint_data
     ):
         # This bulk update is executed as part of the audit process in dcmanager and
         # its related endpoints. This method is not used by dcorch and cert-mon.
 
-        try:
-            subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
-        except Exception:
-            LOG.exception(f"Failed to get subcloud by region name {subcloud_region}")
-            raise
+        # When the request is performed through RPC, the subcloud object is sent as
+        # a dict and needs to be redefined as a model
+        subcloud = Subcloud(**simplified_subcloud)
 
         if availability_data:
             self.update_subcloud_availability(
                 context,
-                subcloud_region,
+                subcloud.region_name,
                 availability_data["availability_status"],
                 availability_data["update_state_only"],
                 availability_data["audit_fail_count"],
