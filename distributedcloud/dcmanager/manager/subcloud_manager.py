@@ -1254,7 +1254,6 @@ class SubcloudManager(manager.Manager):
         context,
         subcloud,
         payload: dict,
-        ansible_subcloud_inventory_file,
         initial_deployment=False,
     ):
         """Run the preparation steps needed to run the bootstrap operation
@@ -1262,10 +1261,34 @@ class SubcloudManager(manager.Manager):
         :param context: target request context object
         :param subcloud: subcloud model object
         :param payload: bootstrap request parameters
-        :param ansible_subcloud_inventory_file: the ansible inventory file path
         :param initial_deployment: initial_deployment flag from subcloud inventory
         :return: ansible command needed to run the bootstrap playbook
         """
+
+        self._deploy_bootstrap_enroll_prep(
+            "bootstrap",
+            context,
+            payload,
+            subcloud,
+            initial_deployment=initial_deployment,
+        )
+
+        ansible_subcloud_inventory_file = self._get_ansible_filename(
+            subcloud.name, INVENTORY_FILE_POSTFIX
+        )
+
+        bootstrap_command = self.compose_bootstrap_command(
+            subcloud.name,
+            subcloud.region_name,
+            ansible_subcloud_inventory_file,
+            subcloud.software_version,
+        )
+        return bootstrap_command
+
+    def _deploy_bootstrap_enroll_prep(
+        self, operation, context, payload, subcloud, initial_deployment=False
+    ):
+
         network_reconfig = utils.has_network_reconfig(payload, subcloud)
         if network_reconfig:
             self._configure_system_controller_network(
@@ -1274,21 +1297,32 @@ class SubcloudManager(manager.Manager):
             # Regenerate the addn_hosts_dc file
             self._create_addn_hosts_dc(context)
 
-        # Update subcloud
-        subcloud = db_api.subcloud_update(
-            context,
-            subcloud.id,
-            description=payload.get("description"),
-            management_subnet=utils.get_primary_management_subnet(payload),
-            management_gateway_ip=utils.get_primary_management_gateway_address(payload),
-            management_start_ip=utils.get_primary_management_start_address(payload),
-            management_end_ip=utils.get_primary_management_end_address(payload),
-            systemcontroller_gateway_ip=(
-                utils.get_primary_systemcontroller_gateway_address(payload)
-            ),
-            location=payload.get("location"),
-            deploy_status=consts.DEPLOY_STATE_PRE_BOOTSTRAP,
-        )
+        if operation == "bootstrap":
+            _deploy_status = consts.DEPLOY_STATE_PRE_BOOTSTRAP
+        elif operation == "enroll":
+            _deploy_status = consts.DEPLOY_STATE_PRE_ENROLL
+        else:
+            raise exceptions.InvalidParameterValue
+
+        if subcloud.deploy_status != _deploy_status or network_reconfig:
+
+            # Update subcloud
+            subcloud = db_api.subcloud_update(
+                context,
+                subcloud.id,
+                description=payload.get("description"),
+                management_subnet=utils.get_primary_management_subnet(payload),
+                management_gateway_ip=utils.get_primary_management_gateway_address(
+                    payload
+                ),
+                management_start_ip=utils.get_primary_management_start_address(payload),
+                management_end_ip=utils.get_primary_management_end_address(payload),
+                systemcontroller_gateway_ip=(
+                    utils.get_primary_systemcontroller_gateway_address(payload)
+                ),
+                location=payload.get("location"),
+                deploy_status=_deploy_status,
+            )
 
         # Populate payload with passwords
         payload["ansible_become_pass"] = payload["sysadmin_password"]
@@ -1311,11 +1345,21 @@ class SubcloudManager(manager.Manager):
         )
 
         if not overrides_file_exists:
+            generate_ca_certs = operation.lower() != "enroll"
             # Overrides file doesn't exist, so we generate a new one
             self.generate_subcloud_ansible_config(
-                subcloud, payload, initial_deployment=initial_deployment
+                subcloud,
+                payload,
+                initial_deployment=initial_deployment,
+                create_ca_cert=generate_ca_certs,
             )
-        else:
+
+        # Only creates inventory for bootstrap, for enroll
+        # is created inside the enroll function
+        elif operation.lower() == "bootstrap":
+            ansible_subcloud_inventory_file = self._get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX
+            )
             # Since we generate an inventory already when generating the
             # new Ansible overrides, only create the inventory here when
             # the overrides already existed
@@ -1326,14 +1370,6 @@ class SubcloudManager(manager.Manager):
         utils.update_install_values_with_new_bootstrap_address(
             context, payload, subcloud
         )
-
-        bootstrap_command = self.compose_bootstrap_command(
-            subcloud.name,
-            subcloud.region_name,
-            ansible_subcloud_inventory_file,
-            subcloud.software_version,
-        )
-        return bootstrap_command
 
     def _deploy_config_prep(
         self,
@@ -1400,7 +1436,9 @@ class SubcloudManager(manager.Manager):
             "ansible_ssh_pass": payload["sysadmin_password"],
             "ansible_become_pass": payload["sysadmin_password"],
         }
-        utils.update_values_on_yaml_file(bootstrap_file, update_values)
+        utils.update_values_on_yaml_file(
+            bootstrap_file, update_values, values_to_keep=GENERATED_OVERRIDES_VALUES
+        )
 
         # Update the ansible inventory for the subcloud
         bootstrap_address = payload["install_values"]["bootstrap_address"]
@@ -1497,13 +1535,14 @@ class SubcloudManager(manager.Manager):
         )
 
     def generate_subcloud_ansible_config(
-        self, subcloud, payload, initial_deployment=False
+        self, subcloud, payload, initial_deployment=False, create_ca_cert=True
     ):
         """Generate latest ansible config based on given payload.
 
         :param subcloud: subcloud object
         :param payload: subcloud configuration
         :param initial_deployment: if being called during initial deployment
+        :param create_ca_cert: if should create ca certs
         :return: resulting subcloud DB object
         """
         if initial_deployment:
@@ -1569,7 +1608,7 @@ class SubcloudManager(manager.Manager):
             # deploy create, so we just get the existing secret
             if initial_deployment:
                 self._populate_payload_with_dc_intermediate_ca_cert(payload)
-            else:
+            elif create_ca_cert:
                 self._create_intermediate_ca_cert(payload)
 
             # Write this subclouds overrides to file
@@ -1878,20 +1917,6 @@ class SubcloudManager(manager.Manager):
                     deploy_status=consts.DEPLOY_STATE_PRE_ENROLL,
                 )
 
-                m_ks_client = OpenStackDriver(
-                    region_name=dccommon_consts.DEFAULT_REGION_NAME, region_clients=None
-                ).keystone_client
-                endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
-                sysinv_client = SysinvClient(
-                    dccommon_consts.DEFAULT_REGION_NAME,
-                    m_ks_client.session,
-                    endpoint=endpoint,
-                )
-                LOG.debug("Getting cached RegionOne data for %s" % subcloud.name)
-                cached_regionone_data = self._get_cached_regionone_data(
-                    m_ks_client, sysinv_client
-                )
-
                 # TODO(glyraper): Use the RPC Transport allow_remote_exmods
                 #  parameter to re-raise serialized remote exceptions.
                 # Subcloud may already be created in dcorch db
@@ -1911,7 +1936,9 @@ class SubcloudManager(manager.Manager):
                         pass
 
                 self._create_intermediate_ca_cert(payload=payload)
-                self._write_subcloud_ansible_config(cached_regionone_data, payload)
+
+                self._deploy_bootstrap_enroll_prep("enroll", context, payload, subcloud)
+
                 log_file = (
                     os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
                     + "_playbook_output.log"
@@ -1974,15 +2001,11 @@ class SubcloudManager(manager.Manager):
                 os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
                 + "_playbook_output.log"
             )
-            ansible_subcloud_inventory_file = self._get_ansible_filename(
-                subcloud.name, INVENTORY_FILE_POSTFIX
-            )
 
             bootstrap_command = self._deploy_bootstrap_prep(
                 context,
                 subcloud,
                 payload,
-                ansible_subcloud_inventory_file,
                 initial_deployment,
             )
             bootstrap_success = self._run_subcloud_bootstrap(
