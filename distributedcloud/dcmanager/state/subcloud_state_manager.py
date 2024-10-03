@@ -455,9 +455,10 @@ class SubcloudStateManager(manager.Manager):
         # that, the logic is similar to _do_update_subcloud_endpoint_status but with
         # the difference that only the required endpoints will be update and that'll
         # happen at once.
+        status_to_set = [f"{key} ({value})" for key, value in endpoint_data.items()]
         LOG.info(
             f"Updating endpoints on subcloud: {subcloud.name} "
-            f"endpoints: {', '.join(endpoint_data.keys())}"
+            f"endpoints: {', '.join(status_to_set)}"
         )
 
         # For each endpoint in endpoint_data, decide whether an alarm should be set
