@@ -778,6 +778,9 @@ class USMAPIController(APIController):
             application = self.process_request(new_request)
             response = req.get_response(application)
             resp = self.process_response(environ, new_request, response)
+        except InsufficientDiskspace as e:
+            response = {"info": "", "warning": "", "error": str(e)}
+            return Response(body=json.dumps(response), status=500)
         except Exception:
             msg = "Unexpected software proxy failure"
             LOG.exception(msg)
@@ -794,24 +797,22 @@ class USMAPIController(APIController):
             LOG.info(f"Removed temp. dir: {self.tmp_dir}")
             self.tmp_dir = None
 
+    def _check_disk_space(self, filename, file_size, target_dir):
+        avail_disk_space = shutil.disk_usage(target_dir).free
+        if file_size > avail_disk_space:
+            LOG.error(
+                f"Not enough space to save file {filename} in {target_dir}\n"
+                f"Available {avail_disk_space} bytes. File size {file_size} bytes."
+            )
+            raise InsufficientDiskspace(f"Insufficient disk space in {target_dir}")
+
     def _save_upload_file(self, file_item):
         file_name = file_item.filename
 
         target_dir = self.tmp_dir
         file_item.file.seek(0, os.SEEK_END)
         file_size = file_item.file.tell()
-        avail_space = shutil.disk_usage(target_dir).free
-        if file_size > avail_space:
-            LOG.error(
-                "Not enough space to save file %s in %s \n "
-                + "Available %s bytes. File size %s",
-                file_name,
-                target_dir,
-                avail_space,
-                file_size,
-            )
-
-            raise InsufficientDiskspace(f"Insufficient disk space in {self.tmp_dir}")
+        self._check_disk_space(file_name, file_size, target_dir)
 
         target_file = os.path.join(target_dir, os.path.basename(file_name))
         with open(target_file, "wb") as destination_file:
@@ -913,8 +914,16 @@ class USMAPIController(APIController):
 
     def _create_temp_storage(self):
         if self.tmp_dir is None or not os.path.exists(self.tmp_dir):
-            self.tmp_dir = tempfile.mkdtemp(prefix="upload", dir="/scratch")
-            LOG.info(f"Created temp. dir: {self.tmp_dir}")
+            scratch_dir = "/scratch"
+            try:
+                self.tmp_dir = tempfile.mkdtemp(prefix="upload", dir=scratch_dir)
+                LOG.info(f"Created temp. dir: {self.tmp_dir}")
+            except OSError as e:
+                if e.errno == errno.ENOSPC:
+                    raise InsufficientDiskspace(
+                        f"Insufficient disk space in {scratch_dir}"
+                    )
+                raise
         return self.tmp_dir
 
     @staticmethod
@@ -1058,16 +1067,26 @@ class USMAPIController(APIController):
             dc_vault_target_file = os.path.join(versioned_vault, base_name)
             self.write_metadata(dc_vault_target_file, data["id"])
 
+            file_size = os.stat(upload_file).st_size
             # If it's a local upload, copy the files to the temp storage first
             if not self.my_copy:
                 self._create_temp_storage()
                 target_file = os.path.join(self.tmp_dir, base_name)
                 LOG.info(f"Copying {upload_file} to {target_file}")
+                self._check_disk_space(
+                    filename=upload_file,
+                    file_size=file_size,
+                    target_dir=self.tmp_dir,
+                )
                 shutil.copy(upload_file, target_file)
-
             # Then copy file files from the temp storage to dc-vault
             src_file = os.path.join(self.tmp_dir, base_name)
             LOG.info(f"Moving {src_file} to {dc_vault_target_file}")
+            self._check_disk_space(
+                filename=src_file,
+                file_size=file_size,
+                target_dir=self.software_vault,
+            )
             shutil.move(src_file, dc_vault_target_file)
 
 
