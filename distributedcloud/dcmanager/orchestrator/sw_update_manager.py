@@ -247,7 +247,6 @@ class SwUpdateManager(manager.Manager):
                 max_parallel_subclouds = int(max_parallel_subclouds_str)
 
         stop_on_failure = payload.get("stop-on-failure") in ["true"]
-        force = payload.get("force") in ["true"]
 
         # Has the user specified a specific subcloud?
         cloud_name = payload.get("cloud_name")
@@ -307,7 +306,7 @@ class SwUpdateManager(manager.Manager):
                     raise exceptions.BadRequest(resource="strategy", msg=str(ex))
             else:
                 self.strategy_validators[strategy_type].validate_strategy_requirements(
-                    context, subcloud.id, subcloud.name, force
+                    context, subcloud.id, subcloud.name
                 )
 
         extra_args = None
@@ -316,17 +315,14 @@ class SwUpdateManager(manager.Manager):
                 payload
             )
             # Don't create a strategy if any of the subclouds is online and the
-            # relevant sync status is unknown. Offline subcloud is skipped unless
-            # --force option is specified and strategy type is sw-deploy.
+            # relevant sync status is unknown.
             # When the count is greater than 0, that means there are invalid subclouds
             # and the execution should abort.
-            # Force is only sent when it's true and the strategy is sw-deploy.
             count_invalid_subclouds = db_api.subcloud_count_invalid_for_strategy_type(
                 context,
                 self.strategy_validators[strategy_type].endpoint_type,
                 single_group.id if subcloud_group else None,
                 cloud_name,
-                force and strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE,
             )
             if count_invalid_subclouds > 0:
                 msg = (
@@ -355,10 +351,8 @@ class SwUpdateManager(manager.Manager):
             self.strategy_validators[strategy_type].endpoint_type,
             single_group.id if subcloud_group else None,
             cloud_name,
-            self.strategy_validators[strategy_type].build_availability_status_filter(
-                force
-            ),
-            self.strategy_validators[strategy_type].build_sync_status_filter(force),
+            self.strategy_validators[strategy_type].build_availability_status_filter(),
+            self.strategy_validators[strategy_type].build_sync_status_filter(),
         )
 
         # TODO(rlima): move this step to validators
@@ -383,17 +377,7 @@ class SwUpdateManager(manager.Manager):
             filtered_valid_subclouds = list()
 
             for subcloud, sync_status in valid_subclouds:
-                if (
-                    force
-                    and subcloud.availability_status
-                    == dccommon_consts.AVAILABILITY_OFFLINE
-                ):
-                    if (
-                        sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-                        or sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-                    ):
-                        filtered_valid_subclouds.append((subcloud, sync_status))
-                elif sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
+                if sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
                     filtered_valid_subclouds.append((subcloud, sync_status))
 
             valid_subclouds = filtered_valid_subclouds
@@ -408,7 +392,7 @@ class SwUpdateManager(manager.Manager):
                 consts.EXTRA_ARGS_SYSADMIN_PASSWORD: payload.get(
                     consts.EXTRA_ARGS_SYSADMIN_PASSWORD
                 ),
-                consts.EXTRA_ARGS_FORCE: force,
+                consts.EXTRA_ARGS_FORCE: payload.get(consts.EXTRA_ARGS_FORCE),
                 consts.PRESTAGE_SOFTWARE_VERSION: (
                     payload.get(consts.PRESTAGE_REQUEST_RELEASE)
                 ),

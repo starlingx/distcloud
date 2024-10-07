@@ -184,8 +184,7 @@ class OrchThread(threading.Thread):
 
     @staticmethod
     def format_update_details(last_state, info):
-        # Optionally include the last state, since the current state
-        # is likely 'failed'
+        # Optionally include the last state, since the current state is likely 'failed'
         if last_state:
             details = "%s: %s" % (last_state, info)
         else:
@@ -250,9 +249,8 @@ class OrchThread(threading.Thread):
             stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED,
         )
         if region in self.subcloud_workers:
-            # The orchestration for this subcloud has either
-            # completed/failed/aborted, remove it from the
-            # dictionary.
+            # The orchestration for this subcloud has either completed/failed/aborted,
+            # remove it from the dictionary.
             LOG.debug("Remove %s from subcloud_workers dict" % region)
             del self.subcloud_workers[region]
 
@@ -422,9 +420,9 @@ class OrchThread(threading.Thread):
                     > len(self.subcloud_workers)
                     and not stop
                 ):
-                    # Don't start upgrading this subcloud if it has been
-                    # unmanaged by the user. If orchestration was already
-                    # started, it will be allowed to complete.
+                    # Don't start upgrading this subcloud if it has been unmanaged by
+                    # the user. If orchestration was already started, it will be allowed
+                    # to complete.
                     if (
                         strategy_step.subcloud_id is not None
                         and strategy_step.subcloud.management_state
@@ -458,8 +456,8 @@ class OrchThread(threading.Thread):
 
         LOG.info("(%s) Aborting update strategy" % self.update_type)
 
-        # Mark any steps that have not yet started as aborted,
-        # so we will not run them later.
+        # Mark any steps that have not yet started as aborted, so we will not run them
+        # later.
         strategy_steps = db_api.strategy_step_get_all(self.context)
 
         for strategy_step in strategy_steps:
@@ -491,8 +489,7 @@ class OrchThread(threading.Thread):
         for strategy_step in strategy_steps:
             region = self.get_region_name(strategy_step)
             if region in self.subcloud_workers:
-                # A worker already exists. Let it finish whatever it
-                # was doing.
+                # A worker already exists. Let it finish whatever it was doing.
                 LOG.debug("Worker already exists for %s." % region)
             else:
                 # Create a greenthread to delete the subcloud strategy
@@ -506,8 +503,7 @@ class OrchThread(threading.Thread):
                 LOG.info("(%s) Exiting because task is stopped" % self.update_type)
                 return
 
-        # Wait for 180 seconds so that last 100 workers can
-        # complete their execution
+        # Wait for 180 seconds so that last 100 workers can complete their execution
         counter = 0
         while len(self.subcloud_workers) > 0:
             time.sleep(10)
@@ -515,8 +511,8 @@ class OrchThread(threading.Thread):
             if counter > 18:
                 break
 
-        # Remove the strategy from the database if all workers
-        # have completed their execution
+        # Remove the strategy from the database if all workers have completed their
+        # execution
         try:
             db_api.strategy_step_destroy_all(self.context)
             db_api.sw_update_strategy_destroy(self.context)
@@ -630,8 +626,8 @@ class OrchThread(threading.Thread):
                     ),
                 )
         else:
-            # This is the first state. create a greenthread to start processing
-            # the update for the subcloud and invoke the perform_state_action method.
+            # This is the first state. create a greenthread to start processing the
+            # update for the subcloud and invoke the perform_state_action method.
             LOG.debug(
                 "Starting a new worker for region %s at state %s"
                 % (region, strategy_step.state)

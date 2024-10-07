@@ -36,36 +36,3 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
         """
 
         return {consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID)}
-
-    def build_availability_status_filter(self, force):
-        """Builds the availability status filter for valid subclouds
-
-        :param force: if the strategy should be forced to execute
-        :return: availability status to filter
-        :rtype: str
-        """
-
-        # In this scenario, the accepts_force is not used because it would cause a
-        # regression in the strategy since the flag is used in base to define the
-        # behavior of validate_strategy_requirements.
-        if force:
-            return None
-        return dccommon_consts.AVAILABILITY_ONLINE
-
-    def build_sync_status_filter(self, force):
-        """Builds the sync status filter for valid subclouds
-
-        :param force: if the strategy should be forced to execute
-        :return: sync status to filter
-        :rtype: list
-        """
-
-        # In this scenario, the accepts_force is not used because it would cause a
-        # regression in the strategy since the flag is used in base to define the
-        # behavior of validate_strategy_requirements.
-        if force:
-            return [
-                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-                dccommon_consts.SYNC_STATUS_UNKNOWN,
-            ]
-        return [dccommon_consts.SYNC_STATUS_OUT_OF_SYNC]

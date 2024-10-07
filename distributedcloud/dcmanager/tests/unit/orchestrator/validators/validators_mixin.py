@@ -52,30 +52,12 @@ class StrategyRequirementsMixin(object):
         """Test validate_strategy_requirements succeeds"""
 
         self._get_validator().validate_strategy_requirements(
-            self.ctx, self.subcloud.id, self.subcloud.name, False
+            self.ctx, self.subcloud.id, self.subcloud.name
         )
 
         self._get_mock_db_api().assert_called_with(
             mock.ANY, self.subcloud.id, self._get_validator().endpoint_type
         )
-
-    def test_validate_strategy_requirements_suceeds_with_force(self):
-        """Test validate_strategy_requirements succeeds with force
-
-        If the strategy being tested does not accept force, it should execute
-        normally. If it does, the execution is skipped.
-        """
-
-        self._get_validator().validate_strategy_requirements(
-            self.ctx, self.subcloud.id, self.subcloud.name, True
-        )
-
-        if self._get_validator().accepts_force:
-            self._get_mock_db_api().assert_not_called()
-        else:
-            self._get_mock_db_api().assert_called_with(
-                mock.ANY, self.subcloud.id, self._get_validator().endpoint_type
-            )
 
     def test_validate_strategy_requirements_succeeds_with_endpoint_out_of_sync(self):
         """Test validate_strategy_requirements succeeds with endpoint out of sync"""
@@ -88,7 +70,7 @@ class StrategyRequirementsMixin(object):
         )
 
         self._get_validator().validate_strategy_requirements(
-            self.ctx, self.subcloud.id, self.subcloud.name, True
+            self.ctx, self.subcloud.id, self.subcloud.name
         )
 
         self._get_mock_db_api().assert_called_with(
@@ -111,7 +93,6 @@ class StrategyRequirementsMixin(object):
             self.ctx,
             self.subcloud.id,
             self.subcloud.name,
-            False,
         )
 
         self._get_mock_db_api().assert_called_with(

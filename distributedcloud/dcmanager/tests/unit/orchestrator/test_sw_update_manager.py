@@ -42,7 +42,6 @@ FAKE_SW_UPDATE_DATA = {
     "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
     "max-parallel-subclouds": "2",
     "stop-on-failure": "true",
-    "force": "false",
     "release_id": "stx-10.0.0",
     "state": consts.SW_UPDATE_STATE_INITIAL,
 }
@@ -61,7 +60,6 @@ FAKE_SW_PATCH_DATA = {
     "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
     "max-parallel-subclouds": "2",
     "stop-on-failure": "true",
-    "force": "false",
     "patch": "usm.patch",
     "state": consts.SW_UPDATE_STATE_INITIAL,
 }
@@ -1440,7 +1438,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    def test_create_sw_update_strategy_offline_subcloud_no_force(self):
+    def test_create_sw_update_strategy_offline_subcloud(self):
         # Create fake subclouds and respective status
         # Subcloud1 will not be included in the strategy as it's offline
         fake_subcloud1 = self.create_subcloud(
@@ -1484,72 +1482,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    def test_create_sw_update_strategy_with_force_option(self):
-        # Subcloud 1 will be upgraded because force is true
-        fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
-            "subcloud1",
-            self.fake_group3.id,
-            is_managed=True,
-            is_online=False,
-        )
-        self.update_subcloud_status(
-            self.ctxt,
-            fake_subcloud1.id,
-            dccommon_consts.AUDIT_TYPE_SOFTWARE,
-            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-        )
-
-        # Subcloud 2 will be upgraded
-        fake_subcloud2 = self.create_subcloud(
-            self.ctxt,
-            "subcloud2",
-            self.fake_group3.id,
-            is_managed=True,
-            is_online=True,
-        )
-        self.update_subcloud_status(
-            self.ctxt,
-            fake_subcloud2.id,
-            dccommon_consts.AUDIT_TYPE_SOFTWARE,
-            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-        )
-
-        # Subcloud 3 will not be upgraded because it is already load in-sync
-        fake_subcloud3 = self.create_subcloud(
-            self.ctxt,
-            "subcloud3",
-            self.fake_group3.id,
-            is_managed=True,
-            is_online=True,
-        )
-        self.update_subcloud_status(
-            self.ctxt,
-            fake_subcloud3.id,
-            dccommon_consts.AUDIT_TYPE_SOFTWARE,
-            dccommon_consts.SYNC_STATUS_IN_SYNC,
-        )
-
-        data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
-        data["force"] = "true"
-        data["subcloud_group"] = str(self.fake_group3.id)
-
-        um = sw_update_manager.SwUpdateManager()
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
-
-        # Assert that values passed through CLI are used instead of group values
-        self.assertEqual(
-            strategy_dict["subcloud-apply-type"], consts.SUBCLOUD_APPLY_TYPE_PARALLEL
-        )
-        self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_SOFTWARE)
-
-        subcloud_ids = [1, 2]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
-        for index, strategy_step in enumerate(strategy_step_list):
-            self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
-
-    def test_create_sw_update_strategy_without_force_option(self):
+    def test_create_sw_update_strategy(self):
         # Subcloud 1 will not be upgraded
         fake_subcloud1 = self.create_subcloud(
             self.ctxt,
@@ -1597,7 +1530,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
-        data["force"] = "false"
         data["subcloud_group"] = str(self.fake_group3.id)
 
         um = sw_update_manager.SwUpdateManager()
@@ -1614,10 +1546,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    def test_create_sw_update_strategy_in_sync_offline_subcloud_with_force_deploy(self):
-        # This test verifies that a bad request exception is raised even
-        # though force option is specified in the request because the load sync
-        # status of the offline subcloud is in-sync.
+    def test_create_sw_update_strategy_in_sync_offline_subcloud(self):
+        # This test verifies that a bad request exception is raised because the software
+        # sync status of the offline subcloud is in-sync.
         fake_subcloud1 = self.create_subcloud(
             self.ctxt, "subcloud1", 1, is_managed=True, is_online=False
         )
@@ -1631,7 +1562,6 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         um = sw_update_manager.SwUpdateManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
-        data["force"] = True
         data["cloud_name"] = "subcloud1"
 
         self.assertRaises(
@@ -1641,11 +1571,9 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             payload=data,
         )
 
-    def test_create_sw_update_strategy_online_subcloud_with_force_deploy(self):
-        # This test verifies that the force option has no effect in
-        # upgrade creation strategy if the subcloud is online. A bad request
-        # exception will be raised if the subcloud load sync status is
-        # unknown.
+    def test_create_sw_update_strategy_online_subcloud(self):
+        # A bad request exception will be raised if the subcloud software sync status
+        # is unknown.
         fake_subcloud1 = self.create_subcloud(
             self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
         )
@@ -1659,31 +1587,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         um = sw_update_manager.SwUpdateManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
-        data["force"] = True
         data["cloud_name"] = "subcloud1"
 
-        self.assertRaises(
-            exceptions.BadRequest,
-            um.create_sw_update_strategy,
-            self.ctxt,
-            payload=data,
-        )
-
-    def test_create_sw_update_strategy_offline_subcloud_with_force_patching(self):
-        # This test verifies that the force option has no effect in
-        # patching creation strategy even though the subcloud is offline
-        fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=False
-        )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
-
-        um = sw_update_manager.SwUpdateManager()
-        data = copy.copy(FAKE_SW_UPDATE_DATA)
-        data["force"] = True
-        data["cloud_name"] = "subcloud1"
-
-        # No strategy step is created when all subclouds are offline,
-        # should raise 'Bad strategy request: Strategy has no steps to apply'
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,

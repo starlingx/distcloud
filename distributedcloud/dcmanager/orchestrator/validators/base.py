@@ -20,23 +20,16 @@ class StrategyValidationBase(object):
     """Base class for strategy validation"""
 
     def __init__(self):
-        self.accepts_force = False
         self.endpoint_type = None
 
-    def validate_strategy_requirements(
-        self, context, subcloud_id, subcloud_name, force=False
-    ):
+    def validate_strategy_requirements(self, context, subcloud_id, subcloud_name):
         """Validates the requirements for a strategy
 
         :param context: request context object
         :param subcloud_id: subcloud's id
         :param subcloud_name: subcloud's name
-        :param force: if the strategy should be forced to execute
         :raises BadRequest: if the requirements for the strategy are not met
         """
-
-        if self.accepts_force and force:
-            return
 
         subcloud_status = db_api.subcloud_status_get(
             context, subcloud_id, self.endpoint_type
@@ -62,20 +55,18 @@ class StrategyValidationBase(object):
 
         return None
 
-    def build_availability_status_filter(self, force):
+    def build_availability_status_filter(self):
         """Builds the availability status filter for valid subclouds
 
-        :param force: if the strategy should be forced to execute
         :return: availability status to filter
         :rtype: str
         """
 
         return dccommon_consts.AVAILABILITY_ONLINE
 
-    def build_sync_status_filter(self, force):
+    def build_sync_status_filter(self):
         """Builds the sync status filter for valid subclouds
 
-        :param force: if the strategy should be forced to execute
         :return: sync status to filter
         :rtype: list
         """

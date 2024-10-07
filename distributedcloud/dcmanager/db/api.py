@@ -249,11 +249,11 @@ def subcloud_get_all_valid_for_strategy_step_creation(
 
 
 def subcloud_count_invalid_for_strategy_type(
-    context, endpoint_type, group_id=None, subcloud_name=None, force=False
+    context, endpoint_type, group_id=None, subcloud_name=None
 ):
     """Queries the count of invalid subclouds for a strategy's creation"""
     return IMPL.subcloud_count_invalid_for_strategy_type(
-        context, endpoint_type, group_id, subcloud_name, force
+        context, endpoint_type, group_id, subcloud_name
     )
 
 

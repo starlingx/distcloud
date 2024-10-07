@@ -44,10 +44,9 @@ class PatchStrategyValidator(StrategyValidationBase):
             consts.EXTRA_ARGS_REMOVE: remove_bool,
         }
 
-    def build_sync_status_filter(self, force):
+    def build_sync_status_filter(self):
         """Builds the sync status filter for valid subclouds
 
-        :param force: if the strategy should be forced to execute
         :return: sync status to filter
         :rtype: list
         """
