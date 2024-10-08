@@ -10,6 +10,7 @@ from oslo_log import log as logging
 
 from dcorch.common import consts
 from dcorch.common import context
+from dcorch.common import utils
 from dcorch.db import api as db_api
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine import scheduler
@@ -208,4 +209,9 @@ class InitialSyncWorkerManager(object):
     def initial_sync(self, subcloud_name, sync_objs):
         LOG.debug(f"Initial sync subcloud {subcloud_name} {self.engine_id}")
         for sync_obj in sync_objs.values():
-            sync_obj.initial_sync()
+            try:
+                sync_obj.initial_sync()
+            finally:
+                utils.close_session(
+                    sync_obj.sc_admin_session, "initial sync", subcloud_name
+                )

@@ -13,8 +13,10 @@
 # under the License.
 #
 
+from functools import wraps
 import json
 
+from keystoneauth1 import session as ks_session
 from nfv_client.openstack import rest_api
 from nfv_client.openstack import sw_update
 from oslo_log import log
@@ -80,36 +82,63 @@ TRANSITORY_STATES = [
 VIM_AUTHORIZATION_FAILED = "Authorization failed"
 
 
+# VIM API returns a 403 instead of a 401 for unauthenticated requests, so we
+# can't use the internal re-auth functionality of the keystone session, we must
+# manually check for the VIM_AUTHORIZATION_FAILED string in the raised exception
+def retry_on_auth_failure():
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except Exception as e:
+                # Invalidate token cache and retry
+                if VIM_AUTHORIZATION_FAILED in str(e):
+                    self.session.invalidate()
+                    return func(self, *args, **kwargs)
+                # Raise any other type of exception
+                raise e
+
+        return wrapper
+
+    return decorator
+
+
+# TODO(gherzmann): Enhance VIM client to use session-based connections,
+# enabling TCP connection reuse for improved efficiency
 class VimClient(base.DriverBase):
     """VIM driver."""
 
-    def __init__(self, region, session, endpoint=None):
-        try:
-            # The nfv_client doesn't support a session, so we need to
-            # get an endpoint and token.
-            if endpoint is None:
-                self.endpoint = session.get_endpoint(
-                    service_type="nfv",
-                    region_name=region,
-                    interface=consts.KS_ENDPOINT_ADMIN,
-                )
-            else:
-                self.endpoint = endpoint
+    @property
+    def token(self):
+        # The property is used to guarantee we always get the most recent token
+        return self.session.get_token()
 
-            self.token = session.get_token()
-            # session.get_user_id() returns a UUID
-            # that always corresponds to 'dcmanager'
-            self.username = consts.DCMANAGER_USER_NAME
-            # session object does not provide a domain query
-            # The only domain used for dcmanager is 'default'
-            self.user_domain_name = "default"
-            # session.get_project_id() returns a UUID
-            # that always corresponds to 'services'
-            self.tenant = consts.SERVICES_USER_NAME
+    def __init__(self, region: str, session: ks_session.Session, endpoint: str = None):
+        self.session = session
 
-        except exceptions.ServiceUnavailable:
-            raise
+        # The nfv_client doesn't support a session, so we need to
+        # get an endpoint and token.
+        if endpoint is None:
+            self.endpoint = session.get_endpoint(
+                service_type="nfv",
+                region_name=region,
+                interface=consts.KS_ENDPOINT_ADMIN,
+            )
+        else:
+            self.endpoint = endpoint
 
+        # session.get_user_id() returns a UUID
+        # that always corresponds to 'dcmanager'
+        self.username = consts.DCMANAGER_USER_NAME
+        # session object does not provide a domain query
+        # The only domain used for dcmanager is 'default'
+        self.user_domain_name = "default"
+        # session.get_project_id() returns a UUID
+        # that always corresponds to 'services'
+        self.tenant = consts.SERVICES_USER_NAME
+
+    @retry_on_auth_failure()
     def create_strategy(
         self,
         strategy_name,
@@ -193,6 +222,7 @@ class VimClient(base.DriverBase):
         )
         return self._add_strategy_response(response)
 
+    @retry_on_auth_failure()
     def get_strategy(self, strategy_name, raise_error_if_missing=True):
         """Get VIM orchestration strategy"""
 
@@ -231,6 +261,7 @@ class VimClient(base.DriverBase):
         )
         return self._add_strategy_response(response)
 
+    @retry_on_auth_failure()
     def get_current_strategy(self):
         """Get the current active VIM orchestration strategy"""
 
@@ -243,6 +274,7 @@ class VimClient(base.DriverBase):
         LOG.debug("Strategy: %s" % strategy)
         return strategy
 
+    @retry_on_auth_failure()
     def delete_strategy(self, strategy_name):
         """Delete the current VIM orchestration strategy"""
 
@@ -265,6 +297,7 @@ class VimClient(base.DriverBase):
 
         LOG.debug("Strategy deleted")
 
+    @retry_on_auth_failure()
     def apply_strategy(self, strategy_name):
         """Apply the current orchestration strategy"""
 
@@ -332,6 +365,7 @@ class VimClient(base.DriverBase):
 
         return sw_update._get_strategy_object_from_response(response)
 
+    @retry_on_auth_failure()
     def abort_strategy(self, strategy_name):
         """Abort the current orchestration strategy"""
 

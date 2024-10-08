@@ -17,11 +17,14 @@
 
 import collections
 import copy
-import netaddr
+import threading
+import time
 
+from keystoneauth1 import access
 from keystoneclient.v3 import services
 from keystoneclient.v3 import tokens
 import mock
+import netaddr
 from oslo_config import cfg
 
 from dccommon import endpoint_cache
@@ -77,10 +80,12 @@ FAKE_SERVICES_LIST = [
     FakeService(7, "dcorch", "dcorch", True),
 ]
 
+FAKE_AUTH_URL = "http://fake.auth/url"
+
 
 class EndpointCacheTest(base.DCCommonTestCase):
     def setUp(self):
-        super(EndpointCacheTest, self).setUp()
+        super().setUp()
         auth_uri_opts = [
             cfg.StrOpt("auth_uri", default="fake_auth_uri"),
             cfg.StrOpt("username", default="fake_user"),
@@ -231,3 +236,123 @@ class EndpointCacheTest(base.DCCommonTestCase):
         expected_endpoints = {}
         actual_endpoints = utils.build_subcloud_endpoints(empty_ips)
         self.assertEqual(expected_endpoints, actual_endpoints)
+
+
+class TestBoundedFIFOCache(base.DCCommonTestCase):
+    def setUp(self):
+        # pylint: disable=protected-access
+        super().setUp()
+        self.cache = endpoint_cache.BoundedFIFOCache()
+        self.cache._maxsize = 3  # Set a small max size for testing
+
+    def test_insertion_and_order(self):
+        self.cache["a"] = 1
+        self.cache["b"] = 2
+        self.cache["c"] = 3
+        self.assertEqual(list(self.cache.keys()), ["a", "b", "c"])
+
+    def test_max_size_limit(self):
+        self.cache["a"] = 1
+        self.cache["b"] = 2
+        self.cache["c"] = 3
+        self.cache["d"] = 4
+        self.assertEqual(len(self.cache), 3)
+        self.assertEqual(list(self.cache.keys()), ["b", "c", "d"])
+
+    def test_update_existing_key(self):
+        self.cache["a"] = 1
+        self.cache["b"] = 2
+        self.cache["a"] = 3
+        self.assertEqual(list(self.cache.keys()), ["b", "a"])
+        self.assertEqual(self.cache["a"], 3)
+
+
+class TestCachedV3Password(base.DCCommonTestCase):
+    # pylint: disable=protected-access
+    def setUp(self):
+        super().setUp()
+        self.auth = endpoint_cache.CachedV3Password(auth_url=FAKE_AUTH_URL)
+        endpoint_cache.CachedV3Password._CACHE.clear()
+
+        # Set a maxsize value so it doesn't try to read from the config file
+        endpoint_cache.CachedV3Password._CACHE._maxsize = 50
+
+        mock_get_auth_ref_object = mock.patch("endpoint_cache.v3.Password.get_auth_ref")
+        self.mock_parent_get_auth_ref = mock_get_auth_ref_object.start()
+        self.addCleanup(mock_get_auth_ref_object.stop)
+
+    @mock.patch("endpoint_cache.utils.is_token_expiring_soon")
+    def test_get_auth_ref_cached(self, mock_is_expiring):
+        mock_is_expiring.return_value = False
+        mock_session = mock.MagicMock()
+
+        # Simulate a cached token
+        cached_data = ({"token": "fake_token"}, "auth_token")
+        self.auth._CACHE[FAKE_AUTH_URL] = cached_data
+
+        result = self.auth.get_auth_ref(mock_session)
+
+        self.assertIsInstance(result, access.AccessInfoV3)
+        self.assertEqual(result._auth_token, "auth_token")
+        # Ensure we didn't call the parent method
+        self.mock_parent_get_auth_ref.assert_not_called()
+
+    def test_get_auth_ref_new_token(self):
+        mock_session = mock.MagicMock()
+        mock_access_info = mock.MagicMock(spec=access.AccessInfoV3)
+        mock_access_info._data = {"token": "new_token"}
+        mock_access_info._auth_token = "new_auth_token"
+        self.mock_parent_get_auth_ref.return_value = mock_access_info
+
+        result = self.auth.get_auth_ref(mock_session)
+
+        self.assertEqual(result, mock_access_info)
+        self.mock_parent_get_auth_ref.assert_called_once_with(mock_session)
+        self.assertEqual(
+            self.auth._CACHE[FAKE_AUTH_URL],
+            (mock_access_info._data, mock_access_info._auth_token),
+        )
+
+    def test_get_auth_concurrent_access(self):
+        auth_obj_list = [
+            endpoint_cache.CachedV3Password(auth_url=f"{FAKE_AUTH_URL}/{i}")
+            for i in range(1, 51)
+        ]
+        call_count = 0
+        generated_tokens = []
+
+        def mock_get_auth_ref(_, **__):
+            nonlocal call_count, generated_tokens
+            time.sleep(0.1)  # Simulate network delay
+            call_count += 1
+            token = f"auth_token_{call_count}"
+            generated_tokens.append(token)
+            return access.AccessInfoV3({"token": token}, token)
+
+        self.mock_parent_get_auth_ref.side_effect = mock_get_auth_ref
+
+        threads = [
+            threading.Thread(target=auth.get_auth_ref, args=(None,))
+            for auth in auth_obj_list
+        ]
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # All URLs should have generated their own tokens
+        self.assertEqual(len(endpoint_cache.CachedV3Password._CACHE), 50)
+        cached_tokens = [v[1] for v in endpoint_cache.CachedV3Password._CACHE.values()]
+        self.assertCountEqual(generated_tokens, cached_tokens)
+        self.assertEqual(self.mock_parent_get_auth_ref.call_count, 50)
+
+    @mock.patch("endpoint_cache.v3.Password.invalidate")
+    def test_invalidate(self, mock_parent_invalidate):
+        # Set up a fake cached token
+        self.auth._CACHE[FAKE_AUTH_URL] = ({"token": "fake_token"}, "auth_token")
+
+        self.auth.invalidate()
+
+        self.assertNotIn(FAKE_AUTH_URL, self.auth._CACHE)
+        mock_parent_invalidate.assert_called_once()

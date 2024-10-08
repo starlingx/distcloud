@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import os
+from io import BytesIO
 import uuid
 import yaml
 
@@ -62,342 +62,181 @@ class TestDcmanagerClient(base.DCCommonTestCase):
     def setUp(self):
         super(TestDcmanagerClient, self).setUp()
 
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud(self, mock_client_init, mock_get):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = FAKE_SUBCLOUD_DATA
-        mock_get.return_value = mock_response
+        self.mock_response = mock.MagicMock()
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = FAKE_SUBCLOUD_PEER_GROUP_DATA
 
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
+        self.mock_session = mock.MagicMock()
+
+        self.client = dcmanager_v1.DcmanagerClient(
+            dccommon_consts.SYSTEM_CONTROLLER_NAME,
+            session=self.mock_session,
+            timeout=FAKE_TIMEOUT,
+            endpoint=FAKE_ENDPOINT,
         )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
 
-        actual_subcloud = client.get_subcloud(SUBCLOUD_NAME)
+    def test_get_subcloud(self):
+        self.mock_response.json.return_value = FAKE_SUBCLOUD_DATA
+        self.mock_session.get.return_value = self.mock_response
+
+        actual_subcloud = self.client.get_subcloud(SUBCLOUD_NAME)
         self.assertEqual(SUBCLOUD_NAME, actual_subcloud.get("name"))
 
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud_not_found(self, mock_client_init, mock_get):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 404
-        mock_response.text = "Subcloud not found"
-        mock_get.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
+    def test_get_subcloud_not_found(self):
+        self.mock_response.status_code = 404
+        self.mock_response.text = "Subcloud not found"
+        self.mock_session.get.return_value = self.mock_response
 
         self.assertRaises(
-            dccommon_exceptions.SubcloudNotFound, client.get_subcloud, SUBCLOUD_NAME
+            dccommon_exceptions.SubcloudNotFound,
+            self.client.get_subcloud,
+            SUBCLOUD_NAME,
         )
 
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud_list(self, mock_client_init, mock_get):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"subclouds": [FAKE_SUBCLOUD_DATA]}
-        mock_get.return_value = mock_response
+    def test_get_subcloud_list(self):
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = {"subclouds": [FAKE_SUBCLOUD_DATA]}
+        self.mock_session.get.return_value = self.mock_response
 
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
-
-        actual_subclouds = client.get_subcloud_list()
+        actual_subclouds = self.client.get_subcloud_list()
         self.assertEqual(1, len(actual_subclouds))
         self.assertEqual(SUBCLOUD_NAME, actual_subclouds[0].get("name"))
 
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud_group_list(self, mock_client_init, mock_get):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
+    def test_get_subcloud_group_list(self):
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = {
             "subcloud_groups": [{"name": SUBCLOUD_GROUP_NAME}]
         }
-        mock_get.return_value = mock_response
+        self.mock_session.get.return_value = self.mock_response
 
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
+        actual_subcloud_groups = self.client.get_subcloud_group_list()
+        self.assertListEqual(actual_subcloud_groups, [{"name": SUBCLOUD_GROUP_NAME}])
 
-        actual_subcloud_groups = client.get_subcloud_group_list()
-        self.assertEqual(1, len(actual_subcloud_groups))
-        self.assertEqual(SUBCLOUD_GROUP_NAME, actual_subcloud_groups[0].get("name"))
-
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud_peer_group_list(self, mock_client_init, mock_get):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
+    def test_get_subcloud_peer_group_list(self):
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = {
             "subcloud_peer_groups": [FAKE_SUBCLOUD_PEER_GROUP_DATA]
         }
-        mock_get.return_value = mock_response
+        self.mock_session.get.return_value = self.mock_response
 
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
+        actual_peer_group = self.client.get_subcloud_peer_group_list()
+        self.assertListEqual(actual_peer_group, [FAKE_SUBCLOUD_PEER_GROUP_DATA])
 
-        actual_peer_group = client.get_subcloud_peer_group_list()
-        self.assertEqual(1, len(actual_peer_group))
-        self.assertEqual(
-            SUBCLOUD_PEER_GROUP_NAME, actual_peer_group[0].get("peer-group-name")
-        )
+    def test_get_subcloud_peer_group(self):
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = FAKE_SUBCLOUD_PEER_GROUP_DATA
+        self.mock_session.get.return_value = self.mock_response
 
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud_peer_group(self, mock_client_init, mock_get):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = FAKE_SUBCLOUD_PEER_GROUP_DATA
-        mock_get.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
-
-        actual_peer_group = client.get_subcloud_peer_group(SUBCLOUD_PEER_GROUP_NAME)
-        self.assertEqual(
-            SUBCLOUD_PEER_GROUP_NAME, actual_peer_group.get("peer-group-name")
-        )
-
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud_peer_group_not_found(self, mock_client_init, mock_get):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 404
-        mock_response.text = "Subcloud Peer Group not found"
-        mock_get.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
-
-        self.assertRaises(
-            dccommon_exceptions.SubcloudPeerGroupNotFound,
-            client.get_subcloud_peer_group,
-            SUBCLOUD_PEER_GROUP_NAME,
-        )
-
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud_list_by_peer_group(self, mock_client_init, mock_get):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"subclouds": [FAKE_SUBCLOUD_DATA]}
-        mock_get.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
-
-        actual_subclouds = client.get_subcloud_list_by_peer_group(
+        actual_peer_group = self.client.get_subcloud_peer_group(
             SUBCLOUD_PEER_GROUP_NAME
         )
-        self.assertEqual(1, len(actual_subclouds))
-        self.assertEqual(SUBCLOUD_NAME, actual_subclouds[0].get("name"))
+        self.assertDictEqual(actual_peer_group, FAKE_SUBCLOUD_PEER_GROUP_DATA)
 
-    @mock.patch("requests.get")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_get_subcloud_list_by_peer_group_not_found(
-        self, mock_client_init, mock_get
-    ):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 404
-        mock_response.text = "Subcloud Peer Group not found"
-        mock_get.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
+    def test_get_subcloud_peer_group_not_found(self):
+        self.mock_response.status_code = 404
+        self.mock_response.text = "Subcloud Peer Group not found"
+        self.mock_session.get.return_value = self.mock_response
 
         self.assertRaises(
             dccommon_exceptions.SubcloudPeerGroupNotFound,
-            client.get_subcloud_list_by_peer_group,
+            self.client.get_subcloud_peer_group,
             SUBCLOUD_PEER_GROUP_NAME,
         )
 
-    @mock.patch("requests.post")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_add_subcloud_peer_group(self, mock_client_init, mock_post):
+    def test_get_subcloud_list_by_peer_group(self):
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = {"subclouds": [FAKE_SUBCLOUD_DATA]}
+        self.mock_session.get.return_value = self.mock_response
+
+        actual_subclouds = self.client.get_subcloud_list_by_peer_group(
+            SUBCLOUD_PEER_GROUP_NAME
+        )
+        self.assertListEqual(actual_subclouds, [FAKE_SUBCLOUD_DATA])
+
+    def test_get_subcloud_list_by_peer_group_not_found(self):
+        self.mock_response.status_code = 404
+        self.mock_response.text = "Subcloud Peer Group not found"
+        self.mock_session.get.return_value = self.mock_response
+
+        self.assertRaises(
+            dccommon_exceptions.SubcloudPeerGroupNotFound,
+            self.client.get_subcloud_list_by_peer_group,
+            SUBCLOUD_PEER_GROUP_NAME,
+        )
+
+    def test_add_subcloud_peer_group(self):
         peer_group_kwargs = {"peer-group-name": SUBCLOUD_PEER_GROUP_NAME}
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = FAKE_SUBCLOUD_PEER_GROUP_DATA
-        mock_post.return_value = mock_response
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = FAKE_SUBCLOUD_PEER_GROUP_DATA
+        self.mock_session.post.return_value = self.mock_response
 
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
+        actual_peer_group = self.client.add_subcloud_peer_group(**peer_group_kwargs)
+        self.assertDictEqual(actual_peer_group, FAKE_SUBCLOUD_PEER_GROUP_DATA)
 
-        actual_peer_group = client.add_subcloud_peer_group(**peer_group_kwargs)
-        self.assertEqual(
-            SUBCLOUD_PEER_GROUP_NAME, actual_peer_group.get("peer-group-name")
-        )
+    @mock.patch("builtins.open", new_callable=mock.mock_open)
+    def test_add_subcloud_with_secondary_status(self, mock_open):
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = FAKE_SUBCLOUD_DATA
+        self.mock_session.post.return_value = self.mock_response
 
-    @mock.patch("requests.post")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_add_subcloud_with_secondary_status(self, mock_client_init, mock_post):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = FAKE_SUBCLOUD_DATA
-        mock_post.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
-
-        # create the cache file for subcloud create
-        yaml_data = yaml.dump(FAKE_SUBCLOUD_DATA)
-        with open(SUBCLOUD_BOOTSTRAP_VALUE_PATH, "w") as file:
-            file.write(yaml_data)
+        # Mock the file content to be returned when reading
+        yaml_data = yaml.dump(FAKE_SUBCLOUD_DATA).encode("utf-8")
+        mock_open.return_value = BytesIO(yaml_data)
 
         subcloud_kwargs = {
             "data": {"bootstrap-address": SUBCLOUD_BOOTSTRAP_ADDRESS},
             "files": {"bootstrap_values": SUBCLOUD_BOOTSTRAP_VALUE_PATH},
         }
-        actual_subcloud = client.add_subcloud_with_secondary_status(**subcloud_kwargs)
-        self.assertEqual(SUBCLOUD_NAME, actual_subcloud.get("name"))
-
-        # purge the cache file
-        os.remove(SUBCLOUD_BOOTSTRAP_VALUE_PATH)
-
-    @mock.patch("requests.delete")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_delete_subcloud_peer_group(self, mock_client_init, mock_delete):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = ""
-        mock_delete.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
+        actual_subcloud = self.client.add_subcloud_with_secondary_status(
+            **subcloud_kwargs
         )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
+        self.assertDictEqual(actual_subcloud, FAKE_SUBCLOUD_DATA)
 
-        result = client.delete_subcloud_peer_group(SUBCLOUD_PEER_GROUP_NAME)
-        mock_delete.assert_called_once_with(
+    def test_delete_subcloud_peer_group(self):
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = ""
+        self.mock_session.delete.return_value = self.mock_response
+
+        result = self.client.delete_subcloud_peer_group(SUBCLOUD_PEER_GROUP_NAME)
+        self.mock_session.delete.assert_called_once_with(
             FAKE_ENDPOINT + "/subcloud-peer-groups/" + SUBCLOUD_PEER_GROUP_NAME,
-            headers={"X-Auth-Token": FAKE_TOKEN},
             timeout=FAKE_TIMEOUT,
+            raise_exc=False,
         )
         self.assertEqual(result, "")
 
-    @mock.patch("requests.delete")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_delete_subcloud_peer_group_not_found(self, mock_client_init, mock_delete):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 404
-        mock_response.text = "Subcloud Peer Group not found"
-        mock_delete.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
+    def test_delete_subcloud_peer_group_not_found(self):
+        self.mock_response.status_code = 404
+        self.mock_response.text = "Subcloud Peer Group not found"
+        self.mock_session.delete.return_value = self.mock_response
 
         self.assertRaises(
             dccommon_exceptions.SubcloudPeerGroupNotFound,
-            client.delete_subcloud_peer_group,
+            self.client.delete_subcloud_peer_group,
             SUBCLOUD_PEER_GROUP_NAME,
         )
 
-    @mock.patch("requests.delete")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_delete_subcloud(self, mock_client_init, mock_delete):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = ""
-        mock_delete.return_value = mock_response
+    def test_delete_subcloud(self):
+        self.mock_response.status_code = 200
+        self.mock_response.json.return_value = ""
+        self.mock_session.delete.return_value = self.mock_response
 
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
-
-        result = client.delete_subcloud(SUBCLOUD_NAME)
-        mock_delete.assert_called_once_with(
+        result = self.client.delete_subcloud(SUBCLOUD_NAME)
+        self.mock_session.delete.assert_called_once_with(
             FAKE_ENDPOINT + "/subclouds/" + SUBCLOUD_NAME,
-            headers={
-                "X-Auth-Token": FAKE_TOKEN,
-                "User-Agent": dccommon_consts.DCMANAGER_V1_HTTP_AGENT,
-            },
             timeout=FAKE_TIMEOUT,
+            user_agent=dccommon_consts.DCMANAGER_V1_HTTP_AGENT,
+            raise_exc=False,
         )
         self.assertEqual(result, "")
 
-    @mock.patch("requests.delete")
-    @mock.patch.object(dcmanager_v1.DcmanagerClient, "__init__")
-    def test_delete_subcloud_not_found(self, mock_client_init, mock_delete):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 404
-        mock_response.text = "Subcloud not found"
-        mock_delete.return_value = mock_response
-
-        mock_client_init.return_value = None
-        client = dcmanager_v1.DcmanagerClient(
-            dccommon_consts.SYSTEM_CONTROLLER_NAME, None
-        )
-        client.endpoint = FAKE_ENDPOINT
-        client.token = FAKE_TOKEN
-        client.timeout = FAKE_TIMEOUT
+    def test_delete_subcloud_not_found(self):
+        self.mock_response.status_code = 404
+        self.mock_response.text = "Subcloud not found"
+        self.mock_session.delete.return_value = self.mock_response
 
         self.assertRaises(
-            dccommon_exceptions.SubcloudNotFound, client.delete_subcloud, SUBCLOUD_NAME
+            dccommon_exceptions.SubcloudNotFound,
+            self.client.delete_subcloud,
+            SUBCLOUD_NAME,
         )

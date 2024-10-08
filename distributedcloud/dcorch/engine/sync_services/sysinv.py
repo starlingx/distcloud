@@ -588,8 +588,7 @@ class SysinvSyncThread(SyncThread):
             return None
 
     def post_audit(self):
-        # TODO(lzhu1): This should be revisited once the master cache service
-        #  is implemented.
+        super().post_audit()
         OpenStackDriver.delete_region_clients_for_thread(self.region_name, "audit")
         OpenStackDriver.delete_region_clients_for_thread(
             dccommon_consts.CLOUD_0, "audit"
@@ -780,7 +779,7 @@ class SysinvSyncThread(SyncThread):
             if finding == AUDIT_RESOURCE_MISSING:
                 # The missing resource should be created by underlying subcloud
                 # thus action is to update for a 'missing' resource
-                # should not get here since audit discrepency will handle this
+                # should not get here since audit discrepancy will handle this
                 resource_id = self.get_resource_id(resource_type, resource)
                 self.schedule_work(
                     self.endpoint_type,

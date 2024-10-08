@@ -17,6 +17,7 @@
 import itertools
 import uuid
 
+from keystoneauth1 import session as ks_session
 from oslo_db import exception as oslo_db_exception
 from oslo_log import log as logging
 
@@ -236,3 +237,15 @@ def enqueue_work(
         # pylint: disable-next=no-member
         f"{rsrc.id}/{resource_type}/{source_resource_id}/{operation_type}"
     )
+
+
+def close_session(session: ks_session.Session, operation: str, region_ref: str) -> None:
+    if session:
+        try:
+            LOG.debug("Closing session after %s for %s", operation, region_ref)
+            session.session.close()
+        except Exception:
+            LOG.warning(
+                f"Failed to close session for {region_ref} after {operation}",
+                exc_info=True,
+            )

@@ -113,7 +113,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
                 management_ip="192.168.1." + str(i),
             )
             chunks[chunk_num][subcloud.region_name] = (
-                base.CAPABILITES,
+                base.CAPABILITIES,
                 subcloud.management_ip,
                 subcloud.software_version,
                 False,

@@ -58,7 +58,7 @@ class TestGenericSyncWorkerManager(base.OrchestratorTestCase):
 
     def test_create_sync_objects(self):
         sync_objs = self.gswm.create_sync_objects(
-            "subcloud1", base.CAPABILITES, "192.168.1.11", "24.09"
+            "subcloud1", base.CAPABILITIES, "192.168.1.11", "24.09"
         )
 
         # Verify both endpoint types have corresponding sync object

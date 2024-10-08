@@ -64,7 +64,7 @@ class DCManagerOrchestratorService(service.Service):
         self.sw_update_manager = None
 
     def start(self):
-        utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
+        utils.set_open_file_limit(cfg.CONF.orchestrator_worker_rlimit_nofile)
         self.init_tgm()
         self.init_manager()
         target = oslo_messaging.Target(

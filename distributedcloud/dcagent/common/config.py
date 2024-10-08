@@ -107,6 +107,11 @@ endpoint_cache_opts = [
         "http_connect_timeout",
         help="Request timeout value for communicating with Identity API server.",
     ),
+    cfg.IntOpt(
+        "token_cache_size",
+        default=5000,
+        help="Maximum number of entries in the in-memory token cache",
+    ),
 ]
 
 scheduler_opts = [

@@ -561,7 +561,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     try:
                         endpoint_data[dccommon_consts.ENDPOINT_TYPE_PATCHING] = (
                             self.patch_audit.subcloud_patch_audit(
-                                keystone_client.session,
+                                keystone_client.keystone_client,
                                 subcloud,
                             )
                         )
@@ -685,7 +685,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 try:
                     endpoint_data[dccommon_consts.ENDPOINT_TYPE_PATCHING] = (
                         self.patch_audit.subcloud_patch_audit(
-                            keystone_client.session,
+                            keystone_client.keystone_client,
                             subcloud,
                         )
                     )
@@ -772,7 +772,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 try:
                     endpoint_data[dccommon_consts.AUDIT_TYPE_SOFTWARE] = (
                         self.software_audit.subcloud_software_audit(
-                            keystone_client.session,
+                            keystone_client.keystone_client,
                             subcloud,
                             software_audit_data,
                         )

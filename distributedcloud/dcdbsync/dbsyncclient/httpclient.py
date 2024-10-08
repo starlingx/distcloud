@@ -24,6 +24,8 @@ import logging
 import os
 import requests
 
+from keystoneauth1 import exceptions as ks_exceptions
+from keystoneauth1 import session as ks_session
 from oslo_utils import importutils
 
 from dcdbsync.dbsyncclient import exceptions
@@ -52,6 +54,7 @@ class HTTPClient(object):
         cacert=None,
         insecure=False,
         request_timeout=None,
+        session=None,
     ):
         self.base_url = base_url
         self.token = token
@@ -59,6 +62,7 @@ class HTTPClient(object):
         self.user_id = user_id
         self.ssl_options = {}
         self.request_timeout = request_timeout
+        self.session: ks_session.Session = session
 
         if self.base_url.startswith("https"):
             if cacert and not os.path.exists(cacert):
@@ -72,95 +76,73 @@ class HTTPClient(object):
             self.ssl_options["verify"] = not insecure
             self.ssl_options["cert"] = cacert
 
+    def request(self, url: str, method: str, data=None, **kwargs):
+        """Request directly if session is not passed, otherwise use the session"""
+        try:
+            if self.session:
+                return self.session.request(
+                    url,
+                    method=method,
+                    data=data,
+                    timeout=self.request_timeout,
+                    raise_exc=False,
+                    **kwargs,
+                )
+            return requests.request(
+                method=method,
+                url=url,
+                data=data,
+                timeout=self.request_timeout,
+                **kwargs,
+            )
+        except (
+            requests.exceptions.Timeout,
+            ks_exceptions.ConnectTimeout,
+        ) as e:
+            msg = f"Request to {url} timed out"
+            raise exceptions.ConnectTimeout(msg) from e
+        except (
+            requests.exceptions.ConnectionError,
+            ks_exceptions.ConnectionError,
+        ) as e:
+            msg = f"Unable to establish connection to {url}: {e}"
+            raise exceptions.ConnectFailure(msg) from e
+        except (
+            requests.exceptions.RequestException,
+            ks_exceptions.ClientException,
+        ) as e:
+            msg = f"Unexpected exception for {url}: {e}"
+            raise exceptions.UnknownConnectionError(msg) from e
+
     @log_request
     def get(self, url, headers=None):
         options = self._get_request_options("get", headers)
-
-        try:
-            url = self.base_url + url
-            timeout = self.request_timeout
-            return requests.get(url, timeout=timeout, **options)
-        except requests.exceptions.Timeout:
-            msg = "Request to %s timed out" % url
-            raise exceptions.ConnectTimeout(msg)
-        except requests.exceptions.ConnectionError as e:
-            msg = "Unable to establish connection to %s: %s" % (url, e)
-            raise exceptions.ConnectFailure(msg)
-        except requests.exceptions.RequestException as e:
-            msg = "Unexpected exception for %s: %s" % (url, e)
-            raise exceptions.UnknownConnectionError(msg)
+        url = self.base_url + url
+        return self.request(url, "GET", **options)
 
     @log_request
     def post(self, url, body, headers=None):
         options = self._get_request_options("post", headers)
-
-        try:
-            url = self.base_url + url
-            timeout = self.request_timeout
-            return requests.post(url, body, timeout=timeout, **options)
-        except requests.exceptions.Timeout:
-            msg = "Request to %s timed out" % url
-            raise exceptions.ConnectTimeout(msg)
-        except requests.exceptions.ConnectionError as e:
-            msg = "Unable to establish connection to %s: %s" % (url, e)
-            raise exceptions.ConnectFailure(msg)
-        except requests.exceptions.RequestException as e:
-            msg = "Unexpected exception for %s: %s" % (url, e)
-            raise exceptions.UnknownConnectionError(msg)
+        url = self.base_url + url
+        return self.request(url, "POST", data=body, **options)
 
     @log_request
     def put(self, url, body, headers=None):
         options = self._get_request_options("put", headers)
-
-        try:
-            url = self.base_url + url
-            timeout = self.request_timeout
-            return requests.put(url, body, timeout=timeout, **options)
-        except requests.exceptions.Timeout:
-            msg = "Request to %s timed out" % url
-            raise exceptions.ConnectTimeout(msg)
-        except requests.exceptions.ConnectionError as e:
-            msg = "Unable to establish connection to %s: %s" % (url, e)
-            raise exceptions.ConnectFailure(msg)
-        except requests.exceptions.RequestException as e:
-            msg = "Unexpected exception for %s: %s" % (url, e)
-            raise exceptions.UnknownConnectionError(msg)
+        url = self.base_url + url
+        return self.request(url, "PUT", data=body, **options)
 
     @log_request
     def patch(self, url, body, headers=None):
         options = self._get_request_options("patch", headers)
-
-        try:
-            url = self.base_url + url
-            timeout = self.request_timeout
-            return requests.patch(url, body, timeout=timeout, **options)
-        except requests.exceptions.Timeout:
-            msg = "Request to %s timed out" % url
-            raise exceptions.ConnectTimeout(msg)
-        except requests.exceptions.ConnectionError as e:
-            msg = "Unable to establish connection to %s: %s" % (url, e)
-            raise exceptions.ConnectFailure(msg)
-        except requests.exceptions.RequestException as e:
-            msg = "Unexpected exception for %s: %s" % (url, e)
-            raise exceptions.UnknownConnectionError(msg)
+        url = self.base_url + url
+        return self.request(url, "PATCH", data=body, **options)
 
     @log_request
     def delete(self, url, headers=None):
         options = self._get_request_options("delete", headers)
-
-        try:
-            url = self.base_url + url
-            timeout = self.request_timeout
-            return requests.delete(url, timeout=timeout, **options)
-        except requests.exceptions.Timeout:
-            msg = "Request to %s timed out" % url
-            raise exceptions.ConnectTimeout(msg)
-        except requests.exceptions.ConnectionError as e:
-            msg = "Unable to establish connection to %s: %s" % (url, e)
-            raise exceptions.ConnectFailure(msg)
-        except requests.exceptions.RequestException as e:
-            msg = "Unexpected exception for %s: %s" % (url, e)
-            raise exceptions.UnknownConnectionError(msg)
+        url = self.base_url + url
+        return self.request(url, "DELETE", **options)
 
     def _get_request_options(self, method, headers):
         headers = self._update_headers(headers)
@@ -178,9 +160,11 @@ class HTTPClient(object):
         if not headers:
             headers = {}
 
-        token = headers.get("x-auth-token", self.token)
-        if token:
-            headers["x-auth-token"] = token
+        # If the session exists, let it handle the token
+        if not self.session:
+            token = headers.get("x-auth-token", self.token)
+            if token:
+                headers["x-auth-token"] = token
 
         project_id = headers.get("X-Project-Id", self.project_id)
         if project_id:

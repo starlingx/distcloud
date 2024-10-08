@@ -78,7 +78,7 @@ class DCManagerStateService(service.Service):
 
     def start(self):
         LOG.info("Starting %s", self.__class__.__name__)
-        utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
+        utils.set_open_file_limit(cfg.CONF.state_worker_rlimit_nofile)
         self._init_managers()
         target = oslo_messaging.Target(
             version=self.rpc_api_version, server=self.host, topic=self.topic

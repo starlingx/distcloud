@@ -13,8 +13,8 @@
 # under the License.
 #
 
+from keystoneauth1 import session as ks_session
 from oslo_log import log
-import requests
 from requests_toolbelt import MultipartEncoder
 
 from dccommon import consts
@@ -35,18 +35,16 @@ PATCH_REST_DEFAULT_TIMEOUT = 900
 class PatchingClient(base.DriverBase):
     """Patching V1 driver."""
 
-    def __init__(self, region, session, endpoint=None):
-        # Get an endpoint and token.
-        if endpoint is None:
+    def __init__(self, region: str, session: ks_session.Session, endpoint: str = None):
+        self.session = session
+        self.endpoint = endpoint
+
+        if not self.endpoint:
             self.endpoint = session.get_endpoint(
                 service_type="patching",
                 region_name=region,
                 interface=consts.KS_ENDPOINT_ADMIN,
             )
-        else:
-            self.endpoint = endpoint
-
-        self.token = session.get_token()
 
     def query(self, state=None, release=None, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Query patches"""
@@ -55,8 +53,7 @@ class PatchingClient(base.DriverBase):
             url += "?show=%s" % state.lower()
         if release is not None:
             url += "&release=%s" % release
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=timeout)
+        response = self.session.get(url, timeout=timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -74,8 +71,7 @@ class PatchingClient(base.DriverBase):
     def query_hosts(self, timeout=PATCH_REST_DEFAULT_TIMEOUT):
         """Query hosts"""
         url = self.endpoint + "/v1/query_hosts"
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=timeout)
+        response = self.session.get(url, timeout=timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -94,8 +90,7 @@ class PatchingClient(base.DriverBase):
         """Apply patches"""
         patch_str = "/".join(patches)
         url = self.endpoint + "/v1/apply/%s" % patch_str
-        headers = {"X-Auth-Token": self.token}
-        response = requests.post(url, headers=headers, timeout=timeout)
+        response = self.session.post(url, timeout=timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -114,8 +109,7 @@ class PatchingClient(base.DriverBase):
         """Remove patches"""
         patch_str = "/".join(patches)
         url = self.endpoint + "/v1/remove/%s" % patch_str
-        headers = {"X-Auth-Token": self.token}
-        response = requests.post(url, headers=headers, timeout=timeout)
+        response = self.session.post(url, timeout=timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -134,8 +128,7 @@ class PatchingClient(base.DriverBase):
         """Delete patches"""
         patch_str = "/".join(patches)
         url = self.endpoint + "/v1/delete/%s" % patch_str
-        headers = {"X-Auth-Token": self.token}
-        response = requests.post(url, headers=headers, timeout=timeout)
+        response = self.session.post(url, timeout=timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -154,8 +147,7 @@ class PatchingClient(base.DriverBase):
         """Commit patches"""
         patch_str = "/".join(patches)
         url = self.endpoint + "/v1/commit/%s" % patch_str
-        headers = {"X-Auth-Token": self.token}
-        response = requests.post(url, headers=headers, timeout=timeout)
+        response = self.session.post(url, timeout=timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -183,8 +175,10 @@ class PatchingClient(base.DriverBase):
                 }
             )
             url = self.endpoint + "/v1/upload"
-            headers = {"X-Auth-Token": self.token, "Content-Type": enc.content_type}
-            response = requests.post(url, data=enc, headers=headers, timeout=timeout)
+            headers = {"Content-Type": enc.content_type}
+            response = self.session.post(
+                url, data=enc, headers=headers, timeout=timeout, raise_exc=False
+            )
 
             if response.status_code == 200:
                 data = response.json()

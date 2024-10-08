@@ -103,6 +103,7 @@ class Client(object):
             cacert=cacert,
             insecure=insecure,
             request_timeout=_DEFAULT_REQUEST_TIMEOUT,
+            session=session,
         )
 
         # Create all managers

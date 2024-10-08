@@ -5,13 +5,13 @@
 #
 
 from keystoneauth1 import exceptions as keystone_exceptions
+import mock
 
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import software_audit
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.tests import base
 from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
-from dcmanager.tests.unit import fakes
 
 FAKE_REGIONONE_RELEASES = [
     {
@@ -98,8 +98,7 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         self.audit_manager = subcloud_audit_manager.SubcloudAuditManager()
         self.audit_manager.software_audit = self.software_audit
 
-        # Mock KeystoneClient.session
-        self.keystone_session = fakes.FakeKeystone().session
+        self.keystone_client = mock.MagicMock()
 
         # Mock RegionOne SoftwareClient's list method
         regionone_software_client = self.mock_software_client.return_value
@@ -116,11 +115,9 @@ class TestSoftwareAudit(base.DCManagerTestCase):
     def test_software_audit_previous_release_not_usm(self):
         software_audit_data = self.get_software_audit_data()
         subcloud = create_fake_subcloud(self.ctx)
-        self.keystone_session.get_endpoint.side_effect = (
-            keystone_exceptions.EndpointNotFound
-        )
+        self.keystone_client.services.find.side_effect = keystone_exceptions.NotFound
         software_response = self.software_audit.subcloud_software_audit(
-            self.keystone_session,
+            self.keystone_client,
             subcloud,
             software_audit_data,
         )
@@ -130,14 +127,13 @@ class TestSoftwareAudit(base.DCManagerTestCase):
     def test_software_audit_previous_release_usm(self):
         software_audit_data = self.get_software_audit_data()
         subcloud = create_fake_subcloud(self.ctx)
-        self.keystone_session.get_endpoint.return_value = "http://fake_endpoint"
 
         sc_software_client = self.mock_software_client(subcloud.region_name)
         sc_software_client.list.return_value = (
             FAKE_SUBCLOUD_RELEASES_MISSING_OUT_OF_SYNC
         )
         software_response = self.software_audit.subcloud_software_audit(
-            self.keystone_session,
+            self.keystone_client,
             subcloud,
             software_audit_data,
         )
@@ -152,7 +148,7 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         sc_software_client = self.mock_software_client(subcloud.region_name)
         sc_software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_IN_SYNC
         software_response = self.software_audit.subcloud_software_audit(
-            self.keystone_session,
+            self.keystone_client,
             subcloud,
             software_audit_data,
         )
@@ -169,7 +165,7 @@ class TestSoftwareAudit(base.DCManagerTestCase):
             FAKE_SUBCLOUD_RELEASES_MISSING_OUT_OF_SYNC
         )
         software_response = self.software_audit.subcloud_software_audit(
-            self.keystone_session,
+            self.keystone_client,
             subcloud,
             software_audit_data,
         )
@@ -184,7 +180,7 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         sc_software_client = self.mock_software_client(subcloud.region_name)
         sc_software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_EXTRA_OUT_OF_SYNC
         software_response = self.software_audit.subcloud_software_audit(
-            self.keystone_session,
+            self.keystone_client,
             subcloud,
             software_audit_data,
         )

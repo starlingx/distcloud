@@ -100,7 +100,7 @@ class DCManagerService(service.Service):
         self.system_peer_manager = SystemPeerManager(self.peer_monitor_manager)
 
     def start(self):
-        utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
+        utils.set_open_file_limit(cfg.CONF.dcmanager_worker_rlimit_nofile)
         self.dcmanager_id = uuidutils.generate_uuid()
         self.init_managers()
         target = oslo_messaging.Target(

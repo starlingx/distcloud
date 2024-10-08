@@ -16,6 +16,10 @@ from dcorch.tests import utils
 
 
 class FakeSyncObject(object):
+    def __init__(self):
+        # sc_admin_session is used when attempting to close the session
+        self.sc_admin_session = mock.MagicMock()
+
     def initial_sync(self):
         pass
 
@@ -136,7 +140,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         self.iswm._initial_sync_subcloud(
             self.ctx,
             subcloud.region_name,
-            base.CAPABILITES,
+            base.CAPABILITIES,
             subcloud.management_ip,
             subcloud.software_version,
             False,
@@ -168,7 +172,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         self.iswm._initial_sync_subcloud(
             self.ctx,
             subcloud.region_name,
-            base.CAPABILITES,
+            base.CAPABILITIES,
             subcloud.management_ip,
             subcloud.software_version,
             False,
@@ -198,7 +202,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         self.iswm._initial_sync_subcloud(
             self.ctx,
             subcloud.region_name,
-            base.CAPABILITES,
+            base.CAPABILITIES,
             subcloud.management_ip,
             subcloud.software_version,
             True,
@@ -233,7 +237,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         self.iswm._initial_sync_subcloud(
             self.ctx,
             subcloud.region_name,
-            base.CAPABILITES,
+            base.CAPABILITIES,
             subcloud.management_ip,
             subcloud.software_version,
             False,
@@ -294,13 +298,13 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         )
         subcloud_capabilities = {
             subcloud1.region_name: (
-                base.CAPABILITES,
+                base.CAPABILITIES,
                 subcloud1.management_ip,
                 subcloud1.software_version,
                 False,
             ),
             subcloud2.region_name: (
-                base.CAPABILITES,
+                base.CAPABILITIES,
                 subcloud2.management_ip,
                 subcloud2.software_version,
                 False,
@@ -314,7 +318,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             self.iswm._initial_sync_subcloud,
             mock.ANY,
             subcloud1.region_name,
-            base.CAPABILITES,
+            base.CAPABILITIES,
             subcloud1.management_ip,
             subcloud1.software_version,
             False,
@@ -323,7 +327,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             self.iswm._initial_sync_subcloud,
             mock.ANY,
             subcloud2.region_name,
-            base.CAPABILITES,
+            base.CAPABILITIES,
             subcloud2.management_ip,
             subcloud2.software_version,
             False,

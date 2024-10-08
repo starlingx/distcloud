@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from keystoneauth1 import session as ks_session
 from oslo_log import log
-import requests
 from requests_toolbelt import MultipartEncoder
 
 from dccommon import consts
@@ -22,8 +22,8 @@ class DcmanagerClient(base.DriverBase):
 
     def __init__(
         self,
-        region,
-        session,
+        region: str,
+        session: ks_session.Session,
         timeout=DCMANAGER_CLIENT_REST_DEFAULT_TIMEOUT,
         endpoint_type=consts.KS_ENDPOINT_PUBLIC,
         endpoint=None,
@@ -33,8 +33,8 @@ class DcmanagerClient(base.DriverBase):
                 service_type="dcmanager", region_name=region, interface=endpoint_type
             )
         self.endpoint = endpoint
-        self.token = session.get_token()
         self.timeout = timeout
+        self.session = session
 
     def get_system_peer(self, system_peer_uuid):
         """Get system peer."""
@@ -42,8 +42,7 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("system_peer_uuid is required.")
         url = f"{self.endpoint}/system-peers/{system_peer_uuid}"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        response = self.session.get(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             return response.json()
@@ -63,10 +62,14 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("subcloud_ref is required.")
         url = f"{self.endpoint}/subclouds/{subcloud_ref}/detail"
 
-        headers = {"X-Auth-Token": self.token}
-        if is_region_name:
-            headers["User-Agent"] = consts.DCMANAGER_V1_HTTP_AGENT
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        user_agent = consts.DCMANAGER_V1_HTTP_AGENT if is_region_name else None
+
+        response = self.session.get(
+            url,
+            timeout=self.timeout,
+            user_agent=user_agent,
+            raise_exc=False,
+        )
 
         if response.status_code == 200:
             return response.json()
@@ -84,8 +87,7 @@ class DcmanagerClient(base.DriverBase):
         """Get subcloud list."""
         url = f"{self.endpoint}/subclouds"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        response = self.session.get(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -99,8 +101,7 @@ class DcmanagerClient(base.DriverBase):
         """Get subcloud group list."""
         url = f"{self.endpoint}/subcloud-groups"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        response = self.session.get(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -116,8 +117,7 @@ class DcmanagerClient(base.DriverBase):
         """Get subcloud peer group list."""
         url = f"{self.endpoint}/subcloud-peer-groups"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        response = self.session.get(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -136,8 +136,7 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("peer_group_ref is required.")
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        response = self.session.get(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             return response.json()
@@ -162,8 +161,7 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("peer_group_ref is required.")
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}/subclouds"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        response = self.session.get(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -196,8 +194,7 @@ class DcmanagerClient(base.DriverBase):
         """Get peer group association list."""
         url = f"{self.endpoint}/peer-group-associations"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.get(url, headers=headers, timeout=self.timeout)
+        response = self.session.get(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             data = response.json()
@@ -214,9 +211,9 @@ class DcmanagerClient(base.DriverBase):
         """Add a subcloud peer group."""
         url = f"{self.endpoint}/subcloud-peer-groups"
 
-        headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
-        response = requests.post(
-            url, json=kwargs, headers=headers, timeout=self.timeout
+        headers = {"Content-Type": "application/json"}
+        response = self.session.post(
+            url, json=kwargs, timeout=self.timeout, headers=headers, raise_exc=False
         )
 
         if response.status_code == 200:
@@ -256,11 +253,12 @@ class DcmanagerClient(base.DriverBase):
         fields.update(data)
         enc = MultipartEncoder(fields=fields)
         headers = {
-            "X-Auth-Token": self.token,
             "Content-Type": enc.content_type,
             "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT,
         }
-        response = requests.post(url, headers=headers, data=enc, timeout=self.timeout)
+        response = self.session.post(
+            url, data=enc, timeout=self.timeout, headers=headers, raise_exc=False
+        )
 
         if response.status_code == 200:
             return response.json()
@@ -276,9 +274,8 @@ class DcmanagerClient(base.DriverBase):
         """Add a peer group association."""
         url = f"{self.endpoint}/peer-group-associations"
 
-        headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
-        response = requests.post(
-            url, json=kwargs, headers=headers, timeout=self.timeout
+        response = self.session.post(
+            url, json=kwargs, timeout=self.timeout, raise_exc=False
         )
 
         if response.status_code == 200:
@@ -298,9 +295,8 @@ class DcmanagerClient(base.DriverBase):
         url = f"{self.endpoint}/peer-group-associations/{association_id}"
         update_kwargs = {"sync_status": sync_status}
 
-        headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
-        response = requests.patch(
-            url, json=update_kwargs, headers=headers, timeout=self.timeout
+        response = self.session.patch(
+            url, json=update_kwargs, timeout=self.timeout, raise_exc=False
         )
 
         if response.status_code == 200:
@@ -327,13 +323,12 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("peer_group_ref is required.")
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}"
 
-        headers = {
-            "X-Auth-Token": self.token,
-            "Content-Type": "application/json",
-            "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT,
-        }
-        response = requests.patch(
-            url, json=kwargs, headers=headers, timeout=self.timeout
+        response = self.session.patch(
+            url,
+            json=kwargs,
+            timeout=self.timeout,
+            user_agent=consts.DCMANAGER_V1_HTTP_AGENT,
+            raise_exc=False,
         )
 
         if response.status_code == 200:
@@ -359,9 +354,8 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("peer_group_ref is required.")
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}/audit"
 
-        headers = {"X-Auth-Token": self.token, "Content-Type": "application/json"}
-        response = requests.patch(
-            url, json=kwargs, headers=headers, timeout=self.timeout
+        response = self.session.patch(
+            url, json=kwargs, timeout=self.timeout, raise_exc=False
         )
 
         if response.status_code == 200:
@@ -402,12 +396,12 @@ class DcmanagerClient(base.DriverBase):
 
         fields.update(data)
         enc = MultipartEncoder(fields=fields)
-        headers = {"X-Auth-Token": self.token, "Content-Type": enc.content_type}
-        # Add header to flag the request is from another DC,
-        # server will treat subcloud_ref as a region_name
+        headers = {"Content-Type": enc.content_type}
         if is_region_name:
             headers["User-Agent"] = consts.DCMANAGER_V1_HTTP_AGENT
-        response = requests.patch(url, headers=headers, data=enc, timeout=self.timeout)
+        response = self.session.patch(
+            url, data=enc, timeout=self.timeout, headers=headers, raise_exc=False
+        )
 
         if response.status_code == 200:
             return response.json()
@@ -428,8 +422,7 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("association_id is required.")
         url = f"{self.endpoint}/peer-group-associations/{association_id}"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.delete(url, headers=headers, timeout=self.timeout)
+        response = self.session.delete(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             return response.json()
@@ -454,8 +447,7 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("peer_group_ref is required.")
         url = f"{self.endpoint}/subcloud-peer-groups/{peer_group_ref}"
 
-        headers = {"X-Auth-Token": self.token}
-        response = requests.delete(url, headers=headers, timeout=self.timeout)
+        response = self.session.delete(url, timeout=self.timeout, raise_exc=False)
 
         if response.status_code == 200:
             return response.json()
@@ -488,11 +480,12 @@ class DcmanagerClient(base.DriverBase):
             raise ValueError("subcloud_ref is required.")
         url = f"{self.endpoint}/subclouds/{subcloud_ref}"
 
-        headers = {
-            "X-Auth-Token": self.token,
-            "User-Agent": consts.DCMANAGER_V1_HTTP_AGENT,
-        }
-        response = requests.delete(url, headers=headers, timeout=self.timeout)
+        response = self.session.delete(
+            url,
+            timeout=self.timeout,
+            user_agent=consts.DCMANAGER_V1_HTTP_AGENT,
+            raise_exc=False,
+        )
 
         if response.status_code == 200:
             return response.json()

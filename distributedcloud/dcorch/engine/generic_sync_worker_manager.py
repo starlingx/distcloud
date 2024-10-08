@@ -11,6 +11,7 @@ from dccommon import consts as dccommon_consts
 from dcorch.common import consts as dco_consts
 from dcorch.common import context
 from dcorch.common import exceptions
+from dcorch.common import utils
 from dcorch.db import api as db_api
 from dcorch.engine import scheduler
 from dcorch.engine.sync_services.identity import IdentitySyncThread
@@ -107,7 +108,8 @@ class GenericSyncWorkerManager(object):
     def _sync_subcloud(
         self, context, subcloud_name, endpoint_type, management_ip, software_version
     ):
-        LOG.info(f"Start to sync subcloud {subcloud_name}/{endpoint_type}.")
+        subcloud_ref_str = f"{subcloud_name}/{endpoint_type}"
+        LOG.info(f"Start to sync subcloud {subcloud_ref_str}.")
         sync_obj = sync_object_class_map[endpoint_type](
             subcloud_name, endpoint_type, management_ip, software_version
         )
@@ -115,8 +117,10 @@ class GenericSyncWorkerManager(object):
         try:
             sync_obj.sync()
         except Exception:
-            LOG.exception(f"Sync failed for {subcloud_name}/{endpoint_type}")
+            LOG.exception(f"Sync failed for {subcloud_ref_str}")
             new_state = dco_consts.SYNC_STATUS_FAILED
+        finally:
+            utils.close_session(sync_obj.sc_admin_session, "sync", subcloud_ref_str)
 
         db_api.subcloud_sync_update(
             context, subcloud_name, endpoint_type, values={"sync_request": new_state}
