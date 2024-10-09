@@ -185,7 +185,7 @@ class SubcloudInstall(object):
         with open(rvmc_config_file, "w") as f_out_rvmc_config_file:
             for k, v in payload.items():
                 if k in consts.BMC_INSTALL_VALUES or k == "image":
-                    f_out_rvmc_config_file.write(k + ": " + v + "\n")
+                    f_out_rvmc_config_file.write(f'{k}: "{v}"\n')
 
     def create_install_override_file(self, override_path, payload):
 
