@@ -60,7 +60,9 @@ class SubcloudInstall(object):
     """Class to encapsulate the subcloud install operations"""
 
     def __init__(self, subcloud_name):
-        self.sysinv_client = self.get_sysinv_client()
+        # Initialize sysinv_client closer to
+        # its actual usage to avoid token expiration.
+        self.sysinv_client = None
         self.name = subcloud_name
         self.input_iso = None
         self.www_iso_root = None
@@ -578,6 +580,8 @@ class SubcloudInstall(object):
                 "Found preexisting iso dir for subcloud %s, cleaning up", self.name
             )
             self.cleanup(software_version)
+
+        self.sysinv_client = self.get_sysinv_client()
 
         # Update the default iso image based on the install values
         # Runs gen-bootloader-iso.sh

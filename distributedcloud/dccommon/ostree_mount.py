@@ -27,8 +27,8 @@ def check_stale_bind_mount(mount_path, source_path):
     the actual location of source_path. In this case we teardown the bind
     mount.
     """
-    mount_path_inode = sh.stat("--format", "%i", mount_path)
-    source_path_inode = sh.stat("--format", "%i", source_path)
+    mount_path_inode = os.stat(mount_path).st_ino
+    source_path_inode = os.stat(source_path).st_ino
     if mount_path_inode != source_path_inode:
         failure_prefix = f"Failed to repair bind mount at {mount_path}"
         LOG.error(f"Found stale bind mount: {mount_path}: attempting repair")
