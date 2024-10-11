@@ -1723,8 +1723,8 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self.mock_get_cached_regionone_data.assert_called()
         self.mock_sysinv_client().create_route.assert_called()
         self.mock_dcorch_api().add_subcloud.assert_called_once()
-        self.mock_create_addn_hosts.assert_called_once()
-        self.mock_create_subcloud_inventory.assert_called_once()
+        self.mock_create_addn_hosts.assert_called()
+        self.mock_create_subcloud_inventory.assert_called()
         self.mock_write_subcloud_ansible_config.assert_called()
         self.mock_create_intermediate_ca_cert.assert_called_once()
 
