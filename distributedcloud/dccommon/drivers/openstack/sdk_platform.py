@@ -15,6 +15,9 @@
 """
 OpenStack Driver
 """
+import random
+import time
+
 import collections
 from typing import Callable
 from typing import List
@@ -79,6 +82,11 @@ class OpenStackDriver(object):
     the region_name is associated with a subcloud, updates the cache with the
     provided IP.
     :type subcloud_management_ip: str
+    :param attempts: The maximum number of times allowed when trying to initialize
+                     the Keystone client. It controls how many times the client
+                     will attempt to reconnect or reauthenticate in case of
+                     a failure, before aborting the process.
+    :type attempts: int
     """
 
     os_clients_dict = collections.defaultdict(dict)
@@ -93,6 +101,7 @@ class OpenStackDriver(object):
         endpoint_type: str = consts.KS_ENDPOINT_DEFAULT,
         fetch_subcloud_ips: Callable = None,
         subcloud_management_ip: str = None,
+        attempts: int = 3,
     ):
         self.region_name = region_name
         self.keystone_client = None
@@ -114,10 +123,12 @@ class OpenStackDriver(object):
                         region_name, subcloud_management_ip
                     )
 
-        self.get_cached_keystone_client(region_name, auth_url, fetch_subcloud_ips)
+        self.get_cached_keystone_client(
+            region_name, auth_url, fetch_subcloud_ips, attempts
+        )
 
         if self.keystone_client is None:
-            self.initialize_keystone_client(auth_url, fetch_subcloud_ips)
+            self.initialize_keystone_client(auth_url, fetch_subcloud_ips, attempts)
 
             OpenStackDriver.update_region_clients_cache(
                 region_name, KEYSTONE_CLIENT_NAME, self.keystone_client
@@ -191,7 +202,7 @@ class OpenStackDriver(object):
                 raise exception
 
     def initialize_keystone_client(
-        self, auth_url: str, fetch_subcloud_ips: Callable
+        self, auth_url: str, fetch_subcloud_ips: Callable, attempts: int = 3
     ) -> None:
         """Initialize a new Keystone client.
 
@@ -199,37 +210,64 @@ class OpenStackDriver(object):
         :type auth_url: str
         :param fetch_subcloud_ips: A function to fetch subcloud management IPs.
         :type fetch_subcloud_ips: Callable
+        :param attempts: The maximum number of times allowed when trying to
+                         initialize the Keystone client. It controls how many
+                         times the client will attempt to reconnect or
+                         reauthenticate in case of a failure, before aborting
+                         the process.
+        :type attempts: int
         """
         LOG.debug(f"get new keystone client for region {self.region_name}")
-        try:
-            self.keystone_client = KeystoneClient(
-                self.region_name, auth_url, fetch_subcloud_ips
-            )
-        except (
-            keystone_exceptions.ConnectFailure,
-            keystone_exceptions.ServiceUnavailable,
-        ) as exception:
-            LOG.error(
-                f"keystone_client region {self.region_name} error: {str(exception)}"
-            )
-            raise exception
-        except (
-            keystone_exceptions.NotFound,
-            keystone_exceptions.ConnectTimeout,
-        ) as exception:
-            LOG.debug(
-                f"keystone_client region {self.region_name} error: {str(exception)}"
-            )
-            raise exception
-        except Exception as exception:
-            LOG.exception(
-                f"Unable to get a new keystone client for region: {self.region_name}"
-            )
-            raise exception
+        for attempt in range(attempts):
+            try:
+                self.keystone_client = KeystoneClient(
+                    self.region_name, auth_url, fetch_subcloud_ips
+                )
+                # Exit loop if no exception occurs
+                break
+            except (
+                keystone_exceptions.NotFound,
+                keystone_exceptions.ConnectTimeout,
+            ) as exception:
+                if attempt < attempts - 1:
+                    # The interval between each attempt will be 1 to 4 seconds,
+                    # with a random delay varying by at least 10 milliseconds.
+                    delay = random.randint(100, 400) / 100.0
+                    LOG.info(
+                        f"Retry {attempt + 1}/{attempts - 1} for ConnectTimeout "
+                        f"or NotFound in region {self.region_name} in {delay} "
+                        f"seconds"
+                    )
+                    time.sleep(delay)
+                else:
+                    LOG.debug(
+                        f"keystone_client region {self.region_name} error: "
+                        f"{str(exception)}"
+                    )
+                    raise exception
+            except (
+                keystone_exceptions.ConnectFailure,
+                keystone_exceptions.ServiceUnavailable,
+            ) as exception:
+                LOG.error(
+                    f"keystone_client region {self.region_name} error: "
+                    f"{str(exception)}"
+                )
+                raise exception
+            except Exception as exception:
+                LOG.exception(
+                    f"Unable to get a new keystone client for region: "
+                    f"{self.region_name}"
+                )
+                raise exception
 
     @lockutils.synchronized(LOCK_NAME)
     def get_cached_keystone_client(
-        self, region_name: str, auth_url: str, fetch_subcloud_ips: Callable
+        self,
+        region_name: str,
+        auth_url: str,
+        fetch_subcloud_ips: Callable,
+        attempts: int = 3,
     ) -> None:
         """Get the cached Keystone client if it exists
 
@@ -239,6 +277,11 @@ class OpenStackDriver(object):
         :type auth_url: str
         :param fetch_subcloud_ips: A function to fetch subcloud management IPs.
         :type fetch_subcloud_ips: Callable
+        :param attempts: The maximum number of times allowed when trying to
+                         initialize the Keystone client. It controls how many times
+                         the client will attempt to reconnect or reauthenticate
+                         in case of a failure, before aborting the process.
+        :type attempts: int
         """
         os_clients_dict = OpenStackDriver.os_clients_dict
         keystone_client = os_clients_dict.get(region_name, {}).get(KEYSTONE_CLIENT_NAME)
@@ -248,7 +291,7 @@ class OpenStackDriver(object):
             self.keystone_client = keystone_client
         # Else if master region, create a new keystone client
         elif region_name in (consts.DEFAULT_REGION_NAME, consts.SYSTEM_CONTROLLER_NAME):
-            self.initialize_keystone_client(auth_url, fetch_subcloud_ips)
+            self.initialize_keystone_client(auth_url, fetch_subcloud_ips, attempts)
             os_clients_dict[region_name][KEYSTONE_CLIENT_NAME] = self.keystone_client
 
     @lockutils.synchronized(LOCK_NAME)

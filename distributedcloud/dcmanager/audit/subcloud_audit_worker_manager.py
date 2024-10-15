@@ -400,6 +400,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 region_name=subcloud_region,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
+                attempts=1,
             ).keystone_client
             admin_session = keystone_client.session
             if has_dcagent:
