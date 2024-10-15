@@ -50,6 +50,10 @@ def main():
 
     from dcmanager.audit import service as audit
 
+    # Override values from /etc/dcmanager/dcmanager.conf specific
+    # to dcmanager-audit-worker:
+    cfg.CONF.set_override("http_discovery_timeout", 5, group="endpoint_cache")
+
     srv = audit.DCManagerAuditWorkerService()
     launcher = service.launch(cfg.CONF, srv, workers=CONF.audit_worker_workers)
 

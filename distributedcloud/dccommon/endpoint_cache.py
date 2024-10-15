@@ -210,7 +210,7 @@ class EndpointCache(object):
             discovery_timeout = float(timeout[0])
             read_timeout = float(timeout[1])
         else:
-            discovery_timeout = consts.KEYSTONE_SERVER_DISCOVERY_TIMEOUT
+            discovery_timeout = CONF.endpoint_cache.http_discovery_timeout
             read_timeout = (
                 CONF.endpoint_cache.http_connect_timeout if timeout is None else timeout
             )
@@ -309,7 +309,7 @@ class EndpointCache(object):
             auth_url=self.external_auth_url, token=token, project_id=project_id
         )
 
-        discovery_timeout = consts.KEYSTONE_SERVER_DISCOVERY_TIMEOUT
+        discovery_timeout = CONF.endpoint_cache.http_discovery_timeout
         read_timeout = CONF.endpoint_cache.http_connect_timeout
 
         return session.Session(auth=auth, timeout=(discovery_timeout, read_timeout))

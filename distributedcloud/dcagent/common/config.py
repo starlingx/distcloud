@@ -99,8 +99,13 @@ endpoint_cache_opts = [
         "project_domain_name", default="Default", help="Project domain name of account"
     ),
     cfg.IntOpt(
+        "http_discovery_timeout",
+        default=15,
+        help="Discovery timeout value for communicating with Identity API server.",
+    ),
+    cfg.IntOpt(
         "http_connect_timeout",
-        help="Request timeout value for communicating with Identity" " API server.",
+        help="Request timeout value for communicating with Identity API server.",
     ),
 ]
 
