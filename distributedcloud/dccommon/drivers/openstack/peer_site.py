@@ -222,8 +222,8 @@ class PeerKeystoneClient(base.DriverBase):
             discovery_timeout = float(timeout[0])
             read_timeout = float(timeout[1])
         else:
-            discovery_timeout = consts.KEYSTONE_SERVER_DISCOVERY_TIMEOUT
             read_timeout = HTTP_CONNECT_TIMEOUT if timeout is None else read_timeout
+            discovery_timeout = read_timeout
 
         return session.Session(
             auth=user_auth,
