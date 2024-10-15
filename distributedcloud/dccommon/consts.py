@@ -232,6 +232,10 @@ BMC_INSTALL_VALUES = [
     "bmc_password",
 ]
 
+OPTIONAL_BMC_INSTALL_VALUES = [
+    "bmc_ciphersuite",
+]
+
 MANDATORY_INSTALL_VALUES = [
     "bootstrap_interface",
     "bootstrap_address",
