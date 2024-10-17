@@ -288,8 +288,11 @@ class SysinvSyncThread(SyncThread):
         subcloud_rsrc_id = self.persist_db_subcloud_resource(rsrc.id, signature)
 
         cert_bodys = icertificate.get("certificates")
+
         sub_certs_updated = [
-            str(cert_body.get("signature")) for cert_body in cert_bodys
+            str(cert_body.get("signature"))
+            for cert_body in cert_bodys
+            if cert_body is not None
         ]
 
         LOG.info(
