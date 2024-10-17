@@ -37,6 +37,7 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
+DEFAULT_SLEEP_TIME_IN_SECONDS = 10
 
 
 class OrchThread(threading.Thread):
@@ -87,6 +88,8 @@ class OrchThread(threading.Thread):
         self.subcloud_workers = dict()
         # Track if the strategy setup function was executed
         self._setup = False
+        # Initialize main orch thread sleep time
+        self.sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
 
     @abc.abstractmethod
     def trigger_audit(self):
@@ -110,6 +113,7 @@ class OrchThread(threading.Thread):
         if self._setup:
             LOG.info("(%s) OrchThread Post-Delete Teardown" % self.update_type)
             self._setup = False
+            self.sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
             self.post_delete_teardown()
 
     def post_delete_teardown(self):
@@ -254,6 +258,26 @@ class OrchThread(threading.Thread):
             LOG.debug("Remove %s from subcloud_workers dict" % region)
             del self.subcloud_workers[region]
 
+    def _adjust_sleep_time(self, number_of_subclouds):
+        prev_sleep_time = self.sleep_time
+
+        if number_of_subclouds <= 0:
+            new_sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+        else:
+            new_sleep_time = min(
+                (DEFAULT_SLEEP_TIME_IN_SECONDS * 60)
+                / min(number_of_subclouds, consts.MAX_PARALLEL_SUBCLOUDS_LIMIT),
+                DEFAULT_SLEEP_TIME_IN_SECONDS,
+            )
+
+        if new_sleep_time != prev_sleep_time:
+            self.sleep_time = new_sleep_time
+            LOG.debug(
+                f"Adjusted {self.update_type} orch thread sleep time from "
+                f"{prev_sleep_time} to {self.sleep_time} "
+                f"based on {number_of_subclouds} parallel subclouds."
+            )
+
     def run_orch(self):
         while not self.stopped():
             try:
@@ -287,8 +311,8 @@ class OrchThread(threading.Thread):
                 # We catch all exceptions to avoid terminating the thread.
                 LOG.exception("(%s) OrchThread unexpected exception" % self.update_type)
 
-            # Wake up every 10 seconds to see if there is work to do.
-            time.sleep(10)
+            # Wake up every so often to see if there is work to do.
+            time.sleep(self.sleep_time)
 
         LOG.info("(%s) OrchThread ended main loop" % self.update_type)
 
@@ -297,6 +321,9 @@ class OrchThread(threading.Thread):
 
         LOG.debug("(%s) Applying update strategy" % self.update_type)
         strategy_steps = db_api.strategy_step_get_all(self.context)
+        # Adjust sleep time based on the number of subclouds being processed
+        # in parallel
+        self._adjust_sleep_time(len(strategy_steps))
 
         stop = False
         failure_detected = False
@@ -335,6 +362,7 @@ class OrchThread(threading.Thread):
                             state=consts.SW_UPDATE_STATE_FAILED,
                             update_type=self.update_type,
                         )
+                    self.sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
                     # Trigger audit to update the sync status for each subcloud.
                     self.trigger_audit()
                     return
@@ -372,6 +400,7 @@ class OrchThread(threading.Thread):
                         update_type=self.update_type,
                     )
             self.subcloud_workers.clear()
+            self.sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
 
             # Trigger audit to update the sync status for each subcloud.
             LOG.info(f"Trigger audit for {self.update_type}")
@@ -393,6 +422,7 @@ class OrchThread(threading.Thread):
                         state=consts.SW_UPDATE_STATE_FAILED,
                         update_type=self.update_type,
                     )
+                self.sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
                 # Trigger audit to update the sync status for each subcloud.
                 self.trigger_audit()
                 return
@@ -402,6 +432,7 @@ class OrchThread(threading.Thread):
             if self.stopped():
                 LOG.info("(%s) Exiting because task is stopped" % self.update_type)
                 self.subcloud_workers.clear()
+                self.sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
                 return
             if strategy_step.state == consts.STRATEGY_STATE_FAILED:
                 LOG.debug("(%s) Intermediate step is failed" % self.update_type)
@@ -483,8 +514,10 @@ class OrchThread(threading.Thread):
         """Delete an update strategy"""
 
         LOG.info("(%s) Deleting update strategy" % self.update_type)
-
         strategy_steps = db_api.strategy_step_get_all(self.context)
+        # Adjust sleep time based on the number of subclouds being processed
+        # in parallel
+        self._adjust_sleep_time(len(strategy_steps))
 
         for strategy_step in strategy_steps:
             region = self.get_region_name(strategy_step)
@@ -519,6 +552,9 @@ class OrchThread(threading.Thread):
         except Exception as e:
             LOG.exception("(%s) exception during delete" % self.update_type)
             raise e
+        finally:
+            self.sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+
         LOG.info("(%s) Finished deleting update strategy" % self.update_type)
 
     def delete_subcloud_strategy(self, strategy_step):
