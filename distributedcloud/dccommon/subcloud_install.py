@@ -318,6 +318,8 @@ class SubcloudInstall(object):
                 self.name,
                 "--timeout",
                 BOOT_MENU_TIMEOUT,
+                "--release",
+                software_version,
             ]
         else:
             update_iso_cmd = [
