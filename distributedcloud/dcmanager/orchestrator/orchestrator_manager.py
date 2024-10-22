@@ -339,7 +339,7 @@ class OrchestratorManager(manager.Manager):
                     steps = db_api.strategy_step_get_all(
                         self.context, limit=strategy.max_parallel_subclouds
                     )
-                    self._create_and_send_step_batches(strategy_type, steps)
+                    self._create_and_send_step_batches(strategy_type, steps, True)
             else:
                 # If all steps were deleted, delete the strategy
                 with self.strategy_lock:
@@ -701,7 +701,7 @@ class OrchestratorManager(manager.Manager):
         self.sleep_time = self.sleep_time / 3
 
         # Send steps to be processed and start monitoring
-        self._create_and_send_step_batches(sw_update_strategy.type, steps)
+        self._create_and_send_step_batches(sw_update_strategy.type, steps, True)
         self.thread_group_manager.start(
             self.periodic_strategy_monitoring, sw_update_strategy.type
         )

@@ -58,14 +58,14 @@ class BaseStrategy(object):
         # Track if the strategy setup function was executed
         self._setup = False
 
-    def _pre_apply_setup(self):
+    def _pre_apply_setup(self, strategy):
         """Setup performed once before a strategy starts to apply"""
         if not self._setup:
             LOG.info("(%s) BaseStrategy Pre-Apply Setup" % self.update_type)
             self._setup = True
-            self.pre_apply_setup()
+            self.pre_apply_setup(strategy)
 
-    def pre_apply_setup(self):
+    def pre_apply_setup(self, strategy):
         """Subclass can override this method"""
 
     def _post_delete_teardown(self):

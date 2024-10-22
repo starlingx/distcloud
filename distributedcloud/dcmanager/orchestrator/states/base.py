@@ -43,6 +43,8 @@ class BaseState(object, metaclass=abc.ABCMeta):
         self._stop = None
         self.region_name = region_name
         self._shared_caches = None
+        self.extra_args = None
+        self.oam_floating_ip_dict = None
 
     def override_next_state(self, next_state):
         self.next_state = next_state
@@ -242,6 +244,12 @@ class BaseState(object, metaclass=abc.ABCMeta):
         """Return the subcloud Sysinv client."""
         return self.get_sysinv_client(self.region_name)
 
+    def add_extra_args(self, extra_args):
+        self.extra_args = extra_args
+
+    def add_oam_floating_ip_dict(self, oam_floating_ip_dict):
+        self.oam_floating_ip_dict = oam_floating_ip_dict
+
     def add_shared_caches(self, shared_caches):
         # Shared caches not required by all states, so instantiate only if necessary
         self._shared_caches = shared_caches
@@ -261,4 +269,3 @@ class BaseState(object, metaclass=abc.ABCMeta):
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
         """
-        pass

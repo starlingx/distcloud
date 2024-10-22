@@ -29,6 +29,7 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
+from dcmanager.common import prestage
 from dcmanager.common import scheduler
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.rpcapi import ManagerOrchestratorClient
@@ -67,7 +68,6 @@ class OrchestratorWorker(object):
         self.steps_to_process = set()
         # Track the strategy type being executed in the worker
         self.strategy_type = None
-
         self.orchestrator_manager_rpc_client = ManagerOrchestratorClient()
         # Determines if the worker is still processing the strategy steps or if the
         # execution should finish
@@ -90,10 +90,45 @@ class OrchestratorWorker(object):
             consts.SW_UPDATE_TYPE_PRESTAGE: PrestageStrategy(),
             consts.SW_UPDATE_TYPE_SOFTWARE: SoftwareStrategy(),
         }
+        # Handlers for strategy step data update
+        self.strategy_step_data = list()
+        self.strategy_step_lock = threading.Lock()
+        # Handlers for subcloud data update
+        self.subcloud_data = list()
+        self.subcloud_lock = threading.Lock()
 
     def stop(self):
         self.thread_group_manager.stop()
         self.thread_group_manager = None
+
+    def _update_strategy_step_data(self, step_id, **kwargs):
+        with self.strategy_step_lock:
+            self.strategy_step_data.append({"id": step_id, **kwargs})
+
+    def _update_subcloud_data(self, subcloud_id, **kwargs):
+        with self.subcloud_lock:
+            self.subcloud_data.append({"id": subcloud_id, **kwargs})
+
+    def _bulk_update_subcloud_and_strategy_steps(self):
+        with self.strategy_step_lock:
+            if self.strategy_step_data:
+                LOG.info(
+                    f"({self.strategy_type}) Bulk updating "
+                    f"{len(self.strategy_step_data)} strategy steps"
+                )
+                db_api.strategy_step_bulk_update(self.context, self.strategy_step_data)
+
+                self.strategy_step_data.clear()
+
+        with self.subcloud_lock:
+            if self.subcloud_data:
+                LOG.info(
+                    f"({self.strategy_type}) Bulk updating {len(self.subcloud_data)} "
+                    "subclouds"
+                )
+                db_api.subcloud_bulk_update(self.context, self.subcloud_data)
+
+                self.subcloud_data.clear()
 
     @staticmethod
     def _get_region_name(step):
@@ -130,9 +165,10 @@ class OrchestratorWorker(object):
             )
             self._last_update = timeutils.utcnow()
 
-            db_api.strategy_step_update_reset_updated_at(
-                self.context, self.steps_to_process, last_update_threshold
-            )
+            with self.strategy_step_lock:
+                db_api.strategy_step_update_reset_updated_at(
+                    self.context, self.steps_to_process, last_update_threshold
+                )
 
     def orchestrate(self, steps_id, strategy_type):
         if self.strategy_type is None:
@@ -169,7 +205,7 @@ class OrchestratorWorker(object):
                     consts.SW_UPDATE_STATE_APPLYING,
                     consts.SW_UPDATE_STATE_ABORTING,
                 ]:
-                    self.strategies[strategy.type]._pre_apply_setup()
+                    self.strategies[strategy.type]._pre_apply_setup(strategy)
                     self._apply(strategy, self.steps_to_process)
                 elif strategy.state == consts.SW_UPDATE_STATE_ABORT_REQUESTED:
                     self._abort(strategy, self.steps_to_process)
@@ -179,6 +215,12 @@ class OrchestratorWorker(object):
                 # When a strategy reaches a finished state, it needs to return to
                 # stop the thread
                 else:
+                    # When a strategy is set to aborted, it is possible that some
+                    # steps were not yet removed from the orchestrator_workers.
+                    # Because of that, an additional loop is required.
+                    if self.steps_to_process:
+                        self._apply(strategy, self.steps_to_process)
+
                     LOG.info(f"({self.strategy_type}) Orchestration stopped")
                     self._processing = False
                     continue
@@ -224,24 +266,9 @@ class OrchestratorWorker(object):
                 f"based on {number_of_subclouds} parallel subclouds."
             )
 
-    def _update_subcloud_deploy_status(self, subcloud):
-        # If an exception occurs during the create/apply of the VIM strategy, the
-        # deploy_status will be set to 'apply-strategy-failed'. If we retry the
-        # orchestration and the process completes successfully, we need to update the
-        # deploy_status to 'complete'.
-        if subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
-            # Update deploy state for subclouds to complete
-            db_api.subcloud_update(
-                self.context,
-                subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_DONE,
-            )
-
     def _delete_subcloud_worker(self, region, subcloud_id, step_id):
-        db_api.strategy_step_update(
-            self.context,
-            subcloud_id,
-            stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED,
+        self._update_strategy_step_data(
+            step_id, stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED
         )
         if region in self.subcloud_workers:
             # The orchestration for this subcloud has either completed/failed/aborted,
@@ -255,32 +282,33 @@ class OrchestratorWorker(object):
         self.steps_to_process.discard(step_id)
 
     def _strategy_step_update(
-        self, strategy_type, subcloud_id, state=None, details=None, stage=None
+        self, strategy_type, step_id, state=None, details=None, stage=None
     ):
         """Update the strategy step in the DB
 
         Sets the start and finished timestamp if necessary, based on state.
         """
-        started_at = None
-        finished_at = None
+
+        fields = dict()
+
         if state == self.strategies[strategy_type].starting_state:
-            started_at = datetime.datetime.now()
+            fields["started_at"] = datetime.datetime.now()
         elif state in [
             consts.STRATEGY_STATE_COMPLETE,
             consts.STRATEGY_STATE_ABORTED,
             consts.STRATEGY_STATE_FAILED,
         ]:
-            finished_at = datetime.datetime.now()
-        # Return the updated object, in case we need to use its updated values
-        return db_api.strategy_step_update(
-            self.context,
-            subcloud_id,
-            stage=stage,
-            state=state,
-            details=details,
-            started_at=started_at,
-            finished_at=finished_at,
-        )
+            fields["finished_at"] = datetime.datetime.now()
+
+        if state is not None:
+            fields["state"] = state
+        if details is not None:
+            fields["details"] = details
+        if stage is not None:
+            fields["stage"] = stage
+
+        if fields:
+            self._update_strategy_step_data(step_id, **fields)
 
     def _perform_state_action(self, strategy_type, region, step):
         """Extensible state handler for processing and transitioning states"""
@@ -297,7 +325,7 @@ class OrchestratorWorker(object):
             state_operator.registerStopEvent(self._stop)
             next_state = state_operator.perform_state_action(step)
             self._strategy_step_update(
-                strategy_type, step.subcloud_id, state=next_state, details=""
+                strategy_type, step.id, state=next_state, details=""
             )
         except exceptions.StrategySkippedException as ex:
             LOG.info(
@@ -308,10 +336,13 @@ class OrchestratorWorker(object):
             # that this subcloud has been skipped
             self._strategy_step_update(
                 strategy_type,
-                step.subcloud_id,
+                step.id,
                 state=consts.STRATEGY_STATE_COMPLETE,
                 details=self._format_update_details(None, str(ex)),
             )
+
+            if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                self._update_subcloud_data(step.subcloud.id, prestage_status=None)
         except Exception as ex:
             # Catch ALL exceptions and set the strategy to failed
             LOG.exception(
@@ -320,10 +351,15 @@ class OrchestratorWorker(object):
             )
             self._strategy_step_update(
                 strategy_type,
-                step.subcloud_id,
+                step.id,
                 state=consts.STRATEGY_STATE_FAILED,
                 details=self._format_update_details(step.state, str(ex)),
             )
+
+            if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                self._update_subcloud_data(
+                    step.subcloud.id, prestage_status=consts.PRESTAGE_STATE_FAILED
+                )
 
     def _process_update_step(self, strategy_type, region, step, log_error=False):
         """Manages the green thread for calling perform_state_action"""
@@ -372,9 +408,31 @@ class OrchestratorWorker(object):
         self._adjust_sleep_time(len(steps), strategy.type)
 
         for step in steps:
-            if step.state == consts.STRATEGY_STATE_COMPLETE:
-                # Update deploy state for subclouds to complete
-                self._update_subcloud_deploy_status(step.subcloud)
+            # Once a step is completed, it will have its stage set to orchestration
+            # processed, in which point it does not need any further processing.
+            # This skip is required to avoid unnecessary database requests.
+            if step.stage == consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED:
+                continue
+            elif step.state == consts.STRATEGY_STATE_COMPLETE:
+                subcloud_update = dict()
+
+                # If an exception occurs during the create/apply of the VIM strategy,
+                # the deploy_status will be set to 'apply-strategy-failed'. If we
+                # retry the orchestration and the process completes successfully, we
+                # need to update the deploy_status to 'complete'.
+                if step.subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+                    # Update deploy state for subclouds to complete
+                    subcloud_update["deploy_status"] = consts.DEPLOY_STATE_DONE
+
+                if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                    subcloud_update["prestage_versions"] = (
+                        prestage.get_prestage_versions(step.subcloud.name)
+                    )
+                    subcloud_update["prestage_status"] = consts.PRESTAGE_STATE_COMPLETE
+
+                if subcloud_update:
+                    self._update_subcloud_data(step.subcloud.id, **subcloud_update)
+
                 # This step is complete
                 self._delete_subcloud_worker(
                     step.subcloud.region_name, step.subcloud_id, step.id
@@ -390,19 +448,8 @@ class OrchestratorWorker(object):
                 self._delete_subcloud_worker(
                     step.subcloud.region_name, step.subcloud_id, step.id
                 )
-                # This step has failed and needs no further action
-                if step.subcloud_id is None:
-                    # Strategy on SystemController failed. We are done.
-                    LOG.info(
-                        f"({strategy.type}) Stopping strategy due to a failure while "
-                        "processing update step on SystemController"
-                    )
-                    self.orchestrator_manager_rpc_client.stop_strategy(
-                        self.context, strategy.type
-                    )
-                    self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
-                    return
-                elif strategy.stop_on_failure:
+
+                if strategy.stop_on_failure:
                     # We have been told to stop on failures
                     self._stop.set()
                     self.orchestrator_manager_rpc_client.stop_strategy(
@@ -413,6 +460,9 @@ class OrchestratorWorker(object):
             # We have found the first step that isn't complete or failed.
             break
         else:
+            # Update the steps and subclouds
+            self._bulk_update_subcloud_and_strategy_steps()
+
             # The strategy application is complete
             self.subcloud_workers.clear()
             self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
@@ -435,11 +485,19 @@ class OrchestratorWorker(object):
             region = self._get_region_name(step)
             if self._stop.is_set():
                 LOG.info(f"({strategy.type}) Exiting strategy because task is stopped")
+                self._bulk_update_subcloud_and_strategy_steps()
+
                 self.subcloud_workers.clear()
                 self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
                 self._processing = False
                 return
-            if step.state in [
+            # Once a step is completed, it will have its stage set to orchestration
+            # processed, in which point it does not need any further processing.
+            # This skip is required to avoid unnecessary database requests caused
+            # by the _delete_subcloud_worker method.
+            if step.stage == consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED:
+                continue
+            elif step.state in [
                 consts.STRATEGY_STATE_FAILED,
                 consts.STRATEGY_STATE_COMPLETE,
                 consts.STRATEGY_STATE_ABORTED,
@@ -465,7 +523,7 @@ class OrchestratorWorker(object):
                         LOG.warn(f"({strategy.type}) {message}")
                         self._strategy_step_update(
                             strategy.type,
-                            step.subcloud_id,
+                            step.id,
                             state=consts.STRATEGY_STATE_FAILED,
                             details=message,
                         )
@@ -473,18 +531,30 @@ class OrchestratorWorker(object):
 
                     # We are just getting started, enter the first state
                     # Use the updated value for calling process_update_step
-                    step = self._strategy_step_update(
+                    self._strategy_step_update(
                         strategy.type,
-                        step.subcloud_id,
+                        step.id,
                         stage=consts.STAGE_SUBCLOUD_ORCHESTRATION_STARTED,
                         state=self.strategies[strategy.type].starting_state,
                     )
+                    # Use the updated value for calling process_update_step
+                    step.stage = consts.STAGE_SUBCLOUD_ORCHESTRATION_STARTED
+                    step.state = self.strategies[strategy.type].starting_state
                     # Starting state should log an error if greenthread exists
                     self._process_update_step(
                         strategy.type, region, step, log_error=True
                     )
+
+                    if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                        self._update_subcloud_data(
+                            step.subcloud.id,
+                            prestage_status=consts.PRESTAGE_STATE_PRESTAGING,
+                        )
             else:
                 self._process_update_step(strategy.type, region, step, log_error=False)
+
+        # Update the steps and subclouds
+        self._bulk_update_subcloud_and_strategy_steps()
 
         # Verify if there are any steps currently executing. In case there isn't,
         # stop the processing

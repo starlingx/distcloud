@@ -279,6 +279,34 @@ class Connection(object):
     @require_context()
     def subcloud_audits_get_all_need_audit(self, last_audit_threshold):
         with read_session() as session:
+            # Skip audit for subclouds that are in an active strategy
+            subquery = list()
+            strategy_state = (
+                session.query(models.SwUpdateStrategy.state)
+                .filter(
+                    models.SwUpdateStrategy.state.in_(
+                        [
+                            consts.SW_UPDATE_STATE_APPLYING,
+                            consts.SW_UPDATE_STATE_ABORT_REQUESTED,
+                            consts.SW_UPDATE_STATE_ABORTING,
+                        ]
+                    )
+                )
+                .one_or_none()
+            )
+
+            if strategy_state:
+                subquery = session.query(models.StrategyStep.subcloud_id).filter(
+                    models.StrategyStep.state.notin_(
+                        [
+                            consts.SW_UPDATE_STATE_INITIAL,
+                            consts.SW_UPDATE_STATE_ABORTED,
+                            consts.SW_UPDATE_STATE_COMPLETE,
+                            consts.SW_UPDATE_STATE_FAILED,
+                        ]
+                    )
+                )
+
             result = (
                 session.query(
                     models.SubcloudAudits,
@@ -291,6 +319,7 @@ class Connection(object):
                     models.Subcloud.id == models.SubcloudAudits.subcloud_id,
                 )
                 .filter_by(deleted=0)
+                .filter(models.Subcloud.id.notin_(subquery))
                 .filter(
                     models.SubcloudAudits.audit_started_at
                     <= models.SubcloudAudits.audit_finished_at
@@ -309,6 +338,7 @@ class Connection(object):
                 )
                 .all()
             )
+
         return result
 
     # In the functions below it would be cleaner if the timestamp were calculated
@@ -770,6 +800,11 @@ class Connection(object):
                 subcloud_ref.region_name = region_name
             subcloud_ref.save(session)
             return subcloud_ref
+
+    @require_context(admin=True)
+    def subcloud_bulk_update(self, entries):
+        with write_session() as session:
+            return session.bulk_update_mappings(models.Subcloud, entries)
 
     @require_context(admin=True)
     def subcloud_bulk_update_by_ids(self, subcloud_ids, update_form):
@@ -1897,6 +1932,13 @@ class Connection(object):
                     query = query.filter(attribute == value)
 
             query.update(values, synchronize_session="fetch")
+
+    @require_context(admin=True)
+    def strategy_step_bulk_update(self, entries):
+        """Bulk update the strategy step for a list of subclouds"""
+
+        with write_session() as session:
+            return session.bulk_update_mappings(models.StrategyStep, entries)
 
     @require_context(admin=True)
     def strategy_step_update_reset_updated_at(self, steps_id, last_update_threshold):
