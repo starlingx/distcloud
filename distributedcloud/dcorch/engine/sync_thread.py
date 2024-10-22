@@ -569,7 +569,7 @@ class SyncThread(object):
             # If the request was aborted due to an expired certificate,
             # update the status to 'out-of-sync' and just return so the
             # sync_request is updated to "completed". This way, the sync
-            # job won't attemp to retry the sync in the next cycle.
+            # job won't attempt to retry the sync in the next cycle.
             if request_aborted:
                 self.set_sync_status(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
                 LOG.info(
@@ -620,7 +620,10 @@ class SyncThread(object):
         LOG.debug(
             "Engine id={}: sync_audit started".format(engine_id), extra=self.log_extra
         )
-        self.sync_audit(engine_id)
+        try:
+            self.sync_audit(engine_id)
+        finally:
+            self.post_audit()
 
     def sync_audit(self, engine_id):
         LOG.debug(
@@ -776,11 +779,12 @@ class SyncThread(object):
             "{}: done sync audit".format(threading.currentThread().getName()),
             extra=self.log_extra,
         )
-        self.post_audit()
 
     def post_audit(self):
         # Some specific SyncThread subclasses may perform post audit actions
-        pass
+        utils.close_session(
+            self.sc_admin_session, "audit", f"{self.subcloud_name}/{self.endpoint_type}"
+        )
 
     @classmethod
     @lockutils.synchronized(AUDIT_LOCK_NAME)

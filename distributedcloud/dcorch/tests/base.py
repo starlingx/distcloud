@@ -35,7 +35,7 @@ from dcorch.tests import utils
 get_engine = api.get_engine
 
 
-CAPABILITES = {
+CAPABILITIES = {
     "endpoint_types": [
         dccommon_consts.ENDPOINT_TYPE_PLATFORM,
         dccommon_consts.ENDPOINT_TYPE_IDENTITY,

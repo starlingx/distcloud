@@ -5,6 +5,7 @@
 #
 
 import abc
+from functools import lru_cache
 from typing import Optional
 from typing import Type
 
@@ -25,6 +26,11 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 
 LOG = logging.getLogger(__name__)
+
+# The cache is scoped to the strategy state object, so we only cache clients
+# for the subcloud region. This reduces redundant clients and minimizes
+# the number of unnecessary TCP connections.
+CLIENT_CACHE_SIZE = 1
 
 
 class BaseState(object, metaclass=abc.ABCMeta):
@@ -164,59 +170,72 @@ class BaseState(object, metaclass=abc.ABCMeta):
         return strategy_step.subcloud.name
 
     @staticmethod
-    def get_keystone_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
+    def get_keystone_client(region_name: str = dccommon_consts.DEFAULT_REGION_NAME):
         """Construct a (cached) keystone client (and token)"""
-
         try:
-            os_client = OpenStackDriver(
+            return OpenStackDriver(
                 region_name=region_name,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            )
-            return os_client.keystone_client
+            ).keystone_client
         except Exception:
             LOG.warning(
                 f"Failure initializing KeystoneClient for region: {region_name}"
             )
             raise
 
-    def get_sysinv_client(self, region_name):
-        """construct a sysinv client"""
+    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
+    def get_sysinv_client(self, region_name: str) -> SysinvClient:
+        """Get the Sysinv client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
         return SysinvClient(region_name, keystone_client.session, endpoint=endpoint)
 
-    def get_fm_client(self, region_name):
+    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
+    def get_fm_client(self, region_name: str) -> FmClient:
+        """Get the FM client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
         endpoint = keystone_client.endpoint_cache.get_endpoint("fm")
         return FmClient(region_name, keystone_client.session, endpoint=endpoint)
 
-    def get_patching_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
+    def get_patching_client(
+        self, region_name: str = dccommon_consts.DEFAULT_REGION_NAME
+    ) -> PatchingClient:
+        """Get the Patching client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
         return PatchingClient(region_name, keystone_client.session)
 
-    def get_software_client(self, region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
+    def get_software_client(
+        self, region_name: str = dccommon_consts.DEFAULT_REGION_NAME
+    ) -> SoftwareClient:
+        """Get the Software client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
         return SoftwareClient(keystone_client.session, region_name)
 
+    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
+    def get_barbican_client(self, region_name: str) -> BarbicanClient:
+        """Get the Barbican client for the given region."""
+        keystone_client = self.get_keystone_client(region_name)
+        return BarbicanClient(region_name, keystone_client.session)
+
+    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
+    def get_vim_client(self, region_name: str) -> VimClient:
+        """Get the Vim client for the given region."""
+        keystone_client = self.get_keystone_client(region_name)
+        return VimClient(region_name, keystone_client.session)
+
     @property
-    def local_sysinv(self):
+    def local_sysinv(self) -> SysinvClient:
+        """Return the local Sysinv client."""
         return self.get_sysinv_client(dccommon_consts.DEFAULT_REGION_NAME)
 
     @property
-    def subcloud_sysinv(self):
+    def subcloud_sysinv(self) -> SysinvClient:
+        """Return the subcloud Sysinv client."""
         return self.get_sysinv_client(self.region_name)
-
-    def get_barbican_client(self, region_name):
-        """construct a barbican client"""
-        keystone_client = self.get_keystone_client(region_name)
-
-        return BarbicanClient(region_name, keystone_client.session)
-
-    def get_vim_client(self, region_name):
-        """construct a vim client for a region."""
-        keystone_client = self.get_keystone_client(region_name)
-        return VimClient(region_name, keystone_client.session)
 
     def add_shared_caches(self, shared_caches):
         # Shared caches not required by all states, so instantiate only if necessary

@@ -33,11 +33,6 @@ global_opts = [
         default=60,
         help="Seconds between running periodic reporting tasks.",
     ),
-    cfg.IntOpt(
-        "worker_rlimit_nofile",
-        default=4096,
-        help="Maximum number of open files per worker process.",
-    ),
 ]
 
 # OpenStack credentials used for Endpoint Cache
@@ -133,6 +128,11 @@ endpoint_cache_opts = [
         "http_connect_timeout",
         help="Request timeout value for communicating with Identity API server.",
     ),
+    cfg.IntOpt(
+        "token_cache_size",
+        default=5000,
+        help="Maximum number of entries in the in-memory token cache",
+    ),
 ]
 
 scheduler_opts = [
@@ -179,6 +179,26 @@ common_opts = [
             "global IPMI capture control. 0: globally disabled "
             "1:enabled via rvmc_debug_level, 2:globally enabled"
         ),
+    ),
+    cfg.IntOpt(
+        "dcmanager_worker_rlimit_nofile",
+        default=4096,
+        help="Maximum number of open files per dcmanager_manager worker process.",
+    ),
+    cfg.IntOpt(
+        "orchestrator_worker_rlimit_nofile",
+        default=8192,
+        help="Maximum number of open files per dcmanager_orchestrator worker process.",
+    ),
+    cfg.IntOpt(
+        "audit_worker_rlimit_nofile",
+        default=4096,
+        help="Maximum number of open files per dcmanager_audit worker process.",
+    ),
+    cfg.IntOpt(
+        "state_worker_rlimit_nofile",
+        default=4096,
+        help="Maximum number of open files per dcmanager_state worker process.",
     ),
 ]
 

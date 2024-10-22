@@ -42,7 +42,7 @@ class PatchAudit(object):
     def get_regionone_audit_data(self):
         return PatchAuditData()
 
-    def subcloud_patch_audit(self, keystone_session, subcloud):
+    def subcloud_patch_audit(self, keystone_client, subcloud):
         LOG.info("Triggered patch audit for: %s." % subcloud.name)
 
         # NOTE(nicodemos): Patch audit not supported for 24.09 subcloud
@@ -51,7 +51,7 @@ class PatchAudit(object):
 
         # NOTE(nicodemos): If the subcloud is on the 22.12 release with USM enabled,
         # skip the patch audit.
-        if utils.has_usm_service(subcloud.region_name, keystone_session):
+        if utils.has_usm_service(subcloud.region_name, keystone_client):
             return consts.SYNC_STATUS_NOT_AVAILABLE
 
         # NOTE(nicodemos): As of version 24.09, the patching orchestration only

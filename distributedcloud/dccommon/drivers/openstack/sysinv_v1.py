@@ -126,26 +126,32 @@ class SysinvClient(base.DriverBase):
         self,
         region: str,
         session: keystone_session,
-        timeout: int = consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
+        timeout: float = consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
         endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
         endpoint: str = None,
         token: str = None,
     ):
         self.region_name = region
 
-        # The sysinv client doesn't support a session, so we need to
-        # get an endpoint and token.
-        if not endpoint:
-            endpoint = session.get_endpoint(
-                service_type=consts.ENDPOINT_TYPE_PLATFORM,
-                region_name=region,
-                interface=endpoint_type,
-            )
+        kwargs = {}
 
-        token = token if token else session.get_token()
-        self.sysinv_client = client.Client(
-            API_VERSION, endpoint=endpoint, token=token, timeout=timeout
-        )
+        # If the token is specified, use it instead of using the session
+        if token:
+            kwargs["token"] = token
+            kwargs["timeout"] = timeout
+            if not endpoint:
+                endpoint = session.get_endpoint(
+                    service_type=consts.ENDPOINT_TYPE_PLATFORM,
+                    region_name=region,
+                    interface=endpoint_type,
+                )
+        else:
+            session.timeout = timeout
+            kwargs["session"] = session
+
+        kwargs["endpoint"] = endpoint
+
+        self.sysinv_client = client.Client(API_VERSION, **kwargs)
 
     def get_host(self, hostname_or_id):
         """Get a host by its hostname or id."""

@@ -32,6 +32,7 @@ import uuid
 import xml.etree.ElementTree as ElementTree
 
 from keystoneauth1 import exceptions as keystone_exceptions
+from keystoneclient.v3.client import Client as KeystoneClient
 import netaddr
 from oslo_concurrency import lockutils
 from oslo_config import cfg
@@ -1200,7 +1201,7 @@ def get_system_controller_software_list(
         )
         return software_client.list()
 
-    except requests.exceptions.ConnectionError:
+    except (requests.exceptions.ConnectionError, keystone_exceptions.ConnectionError):
         LOG.exception("Failed to get software list for %s", region_name)
         raise
     except Exception:
@@ -2254,27 +2255,28 @@ def validate_software_strategy(release_id: str):
         pecan.abort(400, _(message))
 
 
-def has_usm_service(subcloud_region, keystone_session=None):
+def has_usm_service(
+    subcloud_region: str, keystone_client: KeystoneClient = None
+) -> bool:
 
     # Lookup keystone client session if not specified
-    if not keystone_session:
+    if not keystone_client:
         try:
-            os_client = OpenStackDriver(
+            keystone_client = OpenStackDriver(
                 region_name=subcloud_region,
                 region_clients=None,
                 fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-            )
-            keystone_session = os_client.keystone_client.session
-        except Exception:
+            ).keystone_client.keystone_client
+        except Exception as e:
             LOG.exception(
                 f"Failed to get keystone client for subcloud_region: {subcloud_region}"
             )
-            raise exceptions.InternalError()
+            raise exceptions.InternalError() from e
     try:
-        # Try to get the usm endpoint for the subcloud.
-        software_v1.SoftwareClient(keystone_session, region=subcloud_region)
+        # Try to get the USM service for the subcloud.
+        keystone_client.services.find(name=dccommon_consts.ENDPOINT_NAME_USM)
         return True
-    except keystone_exceptions.EndpointNotFound:
+    except keystone_exceptions.NotFound:
         LOG.warning("USM service not found for subcloud_region: %s", subcloud_region)
         return False
 

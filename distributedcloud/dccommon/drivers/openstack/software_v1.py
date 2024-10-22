@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+from urllib import parse
 
 from keystoneauth1.session import Session as keystone_session
 from oslo_log import log
@@ -40,59 +41,66 @@ class SoftwareClient(base.DriverBase):
         endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
         token: str = None,
     ):
-        # Get an endpoint and token.
-        if not endpoint:
+        self.session = session
+        self.endpoint = endpoint
+        self.token = token
+
+        if not self.endpoint:
             self.endpoint = session.get_endpoint(
                 service_type=consts.ENDPOINT_TYPE_USM,
                 region_name=region,
                 interface=endpoint_type,
             )
-        else:
-            self.endpoint = endpoint
 
-        # The usm systemcontroller endpoint ends with a slash but the regionone
-        # and the subcloud endpoint don't. The slash is removed to standardize
-        # with the other endpoints.
-        self.endpoint = self.endpoint.rstrip("/") + "/v1"
-        self.token = token if token else session.get_token()
-        self.headers = {"X-Auth-Token": self.token}
+        self.endpoint = parse.urljoin(self.endpoint, "/v1")
+        self.headers = {"X-Auth-Token": self.token} if token else None
+
+    def request(self, url: str, method: str, timeout: int):
+        """Request directly if token is passed, otherwise use the session"""
+        if self.token:
+            return requests.request(
+                method=method, url=url, headers=self.headers, timeout=timeout
+            )
+        return self.session.request(
+            url, method=method, timeout=timeout, raise_exc=False
+        )
 
     def list(self, timeout=REST_DEFAULT_TIMEOUT):
         """List releases"""
         url = self.endpoint + "/release"
-        response = requests.get(url, headers=self.headers, timeout=timeout)
+        response = self.request(url, "GET", timeout)
         return self._handle_response(response, operation="List")
 
     def show(self, release, timeout=REST_SHOW_TIMEOUT):
         """Show release"""
         url = self.endpoint + f"/release/{release}"
-        response = requests.get(url, headers=self.headers, timeout=timeout)
+        response = self.request(url, "GET", timeout)
         return self._handle_response(response, operation="Show")
 
     def delete(self, releases, timeout=REST_DELETE_TIMEOUT):
         """Delete release"""
         release_str = "/".join(releases)
         url = self.endpoint + f"/release/{release_str}"
-        response = requests.delete(url, headers=self.headers, timeout=timeout)
+        response = self.request(url, "DELETE", timeout)
         return self._handle_response(response, operation="Delete")
 
     def deploy_precheck(self, deployment, timeout=REST_DEFAULT_TIMEOUT):
         """Deploy precheck"""
         url = self.endpoint + f"/deploy/{deployment}/precheck"
-        response = requests.post(url, headers=self.headers, timeout=timeout)
+        response = self.request(url, "POST", timeout)
         return self._handle_response(response, operation="Deploy precheck")
 
     def show_deploy(self, timeout=REST_DEFAULT_TIMEOUT):
         """Show deploy"""
         url = self.endpoint + "/deploy"
-        response = requests.get(url, headers=self.headers, timeout=timeout)
+        response = self.request(url, "GET", timeout)
         return self._handle_response(response, operation="Show deploy")
 
     def commit_patch(self, releases, timeout=REST_DEFAULT_TIMEOUT):
         """Commit patch"""
         release_str = "/".join(releases)
         url = self.endpoint + f"/commit_patch/{release_str}"
-        response = requests.post(url, headers=self.headers, timeout=timeout)
+        response = self.request(url, "POST", timeout)
         return self._handle_response(response, operation="Commit patch")
 
     def _handle_response(self, response, operation):

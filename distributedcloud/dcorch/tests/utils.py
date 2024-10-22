@@ -106,7 +106,7 @@ def create_subcloud_static(ctxt, name, **kwargs):
         "management_state": dccommon_consts.MANAGEMENT_MANAGED,
         "availability_status": dccommon_consts.AVAILABILITY_ONLINE,
         "initial_sync_state": "",
-        "capabilities": base.CAPABILITES,
+        "capabilities": base.CAPABILITIES,
         "management_ip": "192.168.0.1",
     }
     values.update(kwargs)

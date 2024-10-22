@@ -588,7 +588,8 @@ class OrchThread(threading.Thread):
 
         # First check if the strategy has been created.
         try:
-            subcloud_strategy = OrchThread.get_vim_client(region).get_strategy(
+            vim_client = OrchThread.get_vim_client(region)
+            subcloud_strategy = vim_client.get_strategy(
                 strategy_name=self.vim_strategy_name
             )
         except (keystone_exceptions.EndpointNotFound, IndexError):
@@ -622,9 +623,7 @@ class OrchThread(threading.Thread):
 
         # If we are here, we need to delete the strategy
         try:
-            OrchThread.get_vim_client(region).delete_strategy(
-                strategy_name=self.vim_strategy_name
-            )
+            vim_client.delete_strategy(strategy_name=self.vim_strategy_name)
         except Exception:
             message = "(%s) Vim strategy:(%s) delete failed for region:(%s)" % (
                 self.update_type,

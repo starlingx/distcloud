@@ -16,11 +16,12 @@
 #
 
 import collections
-from typing import Callable
-from typing import List
-from typing import Tuple
+from collections.abc import Callable
+from typing import Any
+from typing import Optional
 from typing import Union
 
+from keystoneauth1 import access
 from keystoneauth1.identity import v3
 from keystoneauth1 import loading
 from keystoneauth1 import session
@@ -35,6 +36,120 @@ from dccommon import utils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 LOCK_NAME = "dc-keystone-endpoint-cache"
+
+
+class TCPKeepAliveSingleConnectionAdapter(session.TCPKeepAliveAdapter):
+    def __init__(self, *args, **kwargs):
+        # Set the maximum connections to 1 to reduce the number of open file descriptors
+        kwargs["pool_connections"] = 1
+        kwargs["pool_maxsize"] = 1
+        super().__init__(*args, **kwargs)
+
+
+class BoundedFIFOCache(collections.OrderedDict):
+    """A First-In-First-Out (FIFO) cache with a maximum size limit.
+
+    This cache maintains insertion order and automatically removes the oldest
+    items when the maximum size is reached.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        """Initialize the FIFO cache.
+
+        :param args: Additional positional arguments passed to OrderedDict constructor.
+        :param kwargs: Additional keyword arguments passed to OrderedDict constructor.
+        """
+        self._maxsize = None
+        super().__init__(*args, **kwargs)
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        """Set an item in the cache.
+
+        If the cache is at maximum capacity, the oldest item is discarded.
+
+        :param key: The key of the item.
+        :param value: The value of the item.
+        """
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+
+        # The CONF endpoint_cache section doesn't exist at the
+        # time the class is defined, so we define it here instead
+        if self._maxsize is None:
+            self._maxsize = CONF.endpoint_cache.token_cache_size
+
+        if self._maxsize > 0 and len(self) > self._maxsize:
+            discarded = self.popitem(last=False)
+            LOG.info(f"Maximum cache size reached, discarding token for {discarded[0]}")
+
+
+class CachedV3Password(v3.Password):
+    """Cached v3.Password authentication class that caches auth tokens.
+
+    This class uses a bounded FIFO cache to store and retrieve auth tokens,
+    reducing the number of token requests made to the authentication server.
+    """
+
+    _CACHE = BoundedFIFOCache()
+    _CACHE_LOCK = lockutils.ReaderWriterLock()
+
+    def _get_from_cache(self) -> Optional[tuple[dict, str]]:
+        """Retrieve the cached auth info for the current auth_url.
+
+        :return: The cached authentication information, if available.
+        """
+        with CachedV3Password._CACHE_LOCK.read_lock():
+            return CachedV3Password._CACHE.get(self.auth_url)
+
+    def _update_cache(self, access_info: access.AccessInfoV3) -> None:
+        """Update the cache with new auth info.
+
+        :param access_info: The access information to cache.
+        """
+        with CachedV3Password._CACHE_LOCK.write_lock():
+            # pylint: disable=protected-access
+            CachedV3Password._CACHE[self.auth_url] = (
+                access_info._data,
+                access_info._auth_token,
+            )
+
+    def _remove_from_cache(self) -> Optional[tuple[dict, str]]:
+        """Remove the auth info for the current auth_url from the cache."""
+        with CachedV3Password._CACHE_LOCK.write_lock():
+            return CachedV3Password._CACHE.pop(self.auth_url, None)
+
+    def get_auth_ref(self, _session: session.Session, **kwargs) -> access.AccessInfoV3:
+        """Get the authentication reference, using the cache if possible.
+
+        This method first checks the cache for a valid token. If found and not
+        expiring soon, it returns the cached token. Otherwise, it requests a new
+        token from the auth server and updates the cache.
+
+        :param session: The session to use for authentication.
+        :param kwargs: Additional keyword arguments passed to the parent method.
+        :return: The authentication reference.
+        """
+        cached_data = self._get_from_cache()
+        if cached_data and not utils.is_token_expiring_soon(cached_data[0]["token"]):
+            LOG.debug("Reuse cached token for %s", self.auth_url)
+            return access.AccessInfoV3(*cached_data)
+
+        # If not in cache or expired, fetch new token and update cache
+        LOG.debug("Getting a new token from %s", self.auth_url)
+        new_access_info = super().get_auth_ref(_session, **kwargs)
+        self._update_cache(new_access_info)
+        return new_access_info
+
+    def invalidate(self) -> bool:
+        """Remove token from cache when the parent invalidate method is called.
+
+        This method is called by the session when a request returns a 401 (Unauthorized)
+
+        :return: The result of the parent invalidate method.
+        """
+        LOG.debug("Invalidating token for %s", self.auth_url)
+        self._remove_from_cache()
+        return super().invalidate()
 
 
 class EndpointCache(object):
@@ -196,7 +311,7 @@ class EndpointCache(object):
         :rtype: session.Session
         """
 
-        user_auth = v3.Password(
+        user_auth = CachedV3Password(
             auth_url=auth_url,
             username=user_name,
             user_domain_name=user_domain_name,
@@ -215,11 +330,17 @@ class EndpointCache(object):
                 CONF.endpoint_cache.http_connect_timeout if timeout is None else timeout
             )
 
-        return session.Session(
+        ks_session = session.Session(
             auth=user_auth,
             additional_headers=consts.USER_HEADER,
             timeout=(discovery_timeout, read_timeout),
         )
+
+        # Mount the custom adapters
+        ks_session.session.mount("http://", TCPKeepAliveSingleConnectionAdapter())
+        ks_session.session.mount("https://", TCPKeepAliveSingleConnectionAdapter())
+
+        return ks_session
 
     @staticmethod
     def _is_central_cloud(region_name: str) -> bool:
@@ -287,7 +408,7 @@ class EndpointCache(object):
         return endpoint
 
     @lockutils.synchronized(LOCK_NAME)
-    def get_all_regions(self) -> List[str]:
+    def get_all_regions(self) -> list[str]:
         """Get region list.
 
         return: List of regions
@@ -382,7 +503,7 @@ class EndpointCache(object):
     @lockutils.synchronized(LOCK_NAME)
     def get_cached_master_keystone_client_and_region_endpoint_map(
         self, region_name: str
-    ) -> Tuple[ks_client.Client, dict]:
+    ) -> tuple[ks_client.Client, dict]:
         """Get the cached master Keystone client and region endpoint map.
 
         :param region_name: The name of the region.

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from keystoneauth1.session import Session as keystone_session
+from keystoneclient.v3.client import Client as KeystoneClient
 from oslo_log import log as logging
 from tsconfig.tsconfig import SW_VERSION
 
@@ -142,7 +142,7 @@ class SoftwareAudit(object):
 
     def subcloud_software_audit(
         self,
-        keystone_session: keystone_session,
+        keystone_client: KeystoneClient,
         subcloud: models.Subcloud,
         audit_data: SoftwareAuditData,
     ):
@@ -150,7 +150,7 @@ class SoftwareAudit(object):
         # TODO(nicodemos): Remove this method after all support to patching is removed
         # NOTE(nicodemos): Software audit not support on 22.12 subcloud without USM
         if subcloud.software_version != SW_VERSION and not utils.has_usm_service(
-            subcloud.region_name, keystone_session
+            subcloud.region_name, keystone_client
         ):
             LOG.info(f"Software audit not supported for {subcloud.name} without USM.")
             return dccommon_consts.SYNC_STATUS_NOT_AVAILABLE
@@ -160,7 +160,7 @@ class SoftwareAudit(object):
                 subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_USM
             )
             software_client = SoftwareClient(
-                keystone_session, endpoint=software_endpoint
+                keystone_client.session, endpoint=software_endpoint
             )
         except Exception:
             LOG.exception(

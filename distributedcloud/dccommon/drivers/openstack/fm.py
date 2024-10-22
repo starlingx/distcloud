@@ -14,11 +14,11 @@
 #
 
 import fmclient
+from keystoneauth1 import session as ks_session
 from oslo_log import log
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers import base
-from dccommon import exceptions
 
 LOG = log.getLogger(__name__)
 API_VERSION = "1"
@@ -29,30 +29,32 @@ class FmClient(base.DriverBase):
 
     def __init__(
         self,
-        region,
-        session,
+        region: str,
+        session: ks_session.Session,
         endpoint_type=dccommon_consts.KS_ENDPOINT_DEFAULT,
-        endpoint=None,
-        token=None,
+        endpoint: str = None,
+        token: str = None,
     ):
         self.region_name = region
-        token = token if token else session.get_token()
-        if not endpoint:
-            endpoint = session.get_endpoint(
-                service_type=dccommon_consts.ENDPOINT_TYPE_FM,
-                region_name=region,
-                interface=endpoint_type,
-            )
-        try:
-            self.fm = fmclient.Client(
-                API_VERSION,
-                region_name=region,
-                endpoint_type=endpoint_type,
-                endpoint=endpoint,
-                auth_token=token,
-            )
-        except exceptions.ServiceUnavailable:
-            raise
+
+        # If the token is specified, use it instead of using the session
+        if token:
+            if not endpoint:
+                endpoint = session.get_endpoint(
+                    service_type=dccommon_consts.ENDPOINT_TYPE_FM,
+                    region_name=region,
+                    interface=endpoint_type,
+                )
+            session = None
+
+        self.fm = fmclient.Client(
+            API_VERSION,
+            session=session,
+            region_name=region,
+            endpoint_type=endpoint_type,
+            endpoint=endpoint,
+            auth_token=token,
+        )
 
     def get_alarm_summary(self):
         """Get this region alarm summary"""

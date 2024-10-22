@@ -79,13 +79,13 @@ URLS = ["/deploy", "/commit_patch"]
 def mocked_requests_success(*args, **kwargs):
     response_content = None
 
-    if args[0].endswith("/release"):
+    if kwargs["url"].endswith("/release"):
         response_content = json.dumps(LIST_RESPONSE)
-    elif args[0].endswith("/release/DC.1"):
+    elif kwargs["url"].endswith("/release/DC.1"):
         response_content = json.dumps(SHOW_RESPONSE)
-    elif args[0].endswith("/release/DC.1/DC.2"):
+    elif kwargs["url"].endswith("/release/DC.1/DC.2"):
         response_content = json.dumps(INFO_RESPONSE)
-    elif any([url in args[0] for url in URLS]):
+    elif any([url in kwargs["url"] for url in URLS]):
         response_content = json.dumps(INFO_RESPONSE)
     response = requests.Response()
     response.status_code = 200
@@ -108,66 +108,65 @@ class TestSoftwareClient(base.DCCommonTestCase):
         self.ctx = utils.dummy_context()
         self.session = mock.MagicMock()
         self.software_client = SoftwareClient(
-            session=mock.MagicMock(),
-            endpoint=FAKE_ENDPOINT,
+            session=mock.MagicMock(), endpoint=FAKE_ENDPOINT, token="TOKEN"
         )
 
-    @mock.patch("requests.get")
-    def test_list_success(self, mock_get):
-        mock_get.side_effect = mocked_requests_success
+    @mock.patch("requests.request")
+    def test_list_success(self, mock_request):
+        mock_request.side_effect = mocked_requests_success
         response = self.software_client.list()
         self.assertEqual(response, CLIENT_LIST_RESPONSE)
 
-    @mock.patch("requests.get")
-    def test_list_failure(self, mock_get):
-        mock_get.side_effect = mocked_requests_failure
+    @mock.patch("requests.request")
+    def test_list_failure(self, mock_request):
+        mock_request.side_effect = mocked_requests_failure
         exc = self.assertRaises(exceptions.ApiException, self.software_client.list)
-        self.assertTrue("List failed with status code: 500" in str(exc))
+        self.assertIn("List failed with status code: 500", str(exc))
 
-    @mock.patch("requests.get")
-    def test_show_success(self, mock_get):
-        mock_get.side_effect = mocked_requests_success
+    @mock.patch("requests.request")
+    def test_show_success(self, mock_request):
+        mock_request.side_effect = mocked_requests_success
         release = "DC.1"
         response = self.software_client.show(release)
         self.assertEqual(response, SHOW_RESPONSE)
 
-    @mock.patch("requests.get")
-    def test_show_failure(self, mock_get):
-        mock_get.side_effect = mocked_requests_failure
+    @mock.patch("requests.request")
+    def test_show_failure(self, mock_request):
+        mock_request.side_effect = mocked_requests_failure
         release = "DC.1"
         exc = self.assertRaises(
             exceptions.ApiException, self.software_client.show, release
         )
-        self.assertTrue("Show failed with status code: 500" in str(exc))
+        self.assertIn("Show failed with status code: 500", str(exc))
 
-    @mock.patch("requests.delete")
-    def test_delete_success(self, mock_delete):
-        mock_delete.side_effect = mocked_requests_success
+    @mock.patch("requests.request")
+    def test_delete_success(self, mock_request):
+        mock_request.side_effect = mocked_requests_success
         releases = ["DC.1", "DC.2"]
         response = self.software_client.delete(releases)
         self.assertEqual(response, INFO_RESPONSE)
 
-    @mock.patch("requests.delete")
-    def test_delete_failure(self, mock_delete):
-        mock_delete.side_effect = mocked_requests_failure
+    @mock.patch("requests.request")
+    def test_delete_failure(self, mock_request):
+        mock_request.side_effect = mocked_requests_failure
         releases = ["DC.1", "DC.2"]
         exc = self.assertRaises(
             exceptions.ApiException, self.software_client.delete, releases
         )
-        self.assertTrue("Delete failed with status code: 500" in str(exc))
+        self.assertIn("Delete failed with status code: 500", str(exc))
 
-    @mock.patch("requests.post")
-    def test_commit_patch_success(self, mock_post):
-        mock_post.side_effect = mocked_requests_success
+    @mock.patch("requests.request")
+    def test_commit_patch_success(self, mock_request):
+        mock_request.side_effect = mocked_requests_success
         releases = ["DC.1", "DC.2"]
         response = self.software_client.commit_patch(releases)
         self.assertEqual(response, INFO_RESPONSE)
 
-    @mock.patch("requests.post")
-    def test_commit_patch_failure(self, mock_post):
-        mock_post.side_effect = mocked_requests_failure
+    @mock.patch("requests.request")
+    def test_commit_patch_failure(self, mock_request):
+        mock_request.side_effect = mocked_requests_failure
         releases = ["DC.1", "DC.2"]
         exc = self.assertRaises(
             exceptions.ApiException, self.software_client.commit_patch, releases
         )
-        self.assertTrue("Commit patch failed with status code: 500" in str(exc))
+        self.assertIn("Commit patch failed with status code: 500", str(exc))

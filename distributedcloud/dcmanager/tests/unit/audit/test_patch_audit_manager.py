@@ -15,13 +15,13 @@
 #
 
 from keystoneauth1 import exceptions as keystone_exceptions
+import mock
 
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import patch_audit
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.tests import base
 from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
-from dcmanager.tests.unit import fakes
 
 
 class TestPatchAudit(base.DCManagerTestCase):
@@ -39,14 +39,12 @@ class TestPatchAudit(base.DCManagerTestCase):
         self.am = subcloud_audit_manager.SubcloudAuditManager()
         self.am.patch_audit = self.pm
 
-        # Mock KeystoneClient.session
-        self.keystone_session = fakes.FakeKeystone().session
+        self.keystone_client = mock.MagicMock()
 
     def test_patch_audit_previous_release_usm_enabled(self):
         subcloud = create_fake_subcloud(self.ctx)
-        self.keystone_session.get_endpoint.return_value = "http://fake_endpoint"
         patch_response = self.pm.subcloud_patch_audit(
-            self.keystone_session,
+            self.keystone_client,
             subcloud,
         )
         load_response = self.pm.subcloud_load_audit()
@@ -54,18 +52,16 @@ class TestPatchAudit(base.DCManagerTestCase):
         expected_patch_response = dccommon_consts.SYNC_STATUS_NOT_AVAILABLE
         expected_load_response = dccommon_consts.SYNC_STATUS_NOT_AVAILABLE
 
-        self.assertTrue(self.keystone_session.get_endpoint.called)
+        self.keystone_client.services.find.assert_called_once()
         self.assertEqual(patch_response, expected_patch_response)
         self.assertEqual(load_response, expected_load_response)
 
     def test_patch_audit_previous_release(self):
         subcloud = create_fake_subcloud(self.ctx)
-        self.keystone_session.get_endpoint.side_effect = (
-            keystone_exceptions.EndpointNotFound
-        )
+        self.keystone_client.services.find.side_effect = keystone_exceptions.NotFound
 
         patch_response = self.pm.subcloud_patch_audit(
-            self.keystone_session,
+            self.keystone_client,
             subcloud,
         )
         load_response = self.pm.subcloud_load_audit()
@@ -73,14 +69,14 @@ class TestPatchAudit(base.DCManagerTestCase):
         expected_patch_response = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
         expected_load_response = dccommon_consts.SYNC_STATUS_NOT_AVAILABLE
 
-        self.assertTrue(self.keystone_session.get_endpoint.called)
+        self.keystone_client.services.find.assert_called_once()
         self.assertEqual(patch_response, expected_patch_response)
         self.assertEqual(load_response, expected_load_response)
 
     def test_patch_audit_current_release(self):
         subcloud = create_fake_subcloud(self.ctx, software_version="TEST.SW.VERSION")
         patch_response = self.pm.subcloud_patch_audit(
-            self.keystone_session,
+            self.keystone_client,
             subcloud,
         )
         load_response = self.pm.subcloud_load_audit()
@@ -88,6 +84,6 @@ class TestPatchAudit(base.DCManagerTestCase):
         expected_patch_response = dccommon_consts.SYNC_STATUS_NOT_AVAILABLE
         expected_load_response = dccommon_consts.SYNC_STATUS_NOT_AVAILABLE
 
-        self.assertFalse(self.keystone_session.get_endpoint.called)
+        self.assertFalse(self.keystone_client.get_endpoint.called)
         self.assertEqual(patch_response, expected_patch_response)
         self.assertEqual(load_response, expected_load_response)

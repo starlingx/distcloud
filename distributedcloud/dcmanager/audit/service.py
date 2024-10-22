@@ -65,7 +65,7 @@ class DCManagerAuditService(service.Service):
         self.subcloud_audit_manager = None
 
     def start(self):
-        utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
+        utils.set_open_file_limit(cfg.CONF.audit_worker_rlimit_nofile)
         target = oslo_messaging.Target(
             version=self.rpc_api_version, server=self.host, topic=self.topic
         )
@@ -193,7 +193,7 @@ class DCManagerAuditWorkerService(service.Service):
         self.subcloud_audit_worker_manager = None
 
     def start(self):
-        utils.set_open_file_limit(cfg.CONF.worker_rlimit_nofile)
+        utils.set_open_file_limit(cfg.CONF.audit_worker_rlimit_nofile)
         self.init_tgm()
         self.init_audit_managers()
         target = oslo_messaging.Target(
