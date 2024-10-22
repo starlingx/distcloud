@@ -456,10 +456,9 @@ class EndpointCache(object):
                 include_catalog=False,
             )
         )
-        if EndpointCache.master_services_list is None:
-            EndpointCache.master_services_list = (
-                EndpointCache.master_keystone_client.services.list()
-            )
+        EndpointCache.master_services_list = (
+            EndpointCache.master_keystone_client.services.list()
+        )
         EndpointCache.master_service_endpoint_map = (
             self._generate_master_service_endpoint_map()
         )
