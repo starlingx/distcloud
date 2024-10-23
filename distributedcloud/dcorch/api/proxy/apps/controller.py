@@ -739,17 +739,16 @@ class USMAPIController(APIController):
         environ = req.environ
 
         self.upload_files = []
-        content_type = req.content_type
         new_request = req
-        new_request.body = req.body
 
         operation_type = proxy_utils.get_operation_type(environ)
 
         if (
-            content_type == "text/plain"
+            req.content_type == "text/plain"
             and operation_type == consts.OPERATION_TYPE_POST
         ):
             # --local
+            new_request.body = req.body
             self.upload_files = list(json.loads(req.body))
             self.my_copy = False
         elif operation_type == consts.OPERATION_TYPE_POST:
@@ -816,7 +815,8 @@ class USMAPIController(APIController):
 
         target_file = os.path.join(target_dir, os.path.basename(file_name))
         with open(target_file, "wb") as destination_file:
-            destination_file.write(file_item.value)
+            file_item.file.seek(0)
+            shutil.copyfileobj(file_item.file, destination_file)
         return target_file
 
     def _process_response(self, environ, request, response):
