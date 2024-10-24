@@ -57,7 +57,7 @@ def main():
     # Override values from /etc/dcmanager/dcmanager.conf specific
     # to dcmanager-orchestrator:
     cfg.CONF.set_override("max_pool_size", 5, group="database")
-    cfg.CONF.set_override("max_overflow", 1000, group="database")
+    cfg.CONF.set_override("max_overflow", 2500, group="database")
     LOG.info("Starting...")
     LOG.debug("Configuration:")
     CONF.log_opt_values(LOG, logging.DEBUG)
