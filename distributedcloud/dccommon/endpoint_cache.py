@@ -20,6 +20,7 @@ from collections.abc import Callable
 from typing import Any
 from typing import Optional
 from typing import Union
+from urllib.parse import urlparse
 
 from keystoneauth1 import access
 from keystoneauth1.identity import v3
@@ -117,6 +118,65 @@ class CachedV3Password(v3.Password):
         """Remove the auth info for the current auth_url from the cache."""
         with CachedV3Password._CACHE_LOCK.write_lock():
             return CachedV3Password._CACHE.pop(self.auth_url, None)
+
+    def get_endpoint(
+        self,
+        session,
+        service_type: Optional[str] = None,
+        interface: Optional[str] = None,
+        region_name: Optional[str] = None,
+        **kwargs,
+    ) -> Optional[str]:
+        """Get the endpoint URL for a service.
+
+        Attempts to build a custom endpoint for admin interfaces outside the
+        system controller region, falling back to catalog lookup if unsuccessful.
+        """
+
+        # Check if we should attempt to build a custom endpoint
+        if (
+            region_name not in consts.SYSTEM_CONTROLLER_REGION_NAMES
+            and interface == consts.KS_ENDPOINT_ADMIN
+            and self.auth_url != CONF.endpoint_cache.auth_uri
+        ):
+
+            hostname = urlparse(self.auth_url).hostname
+            if hostname:
+                try:
+                    service_name = consts.SERVICE_TYPE_TO_NAME_MAP[service_type]
+                    endpoint = utils.build_subcloud_endpoint(hostname, service_name)
+                    if endpoint:
+                        LOG.debug(
+                            "Using custom endpoint for service type '%s':"
+                            " %s for auth_url: %s",
+                            service_type,
+                            endpoint,
+                            self.auth_url,
+                        )
+                        return endpoint
+                except KeyError:
+                    LOG.warning(
+                        f"Unknown subcloud service type '{service_type}', "
+                        "falling back to endpoint catalog"
+                    )
+                except Exception as e:
+                    LOG.warning(
+                        f"Unable to build a custom endpoint for {service_type=} "
+                        f"and {self.auth_url=}: {str(e)}, falling back to "
+                        "endpoint catalog"
+                    )
+
+        # Fall back to catalog lookup
+        LOG.debug(
+            "Using catalog for endpoint discovery for auth_url: %s", self.auth_url
+        )
+        return super().get_endpoint(
+            session,
+            service_type=service_type,
+            interface=interface,
+            region_name=region_name,
+            **kwargs,
+        )
 
     def get_auth_ref(self, _session: session.Session, **kwargs) -> access.AccessInfoV3:
         """Get the authentication reference, using the cache if possible.
