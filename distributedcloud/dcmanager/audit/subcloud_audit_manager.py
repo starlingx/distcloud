@@ -47,6 +47,10 @@ SUBCLOUD_STATE_UPDATE_ITERATIONS = (
     dccommon_consts.SECONDS_IN_HOUR // CONF.scheduler.subcloud_audit_interval
 )
 
+# Time for the periodic audit loop to execute
+# It needs to be greater than the subcloud_audit_interval
+AUDIT_LOOP_INTERVAL = CONF.scheduler.subcloud_audit_interval + 10
+
 # Name of starlingx openstack helm application
 HELM_APP_OPENSTACK = "openstack"
 
@@ -258,7 +262,7 @@ class SubcloudAuditManager(manager.Manager):
         # does not die.
         while True:
             try:
-                eventlet.greenthread.sleep(CONF.scheduler.subcloud_audit_interval)
+                eventlet.greenthread.sleep(AUDIT_LOOP_INTERVAL)
                 self._periodic_subcloud_audit_loop()
             except eventlet.greenlet.GreenletExit:
                 # We have been told to exit
