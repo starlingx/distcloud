@@ -56,6 +56,7 @@ class PeriodicAudit(utils.BaseAuditManager):
                 return
             except Exception:
                 LOG.exception("Error in periodic audit loop")
+                eventlet.greenthread.sleep(2)
 
     def _run_with_retry_if_unauthorized(self, func, arg_getter, **kwargs):
         # If any exception is raised, we just ignore them and wait
@@ -155,6 +156,9 @@ class RequestedAudit(utils.BaseAuditManager):
             )
         else:
             raise exceptions.UnsupportedAudit(audit=audit_type)
+        if resp is None:
+            # resp is None when the audit fails to get the data internally
+            raise exceptions.AuditStatusFailure(audit=audit_type)
         return audit_type, resp
 
     def get_sync_status(self, payload):

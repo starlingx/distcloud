@@ -44,3 +44,7 @@ class UnsupportedAudit(DcagentException):
 
 class MissingRegionOneData(DcagentException):
     message = _("Audit request does not have RegionOne data for %(audit)s.")
+
+
+class AuditStatusFailure(DcagentException):
+    message = _("Failure getting %(audit)s sync status.")

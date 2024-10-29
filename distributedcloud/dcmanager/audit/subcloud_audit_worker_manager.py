@@ -527,10 +527,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             except Exception:
                 LOG.exception(failmsg % (subcloud.name, "dcagent"))
                 failures.append("dcagent")
-            LOG.debug(
-                f"Audits results for subcloud {subcloud_name}: "
-                f"{subcloud_name}: {audit_results}"
-            )
+            LOG.debug(f"Audits results for subcloud {subcloud_name}: {audit_results}")
             for audit_type, audit_value in audit_results.items():
                 if audit_type == dccommon_consts.BASE_AUDIT:
                     avail_to_set = audit_value.get("availability")
