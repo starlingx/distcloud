@@ -1374,32 +1374,6 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
                 "system controller, cannot prestage for software deploy."
             )
 
-        # If there is only one deployed release, it implies that it corresponds
-        # to the base release. Therefore, prestage is not required.
-        if len(software_list) == 1:
-            return None, (
-                "Only base release is deployed, cannot prestage for software deploy."
-            )
-
-        # We want to check if the USM API is available on the subcloud. This allows us
-        # to determine if the prestage should be run for N-1 subcloud.
-        if subcloud and subcloud.software_version < consts.SOFTWARE_VERSION_24_09:
-            LOG.info(
-                f"Checking USM service availability for {subcloud.name} with software "
-                f"version: {subcloud.software_version}"
-            )
-            try:
-                if not has_usm_service(subcloud.region_name):
-                    return None, (
-                        "USM service not found for subcloud, cannot prestage for "
-                        "software deploy."
-                    )
-            except exceptions.InternalError:
-                return None, (
-                    "Unable to check USM service for subcloud, cannot prestage "
-                    "for software deploy."
-                )
-
     else:
         # Check for install release param
         if not is_software_ready_to_be_prestaged_for_install(

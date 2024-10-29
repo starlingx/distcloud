@@ -273,30 +273,6 @@ class SwUpdateManager(manager.Manager):
 
             # TODO(rlima): move prestage to its validator
             if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-                # For sw deploy we need to check the USM availability on the subcloud
-                # to have deploy compatibility in cases subcloud N-1 release
-                if (
-                    for_sw_deploy
-                    and subcloud.software_version < consts.SOFTWARE_VERSION_24_09
-                ):
-                    try:
-                        if not utils.has_usm_service(subcloud.region_name):
-                            msg = (
-                                "USM service not found for subcloud, cannot prestage "
-                                "for software deploy."
-                            )
-                            raise exceptions.BadRequest(
-                                resource="strategy", msg=str(msg)
-                            )
-                    except exceptions.InternalError as ex:
-                        msg = (
-                            "Unable to check USM service for subcloud, cannot prestage "
-                            "for software deploy."
-                        )
-                        raise exceptions.BadRequest(
-                            resource="strategy", msg=str(msg)
-                        ) from ex
-
                 # Do initial validation for subcloud
                 try:
                     prestage.global_prestage_validate(payload)
@@ -409,28 +385,6 @@ class SwUpdateManager(manager.Manager):
             filtered_valid_subclouds = []
             for subcloud, sync_status in valid_subclouds:
                 warn_msg = f"Excluding subcloud from prestage strategy: {subcloud.name}"
-                # For sw deploy we need to check the USM availability on the subcloud
-                # to have deploy compatibility in cases subcloud N-1 release
-                if (
-                    for_sw_deploy
-                    and subcloud.software_version < consts.SOFTWARE_VERSION_24_09
-                ):
-                    try:
-                        if not utils.has_usm_service(subcloud.region_name):
-                            msg = (
-                                "USM service not found for subcloud, cannot prestage "
-                                "for software deploy."
-                            )
-                            LOG.warn(f"{warn_msg} due to: {msg}")
-                            continue
-                    except exceptions.InternalError:
-                        msg = (
-                            "Unable to check USM service for subcloud, cannot prestage "
-                            "for software deploy."
-                        )
-                        LOG.warn(f"{warn_msg} due to: {msg}")
-                        continue
-
                 # Do initial validation for subcloud
                 try:
                     prestage.initial_subcloud_validate(subcloud)
