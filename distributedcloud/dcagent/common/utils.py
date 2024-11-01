@@ -48,15 +48,25 @@ def cache_wrapper(cls):
                 )
                 return response
 
-            result = method(self, *args, **kwargs)
-            # Cache the results in the '_result' class variable
-            LOG.debug(
-                f"Saving new response for {method.__name__} "
-                f"in {self.__class__.__name__}. Response: {result}"
-            )
-            with self.__class__._lock:
-                self.__class__._results[method.__name__] = result
-            return result
+            try:
+                result = method(self, *args, **kwargs)
+                # Cache the results in the '_result' class variable
+                LOG.debug(
+                    f"Saving new response for {method.__name__} "
+                    f"in {self.__class__.__name__}. Response: {result}"
+                )
+                with self.__class__._lock:
+                    self.__class__._results[method.__name__] = result
+                return result
+            except Exception as e:
+                LOG.exception(
+                    f"Error in {method.__name__} from {self.__class__.__name__}: {e}"
+                )
+                # Clear the cached result if an exception occurs
+                with self.__class__._lock:
+                    if method.__name__ in self.__class__._results:
+                        del self.__class__._results[method.__name__]
+                raise
 
         return wrapper
 
