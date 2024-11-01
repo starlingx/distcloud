@@ -571,7 +571,7 @@ strategy_step_stage:
     The stage associated with the strategy step.
   in: body
   required: false
-  type: integer
+  type: string
 strategy_step_started_at:
   description: |
     The time when the strategy_step finished.

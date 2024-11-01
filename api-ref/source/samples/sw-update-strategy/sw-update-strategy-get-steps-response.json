@@ -9,7 +9,7 @@
             "created-at": "2022-01-12 19:19:03.782236",
             "id": 2,
             "cloud": "subcloud1",
-            "stage": 1
+            "stage": "Create"
         }
     ]
 }
