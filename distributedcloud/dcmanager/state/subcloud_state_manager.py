@@ -21,7 +21,6 @@ import copy
 
 from fm_api import constants as fm_const
 from fm_api import fm_api
-from oslo_concurrency import lockutils
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
@@ -38,7 +37,6 @@ from dcorch.rpc import client as dcorch_rpc_client
 
 LOG = logging.getLogger(__name__)
 ALARM_OUT_OF_SYNC = fm_const.FM_ALARM_ID_DC_SUBCLOUD_RESOURCE_OUT_OF_SYNC
-LOCK_NAME = "dc-audit-bulk-update"
 
 
 def sync_update_subcloud_endpoint_status(func):
@@ -438,14 +436,16 @@ class SubcloudStateManager(manager.Manager):
         if endpoint_data:
             self._bulk_update_subcloud_endpoint_status(context, subcloud, endpoint_data)
 
-    @lockutils.synchronized(LOCK_NAME)
+    @sync_update_subcloud_endpoint_status
     def _do_bulk_update_subcloud_endpoint_status(
-        self, context, subcloud, endpoint_data
+        self, context, region_name, subcloud_id, subcloud_name, endpoint_data
     ):
         """Updates an online and managed subcloud's endpoints sync status
 
         :param context: request context object
-        :param subcloud: subcloud to update
+        :param region_name: region name of subcloud to update
+        :param subcloud_id: id of the subcloud to update
+        :param subcloud_name: name of the subcloud to update
         :param endpoint_data: a dict containing the endpoint as key and its sync
         status as value
         """
@@ -456,14 +456,14 @@ class SubcloudStateManager(manager.Manager):
         # happen at once.
         status_to_set = [f"{key} ({value})" for key, value in endpoint_data.items()]
         LOG.info(
-            f"Updating endpoints on subcloud: {subcloud.name} "
+            f"Updating endpoints on subcloud: {subcloud_name} "
             f"endpoints: {', '.join(status_to_set)}"
         )
 
         # For each endpoint in endpoint_data, decide whether an alarm should be set
         # or not and create it in case it's necessary.
         faults_to_set = dict()
-        entity_instance_id = f"subcloud={subcloud.name}"
+        entity_instance_id = f"subcloud={subcloud_name}"
 
         # Acquire all existing alarms with the specified alarm_id for a subcloud.
         faults = self.fm_api.get_faults_by_id_n_eid(
@@ -489,7 +489,7 @@ class SubcloudStateManager(manager.Manager):
             has_fault = True if endpoint in endpoints_with_faults else False
 
             if sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC and not has_fault:
-                faults_to_set[endpoint] = self._create_fault(subcloud.name, endpoint)
+                faults_to_set[endpoint] = self._create_fault(subcloud_name, endpoint)
             elif sync_status != dccommon_consts.SYNC_STATUS_OUT_OF_SYNC and has_fault:
                 del faults_to_set[endpoint]
 
@@ -502,19 +502,19 @@ class SubcloudStateManager(manager.Manager):
                 self.fm_api.set_faults(faults_to_set.values())
             except Exception as e:
                 LOG.exception(
-                    f"An error occurred when updating subcloud {subcloud.name} "
+                    f"An error occurred when updating subcloud {subcloud_name} "
                     f"alarms: {e}"
                 )
 
         try:
             db_api.subcloud_status_bulk_update_endpoints(
                 context,
-                subcloud.id,
+                subcloud_id,
                 endpoint_data,
             )
         except Exception as e:
             LOG.exception(
-                f"An error occured when updating the subcloud {subcloud.name}'s"
+                f"An error occured when updating the subcloud {subcloud_name}'s"
                 f"endpoint status: {e}"
             )
 
@@ -539,7 +539,11 @@ class SubcloudStateManager(manager.Manager):
         if endpoints_to_update:
             try:
                 self._do_bulk_update_subcloud_endpoint_status(
-                    context, subcloud, endpoints_to_update
+                    context,
+                    subcloud.region_name,
+                    subcloud.id,
+                    subcloud.name,
+                    endpoints_to_update,
                 )
             except Exception as e:
                 LOG.exception(e)
