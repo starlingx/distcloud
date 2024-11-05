@@ -255,9 +255,8 @@ class SwUpdateManager(manager.Manager):
 
         # Has the user specified for_sw_deploy flag for prestage strategy?
         if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-            for_sw_deploy = (
-                utils.get_prestage_reason(payload) == consts.PRESTAGE_FOR_SW_DEPLOY
-            )
+            for_sw_deploy = payload.get(consts.PRESTAGE_FOR_SW_DEPLOY) in ["true"]
+            force = payload.get(consts.EXTRA_ARGS_FORCE) in ["true"]
 
         if cloud_name:
             # Make sure subcloud exists
@@ -392,7 +391,7 @@ class SwUpdateManager(manager.Manager):
                 consts.EXTRA_ARGS_SYSADMIN_PASSWORD: payload.get(
                     consts.EXTRA_ARGS_SYSADMIN_PASSWORD
                 ),
-                consts.EXTRA_ARGS_FORCE: payload.get(consts.EXTRA_ARGS_FORCE),
+                consts.EXTRA_ARGS_FORCE: force,
                 consts.PRESTAGE_SOFTWARE_VERSION: (
                     payload.get(consts.PRESTAGE_REQUEST_RELEASE)
                 ),
