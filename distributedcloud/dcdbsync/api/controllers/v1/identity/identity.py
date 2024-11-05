@@ -44,11 +44,6 @@ class UsersController(object):
     def __init__(self):
         super(UsersController, self).__init__()
 
-    # to do the version compatibility for future purpose
-    def _determine_version_cap(self, target):
-        version_cap = 1.0
-        return version_cap
-
     @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters
@@ -139,11 +134,6 @@ class GroupsController(object):
 
     def __init__(self):
         super(GroupsController, self).__init__()
-
-    # to do the version compatibility for future purpose
-    def _determine_version_cap(self, target):
-        version_cap = 1.0
-        return version_cap
 
     @expose(generic=True, template="json")
     def index(self):
