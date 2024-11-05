@@ -8,6 +8,7 @@ from keystoneauth1 import exceptions as keystone_exceptions
 import mock
 
 from dccommon import consts as dccommon_consts
+from dcmanager.audit import rpcapi
 from dcmanager.audit import software_audit
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.tests import base
@@ -90,9 +91,9 @@ class TestSoftwareAudit(base.DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        self._mock_rpc_api_manager_audit_worker_client()
-        self._mock_software_client(software_audit)
-        self._mock_openstack_driver(software_audit)
+        self._mock_object(rpcapi, "ManagerAuditWorkerClient")
+        self.mock_software_client = self._mock_object(software_audit, "SoftwareClient")
+        self._mock_object(software_audit, "OpenStackDriver")
 
         self.software_audit = software_audit.SoftwareAudit()
         self.audit_manager = subcloud_audit_manager.SubcloudAuditManager()

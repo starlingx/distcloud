@@ -22,6 +22,7 @@ from oslo_config import cfg
 from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
+from dcmanager.audit import rpcapi
 from dcmanager.common import consts
 from dcmanager.manager import service
 from dcmanager.tests.base import DCManagerTestCase
@@ -37,9 +38,11 @@ class BaseTestDCManagerService(DCManagerTestCase):
         super().setUp()
         self.service_obj = service.DCManagerService("dcmanager", "dcmanager")
         self.payload = {}
-        self._mock_audit_rpc_client()
-        self._mock_subcloud_manager(service)
-        self._mock_peer_monitor_manager(service)
+        self._mock_object(rpcapi, "ManagerAuditClient")
+        self.mock_subcloud_manager = self._mock_object(service, "SubcloudManager")
+        self.mock_peer_monitor_manager = self._mock_object(
+            service, "PeerMonitorManager"
+        )
 
 
 class TestDCManagerServiceInit(BaseTestDCManagerService):

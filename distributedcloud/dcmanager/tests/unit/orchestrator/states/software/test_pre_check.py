@@ -104,7 +104,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
             self.subcloud.id, consts.STRATEGY_STATE_SW_PRE_CHECK
         )
 
-        self._mock_read_from_cache(pre_check.PreCheckState)
+        self.mock_read_from_cache = self._mock_object(
+            pre_check.PreCheckState, "_read_from_cache"
+        )
         self.software_client.list = mock.MagicMock(return_value=FAKE_SUBCLOUD_RELEASES)
         self.mock_read_from_cache.return_value = FAKE_REGION_ONE_RELEASE_PRESTAGED
         self.vim_client.get_current_strategy = mock.MagicMock(return_value={})

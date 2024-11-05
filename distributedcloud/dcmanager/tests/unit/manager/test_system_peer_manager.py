@@ -10,8 +10,10 @@ import uuid
 import mock
 
 from dccommon import exceptions as dccommon_exceptions
+from dcmanager.audit import rpcapi
 from dcmanager.common import consts
 from dcmanager.common import exceptions
+from dcmanager.common import utils as dutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import system_peer_manager
 from dcmanager.tests import base
@@ -82,12 +84,12 @@ class TestSystemPeerManager(base.DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        self._mock_sysinv_client(system_peer_manager)
-        self._mock_audit_rpc_client()
-        self._mock_get_local_system()
+        self.mock_sysinv_client = self._mock_object(system_peer_manager, "SysinvClient")
+        self._mock_object(rpcapi, "ManagerAuditClient")
+        self.mock_get_local_system = self._mock_object(dutils, "get_local_system")
         self._mock_system_peer_manager_dcmanagerclient()
         self._mock_system_peer_manager_peersitedriver()
-        self._mock_log(system_peer_manager)
+        self.mock_log = self._mock_object(system_peer_manager, "LOG")
 
         self.spm = system_peer_manager.SystemPeerManager(mock.MagicMock())
         self.mock_sysinv_client.return_value = FakeSysinvClient()

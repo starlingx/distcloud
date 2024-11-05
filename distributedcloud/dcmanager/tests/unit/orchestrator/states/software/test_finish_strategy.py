@@ -12,6 +12,7 @@ from dcmanager.orchestrator.states.software.finish_strategy import FinishStrateg
 from dcmanager.tests.unit.orchestrator.states.software.test_base import (
     TestSoftwareOrchestrator,
 )
+from dcorch.rpc import client as rpc_client
 
 
 REGION_ONE_RELEASES = [
@@ -70,8 +71,10 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
     def setUp(self):
         super().setUp()
 
-        self._mock_read_from_cache(FinishStrategyState)
-        self._mock_dcorch_engine_rpc_client()
+        self.mock_read_from_cache = self._mock_object(
+            FinishStrategyState, "_read_from_cache"
+        )
+        self._mock_object(rpc_client, "EngineWorkerClient")
 
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
 
@@ -88,7 +91,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list = mock.MagicMock()
         self.software_client.delete = mock.MagicMock()
         self.software_client.commit_patch = mock.MagicMock()
-        self._read_from_cache = mock.MagicMock()
 
     def test_finish_strategy_success(self):
         """Test software finish strategy when the API call succeeds."""

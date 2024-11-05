@@ -15,6 +15,7 @@ from dcmanager.api.controllers.v1 import peer_group_association
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import GetMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
@@ -192,8 +193,7 @@ class BaseTestPeerGroupAssociationController(
         super().setUp()
 
         self.url = self.API_PREFIX
-
-        self._mock_rpc_client()
+        self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
 
         self.single_obj = None
         self.peer_id, self.peer_group_id = self._create_db_related_objects(self.ctx)
@@ -512,8 +512,10 @@ class BaseTestPeerGroupAssociationPatch(BaseTestPeerGroupAssociationController):
         self.method = self.app.patch_json
         self.params = self.get_update_object()
 
-        self._mock_openstack_driver(psd_common)
-        self._mock_sysinv_client(peer_group_association)
+        self._mock_object(psd_common, "OpenStackDriver")
+        self.mock_sysinv_client = self._mock_object(
+            peer_group_association, "SysinvClient"
+        )
 
         mock_get_system = mock.MagicMock()
         mock_get_system.uuid = SAMPLE_SUBCLOUD_PEER_GROUP_SYSTEM_LEADER_ID

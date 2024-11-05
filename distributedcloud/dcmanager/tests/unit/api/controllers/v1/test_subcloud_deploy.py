@@ -14,6 +14,7 @@
 #    under the License.
 #
 
+import builtins
 import http.client
 import os
 
@@ -47,12 +48,12 @@ class BaseTestSubcloudDeployController(DCManagerApiTest):
 
         self.url = "/v1.0/subcloud-deploy"
 
-        self._mock_os_path_isdir()
-        self._mock_os_remove()
-        self._mock_os_mkdir()
+        self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
+        self.mock_os_remove = self._mock_object(os, "remove")
+        self._mock_object(os, "mkdir")
         self._mock_os_open()
         self._mock_os_write()
-        self._mock_builtins_open()
+        self.mock_builtins_open = self._mock_object(builtins, "open")
         self._mock_get_filename_by_prefix()
         self._setup_get_filename_by_prefix()
 
@@ -374,7 +375,7 @@ class TestSubcloudDeployDelete(BaseTestSubcloudDeployController):
 
         self.method = self.app.delete
 
-        self._mock_log(subcloud_deploy)
+        self.mock_log = self._mock_object(subcloud_deploy, "LOG")
         self._mock_get_sw_version()
 
         self.sw_version_directory = "/opt/platform/deploy/"

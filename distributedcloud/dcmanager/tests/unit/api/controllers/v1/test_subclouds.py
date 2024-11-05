@@ -16,11 +16,11 @@
 #
 
 import base64
+import builtins
 import copy
 import http.client
 import json
 import os
-
 
 from keystoneauth1.exceptions import EndpointNotFound
 import mock
@@ -34,12 +34,14 @@ from dccommon.drivers.openstack import vim
 from dccommon.exceptions import OAMAddressesNotFound
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd
 from dcmanager.api.controllers.v1 import subclouds
+from dcmanager.api.controllers.v1.subclouds import SubcloudsController
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy import api as sql_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import PostMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
@@ -246,11 +248,25 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
 
         self.url = self.API_PREFIX
 
-        self._mock_rpc_client()
-        self._mock_rpc_subcloud_state_client()
-        self._mock_get_ks_client()
-        self._mock_query()
-        self._mock_valid_software_deploy_state()
+        self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
+        self.mock_rpc_subcloud_state_client = self._mock_object(
+            rpc_client, "SubcloudStateClient"
+        )
+        self.mock_sysinv_client_psd_common = self._mock_object(
+            psd_common, "SysinvClient"
+        )
+        self.mock_sysinv_client_cutils = self._mock_object(cutils, "SysinvClient")
+        self.mock_sysinv_client_prestage = self._mock_object(prestage, "SysinvClient")
+        self._mock_object(subclouds, "OpenStackDriver")
+        self._mock_object(cutils, "OpenStackDriver")
+        self._mock_object(prestage, "OpenStackDriver")
+
+        self._mock_object(psd_common, "get_ks_client")
+        self.mock_query = self._mock_object(psd_common.PatchingClient, "query")
+        self.mock_is_valid_software_deploy_state = self._mock_object(
+            SubcloudsController, "is_valid_software_deploy_state"
+        )
+        self.mock_is_valid_software_deploy_state.return_value = True
 
     def _update_subcloud(self, **kwargs):
         self.subcloud = sql_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
@@ -403,17 +419,18 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
 
         self.url = f"{self.url}/detail"
 
-        self._mock_sysinv_client(cutils)
-        self._mock_fm_client(subclouds)
+        self.mock_fm_client = self._mock_object(subclouds, "FmClient")
 
-        self.mock_sysinv_client().get_oam_addresses.return_value = FakeOAMAddressPool(
-            "10.10.10.254",
-            "10.10.10.1",
-            "10.10.10.254",
-            "10.10.10.4",
-            "10.10.10.3",
-            "10.10.10.1",
-            "10.10.10.2",
+        self.mock_sysinv_client_cutils().get_oam_addresses.return_value = (
+            FakeOAMAddressPool(
+                "10.10.10.254",
+                "10.10.10.1",
+                "10.10.10.254",
+                "10.10.10.4",
+                "10.10.10.3",
+                "10.10.10.1",
+                "10.10.10.2",
+            )
         )
 
     def _assert_response_payload(
@@ -456,7 +473,9 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def test_get_detail_succeeds_with_sysinv_client_endpoint_not_found(self):
         """Test get detail succeeds with sysinv client endpoint not found"""
 
-        self.mock_sysinv_client().get_oam_addresses.side_effect = EndpointNotFound()
+        self.mock_sysinv_client_cutils().get_oam_addresses.side_effect = (
+            EndpointNotFound()
+        )
 
         response = self._send_request()
 
@@ -466,7 +485,9 @@ class TestSubcloudsGetDetail(BaseTestSubcloudsGet):
     def test_get_detail_succeeds_with_sysinv_client_oam_addresses_not_found(self):
         """Test get detail succeeds with sysinv client oam addresses not found"""
 
-        self.mock_sysinv_client().get_oam_addresses.side_effect = OAMAddressesNotFound()
+        self.mock_sysinv_client_cutils().get_oam_addresses.side_effect = (
+            OAMAddressesNotFound()
+        )
 
         response = self._send_request()
 
@@ -488,7 +509,9 @@ class BaseTestSubcloudsPost(BaseTestSubcloudsController):
         self.params = self.get_post_params()
         self.upload_files = self.get_post_upload_files()
 
-        self._mock_get_network_address_pools()
+        self.mock_get_network_address_pools = self._mock_object(
+            psd_common, "get_network_address_pools"
+        )
         self.mock_get_network_address_pools.return_value = [
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
         ]
@@ -1166,8 +1189,10 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         self.upload_files = self.get_post_upload_files()
         self.params.update({"bmc_password": self._create_password()})
 
-        self._mock_get_vault_load_files()
-        self._mock_builtins_open()
+        self.mock_get_vault_load_files = self._mock_object(
+            cutils, "get_vault_load_files"
+        )
+        self.mock_builtins_open = self._mock_object(builtins, "open")
 
         self.mock_get_vault_load_files.return_value = ("fake_iso", "fake_sig")
         self.mock_builtins_open.side_effect = mock.mock_open(
@@ -1537,19 +1562,22 @@ class BaseTestSubcloudsPatch(BaseTestSubcloudsController):
         self.url = f"{self.url}/{self.subcloud.id}"
         self.method = self.app.patch
 
-        self._mock_get_vault_load_files()
-        self._mock_sysinv_client(psd_common)
-        self._mock_openstack_driver(subclouds)
-        self._mock_vim_client(subclouds.vim)
+        self.mock_get_vault_load_files = self._mock_object(
+            cutils, "get_vault_load_files"
+        )
+        self.mock_vim_client = self._mock_object(subclouds.vim, "VimClient")
 
         self.mock_get_vault_load_files.return_value = (
             FAKE_SUBCLOUD_INSTALL_VALUES["image"],
             "fake_sig",
         )
-        self.mock_sysinv_client().get_admin_address_pools.return_value = [
+        self.mock_sysinv_client_psd_common().get_admin_address_pools.return_value = [
             FakeAddressPool("192.168.205.0", 24, "192.168.205.2", "192.168.205.100")
         ]
-        self.mock_sysinv_client().get_management_address_pools.return_value = [
+        get_management_address_pools = (
+            self.mock_sysinv_client_psd_common().get_management_address_pools
+        )
+        get_management_address_pools.return_value = [
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
         ]
 
@@ -2226,11 +2254,6 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         self.params = {"peer_group": self.peer_group.id}
         self.upload_files = [("fake", "fake_name", "fake content".encode("utf-8"))]
 
-        self._mock_openstack_driver(cutils)
-        self.mock_openstack_driver_cutils = self.mock_openstack_driver
-        self._mock_sysinv_client(cutils)
-        self.mock_sysinv_client_cutils = self.mock_sysinv_client
-
         mock_get_system = mock.MagicMock()
         mock_get_system.uuid = self.peer_group.system_leader_id
 
@@ -2613,11 +2636,11 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
 
         self._create_variables_and_update_subcloud()
 
-        self._mock_load_yaml_file()
-        self._mock_builtins_open()
-        self._mock_os_listdir()
-        self._mock_os_path_isdir()
-        self._mock_os_path_exists()
+        self.mock_load_yaml_file = self._mock_object(cutils, "load_yaml_file")
+        self.mock_builtins_open = self._mock_object(builtins, "open")
+        self.mock_os_listdir = self._mock_object(os, "listdir")
+        self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
+        self.mock_os_path_exists = self._mock_object(os.path, "exists")
 
         self.mock_load_yaml_file.return_value = {"software_version": SW_VERSION}
         self.mock_builtins_open.side_effect = mock.mock_open(
@@ -2893,18 +2916,11 @@ class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
         )
 
-        self._mock_openstack_driver(prestage)
-        self.mock_openstack_driver_prestage = self.mock_openstack_driver
-        self._mock_sysinv_client(prestage)
-        self.mock_sysinv_client_prestage = self.mock_sysinv_client
         self._setup_mock_sysinv_client_prestage()
 
-        self._mock_openstack_driver(cutils)
-        self.mock_openstack_driver_cutils = self.mock_openstack_driver
-        self._mock_sysinv_client(cutils)
-        self.mock_sysinv_client_cutils = self.mock_sysinv_client
-
-        self._mock_software_client(cutils.software_v1)
+        self.mock_software_client = self._mock_object(
+            cutils.software_v1, "SoftwareClient"
+        )
         self.mock_software_client().show_deploy.return_value = None
         self.original_get_validated_sw_version_for_prestage = (
             cutils.get_validated_sw_version_for_prestage

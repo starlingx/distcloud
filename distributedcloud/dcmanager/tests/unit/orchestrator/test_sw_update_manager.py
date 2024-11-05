@@ -243,7 +243,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.addCleanup(p.stop)
 
         # Mock for logs
-        self._mock_log(sw_update_manager)
+        self._mock_object(sw_update_manager, "LOG")
 
         # Mock ostree_mount validate_ostree_iso_mount
         mock_patch = mock.patch.object(ostree_mount, "validate_ostree_iso_mount")

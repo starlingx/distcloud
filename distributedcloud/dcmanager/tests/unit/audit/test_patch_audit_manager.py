@@ -19,6 +19,7 @@ import mock
 
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import patch_audit
+from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.tests import base
 from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
@@ -28,8 +29,10 @@ class TestPatchAudit(base.DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        self._mock_rpc_api_manager_audit_worker_client()
-        self._mock_subcloud_audit_manager_context()
+        self._mock_object(rpcapi, "ManagerAuditWorkerClient")
+        self.mock_subcloud_audit_manager_context = self._mock_object(
+            subcloud_audit_manager, "context"
+        )
 
         self.mock_subcloud_audit_manager_context.get_admin_context.return_value = (
             self.ctx

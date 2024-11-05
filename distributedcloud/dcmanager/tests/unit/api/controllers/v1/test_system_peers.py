@@ -13,6 +13,7 @@ from oslo_messaging import RemoteError
 from dcmanager.api.controllers.v1 import system_peers
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import DeleteMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import GetMixin
@@ -408,8 +409,7 @@ class BaseTestSystemPeersController(DCManagerApiTest, SystemPeersAPIMixin):
         super().setUp()
 
         self.url = "/v1.0/system-peers"
-
-        self._mock_rpc_client()
+        self._mock_object(rpc_client, "ManagerClient")
 
 
 class TestSystemPeersController(BaseTestSystemPeersController):

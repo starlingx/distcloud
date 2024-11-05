@@ -393,10 +393,15 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.mock_software_audit2.SoftwareAudit.return_value = self.fake_software_audit2
         self.addCleanup(p.stop)
 
-        self._mock_openstack_driver(subcloud_audit_worker_manager)
-        self._mock_sysinv_client(subcloud_audit_worker_manager)
-        self._mock_fm_client(subcloud_audit_worker_manager)
-
+        self.mock_openstack_driver = self._mock_object(
+            subcloud_audit_worker_manager, "OpenStackDriver"
+        )
+        self.mock_sysinv_client = self._mock_object(
+            subcloud_audit_worker_manager, "SysinvClient"
+        )
+        self.mock_fm_client = self._mock_object(
+            subcloud_audit_worker_manager, "FmClient"
+        )
         self.mock_fm_client().get_alarm_summary.return_value = None
         self.mock_sysinv_client().get_service_groups.return_value = FAKE_SERVICE_GROUPS
         self.mock_sysinv_client().get_applications.return_value = FAKE_APPLICATIONS

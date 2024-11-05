@@ -15,6 +15,7 @@
 import http.client
 import json
 
+from dcmanager.audit import rpcapi
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.common import consts as test_consts
 
@@ -26,8 +27,7 @@ class BaseTestNotificationsController(DCManagerApiTest):
         super().setUp()
 
         self.url = "/v1.0/notifications"
-
-        self._mock_audit_rpc_client()
+        self.mock_audit_rpc_client = self._mock_object(rpcapi, "ManagerAuditClient")
 
 
 class TestNotificationsController(BaseTestNotificationsController):

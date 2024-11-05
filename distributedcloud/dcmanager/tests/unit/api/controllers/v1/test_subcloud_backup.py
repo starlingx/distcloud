@@ -6,6 +6,7 @@
 
 import http.client
 import json
+import os
 
 import mock
 from oslo_messaging import RemoteError
@@ -14,6 +15,7 @@ from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 import dcmanager.common.utils
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests import base
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.common import fake_subcloud
@@ -86,13 +88,14 @@ class BaseTestSubcloudBackupController(DCManagerApiTest):
         super().setUp()
 
         self.url = "/v1.0/subcloud-backup"
-
         self.subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
-        self._mock_rpc_client()
-        self._mock_rpc_subcloud_state_client()
-        self._mock_openstack_driver(dcmanager.common.utils)
-        self._mock_sysinv_client(dcmanager.common.utils)
+        self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
+        self._mock_object(rpc_client, "SubcloudStateClient")
+        self._mock_object(dcmanager.common.utils, "OpenStackDriver")
+        self.mock_sysinv_client = self._mock_object(
+            dcmanager.common.utils, "SysinvClient"
+        )
 
     def _update_subcloud(
         self,
@@ -939,8 +942,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
             "subcloud": str(self.subcloud.id),
         }
 
-        self._mock_os_listdir()
-        self._mock_os_path_isdir()
+        self.mock_os_listdir = self._mock_object(os, "listdir")
+        self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
 
         self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
         self.mock_os_path_isdir.return_value = True

@@ -5,7 +5,9 @@
 #
 
 import base64
+import builtins
 import copy
+import os
 import threading
 
 import mock
@@ -165,7 +167,7 @@ class TestPrestagePackagesState(TestPrestage):
 
         self._setup_strategy_step(STRATEGY_STATE_PRESTAGE_PACKAGES)
 
-        self._mock_builtins_open()
+        self._mock_object(builtins, "open")
         self._mock_ansible_playbook()
         self._mock_object(
             ostree_mount, "validate_ostree_iso_mount", "validate_ostree_iso_mount"
@@ -198,7 +200,7 @@ class TestPrestageImagesState(TestPrestage):
 
         self._setup_strategy_step(STRATEGY_STATE_PRESTAGE_IMAGES)
 
-        self._mock_os_path_isdir()
+        self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
         self.mock_os_path_isdir.return_value = False
 
     def test_prestage_images_succeeds(self):

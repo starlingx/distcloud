@@ -116,8 +116,10 @@ class TestPeerGroupAudit(DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        self._mock_log(peer_group_audit_manager)
-        self._mock_subcloud_manager(subcloud_manager)
+        self.mock_log = self._mock_object(peer_group_audit_manager, "LOG")
+        self.mock_subcloud_manager = self._mock_object(
+            subcloud_manager, "SubcloudManager"
+        )
         self._mock_peer_monitor_manager_get_peer_dc_client()
 
         self.pm = peer_group_audit_manager.PeerGroupAuditManager(

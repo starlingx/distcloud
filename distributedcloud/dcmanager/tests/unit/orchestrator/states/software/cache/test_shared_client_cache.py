@@ -42,8 +42,8 @@ class TestSharedClientCache(base.DCManagerTestCase):
 
         super().setUp()
 
-        self._mock_openstack_driver(clients)
-        self._mock_sysinv_client(clients)
+        self._mock_object(clients, "OpenStackDriver")
+        self.mock_sysinv_client = self._mock_object(clients, "SysinvClient")
 
     def test_read_succeeds_when_cache_data_is_stored(self):
         """Test read cache succeeds when the data is cached after the first request

@@ -11,6 +11,7 @@ import mock
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.vim import SW_UPDATE_OPTS_CONST_DEFAULT
 from dcmanager.db import api as db_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.base import FakeException
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.common import fake_subcloud
@@ -81,10 +82,9 @@ class BaseTestSwUpdateOptionsController(DCManagerApiTest):
         super().setUp()
 
         self.url = "/v1.0/sw-update-options"
-
         self.subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
 
-        self._mock_rpc_client()
+        self._mock_object(rpc_client, "ManagerClient")
 
     def _get_sw_update_opts(self):
         return {

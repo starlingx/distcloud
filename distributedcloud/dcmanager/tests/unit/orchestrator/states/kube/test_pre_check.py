@@ -118,7 +118,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         self.sysinv_client.get_kube_versions = mock.MagicMock()
         self.sysinv_client.get_kube_versions.return_value = []
         # mock the cached get_kube_versions calls
-        self._mock_read_from_cache(BaseState)
+        self.mock_read_from_cache = self._mock_object(BaseState, "_read_from_cache")
         self.mock_read_from_cache.return_value = [
             FakeKubeVersion(
                 obj_id=1, version=PREVIOUS_KUBE_VERSION, target=True, state="active"
