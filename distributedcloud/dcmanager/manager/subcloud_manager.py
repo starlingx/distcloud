@@ -1436,9 +1436,7 @@ class SubcloudManager(manager.Manager):
             "ansible_ssh_pass": payload["sysadmin_password"],
             "ansible_become_pass": payload["sysadmin_password"],
         }
-        utils.update_values_on_yaml_file(
-            bootstrap_file, update_values, values_to_keep=GENERATED_OVERRIDES_VALUES
-        )
+        utils.update_values_on_yaml_file(bootstrap_file, update_values)
 
         # Update the ansible inventory for the subcloud
         bootstrap_address = payload["install_values"]["bootstrap_address"]
