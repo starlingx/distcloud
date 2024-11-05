@@ -1002,22 +1002,23 @@ class USMAPIController(APIController):
                 self._release_fd_lock(f)
 
     def read_metadata(self):
-        with open(self.metadata_file, "r", encoding="utf-8") as f:
-            # Use a shared lock for reading
-            self._acquire_fd_lock(f, shared=True)
-            try:
-                data = json.load(f)
-                return data
-            except json.JSONDecodeError:
-                LOG.warning(
-                    f"Invalid JSON in file {self.metadata_file}. "
-                    "Returning empty dictionary."
-                )
-                return {}
-            finally:
-                self._release_fd_lock(f)
-
-        return {}
+        try:
+            with open(self.metadata_file, "r", encoding="utf-8") as f:
+                # Use a shared lock for reading
+                self._acquire_fd_lock(f, shared=True)
+                try:
+                    data = json.load(f)
+                    return data
+                finally:
+                    self._release_fd_lock(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            reason = (
+                "invalid JSON data"
+                if isinstance(e, json.JSONDecodeError)
+                else "file does not exist"
+            )
+            LOG.warning(f"Unable to read metadata from {self.metadata_file}, {reason}")
+            return {}
 
     def remove_release_from_metadata(self, release_id):
         with open(
