@@ -366,6 +366,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self._mock_dcmanager_api()
         self._mock_context()
         self._mock_log(subcloud_manager)
+        self.mock_log_subcloud_manager = self.mock_log
         self._mock_subcloud_manager_keyring()
         self._mock_utils_create_subcloud_inventory()
         self._mock_utils_delete_subcloud_inventory()
@@ -707,7 +708,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             self.sm._update_services_endpoint(
                 self.ctx, self.payload, self.subcloud.region_name, self.mks_client
             )
-            self.mock_log.info.assert_called_with(
+            self.mock_log_subcloud_manager.info.assert_called_with(
                 "Update services endpoint to 192.168.101.3 in subcloud region "
                 f'{base.SUBCLOUD_1["region_name"]}'
             )
@@ -770,7 +771,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             availability_state=consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE,
         )
         self.sm._get_peer_system_list(self.peer_group)
-        self.mock_log.warning.assert_called_once_with(
+        self.mock_log_subcloud_manager.warning.assert_called_once_with(
             "Peer system %s offline, skip checking" % self.system_peer.peer_name
         )
 
@@ -872,13 +873,13 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             self.ctx,
             [self.subcloud],
         )
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             "Subcloud backup validation failed"
         )
 
     def test_mark_invalid_subclouds_for_backup_validation_success(self):
         self.sm._mark_invalid_subclouds_for_backup(self.ctx, [self.subcloud])
-        self.mock_log.warn.assert_called_once_with(
+        self.mock_log_subcloud_manager.warn.assert_called_once_with(
             "The following subclouds are not online and/or managed "
             "and/or in a valid deploy state, and will not be backed up: %s",
             self.subcloud.name,
@@ -928,7 +929,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
         self.sm._run_network_reconfiguration(
             self.subcloud.name, mock.ANY, None, self.payload, self.ctx, self.subcloud
         )
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             "FAILED reconfiguring-network playbook of (subcloud1).\n"
             "check individual log at /var/log/dcmanager/ansible"
             "/subcloud1_playbook_output.log for detailed output"
@@ -992,7 +993,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
         mock_create_route.assert_called_once()
         mock_update_endpoints.assert_called_once()
         self.assertFalse(mock_delete_route.called)
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             f"Failed to update subcloud {self.subcloud.name} endpoints"
         )
         mock_delete_route.assert_not_called()
@@ -1024,7 +1025,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
         )
         self.mock_openstack_driver.assert_called_once()
         self.assertFalse(mock_delete_route.called)
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             f"Failed to create route to subcloud {self.subcloud.name}."
         )
         self.assertEqual(
@@ -1250,7 +1251,7 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         )
         # Verify the subcloud rehomed flag is False after bootstrapped
         self.assertFalse(updated_subcloud.rehomed)
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             "FAILED bootstrapping playbook of (fake_subcloud1).\n"
             "check individual log at /var/log/dcmanager/ansible/"
             "fake_subcloud1_playbook_output.log for detailed output"
@@ -1318,7 +1319,7 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         self.assertEqual(
             consts.DEPLOY_STATE_PRE_CONFIG_FAILED, updated_subcloud.deploy_status
         )
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             f"Failed to configure {self.subcloud.name}"
         )
         self.assertFalse(ret)
@@ -1533,7 +1534,7 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         )
         # Verify the subcloud rehomed flag is False after bootstrapped
         self.assertFalse(updated_subcloud.rehomed)
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             "Enroll failed for subcloud fake_subcloud1: FAILED enrolling playbook of "
             "(fake_subcloud1).\ncheck individual log at /var/log/dcmanager/ansible/"
             "fake_subcloud1_playbook_output.log for detailed output"
@@ -1819,7 +1820,7 @@ class TestSubcloudDelete(BaseTestSubcloudManager):
     def test_cleanup_ansible_files_exception(self, mock_rmtree):
         self.mock_os_remove.side_effect = FileNotFoundError()
         self.sm._cleanup_ansible_files("subcloud1")
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             "Unable to cleanup subcloud ansible files for subcloud: subcloud1"
         )
 
@@ -2984,7 +2985,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         )
 
         self.assertEqual(self.mock_builtins_open.call_count, 1)
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             "Failed to update subcloud subcloud-4"
         )
 
@@ -3047,7 +3048,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         self.sm.update_subcloud_sync_endpoint_type(
             self.ctx, self.subcloud.region_name, endpoint_type_list, openstack_installed
         )
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             "Problem informing dcorch of subcloud sync endpoint type change,"
             f' subcloud region: {base.SUBCLOUD_1["region_name"]}'
         )
@@ -3439,7 +3440,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             release_version=FAKE_SW_VERSION,
             subcloud=self.subcloud,
         )
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             f"Failed to prepare subcloud {self.subcloud.name} for backup delete"
         )
 
@@ -3465,7 +3466,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         # Verify that subcloud has the correct backup status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_FAILED, updated_subcloud.backup_status)
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             f"FAILED backing-up playbook of ({self.subcloud.name}).\ncheck individual "
             "log at subcloud1_fake_file.yml_playbook_output.log for detailed output"
         )
@@ -3489,7 +3490,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             ),
             mock.call.info("Subcloud backup operation finished"),
         ]
-        self.mock_log.assert_has_calls(Calls)
+        self.mock_log_subcloud_manager.assert_has_calls(Calls)
 
     @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
@@ -3813,7 +3814,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
                 "for detailed output"
             ),
         ]
-        self.mock_log.error.assert_has_calls(Calls)
+        self.mock_log_subcloud_manager.error.assert_has_calls(Calls)
         mock_create_backup_overrides_file.assert_called_once()
         mock_compose_backup_delete_command.assert_called_once()
         self.mock_ansible_run_playbook.assert_called_once()
@@ -4154,7 +4155,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         expected_log = "skipped for local backup restore operation"
 
         self.assertIn(expected_log, return_log)
-        self.mock_log.info.assert_called_with(
+        self.mock_log_subcloud_manager.info.assert_called_with(
             "Subcloud restore backup operation finished.\nRestored subclouds: 0. "
             "Invalid subclouds: 1. Failed subclouds: 0."
         )
@@ -4269,7 +4270,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
                 "Restored subclouds: 1. Invalid subclouds: 0. Failed subclouds: 0."
             ),
         ]
-        self.mock_log.info.assert_has_calls(Calls)
+        self.mock_log_subcloud_manager.info.assert_has_calls(Calls)
 
     def test_backup_restore_unmanage_online_complete_backup_val(self):
         self.values["local_only"] = True
@@ -4300,7 +4301,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
                 "Restored subclouds: 1. Invalid subclouds: 0. Failed subclouds: 0."
             ),
         ]
-        self.mock_log.info.assert_has_calls(Calls)
+        self.mock_log_subcloud_manager.info.assert_has_calls(Calls)
 
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
@@ -4329,7 +4330,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.assertEqual(
             consts.DEPLOY_STATE_RESTORE_PREP_FAILED, updated_subcloud.deploy_status
         )
-        self.mock_log.exception.assert_called_once_with(
+        self.mock_log_subcloud_manager.exception.assert_called_once_with(
             f"Failed to prepare subcloud {self.subcloud.name} for backup restore"
         )
 
@@ -4481,7 +4482,7 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
         # Prepare the test data
         payload = {}
         self.sm.batch_migrate_subcloud(self.ctx, payload)
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             "Failed to migrate subcloud peer group, missing peer_group"
         )
 
@@ -4489,7 +4490,7 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
         # Prepare the test data
         payload = {"peer_group": self.peer_group.peer_group_name}
         self.sm.batch_migrate_subcloud(self.ctx, payload)
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             "Failed to migrate subcloud peer group, missing sysadmin_password"
         )
 
@@ -4517,7 +4518,7 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
         )
         ret = self.sm._unmanage_system_peer_subcloud([self.system_peer], self.subcloud)
         self.assertEqual(ret, False)
-        self.mock_log.exception.assert_called_with(
+        self.mock_log_subcloud_manager.exception.assert_called_with(
             f"Failed to set unmanged for subcloud: {self.subcloud.region_name} "
             f"on system {self.system_peer.peer_name} attempt: 2"
         )
@@ -4663,7 +4664,7 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
             mock.call("No association found for peer group pgname"),
             mock.call("Batch migrate operation finished"),
         ]
-        self.mock_log.info.assert_has_calls(Calls)
+        self.mock_log_subcloud_manager.info.assert_has_calls(Calls)
 
     @mock.patch.object(db_api, "subcloud_peer_group_update")
     def test_run_batch_migrate_no_secondary_subclouds(
@@ -4708,12 +4709,12 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
                 "pgname ending migration attempt"
             ),
         ]
-        self.mock_log.info.assert_has_calls(Calls)
+        self.mock_log_subcloud_manager.info.assert_has_calls(Calls)
 
     def test_migrate_subcloud_failed_non_existent_subcloud(self):
         payload = {}
         self.sm.migrate_subcloud(self.ctx, "subcloud2", payload)
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             "Failed to migrate, non-existent subcloud subcloud2"
         )
 
@@ -4727,7 +4728,7 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
             rehome_data=self.saved_payload["rehome_data"],
         )
         self.sm.migrate_subcloud(self.ctx, self.subcloud.id, payload)
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             "Failed to migrate subcloud: subcloud1, must provide sysadmin_password"
         )
 
@@ -4741,7 +4742,7 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
             rehome_data=self.saved_payload["rehome_data"],
         )
         self.sm.migrate_subcloud(self.ctx, self.subcloud.id, payload)
-        self.mock_log.error.assert_called_once_with(
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
             f"Failed to migrate subcloud: {self.subcloud.name}, "
             "must be in secondary or rehome failure state"
         )
@@ -4812,7 +4813,7 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
             mock.call(f"Starting remote install of {self.subcloud.name}"),
             mock.call(f"Successfully installed {self.subcloud.name}"),
         ]
-        self.mock_log.info.assert_has_calls(Calls)
+        self.mock_log_subcloud_manager.info.assert_has_calls(Calls)
 
     def test_subcloud_install_prep_failed(self):
         install_success = self.sm._run_subcloud_install(
@@ -4896,7 +4897,7 @@ class TestSubcloudRename(BaseTestSubcloudManager):
             self.ctx, self.subcloud.id, self.subcloud.name, self.new_subcloud_name
         )
         ret = db_api.subcloud_get_by_name(self.ctx, self.new_subcloud_name)
-        self.mock_log.warn.assert_called_once_with(
+        self.mock_log_subcloud_manager.warn.assert_called_once_with(
             f"Could not rename inventory file {dccommon_consts.ANSIBLE_OVERRIDES_PATH}/"
             "testsubcloud_inventory.yml because it does not exist."
         )
@@ -4906,9 +4907,6 @@ class TestSubcloudRename(BaseTestSubcloudManager):
 
 class TestSubcloudEnrollment(BaseTestSubcloudManager):
     """Test class for testing Subcloud Enrollment"""
-
-    # TODO(srana): Add unit tests for SubcloudEnrollmentInit
-    # prep and enroll_init methods
 
     def setUp(self):
         super().setUp()
@@ -4934,6 +4932,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             "external_oam_subnet": "10.10.10.0/24",
             "install_values": self.fake_install_values,
             "system_mode": "simplex",
+            "bmc_password": "bmc_pass",
         }
 
         mock_run_patch_patch = mock.patch("eventlet.green.subprocess.run")
@@ -4952,6 +4951,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         self.addCleanup(mock_rmtree_patch.stop)
 
         self._mock_builtins_open()
+        self._mock_log(subcloud_enrollment)
 
         self.mock_builtins_open.side_effect = mock.mock_open()
         self.mock_os_path_exists.return_value = True
@@ -4988,15 +4988,44 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         copied_dict = self.iso_values.copy()
         copied_dict.pop("admin_password")
 
-        test_func = lambda: self.enroll_init._build_seed_user_config(
+        self.assertRaises(
+            KeyError,
+            self.enroll_init._build_seed_user_config,
+            self.seed_data_dir,
+            copied_dict,
+        )
+
+    def test_build_seed_network_config(self):
+        copied_dict = self.iso_values.copy()
+        copied_dict["bootstrap_vlan"] = 401
+
+        result = self.enroll_init._build_seed_network_config(
             self.seed_data_dir, copied_dict
         )
 
-        self.assertRaises(KeyError, test_func)
+        self.assertTrue(result)
+        self.mock_builtins_open.assert_called_once_with(
+            f"{self.seed_data_dir}/network-config", "w"
+        )
+
+        # Test with incomplete iso_values, expect KeyError
+        copied_dict.pop("external_oam_subnet")
+
+        self.assertRaises(
+            KeyError,
+            self.enroll_init._build_seed_network_config,
+            self.seed_data_dir,
+            copied_dict,
+        )
 
     def test_generate_seed_iso(self):
         with mock.patch("os.path.isdir", side_effect=self.patched_isdir):
             self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values))
+
+            self.mock_log.info.assert_any_call(
+                f"Preparing seed iso generation for {self.subcloud_name}"
+            )
+
             # Iso command must be invoked (subprocess.run)
             self.mock_run.assert_called_once()
             # Temp seed data dir must be created
@@ -5008,3 +5037,98 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.mock_builtins_open.assert_any_call(
                 f"{self.seed_data_dir}/user-data", "w"
             )
+            self.mock_builtins_open.assert_any_call(
+                f"{self.seed_data_dir}/network-config", "w"
+            )
+
+    @mock.patch.object(
+        subcloud_install.SubcloudInstall,
+        "get_image_base_url",
+        return_value="https://10.10.10.12:8080",
+    )
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit, "_generate_seed_iso")
+    @mock.patch.object(
+        subcloud_enrollment.SubcloudEnrollmentInit, "validate_enroll_init_values"
+    )
+    def test_enroll_prep(
+        self, mock_validate, mock_generate_seed_iso, mock_get_image_base_url
+    ):
+        with mock.patch("os.path.isdir", side_effect=self.patched_isdir):
+            override_path = os.path.join(ANS_PATH, self.subcloud_name)
+            result = self.enroll_init.prep(ANS_PATH, self.iso_values, 4)
+
+            self.assertTrue(result)
+
+            self.mock_log.info.assert_called_with(
+                f"Prepare config for {self.subcloud_name} enroll init"
+            )
+
+            # Assert that validate_enroll_init_values was called with the payload
+            mock_validate.assert_called_once_with(self.iso_values)
+
+            # ISO dir must be created
+            self.mock_makedirs.assert_called_once()
+            self.assertEqual(self.mock_makedirs.call_args.args[0], self.iso_dir)
+
+            mock_generate_seed_iso.assert_called_once_with(self.iso_values)
+
+            # create rvmc config file
+            self.mock_builtins_open.assert_any_call(
+                f"{override_path}/{dccommon_consts.RVMC_CONFIG_FILE_NAME}", "w"
+            )
+
+            file_handle = self.mock_builtins_open()
+
+            mock_url = (
+                '"https://10.10.10.12:8080/iso/24.09/nodes/test_subcloud/seed.iso"'
+            )
+            mock_bmc_address = '"128.224.64.180"'
+
+            file_handle.write.assert_any_call(f"bmc_address: {mock_bmc_address}\n")
+            file_handle.write.assert_any_call(f"image: {mock_url}\n")
+
+            self.mock_builtins_open.assert_any_call(
+                f"{override_path}/enroll_overrides.yml", "w"
+            )
+
+            file_handle.write.assert_any_call(
+                "---" "\nenroll_reconfigured_oam: " + "10.10.10.2" + "\n"
+            )
+
+    @mock.patch.object(
+        subcloud_install.SubcloudInstall,
+        "get_image_base_url",
+        return_value="https://10.10.10.12:8080",
+    )
+    def test_enroll_prep_iso_cleanup(self, mock_validate):
+        result = self.enroll_init.prep(ANS_PATH, self.iso_values, 4)
+        self.assertTrue(result)
+        self.mock_log.info.assert_any_call(
+            f"Prepare config for {self.subcloud_name} enroll init"
+        )
+
+        # Previous iso file must be cleaned up
+        self.mock_os_remove.assert_called_once_with(self.iso_file)
+
+        # Makedirs shouldn't be invoked, given that prev iso exisited
+        self.mock_makedirs.assert_not_called()
+
+        self.mock_log.info.assert_any_call(
+            f"Found preexisting seed iso for subcloud {self.subcloud_name}, cleaning up"
+        )
+
+    def test_enroll_init(self):
+        result = self.enroll_init.enroll_init(consts.DC_ANSIBLE_LOG_DIR, mock.ANY)
+        self.assertTrue(result)
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        expected_log_entry = f"Start enroll init for {self.subcloud_name}"
+
+        self.mock_log.info.assert_any_call(expected_log_entry)
+
+        subcloud_log_base_path = os.path.join(
+            consts.DC_ANSIBLE_LOG_DIR, self.subcloud_name
+        )
+        expected_log_file = f"{subcloud_log_base_path}_playbook_output.log"
+
+        self.mock_ansible_run_playbook.assert_called_with(expected_log_file, mock.ANY)
