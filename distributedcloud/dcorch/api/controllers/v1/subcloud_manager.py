@@ -39,11 +39,6 @@ class SubcloudController(object):
         super(SubcloudController, self).__init__(*args, **kwargs)
         self.rpc_client = rpc_client.EngineWorkerClient()
 
-    # to do the version compatibility for future purpose
-    def _determine_version_cap(self, target):
-        version_cap = 1.0
-        return version_cap
-
     @expose(generic=True, template="json")
     def index(self):
         # Route the request to specific methods with parameters

@@ -23,7 +23,6 @@ import os
 import re
 
 from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
-import keyring
 from netaddr import IPNetwork
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -90,11 +89,6 @@ class SubcloudsController(object):
         super(SubcloudsController, self).__init__()
         self.dcmanager_rpc_client = rpc_client.ManagerClient()
         self.dcmanager_state_rpc_client = rpc_client.SubcloudStateClient()
-
-    # to do the version compatibility for future purpose
-    def _determine_version_cap(self, target):
-        version_cap = 1.0
-        return version_cap
 
     @expose(generic=True, template="json")
     def index(self):
@@ -310,36 +304,6 @@ class SubcloudsController(object):
             subcloud_subnets,
             None,
         )
-
-    def _get_subcloud_users(self):
-        """Get the subcloud users and passwords from keyring"""
-        DEFAULT_SERVICE_PROJECT_NAME = "services"
-        # First entry is openstack user name, second entry is the user stored
-        # in keyring. Not sure why heat_admin uses a different keystone name.
-        SUBCLOUD_USERS = [
-            ("sysinv", "sysinv"),
-            ("patching", "patching"),
-            ("vim", "vim"),
-            ("mtce", "mtce"),
-            ("fm", "fm"),
-            ("barbican", "barbican"),
-            ("smapi", "smapi"),
-            ("dcdbsync", "dcdbsync"),
-        ]
-
-        user_list = list()
-        for user in SUBCLOUD_USERS:
-            password = keyring.get_password(user[1], DEFAULT_SERVICE_PROJECT_NAME)
-            if password:
-                user_dict = dict()
-                user_dict["name"] = user[0]
-                user_dict["password"] = password
-                user_list.append(user_dict)
-            else:
-                LOG.error("User %s not found in keyring as %s" % (user[0], user[1]))
-                pecan.abort(500, _("System configuration error"))
-
-        return user_list
 
     def _get_deploy_config_sync_status(self, context, subcloud_name, keystone_client):
         """Get the deploy configuration insync status of the subcloud"""
