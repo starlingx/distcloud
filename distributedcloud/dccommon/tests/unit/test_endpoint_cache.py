@@ -185,6 +185,7 @@ class EndpointCacheTest(base.DCCommonTestCase):
         ip_with_brackets = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
         return {
             "dcagent": f"https://{ip_with_brackets}:8326",
+            "dcdbsync": f"https://{ip_with_brackets}:8220/v1.0",
             "fm": f"https://{ip_with_brackets}:18003",
             "keystone": f"https://{ip_with_brackets}:5001/v3",
             "patching": f"https://{ip_with_brackets}:5492",

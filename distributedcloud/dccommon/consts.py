@@ -159,6 +159,7 @@ ENDPOINT_AUDIT_REQUESTS = {
 # TODO(nicodemos): Remove patching/load after is no longer supported
 ENDPOINT_URLS = {
     ENDPOINT_NAME_DCAGENT: "https://{}:8326",
+    ENDPOINT_NAME_DCDBSYNC: "https://{}:8220/v1.0",
     ENDPOINT_NAME_FM: "https://{}:18003",
     ENDPOINT_NAME_KEYSTONE: "https://{}:5001/v3",
     ENDPOINT_TYPE_PATCHING: "https://{}:5492",
