@@ -119,7 +119,7 @@ class SubcloudAuditManager(manager.Manager):
 
     def _add_missing_endpoints(self):
         # Update this flag file based on the most recent new endpoint
-        file_path = os.path.join(CONFIG_PATH, ".kube_rootca_update_endpoint_added")
+        file_path = os.path.join(CONFIG_PATH, ".usm_endpoint_added")
         # If file exists on the controller, all the endpoints have been
         # added to DB since last time an endpoint was added
         if not os.path.isfile(file_path):
