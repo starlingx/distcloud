@@ -3758,6 +3758,9 @@ class SubcloudManager(manager.Manager):
                     sync_status=dccommon_consts.SYNC_STATUS_UNKNOWN,
                     ignore_endpoints=ignore_endpoints,
                 )
+
+                # Clear the subcloud alarm summary
+                utils.clear_subcloud_alarm_summary(self.context, subcloud.name)
             elif management_state == dccommon_consts.MANAGEMENT_MANAGED:
                 # Subcloud is managed
                 # Tell cert-mon to audit endpoint certificate

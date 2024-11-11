@@ -51,6 +51,7 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import kubeoperator
+from dcmanager.audit import alarm_aggregation
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -2310,3 +2311,20 @@ def get_system_controller_deploy() -> Optional[dict]:
 
 def is_system_controller_deploying() -> bool:
     return get_system_controller_deploy() is not None
+
+
+def clear_subcloud_alarm_summary(context, subcloud_name: str):
+    """Clears the alarm summary for a subcloud.
+
+    :param context: request context object.
+    :param subcloud_name: The subcloud name
+    """
+    alarm_updates = {
+        "critical_alarms": -1,
+        "major_alarms": -1,
+        "minor_alarms": -1,
+        "warnings": -1,
+        "cloud_status": consts.ALARMS_DISABLED,
+    }
+    alarm_aggr = alarm_aggregation.AlarmAggregation(context)
+    alarm_aggr.update_alarm_summary(subcloud_name, alarm_updates)

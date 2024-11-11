@@ -538,7 +538,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
                             LOG.debug, msg, subcloud_name, avail_to_set
                         )
                     alarms = audit_value.get("alarms")
-                    if alarms:
+                    if (
+                        alarms
+                        and subcloud.management_state
+                        == dccommon_consts.MANAGEMENT_MANAGED
+                    ):
                         self.alarm_aggr.update_alarm_summary(subcloud_name, alarms)
                 elif audit_value:
                     endpoint_type = dccommon_consts.DCAGENT_ENDPOINT_TYPE_MAP[
@@ -626,14 +630,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 }
             )
             if avail_to_set == dccommon_consts.AVAILABILITY_OFFLINE:
-                alarm_updates = {
-                    "critical_alarms": -1,
-                    "major_alarms": -1,
-                    "minor_alarms": -1,
-                    "warnings": -1,
-                    "cloud_status": consts.ALARMS_DISABLED,
-                }
-                self.alarm_aggr.update_alarm_summary(subcloud_name, alarm_updates)
+                utils.clear_subcloud_alarm_summary(self.context, subcloud_name)
 
         elif audit_fail_count != subcloud.audit_fail_count:
             # The subcloud remains offline, we only need to update
