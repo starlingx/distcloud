@@ -14,17 +14,28 @@
 
 import sqlalchemy
 
+from dccommon import consts as dccommon_consts
+
 
 def upgrade(migrate_engine):
     meta = sqlalchemy.MetaData()
     meta.bind = migrate_engine
     subcloud = sqlalchemy.Table("subclouds", meta, autoload=True)
+
     # Add the first_identity_sync_complete column
     subcloud.create_column(
         sqlalchemy.Column(
             "first_identity_sync_complete", sqlalchemy.Boolean, default=False
         )
     )
+
+    # NOTE(nicodemos): Set the first_identity_sync_complete flag to True for all
+    # managed subclouds. This is to ensure that the flag is set to True for all
+    # subclouds that have already completed the first identity sync before this.
+    # pylint: disable-next=E1120
+    subcloud.update().where(
+        (subcloud.c.management_state == dccommon_consts.MANAGEMENT_MANAGED)
+    ).values({"first_identity_sync_complete": True}).execute()
 
 
 def downgrade(migrate_engine):
