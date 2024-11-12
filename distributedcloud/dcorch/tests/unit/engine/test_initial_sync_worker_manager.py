@@ -50,6 +50,7 @@ class FakeGSWM(object):
         capabilities,
         management_ip,
         software_version,
+        subcloud_id,
     ):
         sync_objs = {}
         endpoint_type_list = capabilities.get("endpoint_types", None)
@@ -143,6 +144,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             base.CAPABILITIES,
             subcloud.management_ip,
             subcloud.software_version,
+            subcloud.id,
             False,
         )
 
@@ -175,6 +177,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             base.CAPABILITIES,
             subcloud.management_ip,
             subcloud.software_version,
+            subcloud.id,
             False,
         )
 
@@ -205,6 +208,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             base.CAPABILITIES,
             subcloud.management_ip,
             subcloud.software_version,
+            subcloud.id,
             True,
         )
 
@@ -240,6 +244,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             base.CAPABILITIES,
             subcloud.management_ip,
             subcloud.software_version,
+            subcloud.id,
             False,
         )
 
@@ -301,12 +306,14 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
                 base.CAPABILITIES,
                 subcloud1.management_ip,
                 subcloud1.software_version,
+                subcloud1.id,
                 False,
             ),
             subcloud2.region_name: (
                 base.CAPABILITIES,
                 subcloud2.management_ip,
                 subcloud2.software_version,
+                subcloud2.id,
                 False,
             ),
         }
@@ -321,6 +328,7 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             base.CAPABILITIES,
             subcloud1.management_ip,
             subcloud1.software_version,
+            subcloud1.id,
             False,
         )
         self.mock_thread_start.assert_called_with(
@@ -330,5 +338,6 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             base.CAPABILITIES,
             subcloud2.management_ip,
             subcloud2.software_version,
+            subcloud2.id,
             False,
         )

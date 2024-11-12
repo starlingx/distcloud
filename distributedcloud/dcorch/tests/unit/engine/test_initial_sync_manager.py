@@ -116,6 +116,7 @@ class TestInitialSyncManager(base.OrchestratorTestCase):
                 base.CAPABILITIES,
                 subcloud.management_ip,
                 subcloud.software_version,
+                subcloud.id,
                 False,
             )
 

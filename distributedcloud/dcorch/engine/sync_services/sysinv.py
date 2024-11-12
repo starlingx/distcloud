@@ -67,6 +67,7 @@ class SysinvSyncThread(SyncThread):
         endpoint_type=None,
         management_ip=None,
         software_version=None,
+        subcloud_id=None,
         engine_id=None,
     ):
         super(SysinvSyncThread, self).__init__(
@@ -74,6 +75,7 @@ class SysinvSyncThread(SyncThread):
             endpoint_type=endpoint_type,
             management_ip=management_ip,
             software_version=software_version,
+            subcloud_id=subcloud_id,
             engine_id=engine_id,
         )
         if not self.endpoint_type:

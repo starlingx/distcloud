@@ -42,7 +42,9 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
         self._create_subcloud_and_subcloud_resource()
 
         self.identity_sync_thread = identity_service.IdentitySyncThread(
-            self.subcloud.region_name, management_ip=self.subcloud.management_ip
+            self.subcloud.region_name,
+            management_ip=self.subcloud.management_ip,
+            subcloud_id=self.subcloud.id,
         )
 
         self.method = lambda *args: None
