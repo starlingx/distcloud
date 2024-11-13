@@ -50,6 +50,7 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy import models
 from dcmanager.rpc import client as dcmanager_rpc_client
+from dcorch.rpc import client as dcorch_rpc_client
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self.audits_finished = dict()
         self.context = context.get_admin_context()
         self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
+        self.dcorch_client = dcorch_rpc_client.EngineWorkerClient()
         self.state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         # Keeps track of greenthreads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=150)
@@ -501,9 +503,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     )
                     audits_done.append(dccommon_consts.ENDPOINT_TYPE_KUBE_ROOTCA)
                 if do_software_audit and not software_audit_data:
-                    endpoint_data[dccommon_consts.AUDIT_TYPE_SOFTWARE] = (
-                        dccommon_consts.SYNC_STATUS_IN_SYNC
-                    )
+                    endpoint_data[dccommon_consts.AUDIT_TYPE_SOFTWARE] = {
+                        "sync_status": dccommon_consts.SYNC_STATUS_IN_SYNC,
+                        "software_version": "",
+                    }
                     audits_done.append(dccommon_consts.AUDIT_TYPE_SOFTWARE)
             LOG.debug(
                 f"Skipping following audits for subcloud {subcloud_name} because "
@@ -777,6 +780,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
                         failmsg % (subcloud.name, dccommon_consts.AUDIT_TYPE_SOFTWARE)
                     )
                     failures.append(dccommon_consts.AUDIT_TYPE_SOFTWARE)
+
+        # Update the software_version if the software audit detects a different
+        # value. This can occur during a manual subcloud upgrade initiated by
+        # calling VIM commands directly on the subcloud.
+        audit_utils.update_subcloud_software_version(
+            self.context, subcloud, endpoint_data, self.dcorch_client
+        )
 
         # Filter the endpoint_data to remove values that did not had any modification
         # from the available data on subcloud table

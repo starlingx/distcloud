@@ -19,6 +19,7 @@
 
 from oslo_log import log as logging
 
+from dccommon import consts as dccommon_consts
 from dcmanager.db import api as db_api
 
 
@@ -73,3 +74,35 @@ def filter_endpoint_data(context, subcloud, endpoint_data):
         LOG.debug(
             f"Endpoint status after filtering for {subcloud.name}: {endpoint_data}"
         )
+
+
+def update_subcloud_software_version(context, subcloud, endpoint_data, dcorch_client):
+    if not endpoint_data:
+        return
+
+    data = endpoint_data.get(dccommon_consts.AUDIT_TYPE_SOFTWARE)
+    if not data or not isinstance(data, dict):
+        return
+
+    sync_status = data.get("sync_status")
+    software_version = data.get("software_version")
+
+    if software_version and software_version != subcloud.software_version:
+        LOG.debug(
+            f"Updating subcloud {subcloud.name} software verion in dcorch and "
+            f"dcmanager databases to {software_version}."
+        )
+        # Update in dcorch database
+        dcorch_client.update_subcloud_version(
+            context, subcloud.region_name, software_version
+        )
+        # Update in dcmanager database
+        db_api.subcloud_update(
+            context,
+            subcloud.id,
+            software_version=software_version,
+        )
+
+    # Update the software corresponding endpoint_data by returnning only
+    # sync_status for subsequent processing.
+    endpoint_data[dccommon_consts.AUDIT_TYPE_SOFTWARE] = sync_status

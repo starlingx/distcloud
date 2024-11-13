@@ -1959,6 +1959,16 @@ def get_major_release(version):
     return ".".join(split_version[0:2])
 
 
+def get_software_version(releases):
+    """Returns the maximum YY.MM portion from the given release list"""
+    versions = []
+    for release in releases:
+        version = extract_version(release)
+        if version:
+            versions.append(version)
+    return max(versions, default=None)
+
+
 def get_current_supported_upgrade_versions():
     """Parse the upgrades metadata file to build a list of supported versions.
 

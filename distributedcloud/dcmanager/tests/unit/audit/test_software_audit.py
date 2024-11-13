@@ -139,7 +139,13 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         )
 
         expected_software_response = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        self.assertEqual(software_response, expected_software_response)
+        self.assertEqual(
+            software_response.get("sync_status"), expected_software_response
+        )
+        expected_software_version = "9.0"
+        self.assertEqual(
+            software_response.get("software_version"), expected_software_version
+        )
 
     def test_software_audit_in_sync(self):
         software_audit_data = self.get_software_audit_data()
@@ -154,7 +160,13 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         )
 
         expected_software_response = dccommon_consts.SYNC_STATUS_IN_SYNC
-        self.assertEqual(software_response, expected_software_response)
+        self.assertEqual(
+            software_response.get("sync_status"), expected_software_response
+        )
+        expected_software_version = "9.0"
+        self.assertEqual(
+            software_response.get("software_version"), expected_software_version
+        )
 
     def test_software_audit_missing_release_out_of_sync(self):
         software_audit_data = self.get_software_audit_data()
@@ -171,7 +183,13 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         )
 
         expected_software_response = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        self.assertEqual(software_response, expected_software_response)
+        self.assertEqual(
+            software_response.get("sync_status"), expected_software_response
+        )
+        expected_software_version = "9.0"
+        self.assertEqual(
+            software_response.get("software_version"), expected_software_version
+        )
 
     def test_software_audit_extra_release_out_of_sync(self):
         software_audit_data = self.get_software_audit_data()
@@ -186,4 +204,10 @@ class TestSoftwareAudit(base.DCManagerTestCase):
         )
 
         expected_software_response = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        self.assertEqual(software_response, expected_software_response)
+        self.assertEqual(
+            software_response.get("sync_status"), expected_software_response
+        )
+        expected_software_version = "9.0"
+        self.assertEqual(
+            software_response.get("software_version"), expected_software_version
+        )
