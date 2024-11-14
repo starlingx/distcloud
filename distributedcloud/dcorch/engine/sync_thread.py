@@ -97,21 +97,20 @@ class SyncThread(object):
     # used by the audit to cache the master resources
     master_resources_dict = collections.defaultdict(dict)
 
-    subcloud_resource_id_dict = collections.defaultdict(dict)
-    lock = threading.Lock()
-
     def __init__(
         self,
         subcloud_name,
         endpoint_type=None,
         management_ip=None,
         software_version=None,
+        subcloud_id=None,
         engine_id=None,
     ):
         self.endpoint_type = endpoint_type  # endpoint type
         self.subcloud_name = subcloud_name  # subcloud name
         self.management_ip = management_ip
         self.software_version = software_version
+        self.subcloud_id = subcloud_id
         self.engine_id = engine_id
         self.ctxt = context.get_admin_context()
         self.sync_handler_map = {}
@@ -241,17 +240,20 @@ class SyncThread(object):
 
     def get_db_subcloud_resource(self, rsrc_id):
         try:
-            subcloud_id = self.get_subcloud_id(self.subcloud_name)
+            if self.subcloud_id is None:
+                self.subcloud_id = Subcloud.get_by_name(
+                    self.ctxt, self.subcloud_name
+                ).id
             subcloud_rsrc = (
                 subcloud_resource.SubcloudResource.get_by_resource_and_subcloud(
-                    self.ctxt, rsrc_id, subcloud_id
+                    self.ctxt, rsrc_id, self.subcloud_id
                 )
             )  # pylint: disable=E1101
             return subcloud_rsrc
         except exceptions.SubcloudResourceNotFound:
             LOG.info(
                 "{} not found in subcloud {} resource table".format(
-                    rsrc_id, subcloud_id
+                    rsrc_id, self.subcloud_id
                 ),
                 extra=self.log_extra,
             )
@@ -267,12 +269,15 @@ class SyncThread(object):
 
         subcloud_rsrc = self.get_db_subcloud_resource(db_rsrc_id)
         if not subcloud_rsrc:
-            subcloud_id = self.get_subcloud_id(self.subcloud_name)
+            if self.subcloud_id is None:
+                self.subcloud_id = Subcloud.get_by_name(
+                    self.ctxt, self.subcloud_name
+                ).id
             subcloud_rsrc = subcloud_resource.SubcloudResource(
                 self.ctxt,
                 subcloud_resource_id=subcloud_rsrc_id,
                 resource_id=db_rsrc_id,
-                subcloud_id=subcloud_id,
+                subcloud_id=self.subcloud_id,
             )  # pylint: disable=E1101
             # There is no race condition for creation of
             # subcloud_resource as it is always done from the same thread.
@@ -1086,14 +1091,6 @@ class SyncThread(object):
             if m_resources is not None:
                 SyncThread.master_resources_dict[resource_type] = m_resources
         return m_resources
-
-    def get_subcloud_id(self, subcloud_name):
-        subcloud_id = SyncThread.subcloud_resource_id_dict.get(subcloud_name)
-        if subcloud_id is None:
-            subcloud_id = Subcloud.get_by_name(self.ctxt, subcloud_name).id
-            with SyncThread.lock:
-                SyncThread.subcloud_resource_id_dict[subcloud_name] = subcloud_id
-        return subcloud_id
 
     def get_subcloud_resources(self, resource_type):
         return None
