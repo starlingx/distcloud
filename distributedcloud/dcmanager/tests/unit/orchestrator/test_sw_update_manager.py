@@ -22,6 +22,7 @@ from oslo_config import cfg
 from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
+from dccommon import ostree_mount
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -243,6 +244,11 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Mock for logs
         self._mock_log(sw_update_manager)
+
+        # Mock ostree_mount validate_ostree_iso_mount
+        mock_patch = mock.patch.object(ostree_mount, "validate_ostree_iso_mount")
+        self.addCleanup(mock_patch.stop)
+        self.mock_validate_ostree_iso_mount = mock_patch.start()
 
         # Fake subcloud groups
         # Group 1 exists by default in database with max_parallel 2 and

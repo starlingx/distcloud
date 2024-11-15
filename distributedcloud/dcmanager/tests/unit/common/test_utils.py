@@ -322,3 +322,9 @@ class TestCommonUtils(DCManagerTestCase):
         self.assertFalse(utils.is_base_release("23.09.1"))
         self.assertFalse(utils.is_base_release("24.09"))
         self.assertFalse(utils.is_base_release("25"))
+
+    def test_get_major_release(self):
+        self.assertEqual(utils.get_major_release("starlingx-24.09"), "24.09")
+        self.assertEqual(utils.get_major_release("starlingx-24.09.1"), "24.09")
+        self.assertEqual(utils.get_major_release("24.09"), "24.09")
+        self.assertEqual(utils.get_major_release("24.09.1"), "24.09")

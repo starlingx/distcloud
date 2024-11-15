@@ -1955,6 +1955,8 @@ def extract_version(release_id: str) -> str:
 
 def get_major_release(version):
     """Returns the YY.MM portion of the given version string"""
+    if "-" in version:
+        version = version.split("-")[1]
     split_version = version.split(".")
     return ".".join(split_version[0:2])
 

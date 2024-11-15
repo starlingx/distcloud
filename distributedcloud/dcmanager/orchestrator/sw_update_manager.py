@@ -23,6 +23,7 @@ from oslo_log import log as logging
 from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
+from dccommon import ostree_mount
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -379,7 +380,14 @@ class SwUpdateManager(manager.Manager):
                 if sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
                     filtered_valid_subclouds.append((subcloud, sync_status))
 
+            if filtered_valid_subclouds:
+                software_version = utils.get_major_release(
+                    payload.get(consts.EXTRA_ARGS_RELEASE_ID)
+                )
+                ostree_mount.validate_ostree_iso_mount(software_version)
+
             valid_subclouds = filtered_valid_subclouds
+
         elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
             if not prestage_global_validated:
                 try:
