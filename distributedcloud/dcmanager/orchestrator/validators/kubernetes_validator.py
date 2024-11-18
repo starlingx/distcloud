@@ -35,6 +35,9 @@ class KubernetesStrategyValidator(StrategyValidationBase):
         :param payload: strategy request payload
         """
 
-        return {
-            consts.EXTRA_ARGS_TO_VERSION: payload.get(consts.EXTRA_ARGS_TO_VERSION),
-        }
+        to_version = payload.get(consts.EXTRA_ARGS_TO_VERSION)
+
+        if to_version and not to_version.startswith("v"):
+            to_version = f"v{to_version}"
+
+        return {consts.EXTRA_ARGS_TO_VERSION: to_version}
