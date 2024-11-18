@@ -153,12 +153,11 @@ class SubcloudEnrollmentInit(object):
             raise exceptions.EnrollInitExecutionFailed(reason=msg)
 
         hashed_password = crypt.crypt(
-            iso_values["admin_password"], crypt.mksalt(crypt.METHOD_SHA512)
+            iso_values["sysadmin_password"], crypt.mksalt(crypt.METHOD_SHA512)
         )
 
         enroll_utils = "/usr/local/bin/"
         reconfig_script = os.path.join(enroll_utils, "enroll-init-reconfigure")
-        cleanup_script = os.path.join(enroll_utils, "enroll-init-cleanup")
         extern_oam_gw_ip = iso_values["external_oam_gateway_address"].split(",")[0]
 
         reconfig_command = (
@@ -177,10 +176,7 @@ class SubcloudEnrollmentInit(object):
                 f"{iso_values['external_oam_node_1_address'].split(',')[0]}"
             )
 
-        runcmd = [
-            reconfig_command,
-            cleanup_script,
-        ]
+        runcmd = [reconfig_command]
 
         user_data_file = os.path.join(path, "user-data")
         with open(user_data_file, "w") as f_out_user_data_file:

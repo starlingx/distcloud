@@ -4924,7 +4924,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
 
         self.iso_values = {
             "software_version": self.rel_version,
-            "admin_password": "St8rlingX*",
+            "sysadmin_password": "St8rlingX*",
             "bootstrap_interface": "enp2s1",
             "external_oam_floating_address": "10.10.10.2",
             "network_mask": "255.255.255.0",
@@ -4986,7 +4986,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
 
         # Test with incomplete iso_values, expect KeyError
         copied_dict = self.iso_values.copy()
-        copied_dict.pop("admin_password")
+        copied_dict.pop("sysadmin_password")
 
         self.assertRaises(
             KeyError,

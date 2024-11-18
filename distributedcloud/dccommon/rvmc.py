@@ -1747,6 +1747,24 @@ class VmcObject(object):
             self.redfish_obj.logout()
             self.logging_util.dlog1("Session     : Closed")
 
+    def eject_image_only(self):
+        """Eject image only without any other iso related operations."""
+
+        self._redfish_client_connect()
+        self._redfish_root_query()
+        self._redfish_create_session()
+        self._redfish_get_managers()
+        self._redfish_get_systems_members()
+        self._redfish_get_vm_url()
+        self._redfish_load_vm_actions()
+        self._redfish_eject_image()
+
+        self.logging_util.ilog("Done")
+
+        if self.redfish_obj is not None and self.session is True:
+            self.redfish_obj.logout()
+            self.logging_util.dlog1("Session     : Closed")
+
 
 ##############################################################################
 # Methods to be called from rvmc module
