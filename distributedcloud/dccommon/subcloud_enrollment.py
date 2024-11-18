@@ -4,6 +4,7 @@
 #
 
 import crypt
+import json
 import os
 import tempfile
 import yaml
@@ -144,7 +145,7 @@ class SubcloudEnrollmentInit(object):
 
             if enroll_overrides:
                 for k, v in enroll_overrides.items():
-                    f_out_override_file.write(f"{k}: {v}")
+                    f_out_override_file.write(f"{k}: {json.dumps(v)}")
 
     def _build_seed_user_config(self, path, iso_values):
         if not os.path.isdir(path):

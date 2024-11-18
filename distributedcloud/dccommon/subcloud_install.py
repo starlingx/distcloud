@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import json
 import os
 import pty
 import shutil
@@ -191,7 +192,7 @@ class SubcloudInstall(object):
                     or k in consts.OPTIONAL_BMC_INSTALL_VALUES
                     or k == "image"
                 ):
-                    f_out_rvmc_config_file.write(f'{k}: "{v}"\n')
+                    f_out_rvmc_config_file.write(f"{k}: {json.dumps(v)}\n")
 
     def create_install_override_file(self, override_path, payload):
 
@@ -210,7 +211,7 @@ class SubcloudInstall(object):
                 + "\n"
             )
             for k, v in payload.items():
-                f_out_override_file.write("%s: %s\n" % (k, v))
+                f_out_override_file.write("%s: %s\n" % (k, json.dumps(v)))
 
     def create_ks_conf_file(self, filename, values):
         try:

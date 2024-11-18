@@ -1948,7 +1948,7 @@ class SubcloudManager(manager.Manager):
                     subcloud.name,
                     ansible_subcloud_inventory_file,
                     payload[consts.BOOTSTRAP_ADDRESS],
-                    ansible_pass=payload["sysadmin_password"],
+                    ansible_pass=json.dumps(payload["sysadmin_password"]),
                 )
 
                 enroll_playbook_command = self.compose_enroll_command(
@@ -2610,7 +2610,7 @@ class SubcloudManager(manager.Manager):
         with open(backup_overrides_file, "w") as f_out:
             f_out.write("---\n")
             for k, v in payload["override_values"].items():
-                f_out.write("%s: %s\n" % (k, v))
+                f_out.write("%s: %s\n" % (k, json.dumps(v)))
 
         return backup_overrides_file
 

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import base64
 from collections import namedtuple
 import json
 import os
@@ -135,8 +136,8 @@ class SubcloudBackupController(object):
         if not sysadmin_password:
             pecan.abort(400, _("subcloud sysadmin_password required"))
         try:
-            payload["sysadmin_password"] = utils.decode_and_normalize_passwd(
-                sysadmin_password
+            payload["sysadmin_password"] = base64.b64decode(sysadmin_password).decode(
+                "utf-8"
             )
         except Exception:
             msg = _(

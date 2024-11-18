@@ -21,6 +21,7 @@ These are shared across dcmanager (SubcloudManager) and orchestration.
 """
 
 import base64
+import json
 import os
 import threading
 
@@ -382,7 +383,7 @@ def _run_ansible(
         subcloud.name,
         ansible_subcloud_inventory_file,
         oam_floating_ip,
-        ansible_pass=utils.decode_and_normalize_passwd(sysadmin_password),
+        ansible_pass=json.dumps(base64.b64decode(sysadmin_password).decode("utf-8")),
     )
 
     log_file = utils.get_subcloud_ansible_log_file(subcloud.name)

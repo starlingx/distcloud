@@ -23,7 +23,6 @@ import os
 import pwd
 import re
 import resource as sys_resource
-import string
 import subprocess
 from typing import List
 from typing import Optional
@@ -1737,20 +1736,6 @@ def update_install_values_with_new_bootstrap_address(context, payload, subcloud)
         db_api.subcloud_update(
             context, subcloud.id, data_install=json.dumps(install_values)
         )
-
-
-def decode_and_normalize_passwd(input_passwd):
-    pattern = r"^[" + string.punctuation + "]"
-    passwd = base64.decode_as_text(input_passwd)
-    # Ensure that sysadmin password which starts with a special
-    # character will be enclosed in quotes so that the generated
-    # inventory file will be parsable by Ansible.
-    if not passwd.startswith('"') and re.search(pattern, passwd):
-        passwd = '"' + passwd + '"'
-    elif passwd.startswith('"') and not passwd.endswith('"'):
-        passwd = "'" + passwd + "'"
-
-    return passwd
 
 
 def update_abort_status(context, subcloud_id, deploy_status, abort_failed=False):
