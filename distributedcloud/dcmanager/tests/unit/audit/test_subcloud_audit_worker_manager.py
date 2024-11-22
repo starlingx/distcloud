@@ -44,6 +44,12 @@ class FakeAuditWorkerAPI(object):
         self.audit_subclouds = mock.MagicMock()
 
 
+class FakeDCOrchWorkerAPI(object):
+
+    def __init__(self):
+        self.update_subcloud_version = mock.MagicMock()
+
+
 class FakeAlarmAggregation(object):
 
     def __init__(self):
@@ -96,7 +102,10 @@ class FakeSoftwareAudit(object):
 
     def __init__(self):
         self.subcloud_software_audit = mock.MagicMock(
-            return_value=dccommon_consts.SYNC_STATUS_IN_SYNC
+            return_value={
+                "sync_status": dccommon_consts.SYNC_STATUS_IN_SYNC,
+                "software_version": "TEST.SW.VERSION",
+            }
         )
         self.get_regionone_audit_data = mock.MagicMock()
 
@@ -282,6 +291,13 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         p = mock.patch("dcmanager.audit.rpcapi.ManagerAuditWorkerClient")
         self.mock_audit_worker_api = p.start()
         self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
+        self.addCleanup(p.stop)
+
+        # Mock the DCOrch Worker API
+        self.fake_dcorch_worker_api = FakeDCOrchWorkerAPI()
+        p = mock.patch("dcorch.rpc.client.EngineWorkerClient")
+        self.mock_dcorch_worker_api = p.start()
+        self.mock_dcorch_worker_api.return_value = self.fake_dcorch_worker_api
         self.addCleanup(p.stop)
 
         # Mock the context
