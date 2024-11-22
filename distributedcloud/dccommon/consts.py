@@ -266,7 +266,7 @@ MANDATORY_ENROLL_INIT_VALUES = [
     "external_oam_subnet",
     "external_oam_gateway_address",
     "external_oam_floating_address",
-    "admin_password",
+    "sysadmin_password",
     "system_mode",
     "software_version",
 ] + BMC_INSTALL_VALUES
@@ -308,6 +308,10 @@ ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = (
 )
 
 ENROLL_INIT_SEED_ISO_NAME = "seed.iso"
+
+ANSIBLE_SUBCLOUD_ENROLL_INIT_PLAYBOOK = (
+    "/usr/share/ansible/stx-ansible/playbooks/enroll_init.yml"
+)
 
 ANSIBLE_SUBCLOUD_ENROLL_PLAYBOOK = (
     "/usr/share/ansible/stx-ansible/playbooks/enroll_subcloud.yml"

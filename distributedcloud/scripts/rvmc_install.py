@@ -170,6 +170,12 @@ def parse_arguments():
         "--config_file", type=str, required=True, help="RVMC config file"
     )
 
+    parser.add_argument(
+        "--eject_image_only",
+        action="store_true",
+        help="Optional execution mode to strictly eject an inserted image",
+    )
+
     return parser.parse_args()
 
 
@@ -305,13 +311,22 @@ if __name__ == "__main__":
             logging_util.ilog("BMC IP Addr : %s" % target_object.ip)
             logging_util.ilog("Host Image  : %s" % target_object.img)
 
-            excluded_operations = []
-            if os.path.basename(target_object.img) == consts.ENROLL_INIT_SEED_ISO_NAME:
-                # If the host image is a seed ISO,
-                # the boot order should not be changed.
-                excluded_operations = ["set_boot_override"]
+            if args.eject_image_only:
+                target_object.eject_image_only()
+            else:
+                excluded_operations = []
+                # TODO(srana): Decouple this from ENROLL_INIT_SEED_ISO_NAME.
+                # We should generalize the approach and pass the excluded operations
+                # to the script for enrollment.
+                if (
+                    os.path.basename(target_object.img)
+                    == consts.ENROLL_INIT_SEED_ISO_NAME
+                ):
+                    # If the host image is a seed ISO,
+                    # the boot order should not be changed.
+                    excluded_operations = ["set_boot_override"]
 
-            target_object.execute(excluded_operations)
+                target_object.execute(excluded_operations)
         except eventlet.timeout.Timeout as e:
             if e is not script_timeout:
                 raise

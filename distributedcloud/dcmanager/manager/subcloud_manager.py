@@ -351,7 +351,7 @@ class SubcloudManager(manager.Manager):
         if state == "init":
             enroll_command = [
                 "ansible-playbook",
-                dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
+                dccommon_consts.ANSIBLE_SUBCLOUD_ENROLL_INIT_PLAYBOOK,
                 "-i",
                 ansible_subcloud_inventory_file,
                 "--limit",
