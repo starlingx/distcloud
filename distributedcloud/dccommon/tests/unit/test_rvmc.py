@@ -752,6 +752,35 @@ class BaseTestVmcObject(BaseTestRvmc):
         )
         self.vmc_obj.redfish_obj = mock.MagicMock()
 
+    def _generate_log_dump(self, code=1):
+        return [
+            mock.call.error(f"Code : {code}"),
+            mock.call.info(f"IPv6      : {self.vmc_obj.ipv6}"),
+            mock.call.info(f"Root Query: {self.vmc_obj.root_query_info}"),
+            mock.call.info(f"Manager URL: {self.vmc_obj.managers_group_url}"),
+            mock.call.info(
+                f"Manager Members List: {self.vmc_obj.manager_members_list}"
+            ),
+            mock.call.info(f"Systems Group URL: {self.vmc_obj.systems_group_url}"),
+            mock.call.info(f"Systems Member URL: {self.vmc_obj.systems_member_url}"),
+            mock.call.info(f"Systems Members: {self.vmc_obj.systems_members}"),
+            mock.call.info(
+                f"Systems Members List: {self.vmc_obj.systems_members_list}"
+            ),
+            mock.call.info(f"Power State: {self.vmc_obj.power_state}"),
+            mock.call.info(f"Reset Actions: {self.vmc_obj.reset_action_dict}"),
+            mock.call.info(f"Reset Command URL: {self.vmc_obj.reset_command_url}"),
+            mock.call.info(f"Boot Control Dict: {self.vmc_obj.boot_control_dict}"),
+            mock.call.info(f"VM Members Array: {self.vmc_obj.vm_members_array}"),
+            mock.call.info(f"VM Group URL: {self.vmc_obj.vm_group_url}"),
+            mock.call.info(f"VM Group: {self.vmc_obj.vm_group}"),
+            mock.call.info(f"VM URL: {self.vmc_obj.vm_url}"),
+            mock.call.info(f"VM URL List: {self.vmc_obj.vm_url_list}"),
+            mock.call.info(f"VM Media Types: {self.vmc_obj.vm_media_types}"),
+            mock.call.info(f"Last Response raw: {self.vmc_obj.response}"),
+            mock.call.info(f"Last Response json: {self.vmc_obj.response_json}"),
+        ]
+
 
 class TestVmcObjectMakeRequest(BaseTestVmcObject):
     """Test class for VmcObject make_request method.
@@ -816,35 +845,6 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         calls.extend(expected_calls)
 
         super()._assert_mock_logger_calls(calls)
-
-    def _generate_log_dump(self, code=1):
-        return [
-            mock.call.error(f"Code : {code}"),
-            mock.call.info(f"IPv6      : {self.vmc_obj.ipv6}"),
-            mock.call.info(f"Root Query: {self.vmc_obj.root_query_info}"),
-            mock.call.info(f"Manager URL: {self.vmc_obj.managers_group_url}"),
-            mock.call.info(
-                f"Manager Members List: {self.vmc_obj.manager_members_list}"
-            ),
-            mock.call.info(f"Systems Group URL: {self.vmc_obj.systems_group_url}"),
-            mock.call.info(f"Systems Member URL: {self.vmc_obj.systems_member_url}"),
-            mock.call.info(f"Systems Members: {self.vmc_obj.systems_members}"),
-            mock.call.info(
-                f"Systems Members List: {self.vmc_obj.systems_members_list}"
-            ),
-            mock.call.info(f"Power State: {self.vmc_obj.power_state}"),
-            mock.call.info(f"Reset Actions: {self.vmc_obj.reset_action_dict}"),
-            mock.call.info(f"Reset Command URL: {self.vmc_obj.reset_command_url}"),
-            mock.call.info(f"Boot Control Dict: {self.vmc_obj.boot_control_dict}"),
-            mock.call.info(f"VM Members Array: {self.vmc_obj.vm_members_array}"),
-            mock.call.info(f"VM Group URL: {self.vmc_obj.vm_group_url}"),
-            mock.call.info(f"VM Group: {self.vmc_obj.vm_group}"),
-            mock.call.info(f"VM URL: {self.vmc_obj.vm_url}"),
-            mock.call.info(f"VM URL List: {self.vmc_obj.vm_url_list}"),
-            mock.call.info(f"VM Media Types: {self.vmc_obj.vm_media_types}"),
-            mock.call.info(f"Last Response raw: {self.vmc_obj.response}"),
-            mock.call.info(f"Last Response json: {self.vmc_obj.response_json}"),
-        ]
 
     def test_make_request_get_operation_returns_true(self):
         """Verify make_request's successful GET operation returns True"""
@@ -1036,5 +1036,144 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
                 "1 (char 0))"
             ),
             mock.call.error("Response: not a json"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+
+class TestVmcObjectCheckImageUrl(BaseTestVmcObject):
+    """Test class for VmcObject check_image_url method.
+
+    Tests the check_image_url method which validates image URL accessibility
+    by sending HEAD requests and checking response status codes.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_requests_head = self._mock_object(rvmc.requests, "head")
+        self.mock_response = mock.MagicMock()
+        self.mock_response.status_code = 200
+        self.mock_response.headers = {rvmc.CONTENT_TYPE: "application/octet-stream"}
+        self.mock_requests_head.return_value = self.mock_response
+        self.test_url = "http://example.com/image.iso"
+
+    def test_check_image_url_returns_true_for_success_status_codes(self):
+        """Verify check_image_url returns True for HTTP 200, 202, 204 status codes"""
+
+        for status_code in [200, 202, 204]:
+            self.mock_response.status_code = status_code
+            self.mock_logger.reset_mock()
+            self.mock_requests_head.reset_mock()
+
+            result = self.vmc_obj.check_image_url(self.test_url)
+
+            self.assertTrue(result)
+            self.mock_requests_head.assert_called_once_with(
+                self.test_url, timeout=10, verify=False
+            )
+            self.mock_logger.info.assert_called_once_with(
+                f"Image URL is accessible: {self.test_url} "
+                f"({rvmc.CONTENT_TYPE}=application/octet-stream {status_code})"
+            )
+
+    def test_check_image_url_returns_false_for_error_status_codes(self):
+        """Verify check_image_url returns False for HTTP error status codes"""
+
+        for status_code in [404, 500]:
+            self.mock_response.status_code = status_code
+            self.mock_logger.reset_mock()
+
+            result = self.vmc_obj.check_image_url(self.test_url)
+
+            self.assertFalse(result)
+            self.mock_logger.error.assert_called_once_with(
+                f"Checking image failed: HTTP Status {status_code}"
+            )
+
+    def test_check_image_url_handles_missing_content_type_header(self):
+        """Verify check_image_url handles missing Content-Type header"""
+
+        self.mock_response.headers = {}
+
+        result = self.vmc_obj.check_image_url(self.test_url)
+
+        self.assertTrue(result)
+        self.mock_logger.info.assert_called_once_with(
+            f"Image URL is accessible: {self.test_url} ({rvmc.CONTENT_TYPE}= 200)"
+        )
+
+    def test_check_image_url_returns_false_on_exception(self):
+        """Verify check_image_url returns False on exception"""
+
+        self.mock_requests_head.side_effect = rvmc.requests.exceptions.ConnectionError(
+            "Connection refused"
+        )
+
+        result = self.vmc_obj.check_image_url(self.test_url)
+
+        self.assertFalse(result)
+        self.mock_logger.error.assert_called_once_with(
+            "Checking image failed: Connection refused"
+        )
+
+
+class TestVmcObjectExit(BaseTestVmcObject):
+    """Test class for VmcObject _exit method.
+
+    Tests the _exit method which handles cleanup operations including
+    closing Redfish sessions, dumping debug information and calling
+    the exit handler with appropriate exit codes.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.vmc_obj.session = True
+
+    def test_exit_with_no_session_calls_dump_and_exit_handler(self):
+        """Verify _exit calls dump and exit handler when no session or redfish object"""
+
+        scenarios = [
+            {"session": False, "redfish_obj": None},
+            {"session": False, "redfish_obj": self.vmc_obj.redfish_obj},
+            {"session": True, "redfish_obj": None},
+        ]
+
+        for scenario in scenarios:
+            self.vmc_obj.session = scenario["session"]
+            self.vmc_obj.redfish_obj = scenario["redfish_obj"]
+
+            self.mock_logger.reset_mock()
+
+            self.assertRaises(RvmcExit, self.vmc_obj._exit, 1)
+
+            self._assert_mock_logger_calls(self._generate_log_dump())
+
+    def test_exit_with_active_session_performs_logout(self):
+        """Verify _exit performs logout when session is active"""
+
+        self.assertRaises(RvmcExit, self.vmc_obj._exit, 1)
+
+        self.assertIsNone(self.vmc_obj.redfish_obj)
+        self.assertFalse(self.vmc_obj.session)
+
+        expected_calls = [
+            mock.call.info("Session     : Closed"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_exit_handles_logout_exception(self):
+        """Verify _exit handles exceptions during logout gracefully"""
+
+        self.vmc_obj.redfish_obj.logout.side_effect = Exception("Logout failed")
+
+        self.vmc_obj._exit(0)
+
+        self.vmc_obj.redfish_obj.logout.assert_called_once()
+        # When the exit code is 0, there is no dump logs
+        expected_calls = [
+            mock.call.error("Session close failed ; Logout failed"),
+            mock.call.info("Check BMC username and password in config file"),
         ]
         self._assert_mock_logger_calls(expected_calls)
