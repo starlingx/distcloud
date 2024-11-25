@@ -2467,6 +2467,12 @@ class SubcloudManager(manager.Manager):
             data_install["image"] = matching_iso
             data_install["ansible_ssh_pass"] = payload["sysadmin_password"]
             data_install["ansible_become_pass"] = payload["sysadmin_password"]
+
+            # Notify dcorch of the software version update
+            if subcloud.software_version != software_version:
+                self.dcorch_rpc_client.update_subcloud_version(
+                    context, subcloud.region_name, software_version
+                )
             install_success = self._run_subcloud_install(
                 context, subcloud, install_command, log_file, data_install
             )
