@@ -541,27 +541,27 @@ def system_peer_create(
     )
 
 
-def system_peer_get(context, peer_id):
+def system_peer_get(context, peer_id) -> models.SystemPeer:
     """Retrieve a system_peer or raise if it does not exist."""
     return IMPL.system_peer_get(context, peer_id)
 
 
-def system_peer_get_by_uuid(context, uuid):
+def system_peer_get_by_uuid(context, uuid) -> models.SystemPeer:
     """Retrieve a system_peer by uuid or raise if it does not exist."""
     return IMPL.system_peer_get_by_uuid(context, uuid)
 
 
-def system_peer_get_by_name(context, uuid):
+def system_peer_get_by_name(context, uuid) -> models.SystemPeer:
     """Retrieve a system_peer by name or raise if it does not exist."""
     return IMPL.system_peer_get_by_name(context, uuid)
 
 
-def system_peer_get_all(context):
+def system_peer_get_all(context) -> list[models.SystemPeer]:
     """Retrieve all system peers."""
     return IMPL.system_peer_get_all(context)
 
 
-def peer_group_get_for_system_peer(context, peer_id):
+def peer_group_get_for_system_peer(context, peer_id) -> list[models.SubcloudPeerGroup]:
     """Get subcloud peer groups associated with a system peer."""
     return IMPL.peer_group_get_for_system_peer(context, peer_id)
 
@@ -656,22 +656,24 @@ def subcloud_peer_group_destroy(context, group_id):
     return IMPL.subcloud_peer_group_destroy(context, group_id)
 
 
-def subcloud_peer_group_get(context, group_id):
+def subcloud_peer_group_get(context, group_id) -> models.SubcloudPeerGroup:
     """Retrieve a subcloud_peer_group or raise if it does not exist."""
     return IMPL.subcloud_peer_group_get(context, group_id)
 
 
-def subcloud_peer_group_get_by_name(context, name):
+def subcloud_peer_group_get_by_name(context, name) -> models.SubcloudPeerGroup:
     """Retrieve a subcloud_peer_group by name or raise if it does not exist."""
     return IMPL.subcloud_peer_group_get_by_name(context, name)
 
 
-def subcloud_peer_group_get_by_leader_id(context, system_leader_id):
+def subcloud_peer_group_get_by_leader_id(
+    context, system_leader_id
+) -> list[models.SubcloudPeerGroup]:
     """Retrieve subcloud peer groups by system_leader_id."""
     return IMPL.subcloud_peer_group_get_by_leader_id(context, system_leader_id)
 
 
-def subcloud_get_for_peer_group(context, group_id):
+def subcloud_get_for_peer_group(context, group_id) -> list[models.Subcloud]:
     """Retrieve all subclouds belonging to a subcloud_peer_group
 
     or raise if it does not exist.
@@ -679,7 +681,7 @@ def subcloud_get_for_peer_group(context, group_id):
     return IMPL.subcloud_get_for_peer_group(context, group_id)
 
 
-def subcloud_peer_group_get_all(context):
+def subcloud_peer_group_get_all(context) -> list[models.SubcloudPeerGroup]:
     """Retrieve all subcloud peer groups."""
     return IMPL.subcloud_peer_group_get_all(context)
 
@@ -765,31 +767,35 @@ def peer_group_association_destroy(context, id):
     return IMPL.peer_group_association_destroy(context, id)
 
 
-def peer_group_association_get(context, id):
+def peer_group_association_get(context, id) -> models.PeerGroupAssociation:
     """Retrieve a peer_group_association or raise if it does not exist."""
     return IMPL.peer_group_association_get(context, id)
 
 
-def peer_group_association_get_all(context):
+def peer_group_association_get_all(context) -> list[models.PeerGroupAssociation]:
     """Retrieve all peer_group_associations."""
     return IMPL.peer_group_association_get_all(context)
 
 
 def peer_group_association_get_by_peer_group_and_system_peer_id(
     context, peer_group_id, system_peer_id
-):
+) -> list[models.PeerGroupAssociation]:
     """Get peer group associations by peer_group_id and system_peer_id."""
     return IMPL.peer_group_association_get_by_peer_group_and_system_peer_id(
         context, peer_group_id, system_peer_id
     )
 
 
-def peer_group_association_get_by_peer_group_id(context, peer_group_id):
+def peer_group_association_get_by_peer_group_id(
+    context, peer_group_id
+) -> list[models.PeerGroupAssociation]:
     """Get the peer_group_association list by peer_group_id"""
     return IMPL.peer_group_association_get_by_peer_group_id(context, peer_group_id)
 
 
-def peer_group_association_get_by_system_peer_id(context, system_peer_id):
+def peer_group_association_get_by_system_peer_id(
+    context, system_peer_id
+) -> list[models.PeerGroupAssociation]:
     """Get the peer_group_association list by system_peer_id"""
     return IMPL.peer_group_association_get_by_system_peer_id(context, system_peer_id)
 

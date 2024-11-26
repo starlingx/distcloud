@@ -107,25 +107,56 @@ class TestPeerMonitor(base.DCManagerTestCase):
         )
 
     def test_update_sync_status_and_association_is_non_primary(self):
+        # Delete the primary association created during setUp
+        db_api.peer_group_association_destroy(self.ctx, self.association.id)
+
+        # Create a non-primary association
         association = self.system_peer_manager.create_peer_group_association_static(
             self.ctx,
             system_peer_id=self.peer.id,
             peer_group_id=self.peer_group2.id,
             association_type=consts.ASSOCIATION_TYPE_NON_PRIMARY,
+            sync_status=consts.ASSOCIATION_SYNC_STATUS_UNKNOWN,
         )
-        self.mock_get_peer_dc_client().get_subcloud_peer_group.return_value = {
-            "id": FAKE_SITE1_PEER_GROUP_ID
-        }
 
-        # Test the case where the association is non-primary
-        self.peer_monitor._update_sync_status_secondary_site_becomes_reachable()
-        self.mock_get_peer_dc_client().get_subcloud_peer_group.assert_called_once_with(
-            self.peer_group1.peer_group_name
+        # Mock update_sync_status
+        mock_patch = mock.patch.object(
+            peer_monitor_manager.SystemPeerManager, "update_sync_status"
         )
+        mock_update_sync_status = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+        self.peer_monitor._update_sync_status_secondary_site_becomes_reachable()
+
+        # Assert that the association sync status was not updated
+        mock_update_sync_status.assert_not_called()
         association_new = db_api.peer_group_association_get(self.ctx, association.id)
+        self.assertEqual(
+            consts.ASSOCIATION_SYNC_STATUS_UNKNOWN, association_new.sync_status
+        )
+
+    def test_update_sync_status_and_association_is_in_sync(self):
+        # Mock update_sync_status
+        mock_patch = mock.patch.object(
+            peer_monitor_manager.SystemPeerManager, "update_sync_status"
+        )
+        mock_update_sync_status = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
+        self.peer_monitor._update_sync_status_secondary_site_becomes_reachable()
+
+        # Assert that the association sync status was not updated as it's
+        # already in-sync
+        association_new = db_api.peer_group_association_get(
+            self.ctx, self.association.id
+        )
         self.assertEqual(
             consts.ASSOCIATION_SYNC_STATUS_IN_SYNC, association_new.sync_status
         )
+
+        # But the update_sync_status still has to be triggered so it handles any
+        # sync message update
+        mock_update_sync_status.assert_called_once()
 
     def test_update_sync_status_secondary_site_becomes_reachable(self):
         self.mock_get_local_system.return_value = test_system_peer_manager.FakeSystem(
@@ -286,7 +317,7 @@ class TestPeerMonitor(base.DCManagerTestCase):
         mock_event.side_effect = [False, False, True]
         self.peer_monitor._do_monitor_peer()
         self.mock_log.exception.assert_called_with(
-            f"Problem clearing fault for peer {self.peer.peer_uuid}, alarm_id="
+            f"Problem clearing fault for peer {self.peer.peer_name}, alarm_id="
             f"{fm_const.FM_ALARM_ID_DC_SYSTEM_PEER_HEARTBEAT_FAILED} error: boom"
         )
 
@@ -319,7 +350,7 @@ class TestPeerMonitor(base.DCManagerTestCase):
         mock_event.side_effect = [False, False, True]
         self.peer_monitor._do_monitor_peer()
         self.mock_log.exception.assert_called_with(
-            "Got exception monitoring peer PeerSite1 error: boom"
+            "Unexpected error monitoring peer 'PeerSite1': boom"
         )
 
     def test_heartbeat_check_via_get_peer_group_list_pg_not_found(self):
@@ -327,8 +358,8 @@ class TestPeerMonitor(base.DCManagerTestCase):
         ret = self.peer_monitor._heartbeat_check_via_get_peer_group_list()
         self.mock_get_peer_dc_client.assert_called()
         self.mock_log.warning.assert_called_once_with(
-            "Resource subcloud peer group of dc:"
-            "http://128.128.128.128:5000/v3 not found"
+            "No subcloud peer groups found for DC peer: PeerSite1 "
+            "(endpoint: http://128.128.128.128:5000/v3)"
         )
         self.assertEqual((False, []), ret)
 

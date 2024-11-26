@@ -1076,8 +1076,11 @@ class SubcloudsController(object):
                     systemcontroller_gateway_address.split(",")[0]
                     != subcloud.systemcontroller_gateway_ip
                 ):
+                    # Pass bootstrap_values_dict for patch operations where these
+                    # values aren't in payload, unlike subcloud add where they are.
+                    # Function needs management/admin_subnet for validation
                     psd_common.validate_systemcontroller_gateway_address(
-                        systemcontroller_gateway_address, payload
+                        systemcontroller_gateway_address, bootstrap_values_dict
                     )
 
             management_state = payload.get("management-state")

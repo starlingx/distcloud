@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
+from __future__ import annotations
+import json
 import threading
+from typing import TYPE_CHECKING
 
 from fm_api import constants as fm_const
 from fm_api import fm_api
@@ -12,13 +14,19 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.dcmanager_v1 import DcmanagerClient
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import models
 from dcmanager.manager.system_peer_manager import SystemPeerManager
+
+# Use TYPE_CHECKING to avoid circular import
+if TYPE_CHECKING:
+    from dcmanager.manager.subcloud_manager import SubcloudManager
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -27,7 +35,9 @@ LOG = logging.getLogger(__name__)
 class PeerGroupAuditManager(manager.Manager):
     """Manages audit related tasks."""
 
-    def __init__(self, subcloud_manager, peer_group_id, *args, **kwargs):
+    def __init__(
+        self, subcloud_manager: SubcloudManager, peer_group_id: int, *args, **kwargs
+    ):
         LOG.debug(_("PeerGroupAuditManager initialization..."))
         super().__init__(service_name="peer_group_audit_manager", *args, **kwargs)
         self.context = context.get_admin_context()
@@ -52,8 +62,8 @@ class PeerGroupAuditManager(manager.Manager):
 
     @staticmethod
     def _get_association_sync_status_from_peer_site(
-        dc_client, system_peer, peer_group_id
-    ):
+        dc_client: DcmanagerClient, system_peer: models.SystemPeer, peer_group_id: int
+    ) -> str:
         try:
             # Get peer site system peer
             dc_peer_system_peer = dc_client.get_system_peer(
@@ -81,8 +91,11 @@ class PeerGroupAuditManager(manager.Manager):
         )
 
     def _get_local_subclouds_to_update_and_delete(
-        self, local_peer_group, remote_subclouds, remote_sync_status
-    ):
+        self,
+        local_peer_group: models.SubcloudPeerGroup,
+        remote_subclouds: list[dict],
+        remote_sync_status: str,
+    ) -> tuple[list[models.Subcloud], list[models.Subcloud], bool]:
         local_subclouds_to_update = list()
         local_subclouds_to_delete = list()
         any_rehome_failed = False
@@ -112,8 +125,13 @@ class PeerGroupAuditManager(manager.Manager):
                     # indicating any bootstrap values/address updates to
                     # the subcloud on the remote site.
                     if remote_sync_status == consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC:
+                        LOG.info(
+                            "Peer association is out-of-sync, syncing rehome "
+                            f"data of subcloud '{local_subcloud.name}' from "
+                            "peer to current site"
+                        )
                         self._sync_rehome_data(
-                            local_subcloud.id, remote_subcloud.get("rehome_data")
+                            local_subcloud, remote_subcloud.get("rehome_data")
                         )
                 elif remote_subcloud.get("deploy-status") in (
                     consts.DEPLOY_STATE_REHOME_FAILED,
@@ -134,7 +152,7 @@ class PeerGroupAuditManager(manager.Manager):
 
         return local_subclouds_to_update, local_subclouds_to_delete, any_rehome_failed
 
-    def _set_local_subcloud_to_secondary(self, subcloud):
+    def _set_local_subcloud_to_secondary(self, subcloud: models.Subcloud) -> None:
         try:
             LOG.info("Set local subcloud %s to secondary" % subcloud.name)
             # There will be an exception when unmanage
@@ -155,18 +173,42 @@ class PeerGroupAuditManager(manager.Manager):
             )
             raise e
 
-    def _sync_rehome_data(self, subcloud_id, rehome_data):
-        db_api.subcloud_update(self.context, subcloud_id, rehome_data=rehome_data)
+    def _sync_rehome_data(self, subcloud: models.Subcloud, rehome_data: str) -> None:
+        try:
+            remote_rehome_data = json.loads(rehome_data)
+            local_rehome_data = json.loads(subcloud.rehome_data)
 
-    def audit(self, system_peer, remote_peer_group, local_peer_group):
+            # The systemcontroller_gateway_address can't be synced from the
+            # peer to the local site as it's specific to each site
+            remote_rehome_data["saved_payload"]["systemcontroller_gateway_address"] = (
+                local_rehome_data["saved_payload"]["systemcontroller_gateway_address"]
+            )
+            new_rehome_data = json.dumps(remote_rehome_data)
+
+            db_api.subcloud_update(
+                self.context, subcloud.id, rehome_data=new_rehome_data
+            )
+        except Exception as e:
+            LOG.error(
+                "Unable to sync rehome data of subcloud "
+                f"'{subcloud.name}' from peer to current site: {str(e)}"
+            )
+            raise
+
+    def audit(
+        self,
+        system_peer: models.SystemPeer,
+        remote_peer_group: dict,
+        local_peer_group: models.SubcloudPeerGroup,
+    ) -> None:
         if local_peer_group.migration_status == consts.PEER_GROUP_MIGRATING:
             LOG.info("Local peer group in migrating state, quit audit")
             return
 
         LOG.info(
-            "Auditing remote subcloud peer group:[%s] migration_status:[%s] "
-            "group_priority[%s], local subcloud peer group:[%s] "
-            "migration_status:[%s] group_priority[%s]"
+            "Auditing remote subcloud peer group: [%s], migration_status: [%s], "
+            "group_priority: [%s], local subcloud peer group: [%s], "
+            "migration_status: [%s], group_priority: [%s]"
             % (
                 remote_peer_group.get("peer_group_name"),
                 remote_peer_group.get("migration_status"),
@@ -277,8 +319,8 @@ class PeerGroupAuditManager(manager.Manager):
                     )
                     LOG.exception(
                         f"Failed to delete local subcloud [{subcloud.name}] that does "
-                        "not exist under the same subcloud_peer_group on peer site, "
-                        f"err: {e}"
+                        "not exist under the same subcloud_peer_group on peer site "
+                        f"{system_peer.peer_name}, err: {e}"
                     )
                     raise e
 
@@ -313,7 +355,12 @@ class PeerGroupAuditManager(manager.Manager):
             # If remote peer group migration_status is 'None'
             self.require_audit_flag = False
 
-    def _clear_or_raise_alarm(self, system_peer, local_peer_group, remote_peer_group):
+    def _clear_or_raise_alarm(
+        self,
+        system_peer: models.SystemPeer,
+        local_peer_group: models.SubcloudPeerGroup,
+        remote_peer_group: dict,
+    ) -> None:
         # If local subcloud peer group's group_priority is
         # lower than remote subcloud peer group's group_priority,
         # an alarm will be raised.
@@ -325,7 +372,7 @@ class PeerGroupAuditManager(manager.Manager):
         if local_peer_group.group_priority < remote_peer_group.get("group_priority"):
             LOG.warning(
                 f"Alarm: local subcloud peer group [{local_peer_group.peer_group_name}]"
-                f" is managed by remote system [{system_peer.peer_name}]"
+                f" is managed by remote system peer [{system_peer.peer_name}]"
             )
             try:
                 fault = fm_api.Fault(
@@ -336,7 +383,7 @@ class PeerGroupAuditManager(manager.Manager):
                     severity=fm_const.FM_ALARM_SEVERITY_MAJOR,
                     reason_text=(
                         "Subcloud peer group (peer_group_name=%s) is managed by "
-                        "remote system (peer_uuid=%s) with a lower priority."
+                        "remote system peer (peer_uuid=%s) with a lower priority."
                         % (local_peer_group.peer_group_name, system_peer.peer_uuid)
                     ),
                     alarm_type=fm_const.FM_ALARM_TYPE_0,
@@ -375,12 +422,12 @@ class PeerGroupAuditManager(manager.Manager):
             try:
                 self.audit(system_peer, remote_peer_group, local_peer_group)
             except Exception as e:
-                LOG.exception("audit error occured: %s" % e)
+                LOG.exception("audit error occurred: %s" % e)
 
     def stop(self):
         if self.thread:
             self.thread.join()
-            LOG.info(f"stopped peer group {self.peer_group_id} audit thread")
+            LOG.info(f"Stopped peer group {self.peer_group_id} audit thread")
         else:
             LOG.info(f"No peer group {self.peer_group_id} audit thread to stop")
 
@@ -402,12 +449,14 @@ class PeerGroupAuditManager(manager.Manager):
     ):
         LOG.info(
             f"Audit peer group [{local_peer_group.peer_group_name}] "
-            f"with remote system {system_peer.peer_name}"
+            f"with remote system peer {system_peer.peer_name}"
         )
         self.start(system_peer, remote_peer_group, local_peer_group)
 
     @staticmethod
-    def send_audit_peer_group(system_peers, peer_group):
+    def send_audit_peer_group(
+        system_peers: list[models.SystemPeer], peer_group: models.SubcloudPeerGroup
+    ):
         if not system_peers:
             return
         local_system = utils.get_local_system()

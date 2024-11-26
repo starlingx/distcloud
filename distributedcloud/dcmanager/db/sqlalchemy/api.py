@@ -1647,7 +1647,7 @@ def peer_group_association_destroy(context, association_id):
 
 
 @require_context
-def peer_group_association_get(context, association_id):
+def peer_group_association_get(context, association_id) -> models.PeerGroupAssociation:
     try:
         result = (
             model_query(context, models.PeerGroupAssociation)
@@ -1666,7 +1666,7 @@ def peer_group_association_get(context, association_id):
 
 
 @require_context
-def peer_group_association_get_all(context):
+def peer_group_association_get_all(context) -> list[models.PeerGroupAssociation]:
     result = (
         model_query(context, models.PeerGroupAssociation)
         .filter_by(deleted=0)
@@ -1682,7 +1682,7 @@ def peer_group_association_get_all(context):
 @require_context
 def peer_group_association_get_by_peer_group_and_system_peer_id(
     context, peer_group_id, system_peer_id
-):
+) -> models.PeerGroupAssociation:
     try:
         result = (
             model_query(context, models.PeerGroupAssociation)
@@ -1705,7 +1705,9 @@ def peer_group_association_get_by_peer_group_and_system_peer_id(
 
 
 @require_context
-def peer_group_association_get_by_peer_group_id(context, peer_group_id):
+def peer_group_association_get_by_peer_group_id(
+    context, peer_group_id
+) -> models.PeerGroupAssociation:
     result = (
         model_query(context, models.PeerGroupAssociation)
         .filter_by(deleted=0)
@@ -1718,7 +1720,9 @@ def peer_group_association_get_by_peer_group_id(context, peer_group_id):
 
 
 @require_context
-def peer_group_association_get_by_system_peer_id(context, system_peer_id):
+def peer_group_association_get_by_system_peer_id(
+    context, system_peer_id
+) -> models.PeerGroupAssociation:
     result = (
         model_query(context, models.PeerGroupAssociation)
         .filter_by(deleted=0)

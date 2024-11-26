@@ -3668,6 +3668,11 @@ class SubcloudManager(manager.Manager):
             and systemcontroller_gateway_ip.split(",")[0]
             != subcloud.systemcontroller_gateway_ip
         ):
+            LOG.info(
+                f"The systemcontroller_gateway_ip for subcloud {subcloud.name} "
+                f"was updated from {subcloud.systemcontroller_gateway_ip} to "
+                f"{systemcontroller_gateway_ip.split(',')[0]}. Replacing routes..."
+            )
             m_ks_client = OpenStackDriver(
                 region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
