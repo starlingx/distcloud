@@ -585,15 +585,15 @@ class VmcObject(object):
                 self.response = ""
                 return True
             try:
-                if self.resp_dict() is True:
-                    if self.format_response() is True:
-                        self.logging_util.dlog4("Response:\n%s\n" % self.response_json)
-                        return True
-                    else:
-                        self.logging_util.elog(
-                            "Failed to parse BMC %s response '%s'" % (operation, url)
-                        )
-
+                if self.format_response() is True:
+                    self.logging_util.dlog4("Response:\n%s\n" % self.response_json)
+                    return True
+                else:
+                    self.logging_util.elog(
+                        "Failed to parse BMC %s response '%s'" % (operation, url)
+                    )
+            # TODO(rlima): this code seems unrecheable since both resp_dict and
+            # format_response methods have a try catch statement for their exceptions
             except Exception as ex:
                 self.logging_util.elog(
                     "Failed to parse BMC %s response '%s' (%s)" % (operation, url, ex)
@@ -617,6 +617,7 @@ class VmcObject(object):
             self.logging_util.elog("No response from last command")
         return False
 
+    # TODO(rlima): this could be joined into a single method with resp_dict.
     def format_response(self):
         """Format Response as Json"""
 
@@ -630,6 +631,8 @@ class VmcObject(object):
             else:
                 return False
 
+        # TODO(rlima): this code seems to be unrecheable since the response dict does
+        # not raise an exception nor returns an invalid json
         except Exception as ex:
             self.logging_util.elog("Got exception formatting response ; (%s)\n" % ex)
             return False

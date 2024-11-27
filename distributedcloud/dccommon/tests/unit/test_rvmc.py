@@ -604,7 +604,6 @@ class TestParseConfigFile(BaseTestRvmc):
             rvmc.os.path, "exists", return_value=True
         )
         self.mock_file = mock.MagicMock()
-        self.mock_file.__enter__.return_value = self.mock_file
         self.mock_open = self._mock_object(rvmc, "open", return_value=self.mock_file)
         self.mock_yaml_load = self._mock_object(
             rvmc.yaml, "safe_load", return_value=self.target_dict
@@ -730,3 +729,312 @@ class TestParseConfigFile(BaseTestRvmc):
 
         self.assertEqual(cfg, {})
         self.assertIsNone(target_object)
+
+
+class BaseTestVmcObject(BaseTestRvmc):
+    """Base test class for VmcObject tests.
+
+    Provides common setup functionality for VmcObject-related test classes.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.vmc_obj = rvmc.VmcObject(
+            hostname=self.target_name,
+            address=self.target_dict["bmc_address"],
+            username=self.target_dict["bmc_username"],
+            password=self.target_dict["bmc_password"],
+            password_decoded="testpassword",
+            image=self.target_dict["image"],
+            logging_util=self.logging_util,
+            exit_handler=self.exit_handler,
+        )
+        self.vmc_obj.redfish_obj = mock.MagicMock()
+
+
+class TestVmcObjectMakeRequest(BaseTestVmcObject):
+    """Test class for VmcObject make_request method.
+
+    Tests the make_request method which issues Redfish HTTP requests
+    and handles responses, retries and error scenarios.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_response = mock.MagicMock()
+        self.mock_response.status = 200
+        self.mock_response.read = '{"key": "value"}'
+
+        self.vmc_obj.redfish_obj.get.return_value = self.mock_response
+        self.vmc_obj.redfish_obj.post.return_value = self.mock_response
+        self.vmc_obj.redfish_obj.patch.return_value = self.mock_response
+
+        self.payload = {"key": "value"}
+
+    def _build_request_log(self, operation, path=rvmc.REDFISH_ROOT_PATH, payload=None):
+        """Build request log"""
+
+        log = f"Request     : {operation} {path}\nHeaders     : {operation} : "
+
+        if operation == rvmc.GET:
+            log += str(rvmc.GET_HEADERS)
+        elif operation == rvmc.POST:
+            log += f"{rvmc.POST_HEADERS}\nPayload     : {payload}"
+        elif operation == rvmc.PATCH:
+            log += f"{rvmc.PATCH_HEADERS}\nPayload     : {payload}"
+        else:
+            log = f"Request     : {operation} {path}"
+
+        return mock.call.debug(log)
+
+    def _build_success_log(self, operation, path=rvmc.REDFISH_ROOT_PATH):
+        """Build success log"""
+
+        return mock.call.debug(
+            f"HTTP Status : {operation} {path} Ok (200) (took 0 seconds)"
+        )
+
+    def _build_error_response_log(self, operation, path=rvmc.REDFISH_ROOT_PATH):
+        """Build error response log"""
+
+        return mock.call.error(
+            f"Got an error response for: \nRequest     : {operation} {path}\n"
+            f"Headers     : {operation} : {rvmc.PATCH_HEADERS}"
+        )
+
+    def _assert_mock_logger_calls(self, expected_calls):
+
+        calls = [
+            mock.call.debug(f"Target      : {self.vmc_obj.target}"),
+            mock.call.debug(f"BMC IP      : {self.vmc_obj.ip}"),
+            mock.call.debug(f"Username    : {self.vmc_obj.un}"),
+            mock.call.debug(f"Password    : {self.vmc_obj.pw_encoded}"),
+            mock.call.debug(f"Image       : {self.vmc_obj.img}"),
+        ]
+        calls.extend(expected_calls)
+
+        super()._assert_mock_logger_calls(calls)
+
+    def _generate_log_dump(self, code=1):
+        return [
+            mock.call.error(f"Code : {code}"),
+            mock.call.info(f"IPv6      : {self.vmc_obj.ipv6}"),
+            mock.call.info(f"Root Query: {self.vmc_obj.root_query_info}"),
+            mock.call.info(f"Manager URL: {self.vmc_obj.managers_group_url}"),
+            mock.call.info(
+                f"Manager Members List: {self.vmc_obj.manager_members_list}"
+            ),
+            mock.call.info(f"Systems Group URL: {self.vmc_obj.systems_group_url}"),
+            mock.call.info(f"Systems Member URL: {self.vmc_obj.systems_member_url}"),
+            mock.call.info(f"Systems Members: {self.vmc_obj.systems_members}"),
+            mock.call.info(
+                f"Systems Members List: {self.vmc_obj.systems_members_list}"
+            ),
+            mock.call.info(f"Power State: {self.vmc_obj.power_state}"),
+            mock.call.info(f"Reset Actions: {self.vmc_obj.reset_action_dict}"),
+            mock.call.info(f"Reset Command URL: {self.vmc_obj.reset_command_url}"),
+            mock.call.info(f"Boot Control Dict: {self.vmc_obj.boot_control_dict}"),
+            mock.call.info(f"VM Members Array: {self.vmc_obj.vm_members_array}"),
+            mock.call.info(f"VM Group URL: {self.vmc_obj.vm_group_url}"),
+            mock.call.info(f"VM Group: {self.vmc_obj.vm_group}"),
+            mock.call.info(f"VM URL: {self.vmc_obj.vm_url}"),
+            mock.call.info(f"VM URL List: {self.vmc_obj.vm_url_list}"),
+            mock.call.info(f"VM Media Types: {self.vmc_obj.vm_media_types}"),
+            mock.call.info(f"Last Response raw: {self.vmc_obj.response}"),
+            mock.call.info(f"Last Response json: {self.vmc_obj.response_json}"),
+        ]
+
+    def test_make_request_get_operation_returns_true(self):
+        """Verify make_request's successful GET operation returns True"""
+
+        result = self.vmc_obj.make_request(operation=rvmc.GET)
+
+        self.assertTrue(result)
+        self.vmc_obj.redfish_obj.get.assert_called_once_with(
+            rvmc.REDFISH_ROOT_PATH, headers=rvmc.GET_HEADERS
+        )
+        self._assert_mock_logger_calls(
+            [self._build_request_log(rvmc.GET), self._build_success_log(rvmc.GET)]
+        )
+
+    def test_make_request_get_operation_with_status_204_returns_true(self):
+        """Verify make_request GET operation with 204 status returns True"""
+
+        self.mock_response.status = 204
+        self.vmc_obj.redfish_obj.get.return_value = self.mock_response
+
+        result = self.vmc_obj.make_request(operation=rvmc.GET)
+
+        self.assertTrue(result)
+        self.assertEqual(self.vmc_obj.response, "")
+
+    def test_make_request_post_operation_returns_true(self):
+        """Verify make_request's successful POST operation returns True"""
+
+        result = self.vmc_obj.make_request(operation=rvmc.POST, payload=self.payload)
+
+        self.assertTrue(result)
+        self.vmc_obj.redfish_obj.post.assert_called_once_with(
+            rvmc.REDFISH_ROOT_PATH, body=self.payload, headers=rvmc.POST_HEADERS
+        )
+        self._assert_mock_logger_calls(
+            [
+                self._build_request_log(rvmc.POST, payload=self.payload),
+                self._build_success_log(rvmc.POST),
+            ]
+        )
+
+    def test_make_request_patch_operation_returns_true(self):
+        """Verify make_request's successful PATCH operation returns True"""
+
+        result = self.vmc_obj.make_request(operation=rvmc.PATCH, payload=self.payload)
+
+        self.assertTrue(result)
+        self.vmc_obj.redfish_obj.patch.assert_called_once_with(
+            rvmc.REDFISH_ROOT_PATH, body=self.payload, headers=rvmc.PATCH_HEADERS
+        )
+        self._assert_mock_logger_calls(
+            [
+                self._build_request_log(rvmc.PATCH, payload=self.payload),
+                self._build_success_log(rvmc.PATCH),
+            ]
+        )
+
+    def test_make_request_unsupported_operation_returns_false(self):
+        """Verify make_request's unsupported operation returns False"""
+
+        result = self.vmc_obj.make_request(operation="INVALID")
+
+        self.assertFalse(result)
+        self._assert_mock_logger_calls(
+            [
+                self._build_request_log("INVALID"),
+                mock.call.error("Unsupported operation: INVALID"),
+            ]
+        )
+
+    def test_make_request_returns_false_when_exception_occurs_during_request(self):
+        """Verify make_request returns False when exception occurs during request"""
+
+        self.vmc_obj.redfish_obj.get.side_effect = Exception("Connection error")
+
+        result = self.vmc_obj.make_request(operation=rvmc.GET)
+
+        self.assertFalse(result)
+        self._assert_mock_logger_calls(
+            [
+                mock.call.error(
+                    f"Failed operation on '{rvmc.REDFISH_ROOT_PATH}' (Connection error)"
+                ),
+                mock.call.error(f"No response from GET:{rvmc.REDFISH_ROOT_PATH}"),
+            ]
+        )
+
+    def test_make_request_uses_custom_path_when_provided(self):
+        """Verify make_request uses custom path when provided"""
+
+        custom_path = "/custom/path"
+
+        result = self.vmc_obj.make_request(operation=rvmc.GET, path=custom_path)
+
+        self.assertTrue(result)
+        self.vmc_obj.redfish_obj.get.assert_called_once_with(
+            custom_path, headers=rvmc.GET_HEADERS
+        )
+        self._assert_mock_logger_calls(
+            [
+                self._build_request_log(rvmc.GET, custom_path),
+                self._build_success_log(rvmc.GET, custom_path),
+            ]
+        )
+
+    def test_make_request_does_not_retry_on_non_transient_error(self):
+        """Verify make_request does not retry on non-transient error"""
+
+        self.mock_response.status = 400
+        self.mock_response.dict = {"key": "value"}
+        self.vmc_obj.redfish_obj.get.return_value = self.mock_response
+
+        self.assertRaises(
+            RvmcExit, self.vmc_obj.make_request, operation=rvmc.GET, retry=0
+        )
+
+        expected_calls = [
+            self._build_request_log(rvmc.GET),
+            mock.call.error(
+                f"HTTP Status : 400 ; GET {rvmc.REDFISH_ROOT_PATH} failed after 0 "
+                'seconds\n{\n    "key": "value"\n}\n'
+            ),
+            self._build_error_response_log(rvmc.GET),
+            mock.call.info("Stop retrying for the non-transient error (400)."),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    @mock.patch.object(rvmc, "MAX_HTTP_TRANSIENT_ERROR_RETRIES", 1)
+    @mock.patch.object(rvmc, "HTTP_REQUEST_RETRY_INTERVAL", 0)
+    def test_make_request_retries_on_transient_error(self):
+        """Verify make_request retries on transient error (status >= 500)"""
+
+        self.mock_response.status = 500
+        self.mock_response.dict = {"key": "value"}
+        self.vmc_obj.redfish_obj.get.return_value = self.mock_response
+
+        self.assertRaises(
+            RvmcExit, self.vmc_obj.make_request, operation=rvmc.GET, retry=0
+        )
+        expected_calls = [
+            self._build_request_log(rvmc.GET),
+            mock.call.error(
+                f"HTTP Status : 500 ; GET {rvmc.REDFISH_ROOT_PATH} failed after 0 "
+                'seconds\n{\n    "key": "value"\n}\n'
+            ),
+            self._build_error_response_log(rvmc.GET),
+            mock.call.info("Make request: retry (1 of 1) in 0 secs."),
+        ]
+
+        # The request is performed twice due to the retry, so the logs repeat with
+        # exception of the last information.
+        for i in range(len(expected_calls) - 1):
+            expected_calls.append(expected_calls[i])
+
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_make_request_returns_false_when_resp_dict_is_empty(self):
+        """Verify make_request returns False when resp_dict is empty"""
+
+        self.mock_response.read = None
+        self.vmc_obj.redfish_obj.get.return_value = self.mock_response
+
+        result = self.vmc_obj.make_request(operation=rvmc.GET)
+
+        self.assertFalse(result)
+        expected_calls = [
+            self._build_request_log(rvmc.GET),
+            self._build_success_log(rvmc.GET),
+            mock.call.error("No response from last command"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_make_request_returns_false_when_resp_dict_raises_exception(self):
+        """Verify make_request returns False when resp_dict raises exception"""
+
+        self.mock_response.read = "not a json"
+        self.vmc_obj.redfish_obj.get.return_value = self.mock_response
+
+        result = self.vmc_obj.make_request(operation=rvmc.GET)
+
+        self.assertFalse(result)
+        expected_calls = [
+            self._build_request_log(rvmc.GET),
+            self._build_success_log(rvmc.GET),
+            mock.call.error(
+                "Got exception key valuing response ; (Expecting value: line 1 column "
+                "1 (char 0))"
+            ),
+            mock.call.error("Response: not a json"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
