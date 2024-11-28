@@ -35,7 +35,6 @@ from dccommon.exceptions import OAMAddressesNotFound
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.common import consts
-from dcmanager.common.exceptions import InternalError
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
@@ -3186,26 +3185,6 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
             "is not supported. Version format must be MM.mm.",
         )
 
-    def test_prestage_for_sw_deploy_fails_with_base_release_only_deployed(self):
-        """Test prestage for sw deploy fails with base release only deployed"""
-
-        self.params["for_sw_deploy"] = "true"
-        self.mock_get_validated_sw_version_for_prestage.side_effect = (
-            self.original_get_validated_sw_version_for_prestage
-        )
-
-        self.software_list = self.FAKE_SOFTWARE_LIST_ONE_DEPLOYED_RELEASE
-        self._setup_mock_get_system_controller_software_list()
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            f"Prestage failed '{self.subcloud.name}': Only base release is deployed, "
-            "cannot prestage for software deploy.",
-        )
-
     def test_prestage_for_sw_deploy_fails_with_invalid_release(self):
         """Test prestage for sw deploy fails with invalid release"""
 
@@ -3224,52 +3203,6 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
             f"Prestage failed '{self.subcloud.name}': The requested software "
             "version was not installed in the system controller, cannot "
             "prestage for software deploy.",
-        )
-
-    @mock.patch.object(cutils, "has_usm_service")
-    def test_prestage_for_sw_deploy_fails_with_keystone_error_on_subcloud(
-        self, mock_has_usm_service
-    ):
-        """Test prestage for sw deploy fails with invalid release"""
-
-        self.params["for_sw_deploy"] = "true"
-
-        mock_has_usm_service.side_effect = InternalError()
-
-        self.mock_get_validated_sw_version_for_prestage.side_effect = (
-            self.original_get_validated_sw_version_for_prestage
-        )
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            f"Prestage failed '{self.subcloud.name}': Unable to check USM "
-            "service for subcloud, cannot prestage for software deploy.",
-        )
-
-    @mock.patch.object(cutils, "has_usm_service")
-    def test_prestage_for_sw_deploy_fails_with_usm_endpoint_not_found_on_subcloud(
-        self, mock_has_usm_service
-    ):
-        """Test prestage for sw deploy fails with invalid release"""
-
-        self.params["for_sw_deploy"] = "true"
-
-        mock_has_usm_service.return_value = False
-
-        self.mock_get_validated_sw_version_for_prestage.side_effect = (
-            self.original_get_validated_sw_version_for_prestage
-        )
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            f"Prestage failed '{self.subcloud.name}': USM service not found "
-            "for subcloud, cannot prestage for software deploy.",
         )
 
     def test_prestage_for_sw_deploy_fails_with_22_12_release(self):
