@@ -101,7 +101,7 @@ class SysinvSyncThread(SyncThread):
 
         self.sc_sysinv_client = None
 
-        LOG.info("SysinvSyncThread initialized", extra=self.log_extra)
+        LOG.debug("SysinvSyncThread initialized", extra=self.log_extra)
 
     def initialize_sc_clients(self):
         super().initialize_sc_clients()
