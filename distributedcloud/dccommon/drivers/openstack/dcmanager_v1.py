@@ -10,6 +10,7 @@ from requests_toolbelt import MultipartEncoder
 from dccommon import consts
 from dccommon.drivers import base
 from dccommon import exceptions
+from dcmanager.db.sqlalchemy import models
 
 
 LOG = log.getLogger(__name__)
@@ -27,6 +28,7 @@ class DcmanagerClient(base.DriverBase):
         timeout=DCMANAGER_CLIENT_REST_DEFAULT_TIMEOUT,
         endpoint_type=consts.KS_ENDPOINT_PUBLIC,
         endpoint=None,
+        peer: models.SystemPeer = None,
     ):
         if endpoint is None:
             endpoint = session.get_endpoint(
@@ -35,6 +37,7 @@ class DcmanagerClient(base.DriverBase):
         self.endpoint = endpoint
         self.timeout = timeout
         self.session = session
+        self.peer = peer
 
     def get_system_peer(self, system_peer_uuid):
         """Get system peer."""

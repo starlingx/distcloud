@@ -143,6 +143,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
 
         mock_patch = mock.patch.object(system_peer_manager, "DcmanagerClient")
         self.mock_dc_client = mock_patch.start()
+        self.mock_dc_client().peer.peer_name = "SystemPeer1"
         self.addCleanup(mock_patch.stop)
 
     def _mock_system_peer_manager_peersitedriver(self):
@@ -474,7 +475,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         "dcmanager.manager.system_peer_manager.SystemPeerManager.get_peer_dc_client"
     )
     def test_update_sync_status_exception(self, mock_client):
-        mock_client.return_value = Exception("boom")
+        mock_client.side_effect = Exception("boom")
         self.spm.update_sync_status(
             self.ctx, self.peer, consts.ASSOCIATION_SYNC_STATUS_IN_SYNC
         )
@@ -673,8 +674,8 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             self.ctx, self.peer, self.peer_group.id, FAKE_SITE1_PEER_GROUP_ID
         )
         self.mock_log.error.assert_called_once_with(
-            f"Failed to add/update Subcloud {subcloud1.name} "
-            f"(region_name: {subcloud1.region_name}) on peer site: boom"
+            f"Failed to add/update subcloud '{subcloud1.name}' "
+            f"(region_name: {subcloud1.region_name}) on peer site 'SystemPeer1': boom"
         )
 
     def test_sync_subclouds_delete_subcloud_exception(self):
@@ -743,8 +744,11 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         self.mock_dc_client().get_subcloud.side_effect = [peer_subcloud4]
         self.peer_group_association.return_value = {"id": FAKE_SITE1_ASSOCIATION_ID}
         self.spm.delete_peer_group_association(self.ctx, self.association.id)
-        Calls = [
-            mock.call("Deleting association peer group 1."),
+        calls = [
+            mock.call(
+                "Deleting peer group association (association_id=1, "
+                "peer=SystemPeer1, peer_group_id=1)"
+            ),
             mock.call(
                 f"Ignoring delete Peer Site Subcloud {subcloud.name} as "
                 "is not in secondary or rehome failed state."
@@ -755,10 +759,10 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             ),
             mock.call(
                 f"Deleted Subcloud Peer Group {self.peer_group.peer_group_name} "
-                "on peer site."
+                "on peer site 'SystemPeer1'"
             ),
         ]
-        self.mock_log.info.assert_has_calls(Calls)
+        self.mock_log.info.assert_has_calls(calls)
 
     def test_delete_peer_group_association_uuid_does_not_match(self):
         peer = self.create_system_peer_static(
@@ -806,7 +810,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         associations = db_api.peer_group_association_get_all(self.ctx)
         self.assertEqual(1, len(associations))
         self.mock_log.exception.assert_called_once_with(
-            "Failed to delete Subcloud subcloud1 on peer site: boom"
+            "Failed to delete subcloud 'subcloud1' on peer site 'SystemPeer1': boom"
         )
 
     def test_delete_peer_group_association_failed(self):
@@ -820,8 +824,8 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             self.association.id,
         )
         self.mock_log.error.assert_called_once_with(
-            f"Subcloud Peer Group {self.peer_group.peer_group_name} "
-            "delete failed as it is associated with system peer on peer site."
+            f"Subcloud Peer Group {self.peer_group.peer_group_name} delete "
+            "failed as it is associated with system peer on peer site 'SystemPeer1'"
         )
 
     def test_delete_peer_group_association_subcloud_pg_notfound(self):
@@ -831,7 +835,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         self.spm.delete_peer_group_association(self.ctx, self.association.id)
         self.mock_log.warning.assert_called_once_with(
             f"Subcloud Peer Group {self.peer_group.peer_group_name} "
-            "does not exist on peer site."
+            "does not exist on peer site 'SystemPeer1'"
         )
         associations = db_api.peer_group_association_get_all(self.ctx)
         self.assertEqual(0, len(associations))

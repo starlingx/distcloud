@@ -9,6 +9,7 @@ import threading
 
 from fm_api import constants as fm_const
 from fm_api import fm_api
+from keystoneauth1 import exceptions as ks_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -16,15 +17,58 @@ from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import manager
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import models
 from dcmanager.manager import peer_group_audit_manager as pgam
+from dcmanager.manager.subcloud_manager import SubcloudManager
 from dcmanager.manager.system_peer_manager import SystemPeerManager
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
+# Upon detecting that the secondary site is REACHABLE again, the PGA sync_status
+# will be set for BOTH sites by the primary site monitor thread as follows:
+SECONDARY_SITE_REACHABLE_TRANSITIONS = {
+    # The UNKNOWN and FAILED are set when the secondary site becomes unreachable
+    consts.ASSOCIATION_SYNC_STATUS_UNKNOWN: consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+    consts.ASSOCIATION_SYNC_STATUS_FAILED: consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+    # The SYNCING and IN_SYNC status can happen when first creating the peer and the
+    # association. The association creation will set the status to SYNCING/IN_SYNC,
+    # and the monitor thread might detect the peer availability after that, so we
+    # don't modify the status
+    consts.ASSOCIATION_SYNC_STATUS_IN_SYNC: consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
+    consts.ASSOCIATION_SYNC_STATUS_SYNCING: consts.ASSOCIATION_SYNC_STATUS_SYNCING,
+    # A similar situation can happen with OUT_OF_SYNC, if the association/peer group
+    # is updated before the monitor thread runs its first check, so we don't modify
+    # the status
+    consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC: (
+        consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC
+    ),
+}
+
+# Upon detecting that the secondary site is UNREACHABLE, the PGA sync_status
+# will be set for the PIRMARY SITE ONLY by the primary site monitor thread as follows:
+SECONDARY_SITE_UNREACHABLE_TRANSITIONS = {
+    # After the secondary site becomes unreachable, the only valid sync statuses
+    # are UNKNOWN or FAILED
+    consts.ASSOCIATION_SYNC_STATUS_UNKNOWN: consts.ASSOCIATION_SYNC_STATUS_UNKNOWN,
+    consts.ASSOCIATION_SYNC_STATUS_FAILED: consts.ASSOCIATION_SYNC_STATUS_FAILED,
+    consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC: consts.ASSOCIATION_SYNC_STATUS_FAILED,
+    consts.ASSOCIATION_SYNC_STATUS_IN_SYNC: consts.ASSOCIATION_SYNC_STATUS_UNKNOWN,
+    consts.ASSOCIATION_SYNC_STATUS_SYNCING: consts.ASSOCIATION_SYNC_STATUS_FAILED,
+}
+
 
 class PeerMonitor(object):
-    def __init__(self, peer, context, subcloud_manager):
+    """Monitors and manages the connection status of a single DC system peer
+
+    The monitor runs in a separate thread and periodically checks the peer's
+    availability using heartbeat mechanisms. It handles both failure and recovery
+    scenarios, updating system states and managing fault alarms accordingly.
+    """
+
+    def __init__(
+        self, peer: models.SystemPeer, context, subcloud_manager: SubcloudManager
+    ):
         self.peer = peer
         self.thread = None
         self.exit_flag = threading.Event()
@@ -32,21 +76,22 @@ class PeerMonitor(object):
         self.context = context
         self.subcloud_manager = subcloud_manager
         self.peer_group_id_set = set()
+        self.failure_count = 0
         # key: peer_group_id
         # value: PeerGroupAuditManager object
-        self.peer_group_audit_obj_map = dict()
+        self.peer_group_audit_obj_map: dict[int, pgam.PeerGroupAuditManager] = dict()
 
     def _clear_failure(self):
         alarm_id = fm_const.FM_ALARM_ID_DC_SYSTEM_PEER_HEARTBEAT_FAILED
-        entity_instance_id = "peer=%s" % self.peer.peer_uuid
+        entity_instance_id = f"peer={self.peer.peer_uuid}"
         try:
             fault = self.fm_api.get_fault(alarm_id, entity_instance_id)
             if fault:
                 self.fm_api.clear_fault(alarm_id, entity_instance_id)
         except Exception as e:
             LOG.exception(
-                "Problem clearing fault for peer %s, alarm_id=%s error: %s"
-                % (self.peer.peer_uuid, alarm_id, e)
+                f"Problem clearing fault for peer {self.peer.peer_name}, "
+                f"alarm_id={alarm_id} error: {str(e)}"
             )
 
     def _raise_failure(self):
@@ -114,124 +159,165 @@ class PeerMonitor(object):
 
             if not dc_peer_subcloud_peer_group_list:
                 LOG.warning(
-                    "Resource subcloud peer group of dc:%s not found"
-                    % self.peer.manager_endpoint
+                    f"No subcloud peer groups found for DC peer: {self.peer.peer_name} "
+                    f"(endpoint: {self.peer.manager_endpoint})"
                 )
 
+        except (ks_exceptions.ConnectFailure, ks_exceptions.ConnectTimeout) as e:
+            # Use warning level for common connection failures to reduce log spam
+            LOG.warning(f"Failed to access DC peer {self.peer.peer_name}: {str(e)}")
         except Exception:
-            LOG.exception("Failed to access the dc: %s" % self.peer.peer_name)
+            LOG.exception(
+                f"Unexpected error while accessing DC peer {self.peer.peer_name}"
+            )
+
         return failed, dc_peer_subcloud_peer_group_list
 
-    def _update_sync_status_secondary_site_becomes_unreachable(self):
+    def _update_sync_status_secondary_site_becomes_unreachable(self) -> None:
+        """Update sync status on local site when secondary site becomes unreachable."""
         # Get associations by system peer
         associations = SystemPeerManager.get_local_associations(self.context, self.peer)
         for association in associations:
             # If the association is not primary, skip it.
             if association.association_type == consts.ASSOCIATION_TYPE_NON_PRIMARY:
-                LOG.debug(
-                    "Skip update the Association sync_status as it is not primary."
+                LOG.info(
+                    f"Skip updating local association (id={association.id}) "
+                    "sync_status as it's not primary"
                 )
                 continue
-            # If the secondary site is down, set the association sync status
-            #     "in-sync" -> "unknown"
-            #     "unknown" -> "unknown"
-            #     "out-of-sync" -> "failed"
-            #     "syncing" -> "failed"
-            #     "failed" -> "failed"
-            sync_status = consts.ASSOCIATION_SYNC_STATUS_UNKNOWN
-            message = f"Peer site ({self.peer.peer_name}) is unreachable."
-            if association.sync_status not in [
-                consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
-                consts.ASSOCIATION_SYNC_STATUS_UNKNOWN,
-            ]:
-                sync_status = consts.ASSOCIATION_SYNC_STATUS_FAILED
+
+            try:
+                new_sync_status = SECONDARY_SITE_UNREACHABLE_TRANSITIONS[
+                    association.sync_status
+                ]
+            except KeyError:
+                # This should never happen
+                LOG.error(
+                    f"Unexpected sync status on association id={association.id}: "
+                    f"{association.sync_status}. Updating the sync status to "
+                    f"{consts.ASSOCIATION_SYNC_STATUS_FAILED}"
+                )
+                new_sync_status = consts.ASSOCIATION_SYNC_STATUS_FAILED
+
+            LOG.info(
+                f"Updating local association (id={association.id}) sync_status "
+                f"from {association.sync_status} to {new_sync_status} due "
+                "to secondary site becoming unreachable"
+            )
+
             db_api.peer_group_association_update(
                 self.context,
                 association.id,
-                sync_status=sync_status,
-                sync_message=message,
+                sync_status=new_sync_status,
+                sync_message=f"Peer site ({self.peer.peer_name}) is unreachable.",
             )
 
-    def _update_sync_status_secondary_site_becomes_reachable(self):
+    def _update_sync_status_secondary_site_becomes_reachable(self) -> None:
+        """Update sync status on both sites when secondary site becomes reachable."""
         # Get associations by system peer
         associations = SystemPeerManager.get_local_associations(self.context, self.peer)
         for association in associations:
             # If the association is not primary, skip it.
             if association.association_type == consts.ASSOCIATION_TYPE_NON_PRIMARY:
-                LOG.debug(
-                    "Skip update Peer Site Association sync_status as "
-                    "current site Association is not primary."
+                LOG.info(
+                    "Skip updating association sync_status on both sites as "
+                    "current site association is not primary."
                 )
                 continue
-            # Upon detecting that the secondary site is reachable again,
-            # the PGA sync_status will be set for both sites by the primary
-            # site monitor thread as follows:
-            #     "unknown" -> "in-sync"
-            #     "failed" -> "out-of-sync"
-            sync_status = consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC
-            if association.sync_status == consts.ASSOCIATION_SYNC_STATUS_UNKNOWN:
-                sync_status = consts.ASSOCIATION_SYNC_STATUS_IN_SYNC
+
+            try:
+                new_sync_status = SECONDARY_SITE_REACHABLE_TRANSITIONS[
+                    association.sync_status
+                ]
+            except KeyError:
+                # This should never happen
+                LOG.error(
+                    f"Unexpected sync status on association id={association.id}: "
+                    f"{association.sync_status}. Updating the sync status to "
+                    f"{consts.ASSOCIATION_SYNC_STATUS_FAILED}"
+                )
+                new_sync_status = consts.ASSOCIATION_SYNC_STATUS_FAILED
+
             dc_local_pg = db_api.subcloud_peer_group_get(
                 self.context, association.peer_group_id
             )
+
+            LOG.info(
+                f"Updating local association (id={association.id}) sync_status "
+                f"from {association.sync_status} to {new_sync_status} due "
+                "to secondary site becoming reachable"
+            )
+
             SystemPeerManager.update_sync_status(
                 self.context,
                 self.peer,
-                sync_status,
+                new_sync_status,
                 dc_local_pg,
                 association=association,
             )
 
-    def _do_monitor_peer(self):
-        failure_count = 0
-        LOG.info("Start monitoring thread for peer %s" % self.peer.peer_name)
-        UNAVAILABLE_STATE = consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE
-        AVAILABLE_STATE = consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
-        # Do the actual peer monitor.
+    def _update_peer_state(self, state: str) -> models.SystemPeer:
+        """Update peer availability state in database."""
+        return db_api.system_peer_update(
+            self.context, self.peer.id, availability_state=state
+        )
+
+    def _handle_peer_failure(self) -> None:
+        """Handle peer failure by raising alarms and updating states."""
+        self.failure_count += 1
+        if self.failure_count >= self.peer.heartbeat_failure_threshold:
+            LOG.warning(
+                f"DC peer '{self.peer.peer_name}' heartbeat failed, raising alarm"
+            )
+            self._raise_failure()
+            self._update_peer_state(consts.SYSTEM_PEER_AVAILABILITY_STATE_UNAVAILABLE)
+            self._update_sync_status_secondary_site_becomes_unreachable()
+            self.failure_count = 0
+            self._set_require_audit_flag_to_associated_peer_groups()
+
+    def _handle_peer_recovery(self, remote_pg_list: list) -> None:
+        """Handle peer recovery by clearing alarms and restoring states."""
+        self.failure_count = 0
+        self._audit_local_peer_groups(remote_pg_list)
+        if (
+            self.peer.availability_state
+            != consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE
+        ):
+            LOG.info(f"DC peer '{self.peer.peer_name}' is back online, clearing alarm")
+            self._update_peer_state(consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE)
+            self._update_sync_status_secondary_site_becomes_reachable()
+            self._clear_failure()
+
+    def _check_peer_status(self) -> None:
+        """Perform a single peer status check and handle the result."""
+        self.peer = db_api.system_peer_get(self.context, self.peer.id)
+        failed, remote_pg_list = self._heartbeat_check_via_get_peer_group_list()
+
+        if failed:
+            self._handle_peer_failure()
+        else:
+            self._handle_peer_recovery(remote_pg_list)
+
+    def _do_monitor_peer(self) -> None:
+        """Monitor peer connectivity and handle state changes."""
+        LOG.info(f"Start monitoring thread for peer '{self.peer.peer_name}'")
+
+        # Run first check immediately
+        try:
+            self._check_peer_status()
+        except Exception as e:
+            LOG.exception(f"Initial check failed for peer '{self.peer.peer_name}': {e}")
+
+        # Continue with periodic checks
         while not self.exit_flag.wait(timeout=self.peer.heartbeat_interval):
             try:
-                # Get system peer from DB
-                self.peer = db_api.system_peer_get(self.context, self.peer.id)
-                failed, remote_pg_list = self._heartbeat_check_via_get_peer_group_list()
-                if failed:
-                    failure_count += 1
-                    if failure_count >= self.peer.heartbeat_failure_threshold:
-                        # heartbeat_failure_threshold reached.
-                        LOG.warning(
-                            "DC %s heartbeat failed, Raising alarm"
-                            % self.peer.peer_name
-                        )
-                        self._raise_failure()
-                        db_api.system_peer_update(
-                            self.context,
-                            self.peer.id,
-                            availability_state=UNAVAILABLE_STATE,
-                        )
-                        # pylint: disable=line-too-long
-                        self._update_sync_status_secondary_site_becomes_unreachable()
-                        failure_count = 0
-                        self._set_require_audit_flag_to_associated_peer_groups()
-                else:
-                    failure_count = 0
-                    self._audit_local_peer_groups(remote_pg_list)
-                    if self.peer.availability_state != AVAILABLE_STATE:
-                        db_api.system_peer_update(
-                            self.context,
-                            self.peer.id,
-                            availability_state=AVAILABLE_STATE,
-                        )
-                        # pylint: disable=line-too-long
-                        self._update_sync_status_secondary_site_becomes_reachable()
-                        LOG.info("DC %s back online, clear alarm" % self.peer.peer_name)
-                        self._clear_failure()
+                self._check_peer_status()
             except Exception as e:
                 LOG.exception(
-                    "Got exception monitoring peer %s error: %s"
-                    % (self.peer.peer_name, e)
+                    f"Unexpected error monitoring peer '{self.peer.peer_name}': {e}"
                 )
-        LOG.info(
-            "Caught graceful exit signal for peer monitor %s" % self.peer.peer_name
-        )
+
+        LOG.info(f"Gracefully exiting monitor thread for peer '{self.peer.peer_name}'")
 
     def _audit_local_peer_groups(self, remote_pg_list):
         # Generate a dict index by remote peer group name
@@ -266,7 +352,9 @@ class PeerMonitor(object):
         for pgam_obj in self.peer_group_audit_obj_map.values():
             pgam_obj.require_audit_flag = True
 
-    def audit_specific_local_peer_group(self, peer_group, remote_peer_group):
+    def audit_specific_local_peer_group(
+        self, peer_group: models.SubcloudPeerGroup, remote_peer_group
+    ):
         msg = None
         if peer_group.id in self.peer_group_audit_obj_map:
             pgam_obj = self.peer_group_audit_obj_map[peer_group.id]
@@ -324,17 +412,16 @@ class PeerMonitor(object):
 class PeerMonitorManager(manager.Manager):
     """Manages tasks related to peer monitor."""
 
-    def __init__(self, subcloud_manager):
+    def __init__(self, subcloud_manager: SubcloudManager):
         LOG.debug("PeerMonitorManager initialization...")
 
         super(PeerMonitorManager, self).__init__(service_name="peer_monitor_manager")
-        self.peer_monitor = dict()
         self.context = context.get_admin_context()
         self.subcloud_manager = subcloud_manager
 
         # key: system_peer_id
         # value: PeerMonitor object
-        self.peer_monitor_thread_map = dict()
+        self.peer_monitor_thread_map: dict[int, PeerMonitor] = dict()
 
     def _remove_peer_monitor_task(self, system_peer_id):
         peer_mon_obj = self.peer_monitor_thread_map[system_peer_id]
