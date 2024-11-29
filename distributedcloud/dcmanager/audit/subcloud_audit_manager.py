@@ -608,7 +608,7 @@ class SubcloudAuditManager(manager.Manager):
                     software_audit_data,
                     use_cache,
                 )
-                LOG.debug(
+                LOG.info(
                     "Sent subcloud audit request message for subclouds: %s"
                     % subcloud_ids
                 )
@@ -626,7 +626,7 @@ class SubcloudAuditManager(manager.Manager):
                 software_audit_data,
                 use_cache,
             )
-            LOG.debug(
+            LOG.info(
                 "Sent final subcloud audit request message for subclouds: %s"
                 % subcloud_ids
             )

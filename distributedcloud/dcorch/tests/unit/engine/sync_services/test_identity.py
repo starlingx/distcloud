@@ -594,7 +594,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPut(
 
         self._execute()
 
-        self._assert_log("info", "IdentitySyncThread initialized")
+        self._assert_log("debug", "IdentitySyncThread initialized")
         self.log.error.assert_not_called()
 
 

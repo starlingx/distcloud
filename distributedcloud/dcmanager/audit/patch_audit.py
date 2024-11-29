@@ -43,11 +43,13 @@ class PatchAudit(object):
         return PatchAuditData()
 
     def subcloud_patch_audit(self, keystone_client, subcloud):
-        LOG.info("Triggered patch audit for: %s." % subcloud.name)
 
         # NOTE(nicodemos): Patch audit not supported for 24.09 subcloud
         if subcloud.software_version == SW_VERSION:
             return consts.SYNC_STATUS_NOT_AVAILABLE
+
+        # Log this just for N-1 subclouds, before the has_usm_service external call
+        LOG.info("Triggered patch audit for: %s." % subcloud.name)
 
         # NOTE(nicodemos): If the subcloud is on the 22.12 release with USM enabled,
         # skip the patch audit.

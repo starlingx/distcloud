@@ -115,7 +115,7 @@ class IdentitySyncThread(SyncThread):
         self.log_extra = {
             "instance": "{}/{}: ".format(self.region_name, self.endpoint_type)
         }
-        LOG.info("IdentitySyncThread initialized", extra=self.log_extra)
+        LOG.debug("IdentitySyncThread initialized", extra=self.log_extra)
 
     def initialize_sc_clients(self):
         super().initialize_sc_clients()
