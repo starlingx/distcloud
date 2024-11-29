@@ -461,6 +461,11 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self.mock_delete_subcloud_inventory = mock_patch.start()
         self.addCleanup(mock_patch.stop)
 
+    def _mock_utils_is_system_controller_deploying(self):
+        mock_patch = mock.patch.object(cutils, "is_system_controller_deploying")
+        self.mock_is_system_controller_deploying = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
+
     def _mock_utils_get_playbook_for_software_version(self):
         """Mock utils's get_playbook_for_software_version"""
 
@@ -1759,11 +1764,13 @@ class TestSubcloudDelete(BaseTestSubcloudManager):
         self.mock_openstack_driver().keystone_client = FakeKeystoneClient()
         self._mock_subcloud_manager_get_cached_regionone_data()
         self.mock_get_cached_regionone_data.return_value = FAKE_CACHED_REGIONONE_DATA
+        self._mock_utils_is_system_controller_deploying()
 
     @mock.patch.object(kubeoperator, "KubeOperator")
     def test_delete_subcloud(self, mock_kubeoperator):
         self._mock_builtins_open()
         self._mock_subcloud_manager_create_addn_hosts_dc()
+        self.mock_is_system_controller_deploying.return_value = False
         self.sm.delete_subcloud(self.ctx, subcloud_id=self.subcloud.id)
         self.mock_get_cached_regionone_data.assert_called_once()
         self.mock_sysinv_client().delete_route.assert_called()

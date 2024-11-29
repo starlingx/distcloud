@@ -191,21 +191,8 @@ class SubcloudsController(object):
                        otherwise False.
         """
 
-        strategy_steps = None
         # Firstly, check the DC orchestrated vim strategies from database
-        try:
-            strategy_steps = db_api.strategy_step_get(context, subcloud.id)
-        except exceptions.StrategyStepNotFound:
-            LOG.debug(f"No existing vim strategy steps on subcloud: {subcloud.name}")
-        except Exception:
-            LOG.exception(f"Failed to get strategy steps on subcloud: {subcloud.name}.")
-            return True
-
-        if strategy_steps and strategy_steps.state not in (
-            consts.STRATEGY_STATE_COMPLETE,
-            consts.STRATEGY_STATE_ABORTED,
-            consts.STRATEGY_STATE_FAILED,
-        ):
+        if utils.verify_ongoing_subcloud_strategy(context, subcloud):
             return True
 
         # Then check the system config update strategy

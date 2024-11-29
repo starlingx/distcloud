@@ -3401,6 +3401,12 @@ class SubcloudManager(manager.Manager):
         if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
             raise exceptions.SubcloudNotOffline()
 
+        if utils.is_system_controller_deploying():
+            raise exceptions.ValidateFail(
+                "Subcloud delete is not allowed while system "
+                "controller has a software deployment in progress."
+            )
+
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = self._get_ansible_filename(
             subcloud.name, INVENTORY_FILE_POSTFIX
