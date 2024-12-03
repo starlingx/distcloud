@@ -122,15 +122,15 @@ class PreCheckState(BaseState):
                 exceptions.SoftwarePreCheckFailedException,
             )
 
+        # We should skip the install_license state if it's a minor release.
+        if strategy_step.subcloud.software_version == utils.extract_version(release_id):
+            self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
+
         self._check_prestaged_data(
             strategy_step,
             release_id,
             subcloud_releases,
         )
-
-        # We should skip the install_license state if it's a minor release.
-        if strategy_step.subcloud.software_version == utils.extract_version(release_id):
-            self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
 
         return self.next_state
 
@@ -164,14 +164,62 @@ class PreCheckState(BaseState):
         release_id,
         subcloud_releases,
     ):
-        # Check if the release with release_id is in subcloud_releases
-        is_present_in_subcloud = any(
-            release["release_id"] == release_id for release in subcloud_releases
-        )
-        if not is_present_in_subcloud:
+        """Check if the release with release_id is prestaged in subcloud_releases"""
+
+        def get_subcloud_release(releases, release_id):
+            for release in releases:
+                if release["release_id"] == release_id:
+                    return release
+            return None
+
+        release = get_subcloud_release(subcloud_releases, release_id)
+        if not release:
             details = f"Release {release_id} is not prestaged."
             self.handle_exception(
                 strategy_step,
                 details,
                 exceptions.SoftwarePreCheckFailedException,
             )
+
+        # Verify whether the subcloud has already deployed the release or if cleanup
+        # of the available releases is still pending.
+        self._process_releases_state(
+            strategy_step, subcloud_releases, release, release_id
+        )
+
+    def _process_releases_state(
+        self, strategy_step, subcloud_releases, release, release_id
+    ):
+        # Filter out releases with state 'unavailable' and sort by 'sw_version'
+        filtered_and_sorted_releases = sorted(
+            (
+                release
+                for release in subcloud_releases
+                if release["state"] != "unavailable"
+            ),
+            key=lambda x: x["sw_version"],
+        )
+
+        # If the software audit did not run due to an invalid deploy_status,
+        # leaving the subcloud out-of-sync, but the highest release in the list is the
+        # same as the user specified release and the release state is in 'deployed'
+        # state, we can just mark it as complete.
+        highest_release = filtered_and_sorted_releases[-1]
+        if (
+            highest_release["release_id"] == release["release_id"]
+            and highest_release["state"] == software_v1.DEPLOYED
+        ):
+            details = f"Release {release_id} is already deployed in subcloud."
+            self.warn_log(strategy_step, details)
+            self.override_next_state(consts.STRATEGY_STATE_COMPLETE)
+        # If the release is not the highest release in the list, but the latest is in
+        # the 'available' state and the current release is in 'deployed,' we should
+        # delete the 'available' release in the STRATEGY_STATE_SW_FINISH_STRATEGY
+        elif (
+            highest_release["release_id"] != release["release_id"]
+            and highest_release["state"] == software_v1.AVAILABLE
+            and release["state"] == software_v1.DEPLOYED
+        ):
+            details = f"Release {release_id} is already deployed in subcloud."
+            self.warn_log(strategy_step, details)
+            self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)

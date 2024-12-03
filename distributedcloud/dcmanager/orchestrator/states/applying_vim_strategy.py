@@ -18,9 +18,9 @@ from dcmanager.orchestrator.states.base import BaseState
 # (30 queries with 1 minute sleep)
 DEFAULT_MAX_FAILED_QUERIES = 30
 
-# Max time: 60 minutes = 60 queries x 60 seconds
+# Max time: 400 minutes = 400 queries x 60 seconds
 # This is the max time for the state to change completion progress percent
-DEFAULT_MAX_WAIT_ATTEMPTS = 60
+DEFAULT_MAX_WAIT_ATTEMPTS = 400
 
 # each loop while waiting for the apply will sleep for 60 seconds
 WAIT_INTERVAL = 60

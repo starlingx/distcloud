@@ -18,7 +18,7 @@ from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.drivers.openstack.vim import VimClient
+from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -140,10 +140,15 @@ class BaseState(object, metaclass=abc.ABCMeta):
         if exc:
             log_msg = f"{details} Error: {str(exc)}"
             self.exception_log(strategy_step, log_msg)
+        deploy_status = (
+            consts.DEPLOY_STATE_DONE
+            if strategy_name != vim.STRATEGY_NAME_SW_USM
+            else consts.DEPLOY_STATE_SW_DEPLOY_APPLY_STRATEGY_FAILED
+        )
         db_api.subcloud_update(
             self.context,
             strategy_step.subcloud_id,
-            deploy_status=consts.DEPLOY_STATE_APPLY_STRATEGY_FAILED,
+            deploy_status=deploy_status,
             error_description=details,
         )
         raise raise_exception(
@@ -222,10 +227,10 @@ class BaseState(object, metaclass=abc.ABCMeta):
         return BarbicanClient(region_name, keystone_client.session)
 
     @lru_cache(maxsize=CLIENT_CACHE_SIZE)
-    def get_vim_client(self, region_name: str) -> VimClient:
+    def get_vim_client(self, region_name: str) -> vim.VimClient:
         """Get the Vim client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
-        return VimClient(region_name, keystone_client.session)
+        return vim.VimClient(region_name, keystone_client.session)
 
     @property
     def local_sysinv(self) -> SysinvClient:

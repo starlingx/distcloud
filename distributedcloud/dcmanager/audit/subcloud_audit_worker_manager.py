@@ -357,6 +357,23 @@ class SubcloudAuditWorkerManager(manager.Manager):
             audit_payload["use_cache"] = use_cache
         return audit_payload
 
+    def _update_sw_sync_status_from_deploy_status(self, subcloud, audit_results):
+        # If the subcloud deploy_status is in any of the following states,
+        # the sync_status should be set to out-of-sync for software audit.
+        # This allows the user to reapply the strategy to resolve the deploy_status.
+        if subcloud.deploy_status in [
+            consts.DEPLOY_STATE_SW_DEPLOY_APPLY_STRATEGY_FAILED,
+            consts.DEPLOY_STATE_SW_DEPLOY_IN_PROGRESS,
+        ] and audit_results.get(dccommon_consts.SOFTWARE_AUDIT):
+            LOG.info(
+                "Setting software sync_status to out-of-sync due to deploy_status. "
+                f"subcloud: {subcloud.name} deploy_status: {subcloud.deploy_status}"
+            )
+            audit_results[dccommon_consts.SOFTWARE_AUDIT][
+                "sync_status"
+            ] = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
+        return audit_results
+
     def _audit_subcloud(
         self,
         subcloud: models.Subcloud,
@@ -531,6 +548,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 LOG.exception(failmsg % (subcloud.name, "dcagent"))
                 failures.append("dcagent")
             LOG.debug(f"Audits results for subcloud {subcloud_name}: {audit_results}")
+            audit_results = self._update_sw_sync_status_from_deploy_status(
+                subcloud, audit_results
+            )
             for audit_type, audit_value in audit_results.items():
                 if audit_type == dccommon_consts.BASE_AUDIT:
                     avail_to_set = audit_value.get("availability")
