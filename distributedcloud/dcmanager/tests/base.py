@@ -163,16 +163,13 @@ class DCManagerTestCase(base.BaseTestCase):
         )
         self.mock_audit_worker_time.sleep.side_effect = Exception()
 
-    def _mock_object(self, target, attribute, name=None, wraps=None):
-        """Mock a specified target's attribute and save it in a variable"""
+    def _mock_object(self, target, attribute, wraps=None):
+        """Mock a specified target's attribute and return the mock object"""
 
         mock_patch_object = mock.patch.object(target, attribute, wraps=wraps)
-        created_mock = mock_patch_object.start()
-        # TODO(rlima): update the mock usage not to use the name parameter
-        self.__dict__[name] = created_mock
         self.addCleanup(mock_patch_object.stop)
 
-        return created_mock
+        return mock_patch_object.start()
 
     def _assert_pecan(self, http_status, content=None, call_count=1):
         """Assert pecan was called with the correct arguments"""

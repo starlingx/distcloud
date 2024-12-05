@@ -178,7 +178,7 @@ class TestPeerGroupAudit(DCManagerTestCase):
         mock_patch = mock.patch.object(SystemPeerManager, "update_sync_status")
         self.addCleanup(mock_patch.stop)
         self.mock_update_sync_status = mock_patch.start()
-        self._mock_object(utils, "get_local_system", "get_local_system")
+        self.mock_get_local_system = self._mock_object(utils, "get_local_system")
 
     def run_audit(self, remote_peer_group=None):
         remote_peer_group = remote_peer_group or self.remote_peer_group
