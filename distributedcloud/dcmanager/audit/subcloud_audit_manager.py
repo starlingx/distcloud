@@ -73,7 +73,7 @@ VALID_DEPLOY_STATE = [
     consts.DEPLOY_STATE_RESTORE_FAILED,
     consts.DEPLOY_STATE_REHOME_PENDING,
     consts.DEPLOY_STATE_SW_DEPLOY_IN_PROGRESS,
-    consts.DEPLOY_STATE_APPLY_STRATEGY_FAILED,
+    consts.DEPLOY_STATE_SW_DEPLOY_APPLY_STRATEGY_FAILED,
 ]
 
 
@@ -504,6 +504,7 @@ class SubcloudAuditManager(manager.Manager):
                 in [
                     consts.DEPLOY_STATE_INSTALLING,
                     consts.DEPLOY_STATE_REHOME_PENDING,
+                    consts.DEPLOY_STATE_SW_DEPLOY_IN_PROGRESS,
                 ]
                 and availability_status == dccommon_consts.AVAILABILITY_OFFLINE
             ):

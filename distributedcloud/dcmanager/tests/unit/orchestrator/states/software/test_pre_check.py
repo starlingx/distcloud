@@ -20,6 +20,11 @@ FAKE_EXISTING_CURRENT_STRATEGY = {"sw-patch": "applying"}
 
 FAKE_REGION_ONE_RELEASE_PRESTAGED = [
     {
+        "release_id": "starlingx-9.0.0",
+        "state": "deployed",
+        "sw_version": "9.0.0",
+    },
+    {
         "release_id": "starlingx-9.0.1",
         "state": "deployed",
         "sw_version": "9.0.1",
@@ -39,6 +44,42 @@ FAKE_SUBCLOUD_RELEASES = [
     },
 ]
 
+FAKE_SUBCLOUD_RELEASES_DEPLOYED = [
+    {
+        "release_id": "starlingx-9.0.0",
+        "state": "deployed",
+        "sw_version": "9.0.0",
+    },
+    {
+        "release_id": "starlingx-9.0.1",
+        "state": "deployed",
+        "sw_version": "9.0.1",
+    },
+]
+
+FAKE_SUBCLOUD_RELEASES_AVAILABLE = [
+    {
+        "release_id": "starlingx-9.0.0",
+        "state": "deployed",
+        "sw_version": "9.0.0",
+    },
+    {
+        "release_id": "starlingx-9.0.1",
+        "state": "deployed",
+        "sw_version": "9.0.1",
+    },
+    {
+        "release_id": "starlingx-9.0.2",
+        "state": "available",
+        "sw_version": "9.0.2",
+    },
+    {
+        "release_id": "starlingx-8.0-patch01",
+        "state": "unavailable",
+        "sw_version": "8.0",
+    },
+]
+
 
 class TestPreCheckState(TestSoftwareOrchestrator):
     def setUp(self):
@@ -46,6 +87,8 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.on_success_state = consts.STRATEGY_STATE_SW_INSTALL_LICENSE
         self.on_success_state_patch = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
+        self.on_success_state_deployed = consts.STRATEGY_STATE_COMPLETE
+        self.on_success_state_available = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
 
         # Add the subcloud being processed by this unit test
         self.subcloud = self.setup_subcloud()
@@ -78,6 +121,36 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         # On success, the state should transition to the next state
         self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
+
+    def test_pre_check_success_already_deployed(self):
+        """Test pre-check when the API call succeeds."""
+
+        self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_DEPLOYED
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_not_called()
+        self.software_client.list.assert_called()
+
+        # On success, the state should transition to the next state
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, self.on_success_state_deployed
+        )
+
+    def test_pre_check_success_already_deployed_and_available(self):
+        """Test pre-check when the API call succeeds."""
+
+        self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_AVAILABLE
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_not_called()
+        self.software_client.list.assert_called()
+
+        # On success, the state should transition to the next state
+        self.assert_step_updated(
+            self.strategy_step.subcloud_id, self.on_success_state_available
+        )
 
     def test_pre_check_success_patch_release(self):
         """Test pre-check when the API call succeeds."""
