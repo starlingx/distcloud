@@ -770,16 +770,15 @@ class SyncThread(object):
                 LOG.exception("Unexpected error!")
 
         if not total_num_of_audit_jobs:
-            # todo: if we had an "unable to sync this
-            # subcloud/endpoint" alarm raised, then clear it
-            pass
+            self.set_sync_status(dccommon_consts.SYNC_STATUS_IN_SYNC)
 
-        db_api.subcloud_sync_update(
-            self.ctxt,
-            self.subcloud_name,
-            self.endpoint_type,
-            values={"sync_request": consts.SYNC_STATUS_REQUESTED},
-        )
+        else:
+            db_api.subcloud_sync_update(
+                self.ctxt,
+                self.subcloud_name,
+                self.endpoint_type,
+                values={"sync_request": consts.SYNC_STATUS_REQUESTED},
+            )
 
         LOG.debug(
             "{}: done sync audit".format(threading.currentThread().getName()),
