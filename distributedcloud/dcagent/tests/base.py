@@ -14,30 +14,10 @@ class DCAgentTestCase(base.BaseTestCase):
     def setUp(self):
         super().setUp()
 
-    def _mock_sysinv_client(self, target):
-        """Mock the target's SysinvClient"""
+    def _mock_object(self, target, attribute, wraps=None):
+        """Mock a specified target's attribute and return the mock object"""
 
-        mock_patch_object = mock.patch.object(target, "CachedSysinvClient")
-        self.mock_sysinv_client = mock_patch_object.start()
+        mock_patch_object = mock.patch.object(target, attribute, wraps=wraps)
         self.addCleanup(mock_patch_object.stop)
 
-    def _mock_fm_client(self, target):
-        """Mock the target's FmClient"""
-
-        mock_patch_object = mock.patch.object(target, "CachedFmClient")
-        self.mock_fm_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_software_client(self, target):
-        """Mock the target's SoftwareClient"""
-
-        mock_patch_object = mock.patch.object(target, "CachedSoftwareClient")
-        self.mock_software_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_keystone_cache(self, target):
-        """Mock the target's KeystoneClient"""
-
-        mock_patch_object = mock.patch.object(target, "KeystoneCache")
-        self.mock_keystone_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
+        return mock_patch_object.start()
