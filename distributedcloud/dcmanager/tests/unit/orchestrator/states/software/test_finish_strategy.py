@@ -85,6 +85,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, consts.STRATEGY_STATE_SW_FINISH_STRATEGY
         )
+        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
         # Add mock API endpoints for software client calls
         # invoked by this state
@@ -94,8 +95,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
     def test_finish_strategy_success(self):
         """Test software finish strategy when the API call succeeds."""
-
-        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
@@ -113,8 +112,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
     def test_finish_strategy_no_operation_required(self):
         """Test software finish strategy when no operation is required."""
 
-        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
-
         self.software_client.list.side_effect = [REGION_ONE_RELEASES]
 
         # invoke the strategy state operation on the orch thread
@@ -130,8 +127,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
     def test_finish_strategy_fails_when_query_exception(self):
         """Test finish strategy fails when software client query raises exception"""
 
-        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
-
         self.software_client.list.side_effect = Exception()
 
         self.worker.perform_state_action(self.strategy_step)
@@ -142,8 +137,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
     def test_finish_strategy_fails_when_delete_exception(self):
         """Test finish strategy fails when software client delete raises exception"""
-
-        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
         self.software_client.delete.side_effect = Exception()
@@ -157,7 +150,6 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
     @mock.patch.object(BaseState, "stopped")
     def test_finish_strategy_fails_when_stopped(self, mock_base_stopped):
         """Test finish strategy fails when stopped"""
-        self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 

@@ -32,7 +32,6 @@ from dcmanager.tests.unit.orchestrator.states.fakes import FakePatchingClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSoftwareClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSysinvClient
 from dcmanager.tests.unit.orchestrator.test_sw_update_manager import FakeOrchThread
-from dcmanager.tests import utils
 
 CONF = cfg.CONF
 
@@ -42,149 +41,101 @@ class TestSwUpdate(base.DCManagerTestCase):
     DEFAULT_STRATEGY_TYPE = consts.SW_UPDATE_TYPE_SOFTWARE
 
     def setUp(self):
-        super(TestSwUpdate, self).setUp()
+        super().setUp()
 
         # construct an upgrade orch thread
         self.worker = self.setup_orch_worker(self.DEFAULT_STRATEGY_TYPE)
 
         # Mock the context
-        self.ctxt = utils.dummy_context()
-        p = mock.patch.object(context, "get_admin_context")
-        self.mock_get_admin_context = p.start()
-        self.mock_get_admin_context.return_value = self.ctx
-        self.addCleanup(p.stop)
+        mock_get_admin_context = self._mock_object(context, "get_admin_context")
+        mock_get_admin_context.return_value = self.ctx
 
-        # Mock the keystone client defined in the base state class
+        # Mock the clients defined in the base state class
         self.keystone_client = FakeKeystoneClient()
-        p = mock.patch.object(BaseState, "get_keystone_client")
-        self.mock_keystone_client = p.start()
-        self.mock_keystone_client.return_value = self.keystone_client
-        self.addCleanup(p.stop)
-
-        # Mock the sysinv client defined in the base state class
         self.sysinv_client = FakeSysinvClient()
-        p = mock.patch.object(BaseState, "get_sysinv_client")
-        self.mock_sysinv_client = p.start()
-        self.mock_sysinv_client.return_value = self.sysinv_client
-        self.addCleanup(p.stop)
-
-        # Mock the software client defined in the base state class
         self.software_client = FakeSoftwareClient()
-        p = mock.patch.object(BaseState, "get_software_client")
-        self.mock_software_client = p.start()
-        self.mock_software_client.return_value = self.software_client
-        self.addCleanup(p.stop)
-
-        # Mock the patching client defined in the base state class
         self.patching_client = FakePatchingClient()
-        p = mock.patch.object(BaseState, "get_patching_client")
-        self.mock_patching_client = p.start()
-        self.mock_patching_client.return_value = self.patching_client
-        self.addCleanup(p.stop)
-
-        # Mock the vim client defined in the base state class
         self.vim_client = FakeVimClient()
-        p = mock.patch.object(BaseState, "get_vim_client")
-        self.mock_vim_client = p.start()
-        self.mock_vim_client.return_value = self.vim_client
-        self.addCleanup(p.stop)
-
-        # Mock the fm client defined in the base state class
         self.fm_client = FakeFmClient()
-        p = mock.patch.object(BaseState, "get_fm_client")
-        self.mock_fm_client = p.start()
-        self.mock_fm_client.return_value = self.fm_client
-        self.addCleanup(p.stop)
+
+        clients = {
+            "get_keystone_client": self.keystone_client,
+            "get_sysinv_client": self.sysinv_client,
+            "get_software_client": self.software_client,
+            "get_patching_client": self.patching_client,
+            "get_vim_client": self.vim_client,
+            "get_fm_client": self.fm_client,
+        }
+
+        for key, value in clients.items():
+            mock_get_keystone_client = self._mock_object(BaseState, key)
+            mock_get_keystone_client.return_value = value
 
     def setup_orch_worker(self, strategy_type):
         worker = None
-        mock_strategy_lock = mock.Mock()
-        mock_dcmanager_audit_api = mock.Mock()
 
         # There are many orch threads. Only one needs to be setup based on type
         if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
             sw_update_manager.SoftwareOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.SoftwareOrchThread(
-                mock_strategy_lock, mock_dcmanager_audit_api
-            )
+            worker = sw_update_manager.SoftwareOrchThread(mock.Mock(), mock.Mock())
         else:
             # mock the software orch thread
-            self.fake_software_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, "SoftwareOrchThread")
-            self.mock_software_orch_thread = p.start()
-            self.mock_software_orch_thread.return_value = self.fake_software_orch_thread
-            self.addCleanup(p.stop)
+            mock_software_orch_thread = self._mock_object(
+                sw_update_manager, "SoftwareOrchThread"
+            )
+            mock_software_orch_thread.return_value = FakeOrchThread()
 
         if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
             sw_update_manager.PatchOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.PatchOrchThread(
-                mock_strategy_lock, mock_dcmanager_audit_api
-            )
+            worker = sw_update_manager.PatchOrchThread(mock.Mock(), mock.Mock())
         else:
             # mock the patch orch thread
-            self.fake_sw_patch_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, "PatchOrchThread")
-            self.mock_sw_patch_orch_thread = p.start()
-            self.mock_sw_patch_orch_thread.return_value = self.fake_sw_patch_orch_thread
-            self.addCleanup(p.stop)
+            mock_sw_patch_orch_thread = self._mock_object(
+                sw_update_manager, "PatchOrchThread"
+            )
+            mock_sw_patch_orch_thread.return_value = FakeOrchThread()
 
         if strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
             sw_update_manager.FwUpdateOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.FwUpdateOrchThread(
-                mock_strategy_lock, mock_dcmanager_audit_api
-            )
+            worker = sw_update_manager.FwUpdateOrchThread(mock.Mock(), mock.Mock())
         else:
             # mock the firmware orch thread
-            self.fake_fw_update_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, "FwUpdateOrchThread")
-            self.mock_fw_update_orch_thread = p.start()
-            self.mock_fw_update_orch_thread.return_value = (
-                self.fake_fw_update_orch_thread
+            mock_fw_update_orch_thread = self._mock_object(
+                sw_update_manager, "FwUpdateOrchThread"
             )
-            self.addCleanup(p.stop)
+            mock_fw_update_orch_thread.return_value = FakeOrchThread()
 
         if strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
             sw_update_manager.KubeUpgradeOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.KubeUpgradeOrchThread(
-                mock_strategy_lock, mock_dcmanager_audit_api
-            )
+            worker = sw_update_manager.KubeUpgradeOrchThread(mock.Mock(), mock.Mock())
         else:
             # mock the kube upgrade orch thread
-            self.fake_kube_upgrade_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, "KubeUpgradeOrchThread")
-            self.mock_kube_upgrade_orch_thread = p.start()
-            self.mock_kube_upgrade_orch_thread.return_value = (
-                self.fake_kube_upgrade_orch_thread
+            mock_kube_upgrade_orch_thread = self._mock_object(
+                sw_update_manager, "KubeUpgradeOrchThread"
             )
-            self.addCleanup(p.stop)
+            mock_kube_upgrade_orch_thread.return_value = FakeOrchThread()
 
         if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
             sw_update_manager.KubeRootcaUpdateOrchThread.stopped = lambda x: False
             worker = sw_update_manager.KubeRootcaUpdateOrchThread(
-                mock_strategy_lock, mock_dcmanager_audit_api
+                mock.Mock(), mock.Mock()
             )
         else:
             # mock the kube rootca update orch thread
-            self.fake_kube_rootca_update_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, "KubeRootcaUpdateOrchThread")
-            self.mock_kube_rootca_update_orch_thread = p.start()
-            self.mock_kube_rootca_update_orch_thread.return_value = (
-                self.fake_kube_rootca_update_orch_thread
+            mock_kube_rootca_update_orch_thread = self._mock_object(
+                sw_update_manager, "KubeRootcaUpdateOrchThread"
             )
-            self.addCleanup(p.stop)
+            mock_kube_rootca_update_orch_thread.return_value = FakeOrchThread()
 
         if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
             sw_update_manager.PrestageOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.PrestageOrchThread(
-                mock_strategy_lock, mock_dcmanager_audit_api
-            )
+            worker = sw_update_manager.PrestageOrchThread(mock.Mock(), mock.Mock())
         else:
             # mock the prestage orch thread
-            self.fake_prestage_orch_thread = FakeOrchThread()
-            p = mock.patch.object(sw_update_manager, "PrestageOrchThread")
-            self.mock_prestage_orch_thread = p.start()
-            self.mock_prestage_orch_thread.return_value = self.fake_prestage_orch_thread
-            self.addCleanup(p.stop)
+            mock_prestage_orch_thread = self._mock_object(
+                sw_update_manager, "PrestageOrchThread"
+            )
+            mock_prestage_orch_thread.return_value = FakeOrchThread()
 
         return worker
 

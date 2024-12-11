@@ -51,7 +51,9 @@ class TestPeerMonitor(base.DCManagerTestCase):
             subcloud_manager, "SubcloudManager"
         )
         self.mock_log = self._mock_object(peer_monitor_manager, "LOG")
-        self._mock_peer_monitor_manager_get_peer_dc_client()
+        self.mock_get_peer_dc_client = self._mock_object(
+            peer_monitor_manager.SystemPeerManager, "get_peer_dc_client"
+        )
 
         self.peer = self.create_system_peer_static(self.ctx)
         self.system_peer_manager = test_system_peer_manager.TestSystemPeerManager
@@ -73,15 +75,6 @@ class TestPeerMonitor(base.DCManagerTestCase):
         self.peer_monitor_manager = peer_monitor_manager.PeerMonitorManager(
             self.mock_subcloud_manager
         )
-
-    def _mock_peer_monitor_manager_get_peer_dc_client(self):
-        """Mock peer_monitor_manager's get_peer_dc_client"""
-
-        mock_patch = mock.patch.object(
-            peer_monitor_manager.SystemPeerManager, "get_peer_dc_client"
-        )
-        self.mock_get_peer_dc_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
 
     @staticmethod
     def create_system_peer_static(ctxt, **kwargs):
@@ -123,11 +116,9 @@ class TestPeerMonitor(base.DCManagerTestCase):
         )
 
         # Mock update_sync_status
-        mock_patch = mock.patch.object(
+        mock_update_sync_status = self._mock_object(
             peer_monitor_manager.SystemPeerManager, "update_sync_status"
         )
-        mock_update_sync_status = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
 
         self.peer_monitor._update_sync_status_secondary_site_becomes_reachable()
 
@@ -140,11 +131,9 @@ class TestPeerMonitor(base.DCManagerTestCase):
 
     def test_update_sync_status_and_association_is_in_sync(self):
         # Mock update_sync_status
-        mock_patch = mock.patch.object(
+        mock_update_sync_status = self._mock_object(
             peer_monitor_manager.SystemPeerManager, "update_sync_status"
         )
-        mock_update_sync_status = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
 
         self.peer_monitor._update_sync_status_secondary_site_becomes_reachable()
 

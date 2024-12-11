@@ -4,12 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import mock
-
 from dcmanager.common import consts
+from dcmanager.orchestrator.states.software.cache import clients
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
-
-CACHE_CLIENT_PATH = "dcmanager.orchestrator.states.software.cache.clients"
 
 
 class TestSoftwareOrchestrator(TestSwUpdate):
@@ -21,17 +18,8 @@ class TestSoftwareOrchestrator(TestSwUpdate):
         super().setUp()
 
         # Modify cache helpers to return client mocks
-        self.software_cache_client_mock = mock.patch(
-            f"{CACHE_CLIENT_PATH}.get_software_client",
-            return_value=self.software_client,
-        )
-        self.sysinv_cache_client_mock = mock.patch(
-            f"{CACHE_CLIENT_PATH}.get_sysinv_client", return_value=self.sysinv_client
-        )
-        self.software_cache_client_mock.start()
-        self.sysinv_cache_client_mock.start()
+        mock_get_software_client = self._mock_object(clients, "get_software_client")
+        mock_get_software_client.return_value = self.software_client
 
-    def tearDown(self):
-        self.software_cache_client_mock.stop()
-        self.sysinv_cache_client_mock.stop()
-        super().tearDown()
+        mock_get_sysinv_client = self._mock_object(clients, "get_sysinv_client")
+        mock_get_sysinv_client.return_value = self.sysinv_client

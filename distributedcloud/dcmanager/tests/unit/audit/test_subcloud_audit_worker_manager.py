@@ -22,12 +22,15 @@ from keystoneauth1 import exceptions as keystone_exceptions
 import mock
 
 from dccommon import consts as dccommon_consts
+from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.common import consts
 from dcmanager.common import scheduler
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests import base
+from dcorch.rpc import client as dcorch_rpc_client
 
 sys.modules["fm_core"] = mock.Mock()
 
@@ -272,126 +275,85 @@ FAKE_APPLICATIONS = [
 
 class TestAuditWorkerManager(base.DCManagerTestCase):
     def setUp(self):
-        super(TestAuditWorkerManager, self).setUp()
+        super().setUp()
 
         # Mock the DCManager API
-        self.fake_dcmanager_api = FakeDCManagerAPI()
-        p = mock.patch("dcmanager.rpc.client.ManagerClient")
-        self.mock_dcmanager_api = p.start()
-        self.mock_dcmanager_api.return_value = self.fake_dcmanager_api
-        self.addCleanup(p.stop)
+        self.mock_dcmanager_api = self._mock_object(rpc_client, "ManagerClient")
+        self.mock_dcmanager_api().return_value = FakeDCManagerAPI()
 
         # Mock the DCManager subcloud state API
-        p = mock.patch("dcmanager.rpc.client.SubcloudStateClient")
-        self.mock_dcmanager_state_api = p.start()
-        self.addCleanup(p.stop)
+        self.mock_dcmanager_state_api = self._mock_object(
+            rpc_client, "SubcloudStateClient"
+        )
 
         # Mock the Audit Worker API
-        self.fake_audit_worker_api = FakeAuditWorkerAPI()
-        p = mock.patch("dcmanager.audit.rpcapi.ManagerAuditWorkerClient")
-        self.mock_audit_worker_api = p.start()
-        self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
-        self.addCleanup(p.stop)
+        self.mock_audit_worker_api = self._mock_object(
+            rpcapi, "ManagerAuditWorkerClient"
+        )
+        self.mock_audit_worker_api.return_value = FakeAuditWorkerAPI()
 
         # Mock the DCOrch Worker API
-        self.fake_dcorch_worker_api = FakeDCOrchWorkerAPI()
-        p = mock.patch("dcorch.rpc.client.EngineWorkerClient")
-        self.mock_dcorch_worker_api = p.start()
-        self.mock_dcorch_worker_api.return_value = self.fake_dcorch_worker_api
-        self.addCleanup(p.stop)
+        self.mock_dcorch_worker_api = self._mock_object(
+            dcorch_rpc_client, "EngineWorkerClient"
+        )
+        self.mock_dcorch_worker_api.return_value = FakeDCOrchWorkerAPI()
 
         # Mock the context
-        p = mock.patch.object(subcloud_audit_worker_manager, "context")
-        self.mock_context = p.start()
-        self.mock_context.get_admin_context.return_value = self.ctx
-        self.addCleanup(p.stop)
+        self.mock_audit_worker_manager_context = self._mock_object(
+            subcloud_audit_worker_manager, "context"
+        )
+        self.mock_audit_worker_manager_context.get_admin_context.return_value = self.ctx
 
         # Mock the context
-        p = mock.patch.object(subcloud_audit_manager, "context")
-        self.mock_context2 = p.start()
-        self.mock_context2.get_admin_context.return_value = self.ctx
-        self.addCleanup(p.stop)
+        self.mock_subcloud_audit_manager_context = self._mock_object(
+            subcloud_audit_manager, "context"
+        )
+        self.mock_subcloud_audit_manager_context.get_admin_context.return_value = (
+            self.ctx
+        )
 
         # Mock alarm aggregation
-        self.fake_alarm_aggr = FakeAlarmAggregation()
-        p = mock.patch.object(subcloud_audit_worker_manager, "alarm_aggregation")
-        self.mock_alarm_aggr = p.start()
-        self.mock_alarm_aggr.AlarmAggregation.return_value = self.fake_alarm_aggr
-        self.addCleanup(p.stop)
+        self.mock_alarm_aggr = self._mock_object(
+            subcloud_audit_worker_manager.alarm_aggregation, "AlarmAggregation"
+        )
+        self.mock_alarm_aggr().return_value = FakeAlarmAggregation()
 
-        # Mock patch audit
+        # Mock all audits
         self.fake_patch_audit = FakePatchAudit()
-        p = mock.patch.object(subcloud_audit_worker_manager, "patch_audit")
-        self.mock_patch_audit = p.start()
-        self.mock_patch_audit.PatchAudit.return_value = self.fake_patch_audit
-        self.addCleanup(p.stop)
-
-        # Mock patch audit
-        self.fake_patch_audit2 = FakePatchAudit()
-        p = mock.patch.object(subcloud_audit_manager, "patch_audit")
-        self.mock_patch_audit2 = p.start()
-        self.mock_patch_audit2.PatchAudit.return_value = self.fake_patch_audit2
-        self.addCleanup(p.stop)
-
-        # Mock firmware audit
         self.fake_firmware_audit = FakeFirmwareAudit()
-        p = mock.patch.object(subcloud_audit_worker_manager, "firmware_audit")
-        self.mock_firmware_audit = p.start()
-        self.mock_firmware_audit.FirmwareAudit.return_value = self.fake_firmware_audit
-        self.addCleanup(p.stop)
-
-        self.fake_firmware_audit2 = FakeFirmwareAudit()
-        p = mock.patch.object(subcloud_audit_manager, "firmware_audit")
-        self.mock_firmware_audit2 = p.start()
-        self.mock_firmware_audit2.FirmwareAudit.return_value = self.fake_firmware_audit2
-        self.addCleanup(p.stop)
-
-        # Mock kubernetes audit in Audit Worker and Audit Manager
         self.fake_kubernetes_audit = FakeKubernetesAudit()
-        p = mock.patch.object(subcloud_audit_worker_manager, "kubernetes_audit")
-        self.mock_kubernetes_audit = p.start()
-        self.mock_kubernetes_audit.KubernetesAudit.return_value = (
-            self.fake_kubernetes_audit
-        )
-        self.addCleanup(p.stop)
-
-        self.fake_kubernetes_audit2 = FakeKubernetesAudit()
-        p = mock.patch.object(subcloud_audit_manager, "kubernetes_audit")
-        self.mock_kubernetes_audit2 = p.start()
-        self.mock_kubernetes_audit2.KubernetesAudit.return_value = (
-            self.fake_kubernetes_audit2
-        )
-        self.addCleanup(p.stop)
-
-        # Mock kube rootca update audit in Audit Worker and Audit Manager
         self.fake_kube_rootca_update_audit = FakeKubeRootcaUpdateAudit()
-        p = mock.patch.object(subcloud_audit_worker_manager, "kube_rootca_update_audit")
-        self.mock_kube_rootca_update_audit = p.start()
-        self.mock_kube_rootca_update_audit.KubeRootcaUpdateAudit.return_value = (
-            self.fake_kube_rootca_update_audit
-        )
-        self.addCleanup(p.stop)
-
-        self.fake_kube_rootca_update_audit2 = FakeKubeRootcaUpdateAudit()
-        p = mock.patch.object(subcloud_audit_manager, "kube_rootca_update_audit")
-        self.mock_kube_rootca_update_audit2 = p.start()
-        self.mock_kube_rootca_update_audit2.KubeRootcaUpdateAudit.return_value = (
-            self.fake_kube_rootca_update_audit2
-        )
-        self.addCleanup(p.stop)
-
-        # Mock software audit in Audit Worker and Audit Manager
         self.fake_software_audit = FakeSoftwareAudit()
-        p = mock.patch.object(subcloud_audit_worker_manager, "software_audit")
-        self.mock_software_audit = p.start()
-        self.mock_software_audit.SoftwareAudit.return_value = self.fake_software_audit
-        self.addCleanup(p.stop)
 
-        self.fake_software_audit2 = FakeSoftwareAudit()
-        p = mock.patch.object(subcloud_audit_manager, "software_audit")
-        self.mock_software_audit2 = p.start()
-        self.mock_software_audit2.SoftwareAudit.return_value = self.fake_software_audit2
-        self.addCleanup(p.stop)
+        audits = {
+            "patch_audit": {
+                "value": self.fake_patch_audit,
+                "class": "PatchAudit",
+            },
+            "firmware_audit": {
+                "value": self.fake_firmware_audit,
+                "class": "FirmwareAudit",
+            },
+            "kubernetes_audit": {
+                "value": self.fake_kubernetes_audit,
+                "class": "KubernetesAudit",
+            },
+            "kube_rootca_update_audit": {
+                "value": self.fake_kube_rootca_update_audit,
+                "class": "KubeRootcaUpdateAudit",
+            },
+            "software_audit": {
+                "value": self.fake_software_audit,
+                "class": "SoftwareAudit",
+            },
+        }
+
+        for key, value in audits.items():
+            self.temporary_mock = self._mock_object(subcloud_audit_worker_manager, key)
+            getattr(self.temporary_mock, value["class"]).return_value = value["value"]
+
+            self.temporary_mock = self._mock_object(subcloud_audit_manager, key)
+            getattr(self.temporary_mock, value["class"]).return_value = value["value"]
 
         self.mock_openstack_driver = self._mock_object(
             subcloud_audit_worker_manager, "OpenStackDriver"
@@ -565,14 +527,14 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were not updated
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_not_called()
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_not_called()
 
         # Verify alarm update is called
-        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+        self.mock_alarm_aggr().get_alarm_summary.assert_called_with(
             self.mock_fm_client(), subcloud.name
         )
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
-            subcloud.name, self.fake_alarm_aggr.get_alarm_summary.return_value
+        self.mock_alarm_aggr().update_alarm_summary.assert_called_with(
+            subcloud.name, self.mock_alarm_aggr().get_alarm_summary.return_value
         )
 
         # Verify patch audit is called
@@ -679,11 +641,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were not added
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_not_called()
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_not_called()
 
         # Verify alarm update is not called
-        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
-        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().get_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -769,11 +731,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were not added
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_not_called()
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_not_called()
 
         # Verify alarm update is not called
-        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
-        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().get_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -834,11 +796,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were not added
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_not_called()
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_not_called()
 
         # Verify alarm update is not called
-        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
-        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().get_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -896,11 +858,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were not updated
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_not_called()
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_not_called()
 
         # Verify alarm update is not called
-        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
-        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().get_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -981,11 +943,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
 
         # Verify alarm update is called once
-        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+        self.mock_alarm_aggr().get_alarm_summary.assert_called_with(
             self.mock_fm_client(), subcloud.name
         )
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
-            subcloud.name, self.fake_alarm_aggr.get_alarm_summary.return_value
+        self.mock_alarm_aggr().update_alarm_summary.assert_called_with(
+            subcloud.name, self.mock_alarm_aggr().get_alarm_summary.return_value
         )
 
         # Verify patch audit is called once
@@ -1069,8 +1031,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
 
         # Verify alarm update is called only once
-        self.fake_alarm_aggr.get_alarm_summary.assert_called_once()
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_once()
+        self.mock_alarm_aggr().get_alarm_summary.assert_called_once()
+        self.mock_alarm_aggr().update_alarm_summary.assert_called_once()
 
         # Verify patch audit is called only once
         self.fake_patch_audit.subcloud_patch_audit.assert_called_once()
@@ -1154,11 +1116,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were not updated
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_not_called()
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_not_called()
 
         # Verify alarm update is not called
-        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
-        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().get_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -1354,11 +1316,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.update_subcloud_availability_and_endpoint_status.assert_not_called()
 
         # Verify the openstack endpoints were not updated
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_not_called()
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_not_called()
 
         # Verify alarm update is not called
-        self.fake_alarm_aggr.get_alarm_summary.assert_not_called()
-        self.fake_alarm_aggr.update_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().get_alarm_summary.assert_not_called()
+        self.mock_alarm_aggr().update_alarm_summary.assert_not_called()
 
         # Verify patch audit is not called
         self.fake_patch_audit.subcloud_patch_audit.assert_not_called()
@@ -1441,17 +1403,17 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were added
-        # self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.\
+        # self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.\
         #    assert_called_with(mock.ANY, 'subcloud1',
         #                       dccommon_consts.ENDPOINT_TYPES_LIST_OS,
         #                       True)
 
         # Verify alarm update is called
-        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+        self.mock_alarm_aggr().get_alarm_summary.assert_called_with(
             self.mock_fm_client(), "subcloud1"
         )
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
-            "subcloud1", self.fake_alarm_aggr.get_alarm_summary.return_value
+        self.mock_alarm_aggr().update_alarm_summary.assert_called_with(
+            "subcloud1", self.mock_alarm_aggr().get_alarm_summary.return_value
         )
 
         # Verify patch audit is not called
@@ -1519,7 +1481,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were removed
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_called_with(
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_called_with(
             mock.ANY,
             subcloud.region_name,
             dccommon_consts.ENDPOINT_TYPES_LIST_OS,
@@ -1527,11 +1489,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
 
         # Verify alarm update is called
-        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+        self.mock_alarm_aggr().get_alarm_summary.assert_called_with(
             self.mock_fm_client(), subcloud.name
         )
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
-            subcloud.name, self.fake_alarm_aggr.get_alarm_summary.return_value
+        self.mock_alarm_aggr().update_alarm_summary.assert_called_with(
+            subcloud.name, self.mock_alarm_aggr().get_alarm_summary.return_value
         )
 
         # Verify patch audit is not called
@@ -1599,7 +1561,7 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             mock_update_subcloud_audit_fail_count.assert_not_called()
 
         # Verify the openstack endpoints were removed
-        self.fake_dcmanager_api.update_subcloud_sync_endpoint_type.assert_called_with(
+        self.mock_dcmanager_api().update_subcloud_sync_endpoint_type.assert_called_with(
             mock.ANY,
             subcloud.region_name,
             dccommon_consts.ENDPOINT_TYPES_LIST_OS,
@@ -1607,11 +1569,11 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         )
 
         # Verify alarm update is called
-        self.fake_alarm_aggr.get_alarm_summary.assert_called_with(
+        self.mock_alarm_aggr().get_alarm_summary.assert_called_with(
             self.mock_fm_client(), "subcloud1"
         )
-        self.fake_alarm_aggr.update_alarm_summary.assert_called_with(
-            "subcloud1", self.fake_alarm_aggr.get_alarm_summary.return_value
+        self.mock_alarm_aggr().update_alarm_summary.assert_called_with(
+            "subcloud1", self.mock_alarm_aggr().get_alarm_summary.return_value
         )
 
         # Verify patch audit is not called

@@ -42,37 +42,6 @@ class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
         self._mock_object(psd_common, "get_ks_client")
         self._mock_object(psd_common.PatchingClient, "query")
 
-    def _mock_populate_payload(self):
-        mock_patch_object = mock.patch.object(
-            psd_common, "populate_payload_with_pre_existing_data"
-        )
-        self.mock_populate_payload = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_request_data(self):
-        mock_patch_object = mock.patch.object(psd_common, "get_request_data")
-        self.mock_get_request_data = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_subcloud_db_install_values(self):
-        mock_patch_object = mock.patch.object(
-            psd_common, "get_subcloud_db_install_values"
-        )
-        self.mock_get_subcloud_db_install_values = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_is_initial_deployment(self):
-        mock_patch_object = mock.patch.object(psd_common, "is_initial_deployment")
-        self.mock_is_initial_deployment = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_is_valid_software_deploy_state(self):
-        mock_patch_object = mock.patch.object(
-            SubcloudsController, "is_valid_software_deploy_state"
-        )
-        self.mock_is_valid_software_deploy_state = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
 
 class TestPhasedSubcloudDeployController(BaseTestPhasedSubcloudDeployController):
     """Test class for PhasedSubcloudDeployController"""
@@ -216,8 +185,10 @@ class BaseTestPhasedSubcloudDeployPatch(BaseTestPhasedSubcloudDeployController):
         self.mock_get_vault_load_files = self._mock_object(
             dutils, "get_vault_load_files"
         )
-        self._mock_is_initial_deployment()
-        self._mock_is_valid_software_deploy_state()
+        self.mock_is_initial_deployment = self._mock_object(
+            psd_common, "is_initial_deployment"
+        )
+        self._mock_object(SubcloudsController, "is_valid_software_deploy_state")
         self.mock_get_network_address_pools = self._mock_object(
             psd_common, "get_network_address_pools"
         )
@@ -471,8 +442,8 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
             data_install=json.dumps(self.data_install),
         )
 
-        self._mock_populate_payload()
-        self._mock_get_request_data()
+        self._mock_object(psd_common, "populate_payload_with_pre_existing_data")
+        self.mock_get_request_data = self._mock_object(psd_common, "get_request_data")
 
         self.mock_get_request_data.return_value = self.params
 
@@ -643,9 +614,11 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
             deploy_status=consts.DEPLOY_STATE_CREATED, software_version=SW_VERSION
         )
 
-        self._mock_get_subcloud_db_install_values()
+        self.mock_get_subcloud_db_install_values = self._mock_object(
+            psd_common, "get_subcloud_db_install_values"
+        )
         self._mock_object(psd_common, "validate_k8s_version")
-        self._mock_get_request_data()
+        self.mock_get_request_data = self._mock_object(psd_common, "get_request_data")
 
         self.mock_get_subcloud_db_install_values.return_value = self.data_install
         self.mock_get_request_data.return_value = self.install_payload
@@ -986,9 +959,11 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             data_install=json.dumps(self.data_install),
         )
 
-        self._mock_get_subcloud_db_install_values()
+        self.mock_get_subcloud_db_install_values = self._mock_object(
+            psd_common, "get_subcloud_db_install_values"
+        )
         self._mock_object(psd_common, "validate_k8s_version")
-        self._mock_get_request_data()
+        self.mock_get_request_data = self._mock_object(psd_common, "get_request_data")
         self._setup_mock_get_request_data()
         self.mock_load_yaml_file = self._mock_object(dutils, "load_yaml_file")
         self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
@@ -1250,7 +1225,9 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
             ("bootstrap_values", "bootstrap_fake_filename", fake_content),
             ("install_values", "install_values_fake_filename", install_fake_content),
         ]
-        self._mock_get_subcloud_db_install_values()
+        self.mock_get_subcloud_db_install_values = self._mock_object(
+            psd_common, "get_subcloud_db_install_values"
+        )
 
     def test_patch_enroll_fails_invalid_deploy_status(self):
         """Test patch enroll fails with invalid deploy status"""

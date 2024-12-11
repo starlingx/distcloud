@@ -51,32 +51,13 @@ class BaseTestSubcloudDeployController(DCManagerApiTest):
         self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
         self.mock_os_remove = self._mock_object(os, "remove")
         self._mock_object(os, "mkdir")
-        self._mock_os_open()
-        self._mock_os_write()
+        self.mock_os_open = self._mock_object(os, "open")
+        self._mock_object(os, "write")
         self.mock_builtins_open = self._mock_object(builtins, "open")
-        self._mock_get_filename_by_prefix()
+        self.mock_get_filename_by_prefix = self._mock_object(
+            dutils, "get_filename_by_prefix"
+        )
         self._setup_get_filename_by_prefix()
-
-    def _mock_os_open(self):
-        """Mock os' open"""
-
-        mock_patch_object = mock.patch.object(os, "open")
-        self.mock_os_open = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_os_write(self):
-        """Mock os' write"""
-
-        mock_patch_object = mock.patch.object(os, "write")
-        self.mock_os_write = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_filename_by_prefix(self):
-        """Mock dutils' get_filename_by_prefix"""
-
-        mock_patch_object = mock.patch.object(dutils, "get_filename_by_prefix")
-        self.mock_get_filename_by_prefix = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
 
     def _setup_get_filename_by_prefix(self):
         self.mock_get_filename_by_prefix.side_effect = (
@@ -311,9 +292,6 @@ class TestSubcloudDeployGet(BaseTestSubcloudDeployController):
         self.url = f"{self.url}/{FAKE_SOFTWARE_VERSION}"
         self.method = self.app.get
 
-        self._mock_get_filename_by_prefix()
-        self._setup_get_filename_by_prefix()
-
         self.mock_builtins_open.side_effect = mock.mock_open(
             read_data=fake_subcloud.FAKE_UPGRADES_METADATA
         )
@@ -376,7 +354,7 @@ class TestSubcloudDeployDelete(BaseTestSubcloudDeployController):
         self.method = self.app.delete
 
         self.mock_log = self._mock_object(subcloud_deploy, "LOG")
-        self._mock_get_sw_version()
+        self.mock_get_sw_version = self._mock_object(dutils, "get_sw_version")
 
         self.sw_version_directory = "/opt/platform/deploy/"
         self.version = FAKE_SOFTWARE_VERSION
@@ -384,11 +362,6 @@ class TestSubcloudDeployDelete(BaseTestSubcloudDeployController):
         self.mock_get_sw_version.return_value = self.version
         self.mock_os_path_isdir.side_effect = self._mock_os_path_isdir_side_effect
         self.mock_os_remove.return_value = None
-
-    def _mock_get_sw_version(self):
-        mock_patch_object = mock.patch.object(dutils, "get_sw_version")
-        self.mock_get_sw_version = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
 
     def _mock_os_path_isdir_side_effect(self, dir_path):
         return dir_path == f"{self.sw_version_directory}{self.version}"

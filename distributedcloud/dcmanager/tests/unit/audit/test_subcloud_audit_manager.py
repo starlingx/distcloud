@@ -19,6 +19,7 @@ import sys
 import mock
 
 from dccommon import consts as dccommon_consts
+from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
@@ -250,49 +251,38 @@ class TestAuditManager(base.DCManagerTestCase):
         super(TestAuditManager, self).setUp()
 
         # Mock the Audit Worker API
-        self.fake_audit_worker_api = FakeAuditWorkerAPI()
-        p = mock.patch("dcmanager.audit.rpcapi.ManagerAuditWorkerClient")
-        self.mock_audit_worker_api = p.start()
-        self.mock_audit_worker_api.return_value = self.fake_audit_worker_api
-        self.addCleanup(p.stop)
+        self.mock_audit_worker_api = self._mock_object(
+            rpcapi, "ManagerAuditWorkerClient"
+        )
+        self.mock_audit_worker_api.return_value = FakeAuditWorkerAPI()
 
         # Mock the context
-        p = mock.patch.object(subcloud_audit_manager, "context")
-        self.mock_context = p.start()
+        self.mock_context = self._mock_object(subcloud_audit_manager, "context")
         self.mock_context.get_admin_context.return_value = self.ctx
-        self.addCleanup(p.stop)
 
         # Mock patch audit
-        self.fake_patch_audit = FakePatchAudit()
-        p = mock.patch.object(subcloud_audit_manager, "patch_audit")
-        self.mock_patch_audit = p.start()
-        self.mock_patch_audit.PatchAudit.return_value = self.fake_patch_audit
-        self.addCleanup(p.stop)
+        self.mock_patch_audit = self._mock_object(subcloud_audit_manager, "patch_audit")
+        self.mock_patch_audit.PatchAudit.return_value = FakePatchAudit()
 
         # Mock firmware audit
-        self.fake_firmware_audit = FakeFirmwareAudit()
-        p = mock.patch.object(subcloud_audit_manager, "firmware_audit")
-        self.mock_firmware_audit = p.start()
-        self.mock_firmware_audit.FirmwareAudit.return_value = self.fake_firmware_audit
-        self.addCleanup(p.stop)
+        self.mock_firmware_audit = self._mock_object(
+            subcloud_audit_manager, "firmware_audit"
+        )
+        self.mock_firmware_audit.FirmwareAudit.return_value = FakeFirmwareAudit()
 
         # Mock kubernetes audit
-        self.fake_kubernetes_audit = FakeKubernetesAudit()
-        p = mock.patch.object(subcloud_audit_manager, "kubernetes_audit")
-        self.mock_kubernetes_audit = p.start()
-        self.mock_kubernetes_audit.KubernetesAudit.return_value = (
-            self.fake_kubernetes_audit
+        self.mock_kubernetes_audit = self._mock_object(
+            subcloud_audit_manager, "kubernetes_audit"
         )
-        self.addCleanup(p.stop)
+        self.mock_kubernetes_audit.KubernetesAudit.return_value = FakeKubernetesAudit()
 
         # Mock kube rootca update audit
-        self.fake_kube_rootca_update_audit = FakeKubeRootcaUpdateAudit()
-        p = mock.patch.object(subcloud_audit_manager, "kube_rootca_update_audit")
-        self.mock_kube_rootca_update_audit = p.start()
-        self.mock_kubernetes_audit.KubeRootcaUpdateAudit.return_value = (
-            self.fake_kube_rootca_update_audit
+        self.mock_kube_rootca_update_audit = self._mock_object(
+            subcloud_audit_manager, "kube_rootca_update_audit"
         )
-        self.addCleanup(p.stop)
+        self.mock_kubernetes_audit.KubeRootcaUpdateAudit.return_value = (
+            FakeKubeRootcaUpdateAudit()
+        )
 
     @staticmethod
     def create_subcloud_static(ctxt, **kwargs):

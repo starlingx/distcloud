@@ -27,7 +27,7 @@ def non_threaded_start(some_function, some_arguments):
 
 class TestFwOrchThread(TestSwUpdate):
     @staticmethod
-    def create_subcloud(ctxt, name, group_id):
+    def create_subcloud(ctx, name, group_id):
         values = {
             "name": name,
             "description": "subcloud1 description",
@@ -46,9 +46,9 @@ class TestFwOrchThread(TestSwUpdate):
             "group_id": group_id,
             "data_install": "data from install",
         }
-        subcloud = db_api.subcloud_create(ctxt, **values)
+        subcloud = db_api.subcloud_create(ctx, **values)
         state = dccommon_consts.MANAGEMENT_MANAGED
-        subcloud = db_api.subcloud_update(ctxt, subcloud.id, management_state=state)
+        subcloud = db_api.subcloud_update(ctx, subcloud.id, management_state=state)
         return subcloud
 
     # Setting DEFAULT_STRATEGY_TYPE to firmware will setup the firmware
@@ -100,9 +100,9 @@ class TestFwOrchThread(TestSwUpdate):
     def test_apply_strategy(self, mock_perform_state_action, mock_start):
         mock_start.side_effect = non_threaded_start
         self.strategy = self.setup_strategy(state=consts.SW_UPDATE_STATE_APPLYING)
-        subcloud2 = self.create_subcloud(self.ctxt, "subcloud2", 1)
-        subcloud3 = self.create_subcloud(self.ctxt, "subcloud3", 1)
-        subcloud4 = self.create_subcloud(self.ctxt, "subcloud4", 1)
+        subcloud2 = self.create_subcloud(self.ctx, "subcloud2", 1)
+        subcloud3 = self.create_subcloud(self.ctx, "subcloud3", 1)
+        subcloud4 = self.create_subcloud(self.ctx, "subcloud4", 1)
 
         self.setup_strategy_step(subcloud2.id, consts.STRATEGY_STATE_INITIAL)
         self.setup_strategy_step(subcloud3.id, consts.STRATEGY_STATE_INITIAL)
