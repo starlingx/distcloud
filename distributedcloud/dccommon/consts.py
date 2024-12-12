@@ -284,6 +284,7 @@ OPTIONAL_INSTALL_VALUES = [
     "persistent_size",
     "hw_settle",
     "extra_boot_params",
+    "wipe_osds",
 ]
 
 GEN_ISO_OPTIONS = {
@@ -300,6 +301,7 @@ GEN_ISO_OPTIONS = {
     "persistent_size": "--param",
     "hw_settle": "--param",
     "extra_boot_params": "--param",
+    "wipe_osds": "--param",
 }
 
 SUPPORTED_INSTALL_TYPES = 6
