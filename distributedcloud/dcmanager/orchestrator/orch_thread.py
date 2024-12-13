@@ -487,21 +487,14 @@ class OrchThread(threading.Thread):
 
         LOG.info("(%s) Aborting update strategy" % self.update_type)
 
-        # Mark any steps that have not yet started as aborted, so we will not run them
-        # later.
-        strategy_steps = db_api.strategy_step_get_all(self.context)
+        # Only strategy steps that did not start processing can be updated to aborted
+        filters = {"state": consts.STRATEGY_STATE_INITIAL}
+        values = {"state": consts.STRATEGY_STATE_ABORTED, "details": ""}
 
-        for strategy_step in strategy_steps:
-            if strategy_step.state == consts.STRATEGY_STATE_INITIAL:
-                LOG.info(
-                    "(%s) Aborting step for subcloud %s"
-                    % (self.update_type, self.get_region_name(strategy_step))
-                )
-                self.strategy_step_update(
-                    strategy_step.subcloud_id,
-                    state=consts.STRATEGY_STATE_ABORTED,
-                    details="",
-                )
+        # Currently, the orchestrator only supports executing a single strategy at
+        # a time and there isn't any database relationship between the steps and the
+        # strategy, so we just update all the steps
+        db_api.strategy_step_update_all(self.context, filters, values)
 
         with self.strategy_lock:
             db_api.sw_update_strategy_update(

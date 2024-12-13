@@ -1846,6 +1846,26 @@ def strategy_step_update(
 
 
 @require_admin_context
+def strategy_step_update_all(context, filters, values):
+    """Updates all strategy steps
+
+    :param context: request context object
+    :param filters: filters to be applied in the query
+    :param values: values to be set for the specified strategies
+    """
+    with write_session() as session:
+        query = session.query(models.StrategyStep).filter_by(deleted=0)
+
+        for key, value in filters.items():
+            attribute = getattr(models.StrategyStep, key, None)
+
+            if attribute:
+                query = query.filter(attribute == value)
+
+        query.update(values)
+
+
+@require_admin_context
 def strategy_step_destroy_all(context):
     with write_session() as session:
         strategy_step_stages = strategy_step_get_all(context)

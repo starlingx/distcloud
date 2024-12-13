@@ -926,6 +926,16 @@ def strategy_step_update(
     )
 
 
+def strategy_step_update_all(context, filters, values):
+    """Updates all strategy steps
+
+    :param context: request context object
+    :param filters: filters to be applied in the query
+    :param values: values to be set for the specified strategies
+    """
+    return IMPL.strategy_step_update_all(context, filters, values)
+
+
 def strategy_step_destroy_all(context):
     """Destroy all the patch strategy steps."""
     return IMPL.strategy_step_destroy_all(context)
