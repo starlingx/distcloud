@@ -17,12 +17,14 @@
 
 import collections
 from collections.abc import Callable
+import time
 from typing import Any
 from typing import Optional
 from typing import Union
 from urllib.parse import urlparse
 
 from keystoneauth1 import access
+from keystoneauth1 import exceptions as ks_exceptions
 from keystoneauth1.identity import v3
 from keystoneauth1 import loading
 from keystoneauth1 import session
@@ -583,7 +585,7 @@ class EndpointCache(object):
                 msg = (
                     "Generating Master keystone client and master token as "
                     "they are expiring soon: "
-                    f"{EndpointCache.master_token['expires_at']}"
+                    f"{EndpointCache.master_token.get('expires_at')}"
                 )
             else:
                 msg = (
@@ -631,12 +633,24 @@ class EndpointCache(object):
         EndpointCache.master_keystone_client = ks_client.Client(
             session=self.admin_session, region_name=consts.CLOUD_0
         )
-        EndpointCache.master_token = (
-            EndpointCache.master_keystone_client.tokens.validate(
-                EndpointCache.master_keystone_client.session.get_token(),
-                include_catalog=False,
+        try:
+            EndpointCache.master_token = (
+                EndpointCache.master_keystone_client.tokens.validate(
+                    EndpointCache.master_keystone_client.session.get_token(),
+                    include_catalog=False,
+                )
             )
-        )
+        # Retry once
+        except ks_exceptions.RetriableConnectionFailure:
+            LOG.warning("Master token validation failed, retrying after 1 second")
+            time.sleep(1)
+            EndpointCache.master_token = (
+                EndpointCache.master_keystone_client.tokens.validate(
+                    EndpointCache.master_keystone_client.session.get_token(),
+                    include_catalog=False,
+                )
+            )
+
         EndpointCache.master_services_list = (
             EndpointCache.master_keystone_client.services.list()
         )
