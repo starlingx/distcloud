@@ -54,7 +54,9 @@ ANSIBLE_PRESTAGE_SUBCLOUD_IMAGES_PLAYBOOK = (
     "/usr/share/ansible/stx-ansible/playbooks/prestage_images.yml"
 )
 ANSIBLE_PRESTAGE_INVENTORY_SUFFIX = "_prestage_inventory.yml"
-PRINT_PRESTAGE_VERSIONS_TASK = r"prestage\/prestage-versions : Print prestage versions"
+PRINT_PRESTAGE_VERSIONS_TASK = (
+    r"prestage\/get-prestage-versions : Print prestage versions"
+)
 PRESTAGE_VERSIONS_KEY_STR = "prestage_versions:"
 
 
