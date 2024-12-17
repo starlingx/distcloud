@@ -102,9 +102,16 @@ class PeriodicAudit(utils.BaseAuditManager):
             (get_subcloud_base_audit, lambda: [self.sysinv_client, self.fm_client]),
             (FirmwareAudit.get_subcloud_audit_data, lambda: [self.sysinv_client]),
             (KubernetesAudit.get_subcloud_audit_data, lambda: [self.sysinv_client]),
+            # Need to call kube rootca function two times as it has a different
+            # response if the subcloud was rehomed or not and we want to cache both
+            # results
             (
                 KubeRootcaUpdateAudit.get_subcloud_audit_data,
-                lambda: [self.sysinv_client, self.fm_client],
+                lambda: [self.sysinv_client, self.fm_client, False],
+            ),
+            (
+                KubeRootcaUpdateAudit.get_subcloud_audit_data,
+                lambda: [self.sysinv_client, self.fm_client, True],
             ),
             (SoftwareAudit.get_subcloud_audit_data, lambda: [self.software_client]),
         ]
@@ -119,7 +126,7 @@ class RequestedAudit(utils.BaseAuditManager):
         self.request_token = request_token
         self.use_cache = use_cache
 
-    def get_single_audit_status(self, audit_type, regionone_audit_data):
+    def get_single_audit_status(self, audit_type, regionone_audit_data, extra_args):
         # Since this run in parallel, we need to initialize the clients
         # here to not use the same socket in every call
         sysinv_client, fm_client, software_client = self.initialize_clients(
@@ -139,8 +146,9 @@ class RequestedAudit(utils.BaseAuditManager):
                 sysinv_client, regionone_audit_data
             )
         elif audit_type == dccommon_consts.KUBE_ROOTCA_AUDIT:
+            rehomed = extra_args.get("rehomed", False)
             resp = KubeRootcaUpdateAudit.get_subcloud_sync_status(
-                sysinv_client, fm_client, regionone_audit_data
+                sysinv_client, fm_client, regionone_audit_data, rehomed
             )
         elif audit_type == dccommon_consts.KUBERNETES_AUDIT:
             resp = KubernetesAudit.get_subcloud_sync_status(
@@ -161,11 +169,16 @@ class RequestedAudit(utils.BaseAuditManager):
             raise exceptions.AuditStatusFailure(audit=audit_type)
         return audit_type, resp
 
-    def get_sync_status(self, payload):
+    def get_sync_status(self, payload, extra_args):
         sync_resp = {}
         pool = GreenPool(size=10)
         jobs = [
-            pool.spawn(self.get_single_audit_status, audit_type, regionone_audit_data)
+            pool.spawn(
+                self.get_single_audit_status,
+                audit_type,
+                regionone_audit_data,
+                extra_args,
+            )
             for audit_type, regionone_audit_data in payload.items()
         ]
 

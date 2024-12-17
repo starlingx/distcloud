@@ -43,7 +43,21 @@ class AuditController(object):
         if not payload:
             pecan.abort(http.client.BAD_REQUEST, _("Body required"))
 
-        LOG.debug(f"Payload sent by system controller: {payload}")
+        # TODO(vgluzrom): Remove extra_args from header and keep it only in payload
+        # once all supported dcagent versions have this possibility. If system
+        # controller sends extra_args in payload to a dcagent that doesn't support it,
+        # it will raise an UnsupportedAudit exception.
+        try:
+            headers = json.loads(request.headers.get("X-DCAGENT-HEADERS", "{}"))
+        except ValueError:
+            pecan.abort(http.client.BAD_REQUEST, _("Request headers decoding error"))
+
+        extra_args = payload.pop("extra_args", {})
+        extra_args = {**extra_args, **headers}
+
+        LOG.debug(
+            f"Payload sent by system controller: {payload}. Extra args: {extra_args}"
+        )
 
         try:
             # Delete "use_cache" from payload so it doesn't get passed as an audit
@@ -52,7 +66,7 @@ class AuditController(object):
             requested_audit = RequestedAudit(
                 request_token=context.auth_token, use_cache=use_cache
             )
-            return requested_audit.get_sync_status(payload)
+            return requested_audit.get_sync_status(payload, extra_args)
 
         except UnsupportedAudit as ex:
             LOG.exception(ex)

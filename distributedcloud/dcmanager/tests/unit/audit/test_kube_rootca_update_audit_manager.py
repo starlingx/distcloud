@@ -26,6 +26,7 @@ class FakeSubcloudObj(object):
     def __init__(self, subcloud_dict):
         self.name = subcloud_dict["name"]
         self.region_name = subcloud_dict["region_name"]
+        self.rehomed = subcloud_dict["rehomed"]
         self.software_version = subcloud_dict["software_version"]
 
 
@@ -225,6 +226,9 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
             self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = (
                 base.FakeException("API cert ID request failed")
             )
+            self.mock_fm_client().get_alarms_by_ids.side_effect = base.FakeException(
+                "get_alarms_by_ids failed"
+            )
 
             response = self.audit.subcloud_kube_rootca_audit(
                 self.mock_sysinv_client(),
@@ -234,3 +238,36 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
             )
 
             self.assertEqual(response, None)
+
+    def test_kube_rootca_update_audit_method(self):
+        """Test if kube-rootca is auditing correctly based using alarm or cert_id"""
+        # Set the region one data
+        self.kube_rootca_cert_id.return_value = (
+            True,
+            FakeKubeRootcaData("cert1", ""),
+        )
+        kube_rootca_update_audit_data = self.get_rootca_audit_data()
+
+        subclouds = [base.SUBCLOUD_1, base.SUBCLOUD_2]
+        for subcloud_dict in subclouds:
+            subcloud = FakeSubcloudObj(subcloud_dict)
+
+            self.kube_rootca_cert_id.return_value = True, FakeKubeRootcaData(
+                "cert1", ""
+            )
+            self.mock_sysinv_client().get_kube_rootca_cert_id.return_value = (
+                True,
+                FakeKubeRootcaData("cert1", ""),
+            )
+            self.mock_fm_client().get_alarms_by_ids.return_value = None
+
+            self.audit.subcloud_kube_rootca_audit(
+                self.mock_sysinv_client(),
+                self.mock_fm_client(),
+                subcloud,
+                kube_rootca_update_audit_data,
+            )
+            if subcloud.rehomed:
+                self.mock_sysinv_client().get_kube_rootca_cert_id.assert_called()
+            else:
+                self.mock_fm_client().get_alarms_by_ids.assert_called()

@@ -248,6 +248,7 @@ class SwUpdateManager(manager.Manager):
                 max_parallel_subclouds = int(max_parallel_subclouds_str)
 
         stop_on_failure = payload.get("stop-on-failure") in ["true"]
+        force = payload.get(consts.EXTRA_ARGS_FORCE) in ["true"]
 
         # Has the user specified a specific subcloud?
         cloud_name = payload.get("cloud_name")
@@ -257,7 +258,6 @@ class SwUpdateManager(manager.Manager):
         # Has the user specified for_sw_deploy flag for prestage strategy?
         if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
             for_sw_deploy = payload.get(consts.PRESTAGE_FOR_SW_DEPLOY) in ["true"]
-            force = payload.get(consts.EXTRA_ARGS_FORCE) in ["true"]
 
         if cloud_name:
             # Make sure subcloud exists
@@ -282,7 +282,7 @@ class SwUpdateManager(manager.Manager):
                     raise exceptions.BadRequest(resource="strategy", msg=str(ex))
             else:
                 self.strategy_validators[strategy_type].validate_strategy_requirements(
-                    context, subcloud.id, subcloud.name
+                    context, subcloud.id, subcloud.name, force
                 )
 
         extra_args = None
@@ -328,7 +328,7 @@ class SwUpdateManager(manager.Manager):
             single_group.id if subcloud_group else None,
             cloud_name,
             self.strategy_validators[strategy_type].build_availability_status_filter(),
-            self.strategy_validators[strategy_type].build_sync_status_filter(),
+            self.strategy_validators[strategy_type].build_sync_status_filter(force),
         )
 
         # TODO(rlima): move this step to validators

@@ -308,6 +308,13 @@ force:
   in: body
   required: false
   type: boolean
+force_sync_status:
+  description: |
+    Indicates whether to disregard subcloud endpoint sync status
+    or management alarm condition depending on strategy type.
+  in: body
+  required: false
+  type: boolean
 group_id:
   description: |
     The ID of a subcloud group. Default is 1.

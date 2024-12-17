@@ -15,6 +15,7 @@
 #
 
 import copy
+import json
 import os
 import threading
 import time
@@ -357,6 +358,13 @@ class SubcloudAuditWorkerManager(manager.Manager):
             audit_payload["use_cache"] = use_cache
         return audit_payload
 
+    def _build_dcagent_request_headers(self, subcloud: models.Subcloud):
+        dc_agent_headers = {}
+        if subcloud.rehomed:
+            dc_agent_headers["rehomed"] = subcloud.rehomed
+        header = {"X-DCAGENT-HEADERS": json.dumps(dc_agent_headers)}
+        return header
+
     def _update_sw_sync_status_from_deploy_status(self, subcloud, audit_results):
         # If the subcloud deploy_status is in any of the following states,
         # the sync_status should be set to out-of-sync for software audit.
@@ -541,9 +549,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 do_software_audit,
                 use_cache,
             )
+            headers = self._build_dcagent_request_headers(subcloud)
             audit_results = {}
             try:
-                audit_results = dcagent_client.audit(audit_payload)
+                audit_results = dcagent_client.audit(audit_payload, headers)
             except Exception:
                 LOG.exception(failmsg % (subcloud.name, "dcagent"))
                 failures.append("dcagent")

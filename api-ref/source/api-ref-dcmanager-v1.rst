@@ -1257,6 +1257,7 @@ serviceUnavailable (503)
   - subcloud-apply-type: subcloud_apply_type
   - type: sw_update_strategy_type
   - upload-only: patch_strategy_upload_only
+  - force: force_sync_status
 
 Request Example
 ----------------

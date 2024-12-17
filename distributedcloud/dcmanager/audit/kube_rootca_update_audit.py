@@ -87,18 +87,22 @@ class KubeRootcaUpdateAudit(object):
         cls,
         sysinv_client: SysinvClient,
         fm_client: FmClient,
+        rehomed: bool = False,
         subcloud_name: str = None,
     ) -> tuple:
         skip_audit = 2 * [dccommon_consts.SKIP_AUDIT]
-        try:
-            success, subcloud_cert_data = sysinv_client.get_kube_rootca_cert_id()
-        except Exception:
-            msg = f"Failed to get Kubernetes root CA status, skip {AUDIT_TYPE} audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
-            return skip_audit
+        if rehomed:
+            try:
+                success, subcloud_cert_data = sysinv_client.get_kube_rootca_cert_id()
+            except Exception:
+                msg = (
+                    f"Failed to get Kubernetes root CA status, skip {AUDIT_TYPE} audit."
+                )
+                log_subcloud_msg(LOG.exception, msg, subcloud_name)
+                return skip_audit
 
-        if success:
-            return CERT_BASED, subcloud_cert_data
+            if success:
+                return CERT_BASED, subcloud_cert_data
 
         try:
             detected_alarms = fm_client.get_alarms_by_ids(KUBE_ROOTCA_ALARM_LIST)
@@ -114,12 +118,13 @@ class KubeRootcaUpdateAudit(object):
         sysinv_client: SysinvClient,
         fm_client: FmClient,
         regionone_rootca_certid: str,
+        rehomed: bool = False,
         subcloud_name: str = None,
     ):
         """Get the sync status of the subcloud's kube root CA cert."""
 
         audit_method, subcloud_audit_data = cls.get_subcloud_audit_data(
-            sysinv_client, fm_client, subcloud_name
+            sysinv_client, fm_client, rehomed, subcloud_name
         )
 
         sync_status = None
@@ -147,8 +152,10 @@ class KubeRootcaUpdateAudit(object):
 
         The audit logic is as follow:
             No region one cert ID -> skip audit
-            Subcloud doesn't have the API to get cert ID -> alarm based
-            Subcloud has the API to get cert ID -> cert based
+            Failure to get alarms or subcloud cert ID -> skip audit
+            Subcloud was not rehomed -> alarm based
+            Subcloud was rehomed and doesn't have the API to get cert ID -> alarm based
+            Subcloud was rehomed and has the API to get cert ID -> cert based
 
         :param sysinv_client: the sysinv client object
         :param fm_client: the fm client object
@@ -165,7 +172,11 @@ class KubeRootcaUpdateAudit(object):
             return dccommon_consts.SYNC_STATUS_IN_SYNC
 
         sync_status = self.get_subcloud_sync_status(
-            sysinv_client, fm_client, regionone_rootca_certid, subcloud.name
+            sysinv_client,
+            fm_client,
+            regionone_rootca_certid,
+            subcloud.rehomed,
+            subcloud.name,
         )
 
         if sync_status:

@@ -53,37 +53,37 @@ SUBCLOUD_1 = {
     "name": "subcloud1",
     "region_name": "2ec93dfb654846909efe61d1b39dd2ce",
     "rehomed": True,
-    "software_version": "22.12",
+    "software_version": "24.09",
 }
 SUBCLOUD_2 = {
     "name": "subcloud2",
     "region_name": "ca2761ee7aa34cbe8415ec9a3c86854f",
     "rehomed": True,
-    "software_version": "22.12",
+    "software_version": "24.09",
 }
 SUBCLOUD_3 = {
     "name": "subcloud3",
     "region_name": "659e12e5f7ad411abfcd83f5cedca0bf",
     "rehomed": True,
-    "software_version": "21.12",
+    "software_version": "22.12",
 }
 SUBCLOUD_4 = {
     "name": "subcloud4",
     "region_name": "c25f3b0553384104b664789bd93a2ba8",
     "rehomed": False,
-    "software_version": "21.12",
+    "software_version": "22.12",
 }
 SUBCLOUD_5 = {
     "name": "subcloud5",
     "region_name": "809581dc2d154e008480bac1f43b7aff",
     "rehomed": False,
-    "software_version": "21.12",
+    "software_version": "22.12",
 }
 SUBCLOUD_6 = {
     "name": "subcloud6",
     "region_name": "8c60b99f3e1245b7bc5a049802ade8d2",
     "rehomed": False,
-    "software_version": "22.12",
+    "software_version": "24.09",
 }
 SUBCLOUD_7 = {"name": "subcloud7", "region_name": "9fde6dca22fa422bb1e8cf03bedc18e4"}
 SUBCLOUD_8 = {"name": "subcloud8", "region_name": "f3cb0b109c4543fda3ed50ed5783279d"}

@@ -13,7 +13,7 @@ from dccommon.drivers import base
 LOG = log.getLogger(__name__)
 
 
-DCAGENT_REST_DEFAULT_TIMEOUT = 900
+DCAGENT_REST_DEFAULT_TIMEOUT = 30
 
 
 class DcagentClient(base.DriverBase):
@@ -37,11 +37,17 @@ class DcagentClient(base.DriverBase):
         else:
             self.endpoint = endpoint
 
-    def audit(self, audit_data, timeout=DCAGENT_REST_DEFAULT_TIMEOUT):
+    def audit(
+        self,
+        audit_data: dict,
+        headers: dict = None,
+        timeout: int = DCAGENT_REST_DEFAULT_TIMEOUT,
+    ):
         """Audit subcloud"""
         url = self.endpoint + "/v1/dcaudit"
+        headers = headers or {}
         response = self.session.patch(
-            url, json=audit_data, timeout=timeout, raise_exc=False
+            url, json=audit_data, headers=headers, timeout=timeout, raise_exc=False
         )
 
         if response.status_code == 200:
