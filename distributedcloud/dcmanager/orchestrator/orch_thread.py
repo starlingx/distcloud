@@ -716,29 +716,6 @@ class OrchThread(threading.Thread):
                 )
             )
             details = self.format_update_details(strategy_step.state, str(ex))
-            if "error-message" in details:
-                # Remove brackets and split the string with delimiter ','.
-                r = details.strip("{").strip("}").split(",")
-
-                # Replace each space with ',' and all single quotes by double quotes.
-                r = str(r[3:]).replace(",", " ").replace('"', "").replace("'", "")
-
-                # Build a string with each line from details with the correct format.
-                r = "".join(r.split(":")[1:]).replace("   ", " ").strip(" ").strip("]")
-
-                # split each line from the list into two elements, first one being
-                # the status and second one being the error itself.
-                msg_list = r.split("\\n")
-                fail_list = []
-
-                for att in msg_list:
-                    if "[Fail]" in att:
-                        # Append the fail messages to a list removing unnecessary
-                        # backslashes.
-                        fail_list.append(att.replace("\\", ""))
-
-                details = "\n".join(fail_list)
-
             self.strategy_step_update(
                 strategy_step.subcloud_id,
                 state=consts.STRATEGY_STATE_FAILED,
