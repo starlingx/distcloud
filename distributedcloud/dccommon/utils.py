@@ -283,7 +283,13 @@ def is_token_expiring_soon(
     stale_token_duration_max=STALE_TOKEN_DURATION_MAX,
     stale_token_duration_step=STALE_TOKEN_DURATION_STEP,
 ):
-    expiry_time = timeutils.normalize_time(timeutils.parse_isotime(token["expires_at"]))
+    try:
+        expiry_time = timeutils.normalize_time(
+            timeutils.parse_isotime(token["expires_at"])
+        )
+    except KeyError:
+        LOG.warning("Token is missing 'expires_at' field, considering it as expired")
+        return True
     duration = random.randrange(
         stale_token_duration_min, stale_token_duration_max, stale_token_duration_step
     )
