@@ -106,10 +106,13 @@ class SwUpdateStrategyController(object):
                 result = dict()
                 result["strategy-steps"] = list()
                 strategy_steps = db_api.strategy_step_get_all(context)
+
                 for strategy_step in strategy_steps:
-                    result["strategy-steps"].append(
-                        db_api.strategy_step_db_model_to_dict(strategy_step)
+                    db_dict = db_api.strategy_step_db_model_to_dict(strategy_step)
+                    db_dict["stage"] = consts.STAGE_MAP.get(
+                        str(db_dict["stage"]), db_dict["stage"]
                     )
+                    result["strategy-steps"].append(db_dict)
 
                 return result
             else:
@@ -133,6 +136,13 @@ class SwUpdateStrategyController(object):
                 strategy_step_dict = db_api.strategy_step_db_model_to_dict(
                     strategy_step
                 )
+
+                if "stage" in strategy_step_dict.keys():
+                    if str(strategy_step_dict["stage"]) in consts.STAGE_MAP.keys():
+                        strategy_step_dict["stage"] = consts.STAGE_MAP[
+                            str(strategy_step_dict["stage"])
+                        ]
+
                 return strategy_step_dict
 
     @index.when(method="POST", template="json")
