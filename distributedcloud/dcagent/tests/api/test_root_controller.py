@@ -7,7 +7,6 @@
 import http.client
 import uuid
 
-import mock
 from oslo_config import cfg
 from oslo_config import fixture as fixture_config
 from oslo_serialization import jsonutils
@@ -41,7 +40,7 @@ class DCAgentApiTest(DCAgentTestCase):
         self.CONF.set_override("auth_strategy", "noauth")
 
         self.app = self._make_app()
-        self._mock_pecan()
+        self.mock_pecan_abort = self._mock_object(pecan, "abort", wraps=pecan.abort)
 
         self.url = "/"
         # The put method is used as a default value, leading to the generic
@@ -98,13 +97,6 @@ class DCAgentApiTest(DCAgentTestCase):
         self.assertEqual(response.content_type, content_type)
         if expected_response_text:
             self.assertEqual(response.text, expected_response_text)
-
-    def _mock_pecan(self):
-        """Mock pecan's abort"""
-
-        mock_patch_object = mock.patch.object(pecan, "abort", wraps=pecan.abort)
-        self.mock_pecan_abort = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
 
     def _assert_pecan(self, http_status, content=None, call_count=1):
         """Assert pecan was called with the correct arguments"""

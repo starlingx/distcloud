@@ -23,8 +23,10 @@ from dcmanager.audit.software_audit import SoftwareAudit
 class BaseTestAudit(DCAgentApiTest):
     def setUp(self):
         super().setUp()
+
         self.url = "/v1/dcaudit"
         self.method = self.app.patch_json
+
         self._mock_object(utils, "CachedSysinvClient")
         self._mock_object(utils, "CachedFmClient")
         self._mock_object(utils, "KeystoneCache")
@@ -82,51 +84,34 @@ class TestRequestedAudit(BaseTestAudit):
     def setUp(self):
         super().setUp()
 
-        mock_availability = mock.patch.object(
+        mock_availability = self._mock_object(
             base_audit, "get_subcloud_availability_status"
         )
-        self.mock_availability = mock_availability.start()
-        self.addCleanup(mock_availability.stop)
-
-        mock_alarm_aggregation = mock.patch.object(
+        mock_alarm_aggregation = self._mock_object(
             AlarmAggregation, "get_alarm_summary"
         )
-        self.mock_alarm_aggregation = mock_alarm_aggregation.start()
-        self.addCleanup(mock_alarm_aggregation.stop)
-
-        mock_software_audit = mock.patch.object(
+        mock_software_audit = self._mock_object(
             SoftwareAudit, "get_subcloud_sync_status"
         )
-        self.mock_software_audit = mock_software_audit.start()
-        self.addCleanup(mock_software_audit.stop)
-
-        mock_firmware_audit = mock.patch.object(
+        mock_firmware_audit = self._mock_object(
             FirmwareAudit, "get_subcloud_sync_status"
         )
-        self.mock_firmware_audit = mock_firmware_audit.start()
-        self.addCleanup(mock_firmware_audit.stop)
-
-        mock_kubernetes_audit = mock.patch.object(
+        mock_kubernetes_audit = self._mock_object(
             KubernetesAudit, "get_subcloud_sync_status"
         )
-        self.mock_kubernetes_audit = mock_kubernetes_audit.start()
-        self.addCleanup(mock_kubernetes_audit.stop)
-
-        mock_kube_rootca_audit = mock.patch.object(
+        mock_kube_rootca_audit = self._mock_object(
             KubeRootcaUpdateAudit, "get_subcloud_sync_status"
         )
-        self.mock_kube_rootca_audit = mock_kube_rootca_audit.start()
-        self.addCleanup(mock_kube_rootca_audit.stop)
+
+        # Mock responses for the external dependencies
+        mock_availability.return_value = ["online", []]
+        mock_alarm_aggregation.return_value = "test_alarm_summary"
+        mock_software_audit.return_value = "software_audit_response"
+        mock_firmware_audit.return_value = "firmware_audit_response"
+        mock_kubernetes_audit.return_value = "kubernetes_audit_response"
+        mock_kube_rootca_audit.return_value = "kube_rootca_audit_response"
 
     def test_get_sync_status(self):
-        # Mock responses for the external dependencies
-        self.mock_availability.return_value = ["online", []]
-        self.mock_alarm_aggregation.return_value = "test_alarm_summary"
-        self.mock_software_audit.return_value = "software_audit_response"
-        self.mock_firmware_audit.return_value = "firmware_audit_response"
-        self.mock_kubernetes_audit.return_value = "kubernetes_audit_response"
-        self.mock_kube_rootca_audit.return_value = "kube_rootca_audit_response"
-
         self.params = {
             dccommon_consts.BASE_AUDIT: "",
             dccommon_consts.FIRMWARE_AUDIT: "regionone_data_firmware",
