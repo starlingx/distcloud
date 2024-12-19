@@ -25,10 +25,10 @@ class BaseTestAudit(DCAgentApiTest):
         super().setUp()
         self.url = "/v1/dcaudit"
         self.method = self.app.patch_json
-        self._mock_keystone_cache(utils)
-        self._mock_fm_client(utils)
-        self._mock_software_client(utils)
-        self._mock_sysinv_client(utils)
+        self._mock_object(utils, "CachedSysinvClient")
+        self._mock_object(utils, "CachedFmClient")
+        self._mock_object(utils, "KeystoneCache")
+        self._mock_object(utils, "CachedSoftwareClient")
 
 
 class TestAuditController(BaseTestAudit):
