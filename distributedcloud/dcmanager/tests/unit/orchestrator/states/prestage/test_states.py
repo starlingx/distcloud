@@ -10,7 +10,6 @@ import copy
 import os
 import threading
 
-import mock
 
 from dccommon import ostree_mount
 from dccommon.utils import AnsiblePlaybook
@@ -21,6 +20,7 @@ from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_IMAGES
 from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_PACKAGES
 from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_PRE_CHECK
 from dcmanager.common import exceptions
+from dcmanager.common import prestage
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
@@ -70,28 +70,13 @@ class TestPrestagePreCheckState(TestPrestage):
 
         self._setup_strategy_step(STRATEGY_STATE_PRESTAGE_PRE_CHECK)
 
-        self._mock_validate_prestage()
-        self._mock_threading_start()
-
-    def _mock_validate_prestage(self):
-        """Mock dcmanager's common validate_prestage method
-
-        The validate_prestage method is mocked because the focus is on testing
-        the orchestrator logic only. Any specifc prestage functionality is covered on
-        individual tests.
-        """
-
-        mock_class = mock.patch("dcmanager.common.prestage.validate_prestage")
-        self.mock_prestage_subcloud = mock_class.start()
+        # The validate_prestage method is mocked because the focus is on testing
+        # the orchestrator logic only. Any specifc prestage functionality is covered on
+        # individual tests.
+        self.mock_prestage_subcloud = self._mock_object(prestage, "validate_prestage")
         self.mock_prestage_subcloud.return_value = OAM_FLOATING_IP
-        self.addCleanup(mock_class.stop)
 
-    def _mock_threading_start(self):
-        """Mock threading's Thread.start"""
-
-        mock_thread = mock.patch.object(threading.Thread, "start")
-        self.mock_thread_start = mock_thread.start()
-        self.addCleanup(mock_thread.stop)
+        self._mock_object(threading.Thread, "start")
 
     def test_prestage_pre_check_without_extra_args(self):
         """Test prestage pre check without extra args"""
@@ -168,15 +153,8 @@ class TestPrestagePackagesState(TestPrestage):
         self._setup_strategy_step(STRATEGY_STATE_PRESTAGE_PACKAGES)
 
         self._mock_object(builtins, "open")
-        self._mock_ansible_playbook()
-        self.mock_validate_ostree_iso_mount = self._mock_object(
-            ostree_mount, "validate_ostree_iso_mount"
-        )
-
-    def _mock_ansible_playbook(self):
-        mock_patch_object = mock.patch.object(AnsiblePlaybook, "run_playbook")
-        self.mock_ansible_playbook = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
+        self._mock_object(AnsiblePlaybook, "run_playbook")
+        self._mock_object(ostree_mount, "validate_ostree_iso_mount")
 
     def test_prestage_package_succeeds(self):
         """Test prestage package succeeds"""
@@ -200,8 +178,8 @@ class TestPrestageImagesState(TestPrestage):
 
         self._setup_strategy_step(STRATEGY_STATE_PRESTAGE_IMAGES)
 
-        self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
-        self.mock_os_path_isdir.return_value = False
+        mock_os_path_isdir = self._mock_object(os.path, "isdir")
+        mock_os_path_isdir.return_value = False
 
     def test_prestage_images_succeeds(self):
         """Test prestage images succeeds"""

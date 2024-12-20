@@ -129,11 +129,9 @@ class TestPeerGroupAudit(DCManagerTestCase):
     def _mock_peer_monitor_manager_get_peer_dc_client(self):
         """Mock peer_monitor_manager's get_peer_dc_client"""
 
-        mock_patch = mock.patch.object(
+        self.mock_get_peer_dc_client = self._mock_object(
             peer_group_audit_manager.SystemPeerManager, "get_peer_dc_client"
         )
-        self.mock_get_peer_dc_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
 
         self.peer = tpm.TestPeerMonitor.create_system_peer_static(
             self.ctx, peer_name="SystemPeer1"
@@ -175,9 +173,9 @@ class TestPeerGroupAudit(DCManagerTestCase):
         self.remote_peer_group = copy.deepcopy(FAKE_SITE1_PEER_GROUP_DATA)
         self.remote_peer_group2 = copy.deepcopy(FAKE_SITE2_PEER_GROUP_DATA)
 
-        mock_patch = mock.patch.object(SystemPeerManager, "update_sync_status")
-        self.addCleanup(mock_patch.stop)
-        self.mock_update_sync_status = mock_patch.start()
+        self.mock_update_sync_status = self._mock_object(
+            SystemPeerManager, "update_sync_status"
+        )
         self.mock_get_local_system = self._mock_object(utils, "get_local_system")
 
     def run_audit(self, remote_peer_group=None):

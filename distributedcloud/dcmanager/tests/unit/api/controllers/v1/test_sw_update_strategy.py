@@ -17,7 +17,6 @@
 
 import http.client
 
-import mock
 from oslo_messaging import RemoteError
 
 from dccommon import consts as dccommon_consts
@@ -38,14 +37,9 @@ class BaseTestSwUpdateStrategyController(DCManagerApiTest):
 
         self.url = "/v1.0/sw-update-strategy"
 
-        self._mock_rpc_orchestrator_client()
-
-    def _mock_rpc_orchestrator_client(self):
-        """Mock rpc's manager orchestrator client"""
-
-        mock_patch = mock.patch.object(rpc_client, "ManagerOrchestratorClient")
-        self.mock_rpc_orchestrator_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        self.mock_rpc_orchestrator_client = self._mock_object(
+            rpc_client, "ManagerOrchestratorClient"
+        )
 
 
 class TestSwUpdateStrategyController(BaseTestSwUpdateStrategyController):
@@ -233,12 +227,10 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self.create_update_strategy = (
             self.mock_rpc_orchestrator_client().create_sw_update_strategy
         )
-        self.get_releases_patcher = mock.patch.object(
+        self.mock_get_sc_installed_releases_id = self._mock_object(
             utils, "get_systemcontroller_installed_releases_ids"
         )
-        self.mock_get_releases = self.get_releases_patcher.start()
-        self.mock_get_releases.return_value = ["stx-10.0.0"]
-        self.addCleanup(self.get_releases_patcher.stop)
+        self.mock_get_sc_installed_releases_id.return_value = ["stx-10.0.0"]
 
     def test_post_succeeds(self):
         """Test post succeeds"""

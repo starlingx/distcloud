@@ -2925,11 +2925,17 @@ class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         self.original_get_validated_sw_version_for_prestage = (
             cutils.get_validated_sw_version_for_prestage
         )
-        self._mock_get_validated_sw_version_for_prestage(cutils)
+        self.mock_get_validated_sw_version_for_prestage = self._mock_object(
+            cutils, "get_validated_sw_version_for_prestage"
+        )
         self._setup_mock_get_validated_sw_version_for_prestage()
-        self._mock_get_current_supported_upgrade_versions(cutils)
+        self.mock_get_current_supported_upgrade_versions = self._mock_object(
+            cutils, "get_current_supported_upgrade_versions"
+        )
         self._setup_mock_get_current_supported_upgrade_versions()
-        self._mock_get_system_controller_software_list(cutils)
+        self.mock_get_system_controller_software_list = self._mock_object(
+            cutils, "get_system_controller_software_list"
+        )
         self._setup_mock_get_system_controller_software_list()
 
     def _setup_mock_sysinv_client_prestage(self):
@@ -2945,27 +2951,6 @@ class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         self.mock_sysinv_client_prestage().get_oam_addresses.return_value = (
             mock_get_oam_addresses
         )
-
-    def _mock_get_validated_sw_version_for_prestage(self, target):
-        mock_patch_object = mock.patch.object(
-            target, "get_validated_sw_version_for_prestage"
-        )
-        self.mock_get_validated_sw_version_for_prestage = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_current_supported_upgrade_versions(self, target):
-        mock_patch_object = mock.patch.object(
-            target, "get_current_supported_upgrade_versions"
-        )
-        self.mock_get_current_supported_upgrade_versions = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_system_controller_software_list(self, target):
-        mock_patch_object = mock.patch.object(
-            target, "get_system_controller_software_list"
-        )
-        self.mock_get_system_controller_software_list = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
 
     def _setup_mock_get_validated_sw_version_for_prestage(self):
         if "release" not in self.params:

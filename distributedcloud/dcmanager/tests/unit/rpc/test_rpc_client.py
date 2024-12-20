@@ -12,13 +12,11 @@
 # under the License.
 #
 
-import mock
 
 from dcmanager.common import config
 from dcmanager.common import messaging
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests import base
-from dcmanager.tests import utils
 
 config.register_options()
 
@@ -28,59 +26,48 @@ class ManagerRpcAPITestCase(base.DCManagerTestCase):
     def setUp(self):
         messaging.setup("fake://", optional=True)
         self.addCleanup(messaging.cleanup)
-        self.context = utils.dummy_context()
-        # self.stubs = stubout.StubOutForTesting()
+
+        super().setUp()
+
+        self.mock_get_rpc_client = self._mock_object(messaging, "get_rpc_client")
+
+        self.method = "fake_method"
+        self.kwargs = {"key": "value"}
         self.rpcapi = rpc_client.ManagerClient()
-        super(ManagerRpcAPITestCase, self).setUp()
+        self.msg = self.rpcapi.make_msg(self.method, **self.kwargs)
 
-    @mock.patch.object(messaging, "get_rpc_client")
-    def test_call(self, mock_client):
-        client = mock.Mock()
-        mock_client.return_value = client
-
-        method = "fake_method"
-        kwargs = {"key": "value"}
-        rpcapi = rpc_client.ManagerClient()
-        msg = rpcapi.make_msg(method, **kwargs)
-
+    def test_call(self):
         # with no version
-        res = rpcapi.call(self.context, msg)
+        res = self.rpcapi.call(self.ctx, self.msg)
 
-        self.assertEqual(client, rpcapi._client)
-        client.call.assert_called_once_with(self.context, "fake_method", key="value")
-        self.assertEqual(res, client.call.return_value)
+        self.assertEqual(self.mock_get_rpc_client(), self.rpcapi._client)
+        self.mock_get_rpc_client().call.assert_called_once_with(
+            self.ctx, self.method, key="value"
+        )
+        self.assertEqual(res, self.mock_get_rpc_client().call.return_value)
 
         # with version
-        res = rpcapi.call(self.context, msg, version="123")
-        client.prepare.assert_called_once_with(version="123")
-        new_client = client.prepare.return_value
-        new_client.call.assert_called_once_with(
-            self.context, "fake_method", key="value"
-        )
+        res = self.rpcapi.call(self.ctx, self.msg, version="123")
+        self.mock_get_rpc_client().prepare.assert_called_once_with(version="123")
+        new_client = self.mock_get_rpc_client().prepare.return_value
+        new_client.call.assert_called_once_with(self.ctx, "fake_method", key="value")
         self.assertEqual(res, new_client.call.return_value)
 
-    @mock.patch.object(messaging, "get_rpc_client")
-    def test_cast(self, mock_client):
-        client = mock.Mock()
-        mock_client.return_value = client
-
-        method = "fake_method"
-        kwargs = {"key": "value"}
-        rpcapi = rpc_client.ManagerClient()
-        msg = rpcapi.make_msg(method, **kwargs)
-
+    def test_cast(self):
         # with no version
-        res = rpcapi.cast(self.context, msg)
+        res = self.rpcapi.cast(self.ctx, self.msg)
 
-        self.assertEqual(client, rpcapi._client)
-        client.cast.assert_called_once_with(self.context, "fake_method", key="value")
-        self.assertEqual(res, client.cast.return_value)
+        self.assertEqual(self.mock_get_rpc_client(), self.rpcapi._client)
+        self.mock_get_rpc_client().cast.assert_called_once_with(
+            self.ctx, "fake_method", key="value"
+        )
+        self.assertEqual(res, self.mock_get_rpc_client().cast.return_value)
 
         # with version
-        res = rpcapi.cast(self.context, msg, version="123")
-        client.prepare.assert_called_once_with(fanout=None, version="123")
-        new_client = client.prepare.return_value
-        new_client.cast.assert_called_once_with(
-            self.context, "fake_method", key="value"
+        res = self.rpcapi.cast(self.ctx, self.msg, version="123")
+        self.mock_get_rpc_client().prepare.assert_called_once_with(
+            fanout=None, version="123"
         )
+        new_client = self.mock_get_rpc_client().prepare.return_value
+        new_client.cast.assert_called_once_with(self.ctx, "fake_method", key="value")
         self.assertEqual(res, new_client.cast.return_value)

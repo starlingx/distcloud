@@ -23,6 +23,7 @@ from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
 from dccommon import ostree_mount
+from dcmanager.audit import rpcapi
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -32,7 +33,6 @@ from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.orchestrator import sw_update_manager
 
 from dcmanager.tests import base
-from dcmanager.tests import utils
 
 
 OAM_FLOATING_IP = "10.10.10.12"
@@ -106,9 +106,7 @@ class FakeDCManagerAuditAPI(object):
 
 class TestSwUpdateManager(base.DCManagerTestCase):
     @staticmethod
-    def create_subcloud(
-        ctxt, name, group_id, is_managed, is_online, sw_version="stx-9"
-    ):
+    def create_subcloud(ctx, name, group_id, is_managed, is_online, sw_version="stx-9"):
         values = {
             "name": name,
             "description": "subcloud1 description",
@@ -127,29 +125,29 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             "group_id": group_id,
             "data_install": "data from install",
         }
-        subcloud = db_api.subcloud_create(ctxt, **values)
+        subcloud = db_api.subcloud_create(ctx, **values)
         if is_managed:
             state = dccommon_consts.MANAGEMENT_MANAGED
-            subcloud = db_api.subcloud_update(ctxt, subcloud.id, management_state=state)
+            subcloud = db_api.subcloud_update(ctx, subcloud.id, management_state=state)
         if is_online:
             status = dccommon_consts.AVAILABILITY_ONLINE
             subcloud = db_api.subcloud_update(
-                ctxt, subcloud.id, availability_status=status
+                ctx, subcloud.id, availability_status=status
             )
         return subcloud
 
     @staticmethod
-    def create_subcloud_group(ctxt, name, update_apply_type, max_parallel_subclouds):
+    def create_subcloud_group(ctx, name, update_apply_type, max_parallel_subclouds):
         values = {
             "name": name,
             "description": "subcloud1 description",
             "update_apply_type": update_apply_type,
             "max_parallel_subclouds": max_parallel_subclouds,
         }
-        return db_api.subcloud_group_create(ctxt, **values)
+        return db_api.subcloud_group_create(ctx, **values)
 
     @staticmethod
-    def update_subcloud_status(ctxt, subcloud_id, endpoint=None, status=None):
+    def update_subcloud_status(ctx, subcloud_id, endpoint=None, status=None):
         if endpoint:
             endpoint_type = endpoint
         else:
@@ -160,12 +158,12 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             sync_status = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         subcloud_status = db_api.subcloud_status_update(
-            ctxt, subcloud_id, endpoint_type, sync_status
+            ctx, subcloud_id, endpoint_type, sync_status
         )
         return subcloud_status
 
     @staticmethod
-    def create_strategy(ctxt, strategy_type, state):
+    def create_strategy(ctx, strategy_type, state):
         values = {
             "type": strategy_type,
             "subcloud_apply_type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
@@ -173,97 +171,61 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             "stop_on_failure": True,
             "state": state,
         }
-        return db_api.sw_update_strategy_create(ctxt, **values)
+        return db_api.sw_update_strategy_create(ctx, **values)
 
     @staticmethod
-    def create_strategy_step(ctxt, state):
+    def create_strategy_step(ctx, state):
         values = {
             "subcloud_id": 1,
             "stage": 1,
             "state": state,
             "details": "Dummy details",
         }
-        return db_api.strategy_step_create(ctxt, **values)
+        return db_api.strategy_step_create(ctx, **values)
 
     def setUp(self):
-        super(TestSwUpdateManager, self).setUp()
+        super().setUp()
         # Mock the context
-        self.ctxt = utils.dummy_context()
-        p = mock.patch.object(context, "get_admin_context")
-        self.mock_get_admin_context = p.start()
-        self.mock_get_admin_context.return_value = self.ctx
-        self.addCleanup(p.stop)
+        mock_get_admin_context = self._mock_object(context, "get_admin_context")
+        mock_get_admin_context.return_value = self.ctx
 
-        # Note: mock where an item is used, not where it comes from
-        self.fake_patch_orch_thread = FakeOrchThread()
-        p = mock.patch.object(sw_update_manager, "PatchOrchThread")
-        self.fake_patch_orch_thread = p.start()
-        self.fake_patch_orch_thread.return_value = self.fake_patch_orch_thread
-        self.addCleanup(p.stop)
+        orch_threads = {
+            "PatchOrchThread": FakeOrchThread(),
+            "SoftwareOrchThread": FakeOrchThread(),
+            "FwUpdateOrchThread": FakeOrchThread(),
+            "KubeUpgradeOrchThread": FakeOrchThread(),
+            "KubeRootcaUpdateOrchThread": FakeOrchThread(),
+            "PrestageOrchThread": FakeOrchThread(),
+        }
 
-        self.fake_software_orch_thread = FakeOrchThread()
-        p = mock.patch.object(sw_update_manager, "SoftwareOrchThread")
-        self.fake_software_orch_thread = p.start()
-        self.fake_software_orch_thread.return_value = self.fake_software_orch_thread
-        self.addCleanup(p.stop)
-
-        self.fake_fw_update_orch_thread = FakeOrchThread()
-        p = mock.patch.object(sw_update_manager, "FwUpdateOrchThread")
-        self.mock_fw_update_orch_thread = p.start()
-        self.mock_fw_update_orch_thread.return_value = self.fake_fw_update_orch_thread
-        self.addCleanup(p.stop)
-
-        self.fake_kube_upgrade_orch_thread = FakeOrchThread()
-        p = mock.patch.object(sw_update_manager, "KubeUpgradeOrchThread")
-        self.mock_kube_upgrade_orch_thread = p.start()
-        self.mock_kube_upgrade_orch_thread.return_value = (
-            self.fake_kube_upgrade_orch_thread
-        )
-        self.addCleanup(p.stop)
-
-        self.fake_kube_rootca_update_orch_thread = FakeOrchThread()
-        p = mock.patch.object(sw_update_manager, "KubeRootcaUpdateOrchThread")
-        self.mock_kube_rootca_update_orch_thread = p.start()
-        self.mock_kube_rootca_update_orch_thread.return_value = (
-            self.fake_kube_rootca_update_orch_thread
-        )
-        self.addCleanup(p.stop)
-
-        self.fake_prestage_orch_thread = FakeOrchThread()
-        p = mock.patch.object(sw_update_manager, "PrestageOrchThread")
-        self.mock_prestage_orch_thread = p.start()
-        self.mock_prestage_orch_thread.return_value = self.fake_prestage_orch_thread
-        self.addCleanup(p.stop)
+        for key, value in orch_threads.items():
+            mock_patch_orch_thread = self._mock_object(sw_update_manager, key)
+            mock_patch_orch_thread.return_value = value
 
         # Mock the dcmanager audit API
-        self.fake_dcmanager_audit_api = FakeDCManagerAuditAPI()
-        p = mock.patch("dcmanager.audit.rpcapi.ManagerAuditClient")
-        self.mock_dcmanager_audit_api = p.start()
-        self.mock_dcmanager_audit_api.return_value = self.fake_dcmanager_audit_api
-        self.addCleanup(p.stop)
+        mock_dcmanager_audit_api = self._mock_object(rpcapi, "ManagerAuditClient")
+        mock_dcmanager_audit_api.return_value = FakeDCManagerAuditAPI()
 
         # Mock for logs
         self._mock_object(sw_update_manager, "LOG")
 
         # Mock ostree_mount validate_ostree_iso_mount
-        mock_patch = mock.patch.object(ostree_mount, "validate_ostree_iso_mount")
-        self.addCleanup(mock_patch.stop)
-        self.mock_validate_ostree_iso_mount = mock_patch.start()
+        self._mock_object(ostree_mount, "validate_ostree_iso_mount")
 
         # Fake subcloud groups
         # Group 1 exists by default in database with max_parallel 2 and
         # apply_type parallel
         self.fake_group2 = self.create_subcloud_group(
-            self.ctxt, "Group2", consts.SUBCLOUD_APPLY_TYPE_SERIAL, 2
+            self.ctx, "Group2", consts.SUBCLOUD_APPLY_TYPE_SERIAL, 2
         )
         self.fake_group3 = self.create_subcloud_group(
-            self.ctxt, "Group3", consts.SUBCLOUD_APPLY_TYPE_PARALLEL, 2
+            self.ctx, "Group3", consts.SUBCLOUD_APPLY_TYPE_PARALLEL, 2
         )
         self.fake_group4 = self.create_subcloud_group(
-            self.ctxt, "Group4", consts.SUBCLOUD_APPLY_TYPE_SERIAL, 2
+            self.ctx, "Group4", consts.SUBCLOUD_APPLY_TYPE_SERIAL, 2
         )
         self.fake_group5 = self.create_subcloud_group(
-            self.ctxt, "Group5", consts.SUBCLOUD_APPLY_TYPE_PARALLEL, 2
+            self.ctx, "Group5", consts.SUBCLOUD_APPLY_TYPE_PARALLEL, 2
         )
 
     def test_init(self):
@@ -279,7 +241,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
-            self.ctxt,
+            self.ctx,
             payload=FAKE_SW_UPDATE_DATA,
         )
 
@@ -287,28 +249,28 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group2.id,
             is_managed=True,
             is_online=True,
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         # Subcloud2 will not be patched because not managed
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud2",
             self.fake_group2.id,
             is_managed=False,
             is_online=True,
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud2.id)
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["subcloud_group"] = str(self.fake_group2.id)
         um = sw_update_manager.SwUpdateManager()
-        response = um.create_sw_update_strategy(self.ctxt, payload=data)
+        response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
         self.assertEqual(response["max-parallel-subclouds"], 1)
@@ -326,27 +288,27 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     def test_create_sw_update_strategy_parallel_for_a_single_group(self):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud2",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud2.id,
             endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
@@ -355,7 +317,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["subcloud_group"] = str(self.fake_group3.id)
         um = sw_update_manager.SwUpdateManager()
-        response = um.create_sw_update_strategy(self.ctxt, payload=data)
+        response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
         self.assertEqual(response["max-parallel-subclouds"], 2)
@@ -366,7 +328,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 2]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
@@ -379,27 +341,27 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     ):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud2",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud2.id,
             endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
@@ -413,7 +375,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         data["subcloud_group"] = str(self.fake_group3.id)
         um = sw_update_manager.SwUpdateManager()
-        response = um.create_sw_update_strategy(self.ctxt, payload=data)
+        response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
         self.assertEqual(response["max-parallel-subclouds"], 2)
@@ -424,7 +386,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 2]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
@@ -438,10 +400,10 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will be prestaged load in sync
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
@@ -449,18 +411,18 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Subcloud2 will be prestaged load is None
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud2", 1, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud2.id, dccommon_consts.AUDIT_TYPE_SOFTWARE, None
+            self.ctx, fake_subcloud2.id, dccommon_consts.AUDIT_TYPE_SOFTWARE, None
         )
 
         # Subcloud3 will be prestaged load out of sync
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud3", 1, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud3.id,
             dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
@@ -468,10 +430,10 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Subcloud4 will be prestaged sync unknown
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt, "subcloud4", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud4", 1, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud4.id,
             dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_UNKNOWN,
@@ -485,7 +447,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["sysadmin_password"] = fake_password
 
         um = sw_update_manager.SwUpdateManager()
-        response = um.create_sw_update_strategy(self.ctxt, payload=data)
+        response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
         self.assertEqual(response["max-parallel-subclouds"], 2)
@@ -496,7 +458,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 2, 3, 4]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
@@ -509,27 +471,27 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     ):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
 
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud2",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud2.id,
             endpoint=dccommon_consts.AUDIT_TYPE_SOFTWARE,
         )
@@ -545,7 +507,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
-            self.ctxt,
+            self.ctx,
             payload=data,
         )
 
@@ -558,13 +520,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Create fake subcloud and respective status (managed & online)
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
         db_api.subcloud_update(
             self.ctx,
             fake_subcloud1.id,
@@ -581,20 +543,20 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
-            self.ctxt,
+            self.ctx,
             payload=data,
         )
 
     def test_create_sw_update_strategy_cloud_name_not_exists(self):
         # Create fake subclouds and respective status
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
 
@@ -604,7 +566,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
-            self.ctxt,
+            self.ctx,
             payload=data,
         )
 
@@ -612,50 +574,50 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         # Subcloud2 will not be patched because not managed
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=False, is_online=True
+            self.ctx, "subcloud2", 1, is_managed=False, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud2.id)
 
         # Subcloud3 will be patched
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud3", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud3.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud3.id)
 
         # Subcloud4 will not be patched because patching is in sync
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt, "subcloud4", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud4", 2, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
+            self.ctx, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
         )
         # Subcloud5 will be patched
         fake_subcloud5 = self.create_subcloud(
-            self.ctxt, "subcloud5", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud5", 2, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud5.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud5.id)
 
         # Subcloud6 will be patched
         fake_subcloud6 = self.create_subcloud(
-            self.ctxt, "subcloud6", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud6", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud6.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud6.id)
 
         # Subcloud7 will be patched
         fake_subcloud7 = self.create_subcloud(
-            self.ctxt, "subcloud7", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud7", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud7.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud7.id)
 
         um = sw_update_manager.SwUpdateManager()
         strategy_dict = um.create_sw_update_strategy(
-            self.ctxt, payload=FAKE_SW_UPDATE_DATA
+            self.ctx, payload=FAKE_SW_UPDATE_DATA
         )
 
         # Assert that values passed through CLI are used instead of group values
@@ -666,14 +628,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
     def test_create_sw_patching_subcloud_in_sync_out_of_sync(self):
         # Subcloud 1 will be patched
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group3.id,
             is_managed=True,
@@ -681,7 +643,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
@@ -689,7 +651,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Subcloud 2 will not be patched because it is offline
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud2",
             self.fake_group3.id,
             is_managed=True,
@@ -697,7 +659,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud2.id,
             dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
@@ -705,7 +667,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Subcloud 3 will be patched
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud3",
             self.fake_group3.id,
             is_managed=True,
@@ -713,7 +675,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud3.id,
             dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
@@ -721,7 +683,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Subcloud 4 will not be patched because it is in sync
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud4",
             self.fake_group3.id,
             is_managed=True,
@@ -729,7 +691,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud4.id,
             dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
@@ -738,7 +700,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data = copy.copy(FAKE_SW_PATCH_DATA)
         data["subcloud_group"] = str(self.fake_group3.id)
         um = sw_update_manager.SwUpdateManager()
-        response = um.create_sw_update_strategy(self.ctxt, payload=data)
+        response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
         self.assertEqual(response["max-parallel-subclouds"], 2)
@@ -749,7 +711,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         subcloud_id_processed = []
         for strategy_step in strategy_step_list:
             subcloud_id_processed.append(strategy_step.subcloud_id)
@@ -757,7 +719,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
     def test_create_sw_patching_subcloud_failed_current_version(self):
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group2.id,
             is_managed=True,
@@ -767,7 +729,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
@@ -783,7 +745,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             "can only be used for subclouds running the previous release."
         )
         with self.assertRaisesRegex(exceptions.BadRequest, expected_message):
-            um.create_sw_update_strategy(self.ctxt, payload=data)
+            um.create_sw_update_strategy(self.ctx, payload=data)
 
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(cutils, "get_system_controller_deploy", return_value=None)
@@ -794,29 +756,25 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     ):
         # Create fake subclouds and respective status
         # Subcloud1 will be prestaged
-        self.create_subcloud(self.ctxt, "subcloud1", 1, is_managed=True, is_online=True)
+        self.create_subcloud(self.ctx, "subcloud1", 1, is_managed=True, is_online=True)
 
         # Subcloud2 will not be prestaged because not managed
-        self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=False, is_online=True
-        )
+        self.create_subcloud(self.ctx, "subcloud2", 1, is_managed=False, is_online=True)
 
         # Subcloud3 will be prestaged
-        self.create_subcloud(self.ctxt, "subcloud3", 1, is_managed=True, is_online=True)
+        self.create_subcloud(self.ctx, "subcloud3", 1, is_managed=True, is_online=True)
 
         # Subcloud4 will not be prestaged because offline
-        self.create_subcloud(
-            self.ctxt, "subcloud4", 2, is_managed=True, is_online=False
-        )
+        self.create_subcloud(self.ctx, "subcloud4", 2, is_managed=True, is_online=False)
 
         # Subcloud5 will be prestaged
-        self.create_subcloud(self.ctxt, "subcloud5", 2, is_managed=True, is_online=True)
+        self.create_subcloud(self.ctx, "subcloud5", 2, is_managed=True, is_online=True)
 
         # Subcloud6 will be prestaged
-        self.create_subcloud(self.ctxt, "subcloud6", 3, is_managed=True, is_online=True)
+        self.create_subcloud(self.ctx, "subcloud6", 3, is_managed=True, is_online=True)
 
         # Subcloud7 will be prestaged
-        self.create_subcloud(self.ctxt, "subcloud7", 3, is_managed=True, is_online=True)
+        self.create_subcloud(self.ctx, "subcloud7", 3, is_managed=True, is_online=True)
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
@@ -825,7 +783,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data[consts.PRESTAGE_REQUEST_RELEASE] = fake_release
 
         um = sw_update_manager.SwUpdateManager()
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+        strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         mock_initial_subcloud_validate.return_value = None
         mock_controller_upgrade.return_value = list()
@@ -842,7 +800,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         subcloud_id_processed = []
         for index, strategy_step in enumerate(strategy_step_list):
             subcloud_id_processed.append(strategy_step.subcloud_id)
@@ -852,51 +810,51 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         # Subcloud2 will not be patched because not managed
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=False, is_online=True
+            self.ctx, "subcloud2", 1, is_managed=False, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud2.id)
 
         # Subcloud3 will be patched
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud3", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud3.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud3.id)
 
         # Subcloud4 will not be patched because patching is in sync
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt, "subcloud4", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud4", 2, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
+            self.ctx, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
         )
         # Subcloud5 will be patched
         fake_subcloud5 = self.create_subcloud(
-            self.ctxt, "subcloud5", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud5", 2, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud5.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud5.id)
 
         # Subcloud6 will be patched
         fake_subcloud6 = self.create_subcloud(
-            self.ctxt, "subcloud6", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud6", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud6.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud6.id)
 
         # Subcloud7 will be patched
         fake_subcloud7 = self.create_subcloud(
-            self.ctxt, "subcloud7", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud7", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud7.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud7.id)
 
         um = sw_update_manager.SwUpdateManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["subcloud-apply-type"] = consts.SUBCLOUD_APPLY_TYPE_SERIAL
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+        strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that values passed through CLI are used instead of group values
         self.assertEqual(strategy_dict["max-parallel-subclouds"], 1)
@@ -906,7 +864,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
@@ -914,88 +872,88 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         # Subcloud2 will not be patched because not managed
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=False, is_online=True
+            self.ctx, "subcloud2", 1, is_managed=False, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud2.id)
 
         # Subcloud3 will be patched
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud3", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud3.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud3.id)
 
         # Subcloud4 will not be patched because patching is in sync
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt, "subcloud4", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud4", 2, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
+            self.ctx, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
         )
         # Subcloud5 will be patched
         fake_subcloud5 = self.create_subcloud(
-            self.ctxt, "subcloud5", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud5", 2, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud5.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud5.id)
 
         # Subcloud6 will be patched
         fake_subcloud6 = self.create_subcloud(
-            self.ctxt, "subcloud6", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud6", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud6.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud6.id)
 
         # Subcloud7 will be patched
         fake_subcloud7 = self.create_subcloud(
-            self.ctxt, "subcloud7", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud7", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud7.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud7.id)
 
         # Subcloud8 will be patched
         fake_subcloud8 = self.create_subcloud(
-            self.ctxt, "subcloud8", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud8", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud8.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud8.id)
 
         # Subcloud9 will be patched
         fake_subcloud9 = self.create_subcloud(
-            self.ctxt, "subcloud9", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud9", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud9.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud9.id)
 
         # Subcloud10 will be patched
         fake_subcloud10 = self.create_subcloud(
-            self.ctxt, "subcloud10", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud10", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud10.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud10.id)
 
         # Subcloud11 will be patched
         fake_subcloud11 = self.create_subcloud(
-            self.ctxt, "subcloud11", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud11", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud11.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud11.id)
 
         # Subcloud12 will be patched
         fake_subcloud12 = self.create_subcloud(
-            self.ctxt, "subcloud12", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud12", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud12.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud12.id)
 
         # Subcloud13 will be patched
         fake_subcloud13 = self.create_subcloud(
-            self.ctxt, "subcloud13", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud13", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud13.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud13.id)
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         del data["subcloud-apply-type"]
 
         um = sw_update_manager.SwUpdateManager()
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+        strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that group values are being used for subcloud_apply_type
         self.assertEqual(strategy_dict["subcloud-apply-type"], None)
@@ -1006,7 +964,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
@@ -1014,88 +972,88 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         # Subcloud2 will not be patched because not managed
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=False, is_online=True
+            self.ctx, "subcloud2", 1, is_managed=False, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud2.id)
 
         # Subcloud3 will be patched
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud3", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud3.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud3.id)
 
         # Subcloud4 will not be patched because patching is in sync
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt, "subcloud4", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud4", 2, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
+            self.ctx, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
         )
         # Subcloud5 will be patched
         fake_subcloud5 = self.create_subcloud(
-            self.ctxt, "subcloud5", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud5", 2, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud5.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud5.id)
 
         # Subcloud6 will be patched
         fake_subcloud6 = self.create_subcloud(
-            self.ctxt, "subcloud6", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud6", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud6.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud6.id)
 
         # Subcloud7 will be patched
         fake_subcloud7 = self.create_subcloud(
-            self.ctxt, "subcloud7", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud7", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud7.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud7.id)
 
         # Subcloud8 will be patched
         fake_subcloud8 = self.create_subcloud(
-            self.ctxt, "subcloud8", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud8", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud8.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud8.id)
 
         # Subcloud9 will be patched
         fake_subcloud9 = self.create_subcloud(
-            self.ctxt, "subcloud9", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud9", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud9.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud9.id)
 
         # Subcloud10 will be patched
         fake_subcloud10 = self.create_subcloud(
-            self.ctxt, "subcloud10", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud10", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud10.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud10.id)
 
         # Subcloud11 will be patched
         fake_subcloud11 = self.create_subcloud(
-            self.ctxt, "subcloud11", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud11", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud11.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud11.id)
 
         # Subcloud12 will be patched
         fake_subcloud12 = self.create_subcloud(
-            self.ctxt, "subcloud12", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud12", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud12.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud12.id)
 
         # Subcloud13 will be patched
         fake_subcloud13 = self.create_subcloud(
-            self.ctxt, "subcloud13", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud13", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud13.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud13.id)
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         del data["max-parallel-subclouds"]
 
         um = sw_update_manager.SwUpdateManager()
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+        strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that values passed through CLI are used instead of
         # group values for max_parallel_subclouds
@@ -1111,7 +1069,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
@@ -1119,89 +1077,89 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         # Subcloud2 will not be patched because not managed
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=False, is_online=True
+            self.ctx, "subcloud2", 1, is_managed=False, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud2.id)
 
         # Subcloud3 will be patched
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud3", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud3.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud3.id)
 
         # Subcloud4 will not be patched because patching is in sync
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt, "subcloud4", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud4", 2, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
+            self.ctx, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_IN_SYNC
         )
         # Subcloud5 will be patched
         fake_subcloud5 = self.create_subcloud(
-            self.ctxt, "subcloud5", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud5", 2, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud5.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud5.id)
 
         # Subcloud6 will be patched
         fake_subcloud6 = self.create_subcloud(
-            self.ctxt, "subcloud6", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud6", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud6.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud6.id)
 
         # Subcloud7 will be patched
         fake_subcloud7 = self.create_subcloud(
-            self.ctxt, "subcloud7", 3, is_managed=True, is_online=True
+            self.ctx, "subcloud7", 3, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud7.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud7.id)
 
         # Subcloud8 will be patched
         fake_subcloud8 = self.create_subcloud(
-            self.ctxt, "subcloud8", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud8", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud8.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud8.id)
 
         # Subcloud9 will be patched
         fake_subcloud9 = self.create_subcloud(
-            self.ctxt, "subcloud9", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud9", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud9.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud9.id)
 
         # Subcloud10 will be patched
         fake_subcloud10 = self.create_subcloud(
-            self.ctxt, "subcloud10", 4, is_managed=True, is_online=True
+            self.ctx, "subcloud10", 4, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud10.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud10.id)
 
         # Subcloud11 will be patched
         fake_subcloud11 = self.create_subcloud(
-            self.ctxt, "subcloud11", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud11", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud11.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud11.id)
 
         # Subcloud12 will be patched
         fake_subcloud12 = self.create_subcloud(
-            self.ctxt, "subcloud12", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud12", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud12.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud12.id)
 
         # Subcloud13 will be patched
         fake_subcloud13 = self.create_subcloud(
-            self.ctxt, "subcloud13", 5, is_managed=True, is_online=True
+            self.ctx, "subcloud13", 5, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud13.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud13.id)
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         del data["subcloud-apply-type"]
         del data["max-parallel-subclouds"]
 
         um = sw_update_manager.SwUpdateManager()
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+        strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that group values are being used
         self.assertEqual(
@@ -1212,7 +1170,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
@@ -1220,35 +1178,35 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will be patched
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         # Subcloud2 will not be patched because not managed
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=False, is_online=True
+            self.ctx, "subcloud2", 1, is_managed=False, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud2.id)
 
         # Subcloud3 will be patched
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud3", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud3.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud3.id)
 
         # Subcloud4 will not be patched because patching is not in sync
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt, "subcloud4", 2, is_managed=True, is_online=True
+            self.ctx, "subcloud4", 2, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_UNKNOWN
+            self.ctx, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_UNKNOWN
         )
 
         um = sw_update_manager.SwUpdateManager()
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
-            self.ctxt,
+            self.ctx,
             payload=FAKE_SW_UPDATE_DATA,
         )
 
@@ -1271,7 +1229,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         #
         # Therefore, subcloud1 will be included in the strategy but not be
         # prestaged because during the apply we find out it is a duplex
-        self.create_subcloud(self.ctxt, "subcloud1", 1, is_managed=True, is_online=True)
+        self.create_subcloud(self.ctx, "subcloud1", 1, is_managed=True, is_online=True)
 
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
@@ -1288,7 +1246,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
-            self.ctxt,
+            self.ctx,
             payload=data,
         )
 
@@ -1296,32 +1254,32 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # Create fake subclouds and respective status
         # Subcloud1 will not be included in the strategy as it's offline
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=False
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=False
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud1.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud1.id)
 
         # Subcloud2 will be included in the strategy as it's online
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt, "subcloud2", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud2", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud2.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud2.id)
 
         # Subcloud3 will be included in the strategy as it's online
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt, "subcloud3", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud3", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud3.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud3.id)
 
         # Subcloud4 will be included in the strategy as it's online
         fake_subcloud4 = self.create_subcloud(
-            self.ctxt, "subcloud4", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud4", 1, is_managed=True, is_online=True
         )
-        self.update_subcloud_status(self.ctxt, fake_subcloud4.id)
+        self.update_subcloud_status(self.ctx, fake_subcloud4.id)
 
         um = sw_update_manager.SwUpdateManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["max-parallel-subclouds"] = 10
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+        strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that values passed through CLI are used instead of group values
         self.assertEqual(strategy_dict["max-parallel-subclouds"], 10)
@@ -1332,21 +1290,21 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Verify the strategy step list
         subcloud_ids = [2, 3, 4]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
     def test_create_sw_update_strategy(self):
         # Subcloud 1 will not be upgraded
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud1",
             self.fake_group3.id,
             is_managed=True,
             is_online=False,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
@@ -1354,14 +1312,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Subcloud 2 will be upgraded
         fake_subcloud2 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud2",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud2.id,
             dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
@@ -1369,14 +1327,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Subcloud 3 will not be upgraded because it is already load in-sync
         fake_subcloud3 = self.create_subcloud(
-            self.ctxt,
+            self.ctx,
             "subcloud3",
             self.fake_group3.id,
             is_managed=True,
             is_online=True,
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud3.id,
             dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
@@ -1387,7 +1345,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["subcloud_group"] = str(self.fake_group3.id)
 
         um = sw_update_manager.SwUpdateManager()
-        strategy_dict = um.create_sw_update_strategy(self.ctxt, payload=data)
+        strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that values passed through CLI are used instead of group values
         self.assertEqual(
@@ -1396,7 +1354,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertEqual(strategy_dict["type"], consts.SW_UPDATE_TYPE_SOFTWARE)
 
         subcloud_ids = [2]
-        strategy_step_list = db_api.strategy_step_get_all(self.ctxt)
+        strategy_step_list = db_api.strategy_step_get_all(self.ctx)
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
@@ -1404,10 +1362,10 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # This test verifies that a bad request exception is raised because the software
         # sync status of the offline subcloud is in-sync.
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=False
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=False
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
@@ -1421,7 +1379,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
-            self.ctxt,
+            self.ctx,
             payload=data,
         )
 
@@ -1429,10 +1387,10 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         # A bad request exception will be raised if the subcloud software sync status
         # is unknown.
         fake_subcloud1 = self.create_subcloud(
-            self.ctxt, "subcloud1", 1, is_managed=True, is_online=True
+            self.ctx, "subcloud1", 1, is_managed=True, is_online=True
         )
         self.update_subcloud_status(
-            self.ctxt,
+            self.ctx,
             fake_subcloud1.id,
             dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_UNKNOWN,
@@ -1446,31 +1404,31 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
-            self.ctxt,
+            self.ctx,
             payload=data,
         )
 
     def test_delete_sw_update_strategy(self):
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
+            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
         um = sw_update_manager.SwUpdateManager()
-        deleted_strategy = um.delete_sw_update_strategy(self.ctxt)
+        deleted_strategy = um.delete_sw_update_strategy(self.ctx)
         self.assertEqual(deleted_strategy["state"], consts.SW_UPDATE_STATE_DELETING)
 
     def test_delete_sw_update_strategy_scoped(self):
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
+            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
         um = sw_update_manager.SwUpdateManager()
         deleted_strategy = um.delete_sw_update_strategy(
-            self.ctxt, update_type=consts.SW_UPDATE_TYPE_SOFTWARE
+            self.ctx, update_type=consts.SW_UPDATE_TYPE_SOFTWARE
         )
         self.assertEqual(deleted_strategy["state"], consts.SW_UPDATE_STATE_DELETING)
 
     def test_delete_sw_update_strategy_bad_scope(self):
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_PRESTAGE, consts.SW_UPDATE_STATE_INITIAL
+            self.ctx, consts.SW_UPDATE_TYPE_PRESTAGE, consts.SW_UPDATE_STATE_INITIAL
         )
         um = sw_update_manager.SwUpdateManager()
         # the strategy is PRESTAGE. The delete for SW-DEPLOY should fail
@@ -1484,39 +1442,37 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     def test_delete_sw_update_strategy_invalid_state(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
+            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
         um = sw_update_manager.SwUpdateManager()
-        self.assertRaises(
-            exceptions.BadRequest, um.delete_sw_update_strategy, self.ctxt
-        )
+        self.assertRaises(exceptions.BadRequest, um.delete_sw_update_strategy, self.ctx)
 
     def test_apply_sw_update_strategy(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
+            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
 
         um = sw_update_manager.SwUpdateManager()
-        updated_strategy = um.apply_sw_update_strategy(self.ctxt)
+        updated_strategy = um.apply_sw_update_strategy(self.ctx)
         self.assertEqual(updated_strategy["state"], consts.SW_UPDATE_STATE_APPLYING)
 
     def test_apply_sw_update_strategy_invalid_state(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
+            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
         um = sw_update_manager.SwUpdateManager()
-        self.assertRaises(exceptions.BadRequest, um.apply_sw_update_strategy, self.ctxt)
+        self.assertRaises(exceptions.BadRequest, um.apply_sw_update_strategy, self.ctx)
 
     def test_abort_sw_update_strategy(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
+            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
 
         um = sw_update_manager.SwUpdateManager()
-        aborted_strategy = um.abort_sw_update_strategy(self.ctxt)
+        aborted_strategy = um.abort_sw_update_strategy(self.ctx)
         self.assertEqual(
             aborted_strategy["state"], consts.SW_UPDATE_STATE_ABORT_REQUESTED
         )
@@ -1524,8 +1480,8 @@ class TestSwUpdateManager(base.DCManagerTestCase):
     def test_abort_sw_update_strategy_invalid_state(self):
         # Create fake strategy
         self.create_strategy(
-            self.ctxt, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_COMPLETE
+            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_COMPLETE
         )
 
         um = sw_update_manager.SwUpdateManager()
-        self.assertRaises(exceptions.BadRequest, um.apply_sw_update_strategy, self.ctxt)
+        self.assertRaises(exceptions.BadRequest, um.apply_sw_update_strategy, self.ctx)
