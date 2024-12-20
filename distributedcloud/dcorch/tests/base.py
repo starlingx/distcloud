@@ -15,7 +15,6 @@
 # under the License.
 #
 
-import builtins
 import mock
 import pecan
 
@@ -25,10 +24,8 @@ from oslotest import base
 import sqlalchemy
 
 from dccommon import consts as dccommon_consts
-from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.db import api
 from dcorch.db.sqlalchemy import api as db_api
-from dcorch.rpc import client as rpc_client
 from dcorch.tests import utils
 
 
@@ -41,14 +38,6 @@ CAPABILITIES = {
         dccommon_consts.ENDPOINT_TYPE_IDENTITY,
     ]
 }
-
-
-class FakeException(Exception):
-    """Exception used to throw a generic exception in the application
-
-    Using the Exception class might lead to linter errors for being too broad. In
-    these cases, the FakeException is used
-    """
 
 
 class OrchestratorTestCase(base.BaseTestCase):
@@ -77,84 +66,15 @@ class OrchestratorTestCase(base.BaseTestCase):
         self.setup_dummy_db()
         self.addCleanup(self.reset_dummy_db)
         self.ctx = utils.dummy_context()
-        self._mock_pecan()
+        self.mock_pecan_abort = self._mock_object(pecan, "abort", wraps=pecan.abort)
 
-    def _mock_pecan(self):
-        """Mock pecan's abort"""
+    def _mock_object(self, target, attribute, wraps=None):
+        """Mock a specified target's attribute and return the mock object"""
 
-        mock_patch = mock.patch.object(pecan, "abort", wraps=pecan.abort)
-        self.mock_pecan_abort = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        mock_patch_object = mock.patch.object(target, attribute, wraps=wraps)
+        self.addCleanup(mock_patch_object.stop)
 
-    def _mock_rpc_client(self):
-        """Mock rpc's manager client"""
-
-        mock_patch = mock.patch.object(rpc_client, "EngineWorkerClient")
-        self.mock_rpc_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_rpc_client_subcloud_state_client(self):
-        mock_patch = mock.patch.object(dcmanager_rpc_client, "SubcloudStateClient")
-        self.rpc_client_subcloud_state_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_rpc_client_manager(self):
-        mock_patch = mock.patch.object(dcmanager_rpc_client, "ManagerClient")
-        self.rpc_client_manager = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_log(self, target):
-        mock_patch = mock.patch.object(target, "LOG")
-        self.log = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_openstack_driver(self):
-        mock_patch = mock.patch(
-            "dccommon.drivers.openstack.sdk_platform.OpenStackDriver"
-        )
-        self.mock_openstack_driver = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_keystone_client(self):
-        mock_patch = mock.patch("keystoneclient.client.Client")
-        self.mock_keystone_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_keystone_endpoint_cache_get_admin_session(self):
-        mock_patch = mock.patch(
-            "dccommon.drivers.openstack.keystone_v3.EndpointCache.get_admin_session"
-        )
-        self.mock_endpoint_cache_from_keystone = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_endpoint_cache_get_admin_session(self):
-        mock_patch = mock.patch(
-            "dccommon.endpoint_cache.EndpointCache.get_admin_session"
-        )
-        self.mock_endpoint_cache = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_m_dbs_client(self):
-        mock_patch = mock.patch("dcorch.engine.sync_thread.dbsyncclient.Client")
-        self.mock_m_dbs_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_sc_dbs_client(self):
-        mock_patch = mock.patch("dcorch.engine.sync_services.identity.Client")
-        self.mock_sc_dbs_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_sysinv_client(self, target):
-        mock_patch = mock.patch.object(target, "SysinvClient")
-        self.mock_sysinv_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_builtins_open(self):
-        """Mock builtins' open"""
-
-        mock_patch = mock.patch.object(builtins, "open")
-        self.mock_builtins_open = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        return mock_patch_object.start()
 
     def _assert_pecan(self, http_status, content=None, call_count=1):
         """Assert pecan was called with the correct arguments"""

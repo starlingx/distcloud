@@ -6,13 +6,19 @@
 import mock
 
 from keystoneauth1 import exceptions as keystone_exceptions
+from keystoneclient import client as keystone_client
 from oslo_serialization import jsonutils
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.keystone_v3 import EndpointCache
+from dccommon.drivers.openstack import sdk_platform
+from dccommon import endpoint_cache
 from dcdbsync.dbsyncclient import exceptions as dbsync_exceptions
+from dcmanager.rpc import client as dcmanager_rpc_client
 import dcorch.common.exceptions as exceptions
 import dcorch.db.api as db_api
 import dcorch.engine.sync_services.identity as identity_service
+from dcorch.engine.sync_thread import dbsyncclient
 import dcorch.objects.subcloud_resource as subcloud_resource
 from dcorch.tests.base import OrchestratorTestCase
 import dcorch.tests.unit.engine.sync_services.mixins as mixins
@@ -28,15 +34,15 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
     def setUp(self):
         super().setUp()
 
-        self._mock_openstack_driver()
-        self._mock_keystone_client()
-        self._mock_keystone_endpoint_cache_get_admin_session()
-        self._mock_endpoint_cache_get_admin_session()
-        self._mock_m_dbs_client()
-        self._mock_sc_dbs_client()
-        self._mock_rpc_client_subcloud_state_client()
-        self._mock_rpc_client_manager()
-        self._mock_log(identity_service)
+        self._mock_object(sdk_platform, "OpenStackDriver")
+        self._mock_object(keystone_client, "Client")
+        self._mock_object(EndpointCache, "get_admin_session")
+        self._mock_object(endpoint_cache.EndpointCache, "get_admin_session")
+        self._mock_object(dbsyncclient, "Client")
+        self._mock_object(identity_service, "Client")
+        self._mock_object(dcmanager_rpc_client, "SubcloudStateClient")
+        self._mock_object(dcmanager_rpc_client, "ManagerClient")
+        self.mock_log = self._mock_object(identity_service, "LOG")
 
         self._create_request_and_resource_mocks()
         self._create_subcloud_and_subcloud_resource()
@@ -94,7 +100,7 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
         return self.rsrc
 
     def _get_log(self):
-        return self.log
+        return self.mock_log
 
     def _get_subcloud(self):
         return self.subcloud
@@ -134,11 +140,11 @@ class BaseTestIdentitySyncThread(OrchestratorTestCase, mixins.BaseMixin):
 
     def _assert_log(self, level, message, extra=mock.ANY):
         if level == "info":
-            self.log.info.assert_called_with(message, extra=extra)
+            self.mock_log.info.assert_called_with(message, extra=extra)
         elif level == "error":
-            self.log.error.assert_called_with(message, extra=extra)
+            self.mock_log.error.assert_called_with(message, extra=extra)
         elif level == "debug":
-            self.log.debug.assert_called_with(message, extra=extra)
+            self.mock_log.debug.assert_called_with(message, extra=extra)
 
 
 class BaseTestIdentitySyncThreadUsers(BaseTestIdentitySyncThread):
@@ -595,7 +601,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsPut(
         self._execute()
 
         self._assert_log("debug", "IdentitySyncThread initialized")
-        self.log.error.assert_not_called()
+        self.mock_log.error.assert_not_called()
 
 
 class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
@@ -664,7 +670,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
 
         self._execute()
 
-        self.log.assert_has_calls(
+        self.mock_log.assert_has_calls(
             [
                 mock.call.info(
                     f"Revoke role assignment: (role {self.role_id}, "
@@ -689,7 +695,7 @@ class TestIdentitySyncThreadProjectRoleAssignmentsDelete(
 
         self._execute()
 
-        self.log.assert_has_calls(
+        self.mock_log.assert_has_calls(
             [
                 mock.call.info(
                     f"Revoke role assignment: (role {self.role_id}, "
@@ -834,8 +840,6 @@ class BaseTestIdentitySyncThreadRevokeEventsDelete(
         The revoke events doesn't use the keystone client
         """
 
-        pass
-
     def test_delete_succeeds_with_dbsync_not_found_exception(self):
         """Test delete succeeds with dbsync's not found exception"""
 
@@ -967,8 +971,6 @@ class TestIdentitySyncThreadRevokeEventsForUserDelete(
 
         The revoke events for users doesn't use the keystone client
         """
-
-        pass
 
     def test_delete_succeeds_with_dbsync_not_found_exception(self):
         """Test delete succeeds with dbsync's not found exception"""
