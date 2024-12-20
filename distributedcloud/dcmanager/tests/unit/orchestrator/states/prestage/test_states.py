@@ -22,6 +22,7 @@ from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_PRE_CHECK
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.orchestrator.cache import clients
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
 
@@ -43,6 +44,9 @@ class TestPrestage(TestSwUpdate):
         # Add the subcloud being processed by this unit test
         # The subcloud is online, managed with deploy_state 'installed'
         self.subcloud = self.setup_subcloud(deploy_status=consts.DEPLOY_STATE_DONE)
+
+        # Modify cache helpers to return client mocks
+        self._mock_object(clients, "get_software_client")
 
         self.required_extra_args_with_oam = copy.copy(REQUIRED_EXTRA_ARGS)
         self.required_extra_args_with_oam["oam_floating_ip_dict"] = {
@@ -71,7 +75,7 @@ class TestPrestagePreCheckState(TestPrestage):
         self._setup_strategy_step(STRATEGY_STATE_PRESTAGE_PRE_CHECK)
 
         # The validate_prestage method is mocked because the focus is on testing
-        # the orchestrator logic only. Any specifc prestage functionality is covered on
+        # the orchestrator logic only. Any specific prestage functionality is covered on
         # individual tests.
         self.mock_prestage_subcloud = self._mock_object(prestage, "validate_prestage")
         self.mock_prestage_subcloud.return_value = OAM_FLOATING_IP

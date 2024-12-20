@@ -1301,7 +1301,9 @@ def get_prestage_reason(payload):
     return consts.PRESTAGE_FOR_INSTALL
 
 
-def get_validated_sw_version_for_prestage(payload, subcloud=None):
+def get_validated_sw_version_for_prestage(
+    payload, subcloud=None, system_controller_sw_list=None
+):
     """Get the validated software version from payload
 
     This function is used to get the software version previously being validated
@@ -1323,6 +1325,8 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
     Args:
         payload (dict): payload from request
         subcloud (dict): subcloud params if present
+        system_controller_sw_list (list): list of system controller releases,
+        will get from software client if not passed
 
     Returns:
         tuple: The release validation result:
@@ -1349,11 +1353,12 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
     software_version = get_sw_version(software_version, for_install)
 
     # Query to the USM API to get the software list
-    software_list = get_system_controller_software_list()
+    if system_controller_sw_list is None:
+        system_controller_sw_list = get_system_controller_software_list()
 
     # Gets only the list of deployed major releases.
     deployed_releases = get_major_releases(
-        get_systemcontroller_deployed_releases(software_list)
+        get_systemcontroller_deployed_releases(system_controller_sw_list)
     )
 
     # Check for deploy release param
@@ -1376,7 +1381,7 @@ def get_validated_sw_version_for_prestage(payload, subcloud=None):
     else:
         # Check for install release param
         if not is_software_ready_to_be_prestaged_for_install(
-            software_list, software_version
+            system_controller_sw_list, software_version
         ):
             return None, ("The requested release is not ready to be installed.")
 

@@ -50,11 +50,18 @@ REGION_ONE_KUBERNETES_CACHE_SPECIFICATION = CacheSpecification(
     lambda: clients.get_sysinv_client().get_kube_versions()
 )
 
+REGION_ONE_RELEASE_USM_CACHE_SPECIFICATION = CacheSpecification(
+    lambda: clients.get_software_client().list()
+)
+
 # Map each expected operation type to its required cache types
 CACHE_TYPES_BY_OPERATION_TYPE = {
     consts.SW_UPDATE_TYPE_KUBERNETES: {
         REGION_ONE_KUBERNETES_CACHE_TYPE: REGION_ONE_KUBERNETES_CACHE_SPECIFICATION
-    }
+    },
+    consts.SW_UPDATE_TYPE_SOFTWARE: {
+        REGION_ONE_RELEASE_USM_CACHE_TYPE: REGION_ONE_RELEASE_USM_CACHE_SPECIFICATION,
+    },
 }
 
 

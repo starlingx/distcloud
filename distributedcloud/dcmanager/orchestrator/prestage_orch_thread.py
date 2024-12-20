@@ -16,6 +16,7 @@
 from oslo_log import log as logging
 
 from dcmanager.common import consts
+from dcmanager.orchestrator.cache.shared_cache_repository import SharedCacheRepository
 from dcmanager.orchestrator.orch_thread import OrchThread
 from dcmanager.orchestrator.states.prestage import states
 
@@ -41,7 +42,19 @@ class PrestageOrchThread(OrchThread):
             None,
             consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK,
         )
+        # Initialize shared cache instances for the states that require them
+        self._shared_caches = SharedCacheRepository(consts.SW_UPDATE_TYPE_SOFTWARE)
+        self._shared_caches.initialize_caches()
+
+    def pre_apply_setup(self):
+        # Restart caches for next strategy
+        self._shared_caches.initialize_caches()
+        super().pre_apply_setup()
+
+    def determine_state_operator(self, strategy_step):
+        state = super().determine_state_operator(strategy_step)
+        state.add_shared_caches(self._shared_caches)
+        return state
 
     def trigger_audit(self):
         """Trigger an audit"""
-        pass

@@ -154,7 +154,7 @@ def initial_subcloud_validate(subcloud):
         )
 
 
-def validate_prestage(subcloud, payload):
+def validate_prestage(subcloud, payload, system_controller_sw_list=None):
     """Validate a subcloud prestage operation.
 
     Prestage conditions validation
@@ -171,7 +171,7 @@ def validate_prestage(subcloud, payload):
     # Do software version validation. If the version is not validated correctly,
     # it implies that there is an error. Therefore the prestage cannot be continued.
     software_version, message = utils.get_validated_sw_version_for_prestage(
-        payload, subcloud
+        payload, subcloud, system_controller_sw_list
     )
     if not software_version:
         raise exceptions.PrestagePreCheckFailedException(

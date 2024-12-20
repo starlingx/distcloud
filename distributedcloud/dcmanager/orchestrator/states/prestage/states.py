@@ -13,6 +13,9 @@ from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
+from dcmanager.orchestrator.cache.cache_specifications import (
+    REGION_ONE_RELEASE_USM_CACHE_TYPE,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -112,8 +115,11 @@ class PrestagePreCheckState(PrestageState):
             )
 
         try:
+            system_controller_sw_list = self._read_from_cache(
+                REGION_ONE_RELEASE_USM_CACHE_TYPE
+            )
             oam_floating_ip = prestage.validate_prestage(
-                strategy_step.subcloud, payload
+                strategy_step.subcloud, payload, system_controller_sw_list
             )
             self._update_oam_floating_ip(strategy_step, oam_floating_ip)
 
