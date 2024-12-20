@@ -169,8 +169,8 @@ class TestPrestagePackagesState(TestPrestage):
 
         self._mock_object(builtins, "open")
         self._mock_ansible_playbook()
-        self._mock_object(
-            ostree_mount, "validate_ostree_iso_mount", "validate_ostree_iso_mount"
+        self.mock_validate_ostree_iso_mount = self._mock_object(
+            ostree_mount, "validate_ostree_iso_mount"
         )
 
     def _mock_ansible_playbook(self):

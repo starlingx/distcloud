@@ -141,16 +141,14 @@ class TestSwUpdateOptionsGet(BaseTestSwUpdateOptionsController, SwUpdateOptionsM
 
         self._create_sw_update_opts()
 
-        self._mock_object(
+        self.mock_sw_update_opts = self._mock_object(
             db_api,
             "sw_update_opts_get",
-            "mock_sw_update_opts",
             db_api.sw_update_opts_get,
         )
-        self._mock_object(
+        self.mock_sw_update_opts_default = self._mock_object(
             db_api,
             "sw_update_opts_default_get",
-            "mock_sw_update_opts_default",
             db_api.sw_update_opts_default_get,
         )
 
@@ -235,16 +233,14 @@ class TestSwUpdateOptionsPostUpdate(BaseTestSwUpdateOptionsPost, SwUpdateOptions
         self._create_sw_update_opts()
         self._create_sw_update_opts_default()
 
-        self._mock_object(
+        self.mock_sw_update_opts = self._mock_object(
             db_api,
             "sw_update_opts_update",
-            "mock_sw_update_opts",
             db_api.sw_update_opts_update,
         )
-        self._mock_object(
+        self.mock_sw_update_opts_default = self._mock_object(
             db_api,
             "sw_update_opts_default_update",
-            "mock_sw_update_opts_default",
             db_api.sw_update_opts_default_update,
         )
 
@@ -277,16 +273,14 @@ class TestSwUpdateOptionsPostCreate(BaseTestSwUpdateOptionsPost, SwUpdateOptions
     def setUp(self):
         super().setUp()
 
-        self._mock_object(
+        self.mock_sw_update_opts = self._mock_object(
             db_api,
             "sw_update_opts_create",
-            "mock_sw_update_opts",
             db_api.sw_update_opts_create,
         )
-        self._mock_object(
+        self.mock_sw_update_opts_default = self._mock_object(
             db_api,
             "sw_update_opts_default_create",
-            "mock_sw_update_opts_default",
             db_api.sw_update_opts_default_create,
         )
 
@@ -325,16 +319,14 @@ class TestSwUpdateOptionsDelete(
         self._create_sw_update_opts()
         self._create_sw_update_opts_default()
 
-        self._mock_object(
+        self.mock_sw_update_opts = self._mock_object(
             db_api,
             "sw_update_opts_destroy",
-            "mock_sw_update_opts",
             db_api.sw_update_opts_destroy,
         )
-        self._mock_object(
+        self.mock_sw_update_opts_default = self._mock_object(
             db_api,
             "sw_update_opts_default_destroy",
-            "mock_sw_update_opts_default",
             db_api.sw_update_opts_default_destroy,
         )
 
