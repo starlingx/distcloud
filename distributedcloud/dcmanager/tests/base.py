@@ -16,10 +16,7 @@
 #
 
 import base64
-import builtins
 import json
-import os
-import os.path as os_path
 
 import mock
 from oslo_config import cfg
@@ -30,19 +27,11 @@ import sqlalchemy
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
-from dccommon.utils import AnsiblePlaybook
-from dcmanager.api.controllers.v1.subclouds import SubcloudsController
-from dcmanager.audit import rpcapi
-from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.common import consts
-from dcmanager.common import phased_subcloud_deploy as psd_common
-from dcmanager.common import utils as dutils
 from dcmanager.db import api
 from dcmanager.db.sqlalchemy import api as db_api
-from dcmanager.rpc import client as rpc_client
 from dcmanager.tests import utils
-from dcorch.rpc import client as dcorch_rpc_client
 
 get_engine = api.get_engine
 
@@ -165,229 +154,25 @@ class DCManagerTestCase(base.BaseTestCase):
         self.addCleanup(self.reset_dummy_db)
         self.setup_dummy_db()
         self.ctx = utils.dummy_context()
-        self._mock_pecan()
-        self._mock_subcloud_audit_worker_manager_time()
+        self.mock_pecan_abort = self._mock_object(pecan, "abort", wraps=pecan.abort)
 
-    # TODO(rlima): update the mock creation in the methods below
-    def _mock_object(self, target, attribute, name, wraps=None):
+        # This is required to avoid tests timing out because of the infinite thread
+        # that runs in the worker process
+        self.mock_audit_worker_time = self._mock_object(
+            subcloud_audit_worker_manager, "time"
+        )
+        self.mock_audit_worker_time.sleep.side_effect = Exception()
+
+    def _mock_object(self, target, attribute, name=None, wraps=None):
         """Mock a specified target's attribute and save it in a variable"""
 
         mock_patch_object = mock.patch.object(target, attribute, wraps=wraps)
-        self.__dict__[name] = mock_patch_object.start()
+        created_mock = mock_patch_object.start()
+        # TODO(rlima): update the mock usage not to use the name parameter
+        self.__dict__[name] = created_mock
         self.addCleanup(mock_patch_object.stop)
 
-    def _mock_pecan(self):
-        """Mock pecan's abort"""
-
-        mock_patch_object = mock.patch.object(pecan, "abort", wraps=pecan.abort)
-        self.mock_pecan_abort = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_subcloud_audit_worker_manager_time(self):
-        """Mock subcloud's audit worker manager time
-
-        This is required to avoid tests timing out because of the infinite thread
-        that runs in the worker process
-        """
-
-        mock_patch_object = mock.patch.object(subcloud_audit_worker_manager, "time")
-        self.mock_subcloud_audit_worker_manager_time = mock_patch_object.start()
-        self.mock_subcloud_audit_worker_manager_time.sleep.side_effect = Exception()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_db_api(self, target, wraps=None):
-        """Mock db api's method"""
-
-        mock_patch_object = mock.patch.object(db_api, target, wraps=wraps)
-        self.mock_db_api = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_audit_rpc_client(self):
-        """Mock rpc's manager audit client"""
-
-        mock_patch_object = mock.patch.object(rpcapi, "ManagerAuditClient")
-        self.mock_audit_rpc_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_rpc_client(self):
-        """Mock rpc's manager client"""
-
-        mock_patch_object = mock.patch.object(rpc_client, "ManagerClient")
-        self.mock_rpc_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_dcorch_engine_rpc_client(self):
-        """Mock rpc's manager client"""
-
-        mock_patch_object = mock.patch.object(dcorch_rpc_client, "EngineWorkerClient")
-        self.mock_dcorch_engine_rpc_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_rpc_subcloud_state_client(self):
-        """Mock rpc's subcloud state client"""
-
-        mock_patch_object = mock.patch.object(rpc_client, "SubcloudStateClient")
-        self.mock_rpc_subcloud_state_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_rpc_api_manager_audit_worker_client(self):
-        """Mock rpc's api manager audit worker client"""
-
-        mock_patch_object = mock.patch.object(rpcapi, "ManagerAuditWorkerClient")
-        self.mock_rpc_api_manager_audit_worker_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_subcloud_audit_manager_context(self):
-        """Mock subcloud audit manager's context"""
-
-        mock_patch_object = mock.patch.object(subcloud_audit_manager, "context")
-        self.mock_subcloud_audit_manager_context = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_openstack_driver(self, target):
-        """Mock the target's OpenStackDriver"""
-
-        mock_patch_object = mock.patch.object(target, "OpenStackDriver")
-        self.mock_openstack_driver = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_sysinv_client(self, target):
-        """Mock the target's SysinvClient"""
-
-        mock_patch_object = mock.patch.object(target, "SysinvClient")
-        self.mock_sysinv_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_software_client(self, target):
-        """Mock the target's SoftwareClient"""
-
-        mock_patch_object = mock.patch.object(target, "SoftwareClient")
-        self.mock_software_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_fm_client(self, target):
-        """Mock the target's FmClient"""
-
-        mock_patch_object = mock.patch.object(target, "FmClient")
-        self.mock_fm_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_read_from_cache(self, target):
-        mock_patch = mock.patch.object(target, "_read_from_cache")
-        self.mock_read_from_cache = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
-
-    def _mock_vim_client(self, target):
-        """Mock the target's VimClient"""
-
-        mock_patch_object = mock.patch.object(target, "VimClient")
-        self.mock_vim_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_network_address_pools(self):
-        """Mock phased subcloud deploy's get_network_address_pools"""
-
-        mock_patch_object = mock.patch.object(psd_common, "get_network_address_pools")
-        self.mock_get_network_address_pools = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_ks_client(self):
-        """Mock phased subcloud deploy's get_ks_client"""
-
-        mock_patch_object = mock.patch.object(psd_common, "get_ks_client")
-        self.mock_get_ks_client = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_query(self):
-        """Mock phased subcloud deploy's query"""
-
-        mock_patch_object = mock.patch.object(psd_common.PatchingClient, "query")
-        self.mock_query = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_subcloud_db_install_values(self):
-        """Mock phased subcloud deploy's get_subcloud_db_install_values"""
-
-        mock_patch_object = mock.patch.object(
-            psd_common, "get_subcloud_db_install_values"
-        )
-        self.mock_get_subcloud_db_install_values = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_validate_k8s_version(self):
-        """Mock phased subcloud deploy's validate_k8s_version"""
-
-        mock_patch_object = mock.patch.object(psd_common, "validate_k8s_version")
-        self.mock_validate_k8s_version = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_vault_load_files(self):
-        """Mock dcmanager util's get_vault_load_files"""
-
-        mock_patch_object = mock.patch.object(dutils, "get_vault_load_files")
-        self.mock_get_vault_load_files = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_load_yaml_file(self):
-        """Mock dcmanager util's load_yaml_file"""
-
-        mock_patch_object = mock.patch.object(dutils, "load_yaml_file")
-        self.mock_load_yaml_file = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_get_local_system(self):
-        """Mock dcmanager util's get_local_system"""
-
-        mock_patch_object = mock.patch.object(dutils, "get_local_system")
-        self.mock_get_local_system = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_os_remove(self):
-        """Mock os' remove"""
-
-        mock_patch_object = mock.patch.object(os, "remove")
-        self.mock_os_remove = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_os_mkdir(self):
-        """Mock os' mkdir"""
-
-        mock_patch_object = mock.patch.object(os, "mkdir")
-        self.mock_os_mkdir = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_os_listdir(self):
-        """Mock os' listdir"""
-
-        mock_patch_object = mock.patch.object(os, "listdir")
-        self.mock_os_listdir = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_os_path_isdir(self):
-        """Mock os' path.isdir"""
-
-        mock_patch_object = mock.patch.object(os_path, "isdir")
-        self.mock_os_path_isdir = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_os_path_exists(self):
-        """Mock os' path.exists"""
-
-        mock_patch_object = mock.patch.object(os_path, "exists")
-        self.mock_os_path_exists = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_builtins_open(self):
-        """Mock builtins' open"""
-
-        mock_patch_object = mock.patch.object(builtins, "open")
-        self.mock_builtins_open = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_log(self, target):
-        mock_patch_object = mock.patch.object(target, "LOG")
-        self.mock_log = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
+        return created_mock
 
     def _assert_pecan(self, http_status, content=None, call_count=1):
         """Assert pecan was called with the correct arguments"""
@@ -403,32 +188,3 @@ class DCManagerTestCase(base.BaseTestCase):
         """Create a password with based on the specified keyword"""
 
         return base64.b64encode(keyword.encode("utf-8")).decode("utf-8")
-
-    def _mock_subcloud_manager(self, target):
-        """Mock the target's SubcloudManager"""
-
-        mock_patch_object = mock.patch.object(target, "SubcloudManager")
-        self.mock_subcloud_manager = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_peer_monitor_manager(self, target):
-        """Mock the target's PeerMonitorManager"""
-
-        mock_patch_object = mock.patch.object(target, "PeerMonitorManager")
-        self.mock_peer_monitor_manager = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_ansible_run_playbook(self):
-        """Mock AnsiblePlaybook's run_playbook"""
-
-        mock_patch_object = mock.patch.object(AnsiblePlaybook, "run_playbook")
-        self.mock_ansible_run_playbook = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-
-    def _mock_valid_software_deploy_state(self, return_value=True):
-        mock_patch_object = mock.patch.object(
-            SubcloudsController, "is_valid_software_deploy_state"
-        )
-        self.mock_valid_software_deploy_state = mock_patch_object.start()
-        self.addCleanup(mock_patch_object.stop)
-        self.mock_valid_software_deploy_state.return_value = return_value

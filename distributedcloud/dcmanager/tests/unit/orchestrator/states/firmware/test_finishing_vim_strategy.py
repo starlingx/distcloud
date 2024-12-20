@@ -10,6 +10,7 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.firmware import finishing_fw_update
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeController
 from dcmanager.tests.unit.orchestrator.states.firmware.test_base import (
     TestFwUpdateState,
@@ -34,7 +35,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
     def setUp(self):
         super(TestFwUpdateFinishingFwUpdateStage, self).setUp()
 
-        self._mock_rpc_subcloud_state_client()
+        self._mock_object(rpc_client, "SubcloudStateClient")
 
         # set the next state in the chain (when this state is successful)
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE

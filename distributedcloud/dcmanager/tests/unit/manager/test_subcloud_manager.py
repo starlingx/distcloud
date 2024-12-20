@@ -15,6 +15,7 @@
 #
 
 import base64
+import builtins
 import collections
 import copy
 import datetime
@@ -44,6 +45,7 @@ from dccommon import ostree_mount
 from dccommon import subcloud_enrollment
 from dccommon import subcloud_install
 from dccommon.utils import AnsiblePlaybook
+from dcmanager.audit import rpcapi
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
@@ -51,6 +53,7 @@ from dcmanager.common import utils as cutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.manager import system_peer_manager
+from dcmanager.rpc import client as rpc_client
 from dcmanager.state import subcloud_state_manager
 from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_subcloud
@@ -352,34 +355,37 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        self._mock_audit_rpc_client()
-        self._mock_rpc_subcloud_state_client()
-        # TODO(sgorre): Need to improve same mock method
-        # two times for different targets
-        self._mock_openstack_driver(subcloud_install)
-        self.mock_install_openstack_driver = self.mock_openstack_driver
-        self._mock_sysinv_client(subcloud_install)
-        self.mock_install_sysinv_client = self.mock_sysinv_client
-        self._mock_openstack_driver(subcloud_manager)
-        self._mock_sysinv_client(subcloud_manager)
+        self.mock_audit_rpc_client = self._mock_object(rpcapi, "ManagerAuditClient")
+        self._mock_object(rpc_client, "SubcloudStateClient")
+        self._mock_object(subcloud_install, "OpenStackDriver")
+        self.mock_install_sysinv_client = self._mock_object(
+            subcloud_install, "SysinvClient"
+        )
+        self.mock_openstack_driver = self._mock_object(
+            subcloud_manager, "OpenStackDriver"
+        )
+        self.mock_sysinv_client = self._mock_object(subcloud_manager, "SysinvClient")
         self._mock_dcorch_api()
         self._mock_dcmanager_api()
         self._mock_context()
-        self._mock_log(subcloud_manager)
-        self.mock_log_subcloud_manager = self.mock_log
+        self.mock_log_subcloud_manager = self._mock_object(subcloud_manager, "LOG")
         self._mock_subcloud_manager_keyring()
         self._mock_utils_create_subcloud_inventory()
         self._mock_utils_delete_subcloud_inventory()
         self._mock_utils_get_playbook_for_software_version()
         self._mock_subprocess_run()
-        self._mock_ansible_run_playbook()
-        self._mock_os_mkdir()
-        self._mock_os_listdir()
-        self._mock_os_path_isdir()
-        self._mock_os_path_exists()
-        self._mock_os_remove()
+        self.mock_ansible_run_playbook = self._mock_object(
+            AnsiblePlaybook, "run_playbook"
+        )
+        self.original_builtins_open = builtins.open
+        self.mock_builtins_open = self._mock_object(builtins, "open")
+        self._mock_object(os, "mkdir")
+        self.mock_os_listdir = self._mock_object(os, "listdir")
+        self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
+        self.mock_os_path_exists = self._mock_object(os.path, "exists")
+        self.mock_os_remove = self._mock_object(os, "remove")
         self._mock_ostree_mount_validate_ostree_iso_mount()
-        self._mock_get_local_system()
+        self.mock_get_local_system = self._mock_object(cutils, "get_local_system")
         self._mock_utils_get_pool_by_ip_family()
         self.sm = subcloud_manager.SubcloudManager()
 
@@ -726,7 +732,6 @@ class TestSubcloudManager(BaseTestSubcloudManager):
     def test_generate_subcloud_ansible_config_initial_deployment(
         self, mock_dumps, mock_kubeoperator
     ):
-        self._mock_builtins_open()
         self.subcloud["region_name"] = self.values["region_name"]
         self.sm.generate_subcloud_ansible_config(self.subcloud, self.values, True)
         self.mock_keyring.get_password.assert_called()
@@ -736,7 +741,6 @@ class TestSubcloudManager(BaseTestSubcloudManager):
     def test_generate_subcloud_ansible_config(self):
         self._mock_subcloud_manager_write_subcloud_ansible_config()
         self._mock_subcloud_manager_create_intermediate_ca_cert()
-        self._mock_builtins_open()
         self.subcloud["region_name"] = self.values["region_name"]
         initial_deployment = False
         self.sm.generate_subcloud_ansible_config(
@@ -1045,7 +1049,6 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
     def setUp(self):
         super().setUp()
 
-        self._mock_builtins_open()
         self._mock_subcloud_manager_create_addn_hosts_dc()
         self._mock_subcloud_manager_run_subcloud_install()
         self._mock_subcloud_manager_create_intermediate_ca_cert()
@@ -1441,9 +1444,6 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         self.addCleanup(mock_makedirs_patch.stop)
         self.addCleanup(mock_rmtree_patch.stop)
 
-        self._mock_builtins_open()
-
-        self.mock_builtins_open.side_effect = mock.mock_open()
         self.mock_os_path_exists.return_value = True
         self.mock_mkdtemp.return_value = self.seed_data_dir
         self.mock_os_path_isdir.return_value = True
@@ -1768,7 +1768,6 @@ class TestSubcloudDelete(BaseTestSubcloudManager):
 
     @mock.patch.object(kubeoperator, "KubeOperator")
     def test_delete_subcloud(self, mock_kubeoperator):
-        self._mock_builtins_open()
         self._mock_subcloud_manager_create_addn_hosts_dc()
         self.mock_is_system_controller_deploying.return_value = False
         self.sm.delete_subcloud(self.ctx, subcloud_id=self.subcloud.id)
@@ -1837,6 +1836,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
 
     def setUp(self):
         super().setUp()
+        # Revert the mock to the original method to enable the usage of lock files
+        self.mock_builtins_open.side_effect = self.original_builtins_open
         self.fake_bootstrap_values = (
             '{"name": "TestSubcloud", "system_mode": "simplex"}'
         )
@@ -2980,7 +2981,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
 
     @mock.patch.object(threading.Thread, "start")
     def test_update_subcloud_with_network_reconfig_failed(self, mock_start):
-        self._mock_builtins_open()
+        # In this test, the mocking is required
+        self.mock_builtins_open.side_effect = mock.mock_open()
         self._mock_subcloud_manager_create_intermediate_ca_cert()
         self.mock_os_listdir.return_value = ["testfile1", "testfile2"]
         mock_start.side_effect = Exception("boom")
@@ -4068,7 +4070,6 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
 
     def setUp(self):
         super().setUp()
-        self._mock_builtins_open()
         self.values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
         self.data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
             "'", '"'
@@ -4637,7 +4638,6 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
     def test_run_batch_migrate(
         self, mock_run_parallel_group_operation, mock_subcloud_peer_group_update
     ):
-        self._mock_builtins_open()
         self.mock_get_local_system.return_value = FakeSysinvClient.get_system(self)
         self.mock_openstack_driver.keystone_client = FakeKeystoneClient()
         db_api.subcloud_peer_group_update(
@@ -4774,9 +4774,6 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
     def setUp(self):
         super().setUp()
         self._mock_netaddr_ipaddress()
-        self._mock_builtins_open()
-        self._mock_openstack_driver(subcloud_install)
-        self._mock_sysinv_client(subcloud_install)
         self._mock_subcloud_manager_compose_install_command()
         self.fake_install_values = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self.fake_install_values["software_version"] = SW_VERSION
@@ -4786,7 +4783,9 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
             )
             + "_playbook_output.log"
         )
-        self.mock_sysinv_client().get_oam_address_pools.return_value = FAKE_OAM_POOLS
+        self.mock_install_sysinv_client().get_oam_address_pools.return_value = (
+            FAKE_OAM_POOLS
+        )
         self.mock_subprocess_run.return_value.returncode = 0
         self.subcloud.update(
             {
@@ -4860,7 +4859,6 @@ class TestSubcloudRename(BaseTestSubcloudManager):
 
     def setUp(self):
         super().setUp()
-        self._mock_builtins_open()
         self.new_subcloud_name = "testsubcloud"
         self.alarms = test_subcloud_alarms.DBAPISubcloudAlarm
         self.alarms.create_subcloud_alarms(self.ctx, self.subcloud.name)
@@ -4957,10 +4955,10 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         self.addCleanup(mock_makedirs_patch.stop)
         self.addCleanup(mock_rmtree_patch.stop)
 
-        self._mock_builtins_open()
-        self._mock_log(subcloud_enrollment)
+        self.mock_log_subcloud_enrollment = self._mock_object(
+            subcloud_enrollment, "LOG"
+        )
 
-        self.mock_builtins_open.side_effect = mock.mock_open()
         self.mock_os_path_exists.return_value = True
         self.mock_TemporaryDirectory.return_value.__enter__.return_value = (
             self.seed_data_dir
@@ -5029,7 +5027,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         with mock.patch("os.path.isdir", side_effect=self.patched_isdir):
             self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values))
 
-            self.mock_log.info.assert_any_call(
+            self.mock_log_subcloud_enrollment.info.assert_any_call(
                 f"Preparing seed iso generation for {self.subcloud_name}"
             )
 
@@ -5060,13 +5058,14 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
     def test_enroll_prep(
         self, mock_validate, mock_generate_seed_iso, mock_get_image_base_url
     ):
+        self.mock_builtins_open.side_effect = mock.mock_open()
         with mock.patch("os.path.isdir", side_effect=self.patched_isdir):
             override_path = os.path.join(ANS_PATH, self.subcloud_name)
             result = self.enroll_init.prep(ANS_PATH, self.iso_values, 4)
 
             self.assertTrue(result)
 
-            self.mock_log.info.assert_called_with(
+            self.mock_log_subcloud_enrollment.info.assert_called_with(
                 f"Prepare config for {self.subcloud_name} enroll init"
             )
 
@@ -5084,21 +5083,21 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
                 f"{override_path}/{dccommon_consts.RVMC_CONFIG_FILE_NAME}", "w"
             )
 
-            file_handle = self.mock_builtins_open()
-
             mock_url = (
                 '"https://10.10.10.12:8080/iso/24.09/nodes/test_subcloud/seed.iso"'
             )
             mock_bmc_address = '"128.224.64.180"'
 
-            file_handle.write.assert_any_call(f"bmc_address: {mock_bmc_address}\n")
-            file_handle.write.assert_any_call(f"image: {mock_url}\n")
+            self.mock_builtins_open().write.assert_any_call(
+                f"bmc_address: {mock_bmc_address}\n"
+            )
+            self.mock_builtins_open().write.assert_any_call(f"image: {mock_url}\n")
 
             self.mock_builtins_open.assert_any_call(
                 f"{override_path}/enroll_overrides.yml", "w"
             )
 
-            file_handle.write.assert_any_call(
+            self.mock_builtins_open().write.assert_any_call(
                 "---" "\nenroll_reconfigured_oam: " + "10.10.10.2" + "\n"
             )
 
@@ -5110,7 +5109,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
     def test_enroll_prep_iso_cleanup(self, mock_validate):
         result = self.enroll_init.prep(ANS_PATH, self.iso_values, 4)
         self.assertTrue(result)
-        self.mock_log.info.assert_any_call(
+        self.mock_log_subcloud_enrollment.info.assert_any_call(
             f"Prepare config for {self.subcloud_name} enroll init"
         )
 
@@ -5120,7 +5119,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         # Makedirs shouldn't be invoked, given that prev iso exisited
         self.mock_makedirs.assert_not_called()
 
-        self.mock_log.info.assert_any_call(
+        self.mock_log_subcloud_enrollment.info.assert_any_call(
             f"Found preexisting seed iso for subcloud {self.subcloud_name}, cleaning up"
         )
 
@@ -5131,7 +5130,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
 
         expected_log_entry = f"Start enroll init for {self.subcloud_name}"
 
-        self.mock_log.info.assert_any_call(expected_log_entry)
+        self.mock_log_subcloud_enrollment.info.assert_any_call(expected_log_entry)
 
         subcloud_log_base_path = os.path.join(
             consts.DC_ANSIBLE_LOG_DIR, self.subcloud_name

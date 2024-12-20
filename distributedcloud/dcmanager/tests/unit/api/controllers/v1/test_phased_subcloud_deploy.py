@@ -7,6 +7,7 @@
 import copy
 import http.client
 import json
+import os
 
 import mock
 from oslo_messaging import RemoteError
@@ -19,6 +20,7 @@ from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import utils as dutils
 from dcmanager.db import api as db_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.test_subclouds import FakeAddressPool
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.common import fake_subcloud
@@ -36,9 +38,9 @@ class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
 
         self.url = FAKE_URL
 
-        self._mock_rpc_client()
-        self._mock_get_ks_client()
-        self._mock_query()
+        self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
+        self._mock_object(psd_common, "get_ks_client")
+        self._mock_object(psd_common.PatchingClient, "query")
 
     def _mock_populate_payload(self):
         mock_patch_object = mock.patch.object(
@@ -106,7 +108,7 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
                 str(fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD).encode("utf-8"),
             )
         ]
-        self._mock_sysinv_client(psd_common)
+        self.mock_sysinv_client = self._mock_object(psd_common, "SysinvClient")
 
         self.mock_sysinv_client().get_management_address_pools.return_value = [
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
@@ -211,10 +213,14 @@ class BaseTestPhasedSubcloudDeployPatch(BaseTestPhasedSubcloudDeployController):
         self.method = self.app.patch
         self.url = f"{self.url}/{self.subcloud.id}"
 
-        self._mock_get_vault_load_files()
+        self.mock_get_vault_load_files = self._mock_object(
+            dutils, "get_vault_load_files"
+        )
         self._mock_is_initial_deployment()
         self._mock_is_valid_software_deploy_state()
-        self._mock_get_network_address_pools()
+        self.mock_get_network_address_pools = self._mock_object(
+            psd_common, "get_network_address_pools"
+        )
 
         self.mock_get_vault_load_files.return_value = ("iso_file_path", "sig_file_path")
         self.mock_is_initial_deployment.return_value = True
@@ -301,9 +307,9 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
             ("bootstrap_values", "bootstrap_fake_filename", fake_content)
         ]
 
-        self._mock_load_yaml_file()
+        self.mock_load_yaml_file = self._mock_object(dutils, "load_yaml_file")
         self._setup_mock_load_yaml_file()
-        self._mock_os_path_exists()
+        self.mock_os_path_exists = self._mock_object(os.path, "exists")
         self._setup_mock_os_path_exists()
 
     def _setup_mock_os_path_exists(self):
@@ -638,7 +644,7 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
         )
 
         self._mock_get_subcloud_db_install_values()
-        self._mock_validate_k8s_version()
+        self._mock_object(psd_common, "validate_k8s_version")
         self._mock_get_request_data()
 
         self.mock_get_subcloud_db_install_values.return_value = self.data_install
@@ -981,13 +987,13 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
         )
 
         self._mock_get_subcloud_db_install_values()
-        self._mock_validate_k8s_version()
+        self._mock_object(psd_common, "validate_k8s_version")
         self._mock_get_request_data()
         self._setup_mock_get_request_data()
-        self._mock_load_yaml_file()
-        self._mock_os_path_isdir()
-        self._mock_os_listdir()
-        self._mock_os_path_exists()
+        self.mock_load_yaml_file = self._mock_object(dutils, "load_yaml_file")
+        self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
+        self.mock_os_listdir = self._mock_object(os, "listdir")
+        self.mock_os_path_exists = self._mock_object(os.path, "exists")
         self._setup_mock_os_path_exists()
 
         self.mock_os_path_isdir.return_value = True

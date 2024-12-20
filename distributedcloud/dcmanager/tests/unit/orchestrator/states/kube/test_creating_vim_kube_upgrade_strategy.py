@@ -82,7 +82,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
             ),
         ]
 
-        self._mock_read_from_cache(BaseState)
+        self.mock_read_from_cache = self._mock_object(BaseState, "_read_from_cache")
         self.mock_read_from_cache.return_value = [
             FakeKubeVersion(
                 obj_id=1, version=PREVIOUS_KUBE_VERSION, target=True, state="active"

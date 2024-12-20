@@ -6,7 +6,8 @@
 
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import kube_rootca_update_audit
-from dcmanager.audit.subcloud_audit_manager import SubcloudAuditManager
+from dcmanager.audit import rpcapi
+from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.tests import base
 
@@ -34,14 +35,21 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        self._mock_openstack_driver(kube_rootca_update_audit)
-        self._mock_openstack_driver(subcloud_audit_worker_manager)
-        self._mock_sysinv_client(kube_rootca_update_audit)
-        self.mock_region_one_sysinv_client = self.mock_sysinv_client
-        self._mock_sysinv_client(subcloud_audit_worker_manager)
-        self._mock_fm_client(subcloud_audit_worker_manager)
-        self._mock_rpc_api_manager_audit_worker_client()
-        self._mock_subcloud_audit_manager_context()
+        self._mock_object(kube_rootca_update_audit, "OpenStackDriver")
+        self._mock_object(subcloud_audit_worker_manager, "OpenStackDriver")
+        self.mock_region_one_sysinv_client = self._mock_object(
+            kube_rootca_update_audit, "SysinvClient"
+        )
+        self.mock_sysinv_client = self._mock_object(
+            subcloud_audit_worker_manager, "SysinvClient"
+        )
+        self.mock_fm_client = self._mock_object(
+            subcloud_audit_worker_manager, "FmClient"
+        )
+        self._mock_object(rpcapi, "ManagerAuditWorkerClient")
+        self.mock_subcloud_audit_manager_context = self._mock_object(
+            subcloud_audit_manager, "context"
+        )
 
         # Set the Kubeernetes Root CA cert identifier as cert1 for all regions
         self.kube_rootca_cert_id = (
@@ -60,7 +68,7 @@ class TestKubeRootcaUpdateAudit(base.DCManagerTestCase):
         )
 
         self.audit = kube_rootca_update_audit.KubeRootcaUpdateAudit()
-        self.am = SubcloudAuditManager()
+        self.am = subcloud_audit_manager.SubcloudAuditManager()
         self.am.kube_rootca_update_audit = self.audit
 
     def get_rootca_audit_data(self):

@@ -24,7 +24,9 @@ class TestPrestageValidator(DCManagerTestCase, BaseMixin):
         super().setUp()
 
         self.subcloud = create_fake_subcloud(self.ctx)
-        self._mock_db_api("subcloud_status_get", wraps=db_api.subcloud_status_get)
+        self.mock_db_api = self._mock_object(
+            db_api, "subcloud_status_get", wraps=db_api.subcloud_status_get
+        )
 
         self.validator = PrestageStrategyValidator()
 

@@ -14,6 +14,7 @@ from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers.v1 import subcloud_peer_group
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.base import FakeException
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import PostJSONMixin
@@ -148,9 +149,9 @@ class BaseTestSubcloudPeerGroupController(DCManagerApiTest, SubcloudPeerGroupAPI
 
         self.url = API_PREFIX
 
-        self._mock_rpc_client()
-        self._mock_openstack_driver(subcloud_peer_group)
-        self._mock_sysinv_client(subcloud_peer_group)
+        self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
+        self._mock_object(subcloud_peer_group, "OpenStackDriver")
+        self.mock_sysinv_client = self._mock_object(subcloud_peer_group, "SysinvClient")
 
     def _create_subcloud(self):
         if not hasattr(self, "peer_group"):

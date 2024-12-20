@@ -11,6 +11,7 @@ from fm_api import constants as fm_const
 import mock
 
 from dcmanager.common import consts
+from dcmanager.common import utils as dutils
 from dcmanager.db.sqlalchemy import api as db_api
 from dcmanager.manager import peer_group_audit_manager
 from dcmanager.manager import peer_monitor_manager
@@ -45,9 +46,11 @@ class TestPeerMonitor(base.DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        self._mock_get_local_system()
-        self._mock_subcloud_manager(subcloud_manager)
-        self._mock_log(peer_monitor_manager)
+        self.mock_get_local_system = self._mock_object(dutils, "get_local_system")
+        self.mock_subcloud_manager = self._mock_object(
+            subcloud_manager, "SubcloudManager"
+        )
+        self.mock_log = self._mock_object(peer_monitor_manager, "LOG")
         self._mock_peer_monitor_manager_get_peer_dc_client()
 
         self.peer = self.create_system_peer_static(self.ctx)

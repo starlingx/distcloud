@@ -53,8 +53,8 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
 
         super().setUp()
 
-        self._mock_openstack_driver(clients)
-        self._mock_sysinv_client(clients)
+        self.mock_openstack_driver = self._mock_object(clients, "OpenStackDriver")
+        self.mock_sysinv_client = self._mock_object(clients, "SysinvClient")
         self._mock_software_client()
 
         self.shared_cache_repository = SharedCacheRepository(

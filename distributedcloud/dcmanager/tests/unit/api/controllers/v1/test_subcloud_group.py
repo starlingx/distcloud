@@ -23,6 +23,7 @@ from oslo_messaging import RemoteError
 from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import DeleteMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import GetMixin
@@ -97,8 +98,7 @@ class BaseTestSubcloudGroupController(DCManagerApiTest, SubcloudGroupAPIMixin):
         super().setUp()
 
         self.url = self.API_PREFIX
-
-        self._mock_rpc_client()
+        self._mock_object(rpc_client, "ManagerClient")
 
 
 class TestSubcloudGroupController(BaseTestSubcloudGroupController):
