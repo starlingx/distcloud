@@ -5,13 +5,13 @@
 #
 
 import mock
-from oslo_service import threadgroup
 from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.db.sqlalchemy import api as db_api
 from dcorch.engine import generic_sync_worker_manager
+from dcorch.engine.scheduler import ThreadGroupManager
 from dcorch.tests import base
 from dcorch.tests import utils
 
@@ -25,33 +25,23 @@ SUBCLOUD_SYNC_LIST = [
 
 class TestGenericSyncWorkerManager(base.OrchestratorTestCase):
     def setUp(self):
-        super(TestGenericSyncWorkerManager, self).setUp()
+        super().setUp()
+
         self.engine_id = uuidutils.generate_uuid()
         self.gswm = generic_sync_worker_manager.GenericSyncWorkerManager(self.engine_id)
 
         # Mock sync_object_class_map
-        p = mock.patch.object(
-            generic_sync_worker_manager,
-            "sync_object_class_map",
-            {
-                dccommon_consts.ENDPOINT_TYPE_PLATFORM: mock.MagicMock(),
-                dccommon_consts.ENDPOINT_TYPE_IDENTITY: mock.MagicMock(),
-                dccommon_consts.ENDPOINT_TYPE_IDENTITY_OS: mock.MagicMock(),
-            },
+        mock_sync_object_class_map = self._mock_object(
+            generic_sync_worker_manager, "sync_object_class_map"
         )
-        self.mock_sync_object_class_map = p.start()
-        self.addCleanup(mock.patch.stopall)
-
-        # Mock thread
-        p = mock.patch.object(threadgroup, "Thread")
-        self.mock_thread = p.start()
-        self.addCleanup(p.stop)
+        mock_sync_object_class_map.return_value = {
+            dccommon_consts.ENDPOINT_TYPE_PLATFORM: mock.MagicMock(),
+            dccommon_consts.ENDPOINT_TYPE_IDENTITY: mock.MagicMock(),
+            dccommon_consts.ENDPOINT_TYPE_IDENTITY_OS: mock.MagicMock(),
+        }
 
         # Mock ThreadGroupManager start
-        p = mock.patch("dcorch.engine.scheduler.ThreadGroupManager.start")
-        self.mock_thread_start = p.start()
-        self.mock_thread_start.return_value = self.mock_thread
-        self.addCleanup(p.stop)
+        self.mock_thread_start = self._mock_object(ThreadGroupManager, "start")
 
     def test_init(self):
         self.assertIsNotNone(self.gswm)

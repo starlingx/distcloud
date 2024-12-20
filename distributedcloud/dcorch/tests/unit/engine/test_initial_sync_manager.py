@@ -29,12 +29,10 @@ CONF = cfg.CONF
 
 class TestInitialSyncManager(base.OrchestratorTestCase):
     def setUp(self):
-        super(TestInitialSyncManager, self).setUp()
+        super().setUp()
 
         # Mock the DCorch engine-worker API client
-        mock_patch = mock.patch.object(client, "EngineWorkerClient")
-        self.mock_rpc_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
+        self.mock_rpc_client = self._mock_object(client, "EngineWorkerClient")
 
     def test_init(self):
         ism = initial_sync_manager.InitialSyncManager()

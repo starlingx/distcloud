@@ -5,12 +5,15 @@
 #
 
 import mock
-from oslo_service import threadgroup
+
+from eventlet import greenthread
 from oslo_utils import uuidutils
 
 from dcorch.common import consts
-from dcorch.db.sqlalchemy import api as db_api
+from dcorch.db import api as db_api
+from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine import initial_sync_worker_manager
+from dcorch.engine.scheduler import ThreadGroupManager
 from dcorch.tests import base
 from dcorch.tests import utils
 
@@ -98,32 +101,20 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         )
 
         # Mock eventlet
-        p = mock.patch("eventlet.greenthread.spawn_after")
-        self.mock_eventlet_spawn_after = p.start()
-        self.addCleanup(p.stop)
+        self.mock_eventlet_spawn_after = self._mock_object(greenthread, "spawn_after")
 
         # Mock FernetKeyManager distribute_Keys
-        p = mock.patch(
-            "dcorch.engine.fernet_key_manager.FernetKeyManager.distribute_keys"
+        self.mock_distribute_keys = self._mock_object(
+            FernetKeyManager, "distribute_keys"
         )
-        self.mock_distribute_keys = p.start()
-        self.addCleanup(p.stop)
 
         # Mock db_api subcloud_sync_update
-        p = mock.patch("dcorch.db.api.subcloud_sync_update")
-        self.mock_subcloud_sync_update = p.start()
-        self.addCleanup(p.stop)
-
-        # Mock thread
-        p = mock.patch.object(threadgroup, "Thread")
-        self.mock_thread = p.start()
-        self.addCleanup(p.stop)
+        self.mock_subcloud_sync_update = self._mock_object(
+            db_api, "subcloud_sync_update"
+        )
 
         # Mock ThreadGroupManager start
-        p = mock.patch("dcorch.engine.scheduler.ThreadGroupManager.start")
-        self.mock_thread_start = p.start()
-        self.mock_thread_start.return_value = self.mock_thread
-        self.addCleanup(p.stop)
+        self.mock_thread_start = self._mock_object(ThreadGroupManager, "start")
 
     def test_init(self):
         self.assertIsNotNone(self.iswm)

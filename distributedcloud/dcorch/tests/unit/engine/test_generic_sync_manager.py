@@ -22,6 +22,7 @@ from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.db.sqlalchemy import api as db_api
 from dcorch.engine import generic_sync_manager
+from dcorch.rpc import client as rpc_client
 from dcorch.tests import base
 from dcorch.tests import utils
 
@@ -30,12 +31,10 @@ CONF = cfg.CONF
 
 class TestGenericSyncManager(base.OrchestratorTestCase):
     def setUp(self):
-        super(TestGenericSyncManager, self).setUp()
+        super().setUp()
 
         # Mock the DCorch engine-worker API client
-        p = mock.patch("dcorch.rpc.client.EngineWorkerClient")
-        self.mock_dcorch_api = p.start()
-        self.addCleanup(p.stop)
+        self.mock_dcorch_api = self._mock_object(rpc_client, "EngineWorkerClient")
 
     def test_init(self):
         gsm = generic_sync_manager.GenericSyncManager()
