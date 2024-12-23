@@ -9,6 +9,7 @@ import sys
 
 import mock
 
+from dccommon.exceptions import RvmcExit
 from dccommon import rvmc
 from dccommon.tests import base
 
@@ -266,3 +267,101 @@ class TestLoggingUtil(base.DCCommonTestCase):
             getattr(util, method_name)("debug message")
             self.mock_logger.debug.assert_not_called()
             self.mock_logger.reset_mock()
+
+
+class TestExitHandler(base.DCCommonTestCase):
+    """Test class for ExitHandler utility class.
+
+    Tests the ExitHandler class which manages process exit scenarios
+    by raising appropriate exceptions based on exit codes.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.exit_handler = rvmc.ExitHandler()
+
+    def test_exit_with_zero_code_does_not_raise(self):
+        """Verify exit with code 0 does not raise exception"""
+
+        self.assertIsNone(self.exit_handler.exit(0))
+
+    def test_exit_with_non_zero_code_raises_rvmc_exit(self):
+        """Verify exit with non-zero codes raises RvmcExit exception"""
+
+        for code in [1, 2, -1]:
+            self.assertRaises(RvmcExit, self.exit_handler.exit, code)
+
+
+class TestIsIpv6Address(base.DCCommonTestCase):
+    """Test class for is_ipv6_address utility function.
+
+    Tests the is_ipv6_address function which validates whether a given
+    address string is a valid IPv6 address using socket.inet_pton.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.mock_logger = mock.MagicMock()
+        self.logging_util = rvmc.LoggingUtil(logger=self.mock_logger, debug_level=3)
+
+    def _validate_ipv6_response(self, address, ip_version="IPv6"):
+        """Utility method to validate is_ipv6_address responses.
+
+        :param address: IP address to test
+        :type address: str
+        :param ip_version: IP version tested, i.e, IPv6 or IPv4
+        :type ip_version: str
+        """
+
+        result = rvmc.is_ipv6_address(address, self.logging_util)
+
+        expected_result = ip_version == "IPv6"
+        self.assertEqual(result, expected_result)
+        self.mock_logger.debug.assert_called_once_with(
+            f"Address     : {address} is {ip_version}"
+        )
+
+    def test_is_ipv6_address_with_valid_ipv6_returns_true(self):
+        """Verify is_ipv6_address returns True for valid IPv6 address"""
+
+        self._validate_ipv6_response("2001:db8::1")
+
+    def test_is_ipv6_address_with_ipv6_loopback_returns_true(self):
+        """Verify is_ipv6_address returns True for IPv6 loopback address"""
+
+        self._validate_ipv6_response("::1")
+
+    def test_is_ipv6_address_with_ipv6_full_address_returns_true(self):
+        """Verify is_ipv6_address returns True for full IPv6 address"""
+
+        self._validate_ipv6_response("2001:0db8:85a3:0000:0000:8a2e:0370:7334")
+
+    def test_is_ipv6_address_with_ipv6_compressed_returns_true(self):
+        """Verify is_ipv6_address returns True for compressed IPv6 address"""
+
+        self._validate_ipv6_response("fe80::1")
+
+    def test_is_ipv6_address_with_ipv6_all_zeros_returns_true(self):
+        """Verify is_ipv6_address returns True for IPv6 all zeros address"""
+
+        self._validate_ipv6_response("::")
+
+    def test_is_ipv6_address_with_ipv4_returns_false(self):
+        """Verify is_ipv6_address returns False for IPv4 address"""
+
+        self._validate_ipv6_response("192.168.1.1", "IPv4")
+
+    def test_is_ipv6_address_with_ipv4_loopback_returns_false(self):
+        """Verify is_ipv6_address returns False for IPv4 loopback address"""
+
+        self._validate_ipv6_response("127.0.0.1", "IPv4")
+
+    def test_is_ipv6_address_with_invalid_address_returns_false(self):
+        """Verify is_ipv6_address returns False for invalid address format"""
+
+        self._validate_ipv6_response("invalid_address", "IPv4")
+
+    def test_is_ipv6_address_with_empty_string_returns_false(self):
+        """Verify is_ipv6_address returns False for empty string"""
+
+        self._validate_ipv6_response("", "IPv4")
