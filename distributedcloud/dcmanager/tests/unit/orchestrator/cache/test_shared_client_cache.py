@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,19 +7,15 @@ import socket
 
 import mock
 
-from dcmanager.orchestrator.states.software.cache.cache_specifications import (
-    CacheSpecification,
-)
-from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+from dcmanager.orchestrator.cache.cache_specifications import CacheSpecification
+from dcmanager.orchestrator.cache import clients
+from dcmanager.orchestrator.cache.cache_specifications import (
     REGION_ONE_LICENSE_CACHE_SPECIFICATION,
 )
-from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+from dcmanager.orchestrator.cache.cache_specifications import (
     REGION_ONE_LICENSE_CACHE_TYPE,
 )
-from dcmanager.orchestrator.states.software.cache import clients
-from dcmanager.orchestrator.states.software.cache.shared_client_cache import (
-    SharedClientCache,
-)
+from dcmanager.orchestrator.cache.shared_client_cache import SharedClientCache
 from dcmanager.tests import base
 
 SOFTWARE_CLIENT_QUERY_RETURN = {

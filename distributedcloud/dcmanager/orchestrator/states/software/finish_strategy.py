@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,10 +9,10 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.orchestrator.states.base import BaseState
-from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+from dcmanager.orchestrator.cache.cache_specifications import (
     REGION_ONE_RELEASE_USM_CACHE_TYPE,
 )
+from dcmanager.orchestrator.states.base import BaseState
 from dcorch.rpc import client as dcorch_rpc_client
 
 

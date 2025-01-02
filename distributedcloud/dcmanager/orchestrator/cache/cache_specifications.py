@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -41,7 +41,6 @@ class CacheSpecification(object):
 
 # Cache types
 REGION_ONE_LICENSE_CACHE_TYPE = "RegionOne system license"
-REGION_ONE_SYSTEM_INFO_CACHE_TYPE = "RegionOne system info"
 REGION_ONE_RELEASE_USM_CACHE_TYPE = "RegionOne release usm"
 REGION_ONE_KUBERNETES_CACHE_TYPE = "RegionOne kubernetes version"
 
@@ -50,8 +49,26 @@ REGION_ONE_KUBERNETES_CACHE_SPECIFICATION = CacheSpecification(
     lambda: clients.get_sysinv_client().get_kube_versions()
 )
 
+REGION_ONE_LICENSE_CACHE_SPECIFICATION = CacheSpecification(
+    lambda: clients.get_sysinv_client().get_license()
+)
+
 REGION_ONE_RELEASE_USM_CACHE_SPECIFICATION = CacheSpecification(
-    lambda: clients.get_software_client().list()
+    lambda: clients.get_software_client().list(),
+    # Filter results by release_id and/or state, if any is given
+    lambda patches, **filter_params: [
+        patch
+        for patch in patches
+        if (
+            filter_params.get("release_id") is None
+            or patch.get("release_id") == filter_params.get("release_id")
+        )
+        and (
+            filter_params.get("state") is None
+            or patch.get("state") == filter_params.get("state")
+        )
+    ],
+    {"release_id", "state"},
 )
 
 # Map each expected operation type to its required cache types
@@ -61,6 +78,7 @@ CACHE_TYPES_BY_OPERATION_TYPE = {
     },
     consts.SW_UPDATE_TYPE_SOFTWARE: {
         REGION_ONE_RELEASE_USM_CACHE_TYPE: REGION_ONE_RELEASE_USM_CACHE_SPECIFICATION,
+        REGION_ONE_LICENSE_CACHE_TYPE: REGION_ONE_LICENSE_CACHE_SPECIFICATION,
     },
 }
 

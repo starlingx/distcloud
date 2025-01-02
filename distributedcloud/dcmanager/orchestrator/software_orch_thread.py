@@ -1,17 +1,15 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
+from dcmanager.orchestrator.cache.shared_cache_repository import SharedCacheRepository
 from dcmanager.orchestrator.orch_thread import OrchThread
 from dcmanager.orchestrator.states.software.apply_vim_software_strategy import (
     ApplyVIMSoftwareStrategyState,
-)
-from dcmanager.orchestrator.states.software.cache.shared_cache_repository import (
-    SharedCacheRepository,
 )
 from dcmanager.orchestrator.states.software.create_vim_software_strategy import (
     CreateVIMSoftwareStrategyState,

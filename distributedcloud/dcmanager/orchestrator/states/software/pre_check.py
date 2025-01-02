@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,8 +10,8 @@ from dccommon import exceptions as vim_exc
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import utils
+from dcmanager.orchestrator.cache import cache_specifications
 from dcmanager.orchestrator.states.base import BaseState
-from dcmanager.orchestrator.states.software.cache import cache_specifications
 
 VALID_STRATEGY_STATES = [
     vim.STATE_APPLIED,

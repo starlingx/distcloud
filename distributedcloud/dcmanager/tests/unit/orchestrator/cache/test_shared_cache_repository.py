@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,19 +10,14 @@ from keystoneauth1 import exceptions as keystone_exceptions
 
 from dcmanager.common import consts
 from dcmanager.common.exceptions import InvalidParameterValue
-from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+from dcmanager.orchestrator.cache import clients
+from dcmanager.orchestrator.cache.cache_specifications import (
     REGION_ONE_LICENSE_CACHE_TYPE,
 )
-from dcmanager.orchestrator.states.software.cache.cache_specifications import (
+from dcmanager.orchestrator.cache.cache_specifications import (
     REGION_ONE_RELEASE_USM_CACHE_TYPE,
 )
-from dcmanager.orchestrator.states.software.cache.cache_specifications import (
-    REGION_ONE_SYSTEM_INFO_CACHE_TYPE,
-)
-from dcmanager.orchestrator.states.software.cache import clients
-from dcmanager.orchestrator.states.software.cache.shared_cache_repository import (
-    SharedCacheRepository,
-)
+from dcmanager.orchestrator.cache.shared_cache_repository import SharedCacheRepository
 from dcmanager.tests import base
 
 SOFTWARE_CLIENT_QUERY_RETURN = [
@@ -77,15 +72,6 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
         response = self.shared_cache_repository.read(REGION_ONE_LICENSE_CACHE_TYPE)
 
         self.assertEqual(response, "fake license")
-
-    def test_read_succeeds_with_system_info_cache_type(self):
-        """Test read cache succeeds when using REGION_ONE_SYSTEM_INFO_CACHE_TYPE"""
-
-        self.mock_sysinv_client().get_system.return_value = "fake system info"
-
-        response = self.shared_cache_repository.read(REGION_ONE_SYSTEM_INFO_CACHE_TYPE)
-
-        self.assertEqual(response, "fake system info")
 
     def test_read_succeeds_with_release_usm_cache_type(self):
         """Test read cache succeeds when using REGION_ONE_RELEASE_USM_CACHE_TYPE"""

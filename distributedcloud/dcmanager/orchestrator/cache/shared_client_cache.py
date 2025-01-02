@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,6 +8,7 @@ from oslo_log import log
 import retrying
 
 from dcmanager.common.exceptions import InvalidParameterValue
+from dcmanager.orchestrator.cache.cache_specifications import CacheSpecification
 
 LOG = log.getLogger(__name__)
 
@@ -22,15 +23,11 @@ class SharedClientCache(object):
 
     """
 
-    def __init__(self, cache_type, cache_specification):
+    def __init__(self, cache_type: str, cache_specification: CacheSpecification):
         """Create cache instance.
 
         :param cache_type: type of data being cached, for logging
-        :type cache_type: str
-        :param cache_specification: specifications on how the cache should
-        operate
-        :type cache_specification: dcmanager.orchestrator.states.software.cache
-        .cache_specifications.CacheSpecification
+        :param cache_specification: specifications on how the cache should operate
         """
         self._client_lock = lockutils.ReaderWriterLock()
         self._cache = None
