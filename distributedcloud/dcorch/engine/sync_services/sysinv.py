@@ -910,8 +910,8 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(failmsg % (self.subcloud_name, "dcagent"))
             return None
 
-    def is_dcagent_managed_resource(self, resource_type):
-        return True
+    def is_dcagent_managed_resource(self):
+        return True if self.has_dcagent else False
 
     def is_resource_present_in_subcloud(self, resource_type, master_id, sc_resources):
         if sc_resources == dccommon_consts.SYNC_STATUS_IN_SYNC:

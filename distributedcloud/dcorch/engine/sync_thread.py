@@ -859,7 +859,7 @@ class SyncThread(object):
                     # The subcloud resource will only have "in-sync" or "out-of-sync"
                     # if returned by dcagent. For platform resources, audit_dependants
                     # will always return 0.
-                    if self.is_dcagent_managed_resource(resource_type):
+                    if self.is_dcagent_managed_resource():
                         sc_rsrc_present = self.is_resource_present_in_subcloud(
                             resource_type, master_id, sc_resources
                         )
@@ -1107,7 +1107,7 @@ class SyncThread(object):
     def has_same_ids(self, resource_type, m_resource, sc_resource):
         return False
 
-    def is_dcagent_managed_resource(self, resource_type):
+    def is_dcagent_managed_resource(self):
         return False
 
     def is_resource_present_in_subcloud(self, resource_type, master_id, sc_resources):
