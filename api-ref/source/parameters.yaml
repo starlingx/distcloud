@@ -302,6 +302,19 @@ extra_args:
   in: body
   required: false
   type: dictionary
+for_install:
+  description: |
+    Indicates whether the prestage should be for install.
+    This is the default if the parameter is not provided.
+  in: body
+  required: false
+  type: boolean
+for_sw_deploy:
+  description: |
+    Indicates whether the prestage should be for software deploy.
+  in: body
+  required: false
+  type: boolean
 force:
   description: |
     Indicates whether to disregard subcloud management alarm condition.

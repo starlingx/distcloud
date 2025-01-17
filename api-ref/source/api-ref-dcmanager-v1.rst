@@ -532,6 +532,8 @@ serviceUnavailable (503)
   - release: release
   - sysadmin_password: sysadmin_password
   - force: force
+  - for_install: for_install
+  - for_sw_deploy: for_sw_deploy
 
 Request Example
 ----------------
