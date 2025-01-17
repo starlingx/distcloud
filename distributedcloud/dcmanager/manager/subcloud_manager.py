@@ -1444,10 +1444,14 @@ class SubcloudManager(manager.Manager):
             "name": subcloud.name,
             consts.BOOTSTRAP_ADDRESS: bootstrap_address,
         }
-        utils.create_subcloud_inventory(
-            subcloud_params, ansible_subcloud_inventory_file, initial_deployment
-        )
+
         if init_enroll:
+            utils.create_subcloud_inventory_with_admin_creds(
+                subcloud.name,
+                ansible_subcloud_inventory_file,
+                payload[consts.BOOTSTRAP_ADDRESS],
+                ansible_pass=json.dumps(payload["sysadmin_password"]),
+            )
             init_enroll_command = self.compose_enroll_command(
                 subcloud.name,
                 subcloud.region_name,
@@ -1456,6 +1460,10 @@ class SubcloudManager(manager.Manager):
                 state="init",
             )
             return init_enroll_command
+
+        utils.create_subcloud_inventory(
+            subcloud_params, ansible_subcloud_inventory_file, initial_deployment
+        )
 
         install_command = self.compose_install_command(
             subcloud.name, ansible_subcloud_inventory_file, payload["software_version"]
