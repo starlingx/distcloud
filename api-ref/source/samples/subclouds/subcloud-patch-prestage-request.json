@@ -1,5 +1,6 @@
 {
     "sysadmin_password": "XXXXXXX",
     "release": "21.12",
-    "force": "true"
+    "force": "true",
+    "for_install": "true"
 }
