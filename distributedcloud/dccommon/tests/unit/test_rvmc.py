@@ -66,6 +66,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
 
     def setUp(self):
         super().setUp()
+
         self.mock_logger = mock.MagicMock()
         self.mock_stdout_write = self._mock_object(sys.stdout, "write")
 
@@ -278,6 +279,7 @@ class TestExitHandler(base.DCCommonTestCase):
 
     def setUp(self):
         super().setUp()
+
         self.exit_handler = rvmc.ExitHandler()
 
     def test_exit_with_zero_code_does_not_raise(self):
@@ -301,6 +303,7 @@ class TestIsIpv6Address(base.DCCommonTestCase):
 
     def setUp(self):
         super().setUp()
+
         self.mock_logger = mock.MagicMock()
         self.logging_util = rvmc.LoggingUtil(logger=self.mock_logger, debug_level=3)
 
@@ -365,3 +368,238 @@ class TestIsIpv6Address(base.DCCommonTestCase):
         """Verify is_ipv6_address returns False for empty string"""
 
         self._validate_ipv6_response("", "IPv4")
+
+
+class TestSupportedDevice(base.DCCommonTestCase):
+    """Test class for supported_device utility function.
+
+    Tests the supported_device function which validates whether a device
+    in the provided devices list is in the SUPPORTED_VIRTUAL_MEDIA_DEVICES list.
+    """
+
+    def test_supported_device_returns_true_for_valid_devices(self):
+        """Verify supported_device returns True for supported devices"""
+
+        valid_cases = [
+            ["CD"],
+            ["DVD"],
+            ["CD", "DVD"],
+            ["USB", "CD", "Floppy"],
+            ["Floppy", "DVD", "USB"],
+        ]
+        for devices in valid_cases:
+            self.assertTrue(rvmc.supported_device(devices))
+
+    def test_supported_device_returns_false_for_invalid_devices(self):
+        """Verify supported_device returns False for unsupported or invalid devices"""
+
+        invalid_cases = [
+            [],
+            ["USB"],
+            ["USB", "Floppy", "Network"],
+            ["cd"],
+            ["dvd"],
+            ["Cd"],
+            ["Dvd"],
+        ]
+        for devices in invalid_cases:
+            self.assertFalse(rvmc.supported_device(devices))
+
+
+class TestParseTarget(base.DCCommonTestCase):
+    """Test class for parse_target utility function.
+
+    Tests the parse_target function which parses BMC configuration
+    and creates a VmcObject for virtual media control operations.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_logger = mock.MagicMock()
+        self.logging_util = rvmc.LoggingUtil(logger=self.mock_logger, debug_level=3)
+        self.exit_handler = rvmc.ExitHandler()
+        self.target_name = "subcloud1"
+        self.config_file = "/path/to/config.yaml"
+        self.target_dict = {
+            "bmc_address": "192.168.1.1",
+            "bmc_username": "admin",
+            "bmc_password": "dGVzdHBhc3N3b3Jk",  # base64 encoded "testpassword"
+            "image": "http://example.com/image.iso",
+        }
+
+    def _assert_mock_logger_calls(self, expected_calls):
+        """Assert the mock logger was called with expected calls."""
+
+        calls = [
+            # The mock.ANY entries are required because the mock_logger is called
+            # in the conditional statement inside LogginUtil, i.e. if self.logger.
+            mock.ANY,
+            mock.call.debug(f"Parse Target: {self.target_name}:{self.target_dict}"),
+        ]
+
+        for call in expected_calls:
+            calls.append(mock.ANY)
+            calls.append(call)
+
+        self.mock_logger.assert_has_calls(calls)
+
+    def test_parse_target_returns_none_when_password_missing(self):
+        """Verify parse_target returns None when bmc_password is missing"""
+
+        del self.target_dict["bmc_password"]
+
+        result = rvmc.parse_target(
+            self.target_name,
+            self.target_dict,
+            self.config_file,
+            self.logging_util,
+            self.exit_handler,
+        )
+
+        self.assertIsNone(result)
+        self.mock_logger.error.assert_called_once_with(
+            "Failed get bmc password from config file"
+        )
+
+    def test_parse_target_returns_none_when_password_decode_fails(self):
+        """Verify parse_target returns None when password decoding fails"""
+
+        self.target_dict["bmc_password"] = "invalid_base64!@#"
+
+        result = rvmc.parse_target(
+            self.target_name,
+            self.target_dict,
+            self.config_file,
+            self.logging_util,
+            self.exit_handler,
+        )
+
+        self.assertIsNone(result)
+        self._assert_mock_logger_calls(
+            [
+                mock.call.error(
+                    "Failed to decode bmc password found in config file (Invalid "
+                    "base64-encoded string: number of data characters (13) cannot be 1 "
+                    "more than a multiple of 4)"
+                ),
+                mock.call.info("Verify config file's bmc password is base64 encoded"),
+            ]
+        )
+
+    def test_parse_target_returns_none_when_address_missing(self):
+        """Verify parse_target returns None when bmc_address is missing"""
+
+        del self.target_dict["bmc_address"]
+
+        result = rvmc.parse_target(
+            self.target_name,
+            self.target_dict,
+            self.config_file,
+            self.logging_util,
+            self.exit_handler,
+        )
+
+        self.assertIsNone(result)
+        self._assert_mock_logger_calls(
+            [
+                mock.call.error(
+                    f"Failed to retrieve the bmc_address from {self.config_file}"
+                )
+            ]
+        )
+
+    def test_parse_target_creates_vmc_object_with_ipv4_address(self):
+        """Verify parse_target creates VmcObject for IPv4 address"""
+
+        result = rvmc.parse_target(
+            self.target_name,
+            self.target_dict,
+            self.config_file,
+            self.logging_util,
+            self.exit_handler,
+        )
+
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, rvmc.VmcObject)
+        self.assertFalse(result.ipv6)
+        self.assertEqual(result.ip, "192.168.1.1")
+        self.assertEqual(result.un, self.target_dict["bmc_username"])
+        self.assertEqual(result.pw_encoded, self.target_dict["bmc_password"])
+
+    def test_parse_target_creates_vmc_object_with_ipv6_address(self):
+        """Verify parse_target creates VmcObject for IPv6 address with brackets"""
+
+        self.target_dict["bmc_address"] = "2001:db8::1"
+
+        result = rvmc.parse_target(
+            self.target_name,
+            self.target_dict,
+            self.config_file,
+            self.logging_util,
+            self.exit_handler,
+        )
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, rvmc.VmcObject)
+        self.assertTrue(result.ipv6)
+        self.assertEqual(result.ip, "[2001:db8::1]")
+        self.assertEqual(result.un, self.target_dict["bmc_username"])
+        self.assertEqual(result.pw_encoded, self.target_dict["bmc_password"])
+
+    def test_parse_target_returns_none_when_vmc_object_creation_fails(self):
+        """Verify parse_target returns None when VmcObject creation raises exception
+
+        This can occur when either the image or bmc_username keys are no found in the
+        target_dict variable.
+        """
+
+        del self.target_dict["image"]
+
+        result = rvmc.parse_target(
+            self.target_name,
+            self.target_dict,
+            self.config_file,
+            self.logging_util,
+            self.exit_handler,
+        )
+
+        self.assertIsNone(result)
+        self._assert_mock_logger_calls(
+            [
+                mock.call.debug(
+                    f"Address     : {self.target_dict['bmc_address']} is IPv4"
+                ),
+                mock.call.error(
+                    f"Unable to parse configuration '{self.target_dict}' ('NoneType' "
+                    f"object has no attribute 'rstrip') in {self.target_name} config "
+                    "file."
+                ),
+                mock.call.info(
+                    f"Check presence and spelling of configuration members in "
+                    f"{self.target_name} config file."
+                ),
+            ]
+        )
+
+    def test_parse_target_returns_none_when_vmc_object_is_none(self):
+        """Verify parse_target returns None when VmcObject creation returns None
+
+        Note: this does not seem a reacheable code, therfore the VmcObject had to be
+        mocked.
+        """
+
+        self._mock_object(rvmc, "VmcObject", return_value=None)
+
+        result = rvmc.parse_target(
+            self.target_name,
+            self.target_dict,
+            self.config_file,
+            self.logging_util,
+            self.exit_handler,
+        )
+
+        self.assertIsNone(result)
+        self.mock_logger.error.assert_called_once_with(
+            f"Unable to create control object for target:{self.target_dict} ; "
+            "skipping ..."
+        )

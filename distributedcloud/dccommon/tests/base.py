@@ -16,7 +16,6 @@
 #
 
 import mock
-
 from oslotest import base
 
 from dccommon.tests import utils
@@ -69,7 +68,14 @@ class DCCommonTestCase(base.BaseTestCase):
         self.ctx = utils.dummy_context()
 
     def _mock_object(self, target, attribute, wraps=None, **kwargs):
-        """Mock a specified target's attribute and return the mock object"""
+        """Mock a specified target's attribute and return the mock object.
+
+        :param target: The target object or module to mock
+        :param attribute: The attribute name to mock
+        :param wraps: Optional callable to wrap
+        :param kwargs: Additional keyword arguments for mock.patch.object
+        :return: The mock object
+        """
 
         mock_patch_object = mock.patch.object(target, attribute, wraps=wraps, **kwargs)
         self.addCleanup(mock_patch_object.stop)
