@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,12 +9,12 @@ import copy
 import json
 import os
 
-import mock
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
+from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.common import fake_subcloud
 
 
@@ -44,189 +44,215 @@ class Subcloud(object):
         self.data_upgrade = ""
 
 
-@mock.patch.object(os, "listdir")
-def test_check_deploy_files_in_alternate_location_with_all_file_exists(
-    self, mock_os_isdir, mock_os_listdir
-):
-    payload = {}
-    mock_os_isdir.return_value = True
-    mock_os_listdir.return_value = [
-        "deploy-chart-fake-deployment-manager.tgz",
-        "deploy-overrides-fake-overrides-subcloud.yaml",
-        "deploy-playbook-fake-deployment-manager.yaml",
-    ]
+class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
+    def setUp(self):
+        super().setUp()
+        self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
+        self.mock_os_listdir = self._mock_object(os, "listdir")
 
-    response = self.check_deploy_files_in_alternate_location(payload)
-    self.assertEqual(response, True)
+    def test_check_deploy_files_alternate_location_with_all_file_exists(self):
+        payload = {}
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = [
+            "deploy-chart-fake-deployment-manager.tgz",
+            "deploy-overrides-fake-overrides-subcloud.yaml",
+            "deploy-playbook-fake-deployment-manager.yaml",
+        ]
 
+        response = psd_common.check_deploy_files_in_alternate_location(payload)
+        self.assertEqual(response, True)
 
-def test_check_deploy_files_in_alternate_location_with_deploy_chart_not_exists(
-    self, mock_os_isdir, mock_os_listdir
-):
-    payload = {}
-    mock_os_isdir.return_value = True
-    mock_os_listdir.return_value = [
-        "deploy-chart-fake.tgz",
-        "deploy-overrides-fake-overrides-subcloud.yaml",
-        "deploy-playbook-fake-deployment-manager.yaml",
-    ]
+    def test_check_deploy_files_alternate_location_with_chart_exists(self):
+        payload = {}
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = [
+            "deploy-chart-fake.tgz",
+            "deploy-overrides-fake-overrides-subcloud.yaml",
+            "deploy-playbook-fake-deployment-manager.yaml",
+        ]
 
-    response = self.check_deploy_files_in_alternate_location(payload)
-    self.assertEqual(response, False)
+        response = psd_common.check_deploy_files_in_alternate_location(payload)
+        self.assertEqual(response, True)
 
+    def test_check_deploy_files_deploy_overrides_not_exists(self):
+        payload = {}
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = [
+            "deploy-chart-fake-deployment-manager.tgz",
+            "deploy-overrides.yaml",
+            "deploy-playbook-fake-deployment-manager.yaml",
+        ]
 
-def test_check_deploy_files_in_alternate_location_with_deploy_overrides_not_exists(
-    self, mock_os_isdir, mock_os_listdir
-):
-    payload = {}
-    mock_os_isdir.return_value = True
-    mock_os_listdir.return_value = [
-        "deploy-chart-fake-deployment-manager.tgz",
-        "deploy-overrides.yaml",
-        "deploy-playbook-fake-deployment-manager.yaml",
-    ]
+        response = psd_common.check_deploy_files_in_alternate_location(payload)
+        self.assertEqual(response, False)
 
-    response = self.check_deploy_files_in_alternate_location(payload)
-    self.assertEqual(response, False)
+    def test_check_deploy_files_deploy_playbook_not_exists(self):
+        payload = {}
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = [
+            "deploy-chart-fake-deployment-manager.tgz",
+            "deploy-overrides-fake-overrides-subcloud.yaml",
+            "deploy-playbook.yaml",
+        ]
 
+        response = psd_common.check_deploy_files_in_alternate_location(payload)
+        self.assertEqual(response, False)
 
-def test_check_deploy_files_in_alternate_location_with_deploy_playbook_not_exists(
-    self, mock_os_isdir, mock_os_listdir
-):
-    payload = {}
-    mock_os_isdir.return_value = True
-    mock_os_listdir.return_value = [
-        "deploy-chart-fake-deployment-manager.tgz",
-        "deploy-overrides-fake-overrides-subcloud.yaml",
-        "deploy-playbook.yaml",
-    ]
+    def test_get_config_file_path(self):
+        bootstrap_file = psd_common.get_config_file_path("subcloud1")
+        install_values = psd_common.get_config_file_path("subcloud1", "install_values")
+        deploy_config = psd_common.get_config_file_path(
+            "subcloud1", consts.DEPLOY_CONFIG
+        )
 
-    response = self.check_deploy_files_in_alternate_location(payload)
-    self.assertEqual(response, False)
-
-
-def test_get_config_file_path(self):
-    bootstrap_file = psd_common.get_config_file_path("subcloud1")
-    install_values = psd_common.get_config_file_path("subcloud1", "install_values")
-    deploy_config = psd_common.get_config_file_path("subcloud1", consts.DEPLOY_CONFIG)
-
-    self.assertEqual(
-        bootstrap_file, f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml"
-    )
-    self.assertEqual(
-        install_values,
-        f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
-    )
-    self.assertEqual(
-        deploy_config,
-        f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml",
-    )
-
-
-def test_format_ip_address(self):
-    fake_payload = {}
-    good_values = {
-        "10.10.10.3": "10.10.10.3",
-        "2620:10a:a001:a103::1135": "2620:10a:a001:a103::1135",
-        "2620:10A:A001:A103::1135": "2620:10a:a001:a103::1135",
-        "2620:010a:a001:a103::1135": "2620:10a:a001:a103::1135",
-        "2620:10a:a001:a103:0000::1135": "2620:10a:a001:a103::1135",
-    }
-
-    for k, v in good_values.items():
-        fake_payload["bootstrap-address"] = k
-        psd_common.format_ip_address(fake_payload)
-        self.assertEqual(fake_payload["bootstrap-address"], v)
-
-        fake_payload[consts.INSTALL_VALUES] = {}
-        for k, v in good_values.items():
-            fake_payload[consts.INSTALL_VALUES]["bmc_address"] = k
-            psd_common.format_ip_address(fake_payload)
-            self.assertEqual(fake_payload[consts.INSTALL_VALUES]["bmc_address"], v)
-
-        fake_payload["othervalues1"] = "othervalues1"
-        fake_payload[consts.INSTALL_VALUES]["othervalues2"] = "othervalues2"
-        psd_common.format_ip_address(fake_payload)
-        self.assertEqual(fake_payload["othervalues1"], "othervalues1")
         self.assertEqual(
-            fake_payload[consts.INSTALL_VALUES]["othervalues2"], "othervalues2"
+            bootstrap_file, f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml"
+        )
+        self.assertEqual(
+            install_values,
+            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1/install_values.yml",
+        )
+        self.assertEqual(
+            deploy_config,
+            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml",
         )
 
+    def test_format_ip_address(self):
+        fake_payload = {}
+        good_values = {
+            "10.10.10.3": "10.10.10.3",
+            "2620:10a:a001:a103::1135": "2620:10a:a001:a103::1135",
+            "2620:10A:A001:A103::1135": "2620:10a:a001:a103::1135",
+            "2620:010a:a001:a103::1135": "2620:10a:a001:a103::1135",
+            "2620:10a:a001:a103:0000::1135": "2620:10a:a001:a103::1135",
+        }
 
-def test_get_subcloud_db_install_values(self):
-    install_data = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
-    encoded_password = base64.b64encode("bmc_password".encode("utf-8")).decode("utf-8")
-    install_data["bmc_password"] = encoded_password
-    test_subcloud = copy.copy(fake_subcloud.FAKE_SUBCLOUD_DATA)
-    subcloud_info = Subcloud(test_subcloud, False)
-    subcloud_info.data_install = json.dumps(install_data)
+        for k, v in good_values.items():
+            fake_payload["bootstrap-address"] = k
+            psd_common.format_ip_address(fake_payload)
+            self.assertEqual(fake_payload["bootstrap-address"], v)
 
-    actual_result = psd_common.get_subcloud_db_install_values(subcloud_info)
+            fake_payload[consts.INSTALL_VALUES] = {}
+            for k, v in good_values.items():
+                fake_payload[consts.INSTALL_VALUES]["bmc_address"] = k
+                psd_common.format_ip_address(fake_payload)
+                self.assertEqual(fake_payload[consts.INSTALL_VALUES]["bmc_address"], v)
 
-    self.assertEqual(
-        json.loads(json.dumps(install_data)), json.loads(json.dumps(actual_result))
-    )
+            fake_payload["othervalues1"] = "othervalues1"
+            fake_payload[consts.INSTALL_VALUES]["othervalues2"] = "othervalues2"
+            psd_common.format_ip_address(fake_payload)
+            self.assertEqual(fake_payload["othervalues1"], "othervalues1")
+            self.assertEqual(
+                fake_payload[consts.INSTALL_VALUES]["othervalues2"], "othervalues2"
+            )
 
+    def test_get_subcloud_db_install_values(self):
+        install_data = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        encoded_password = base64.b64encode("bmc_password".encode("utf-8")).decode(
+            "utf-8"
+        )
+        install_data["bmc_password"] = encoded_password
+        test_subcloud = copy.copy(fake_subcloud.FAKE_SUBCLOUD_DATA)
+        subcloud_info = Subcloud(test_subcloud, False)
+        subcloud_info.data_install = json.dumps(install_data)
 
-def test_validate_admin_config_subnet_small(self):
-    admin_subnet = "192.168.205.0/32"
-    admin_start_address = "192.168.205.2"
-    admin_end_address = "192.168.205.50"
-    admin_gateway_address = "192.168.205.1"
+        actual_result = psd_common.get_subcloud_db_install_values(subcloud_info)
 
-    with self.assertRaisesRegex(Exception, "Subnet too small*"):
-        psd_common.validate_admin_network_config(
-            admin_subnet,
-            admin_start_address,
-            admin_end_address,
-            admin_gateway_address,
-            existing_networks=None,
-            operation=None,
+        self.assertEqual(
+            json.loads(json.dumps(install_data)), json.loads(json.dumps(actual_result))
         )
 
+    def test_validate_admin_config_range(self):
+        admin_subnet = "fd02::/64"
+        admin_start_address = "fd02::2"
+        admin_end_address = "fd02::ffff:ffff:ffff:ffff"
+        admin_gateway_address = "fd02::1"
 
-def test_validate_admin_config_start_address_outOfSubnet(self):
-    admin_subnet = "192.168.205.0/28"
-    admin_start_address = "192.168.205.200"
-    admin_end_address = "192.168.205.50"
-    admin_gateway_address = "192.168.205.1"
+        try:
+            psd_common.validate_admin_network_config(
+                admin_subnet,
+                admin_start_address,
+                admin_end_address,
+                admin_gateway_address,
+                existing_networks=None,
+                operation=None,
+            )
+        except Exception:
+            self.fail("validate_admin_network_config raised an exception unexpectedly!")
 
-    with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
-        psd_common.validate_admin_network_config(
-            admin_subnet,
-            admin_start_address,
-            admin_end_address,
-            admin_gateway_address,
-            existing_networks=None,
-            operation=None,
-        )
+    def test_validate_admin_config_subnet_small(self):
+        admin_subnet = "192.168.205.0/32"
+        admin_start_address = "192.168.205.2"
+        admin_end_address = "192.168.205.50"
+        admin_gateway_address = "192.168.205.1"
 
+        with self.assertRaisesRegex(Exception, "Subnet too small*"):
+            psd_common.validate_admin_network_config(
+                admin_subnet,
+                admin_start_address,
+                admin_end_address,
+                admin_gateway_address,
+                existing_networks=None,
+                operation=None,
+            )
 
-def test_validate_admin_config_end_address_outOfSubnet(self):
-    admin_subnet = "192.168.205.0/28"
-    admin_start_address = "192.168.205.1"
-    admin_end_address = "192.168.205.50"
-    admin_gateway_address = "192.168.205.1"
+    def test_validate_admin_config_start_address_outOfSubnet(self):
+        admin_subnet = "192.168.205.0/28"
+        admin_start_address = "192.168.205.200"
+        admin_end_address = "192.168.205.50"
+        admin_gateway_address = "192.168.205.1"
 
-    with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
-        psd_common.validate_admin_network_config(
-            admin_subnet,
-            admin_start_address,
-            admin_end_address,
-            admin_gateway_address,
-            existing_networks=None,
-            operation=None,
-        )
+        with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
+            psd_common.validate_admin_network_config(
+                admin_subnet,
+                admin_start_address,
+                admin_end_address,
+                admin_gateway_address,
+                existing_networks=None,
+                operation=None,
+            )
 
-    admin_end_address = "192.168.205.12"
-    admin_gateway_address = "192.168.205.50"
+    def test_validate_admin_config_end_address_outOfSubnet(self):
+        admin_subnet = "192.168.205.0/28"
+        admin_start_address = "192.168.205.1"
+        admin_end_address = "192.168.205.50"
+        admin_gateway_address = "192.168.205.1"
 
-    with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
-        psd_common.validate_admin_network_config(
-            admin_subnet,
-            admin_start_address,
-            admin_end_address,
-            admin_gateway_address,
-            existing_networks=None,
-            operation=None,
-        )
+        with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
+            psd_common.validate_admin_network_config(
+                admin_subnet,
+                admin_start_address,
+                admin_end_address,
+                admin_gateway_address,
+                existing_networks=None,
+                operation=None,
+            )
+
+        admin_end_address = "192.168.205.12"
+        admin_gateway_address = "192.168.205.50"
+
+        with self.assertRaisesRegex(Exception, "Address must be in subnet*"):
+            psd_common.validate_admin_network_config(
+                admin_subnet,
+                admin_start_address,
+                admin_end_address,
+                admin_gateway_address,
+                existing_networks=None,
+                operation=None,
+            )
+
+    def test_validate_admin_config_end_address_broadcast(self):
+        admin_subnet = "192.168.205.0/24"
+        admin_start_address = "192.168.205.1"
+        admin_end_address = "192.168.205.255"
+        admin_gateway_address = "192.168.205.1"
+
+        with self.assertRaisesRegex(Exception, "Cannot use broadcast address"):
+            psd_common.validate_admin_network_config(
+                admin_subnet,
+                admin_start_address,
+                admin_end_address,
+                admin_gateway_address,
+                existing_networks=None,
+                operation=None,
+            )

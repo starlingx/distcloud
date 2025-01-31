@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -136,7 +136,7 @@ def validate_address_str(ip_address_str, networks):
             raise exceptions.ValidateFail(msg)
         elif ip_address == networks[i]:
             raise exceptions.ValidateFail("Cannot use network address")
-        elif ip_address == networks[i].broadcast:
+        elif ip_address.version == 4 and ip_address == networks[i].broadcast:
             raise exceptions.ValidateFail("Cannot use broadcast address")
         elif ip_address not in networks[i]:
             raise exceptions.ValidateFail(
