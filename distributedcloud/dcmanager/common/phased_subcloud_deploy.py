@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -388,7 +388,7 @@ def validate_subcloud_config(
                 400, _("management_start_address greater than management_end_address")
             )
 
-        if len(netaddr.IPRange(start_ip, end_ip)) < MIN_MANAGEMENT_ADDRESSES:
+        if netaddr.IPRange(start_ip, end_ip).size < MIN_MANAGEMENT_ADDRESSES:
             pecan.abort(
                 400,
                 _("management address range must contain at least %d addresses")
@@ -528,7 +528,7 @@ def validate_admin_network_config(
                 400, _("admin_start_address greater than or equal to admin_end_address")
             )
 
-        if len(netaddr.IPRange(start_ip, end_ip)) < MIN_ADMIN_ADDRESSES:
+        if netaddr.IPRange(start_ip, end_ip).size < MIN_ADMIN_ADDRESSES:
             pecan.abort(
                 400,
                 _("admin address range must contain at least %d addresses")
