@@ -33,6 +33,7 @@ from oslo_utils import uuidutils
 import sqlalchemy
 from sqlalchemy import bindparam
 from sqlalchemy import desc
+from sqlalchemy import func
 from sqlalchemy import insert
 from sqlalchemy import or_
 from sqlalchemy.orm import exc
@@ -991,7 +992,7 @@ def sw_update_strategy_get(context, update_type=None):
         query = query.filter_by(type=update_type)
     result = query.first()
     if not result:
-        raise exception.NotFound()
+        raise exception.StrategyNotFound(strategy_type=update_type)
 
     return result
 
@@ -1906,15 +1907,32 @@ def strategy_step_get_by_name(context, name):
 
 @db_session_cleanup
 @require_context
-def strategy_step_get_all(context):
-    result = (
-        model_query(context, models.StrategyStep)
-        .filter_by(deleted=0)
-        .order_by(models.StrategyStep.id)
-        .all()
-    )
+def strategy_step_get_all(context, steps_id=None, last_update_threshold=None):
+    with read_session() as session:
+        query = (
+            session.query(models.StrategyStep)
+            .filter_by(deleted=0)
+            .options(joinedload("*"))
+        )
 
-    return result
+        if steps_id:
+            query = query.filter(models.StrategyStep.id.in_(steps_id))
+
+        if last_update_threshold:
+            query = query.filter(models.StrategyStep.updated_at < last_update_threshold)
+
+        return query.order_by(models.StrategyStep.id).all()
+
+
+@db_session_cleanup
+@require_context
+def strategy_step_count_all_states(context):
+    with read_session() as session:
+        return (
+            session.query(models.StrategyStep.state, func.count(models.StrategyStep.id))
+            .filter_by(deleted=0)
+            .group_by(models.StrategyStep.state)
+        ).all()
 
 
 @db_session_cleanup
@@ -1987,15 +2005,19 @@ def strategy_step_update(
 
 @db_session_cleanup
 @require_admin_context
-def strategy_step_update_all(context, filters, values):
+def strategy_step_update_all(context, filters, values, steps_id=None):
     """Updates all strategy steps
 
     :param context: request context object
     :param filters: filters to be applied in the query
     :param values: values to be set for the specified strategies
+    :param steps_id: list of strategy steps to update
     """
     with write_session() as session:
         query = session.query(models.StrategyStep).filter_by(deleted=0)
+
+        if steps_id:
+            query = query.filter(models.StrategyStep.id.in_(steps_id))
 
         for key, value in filters.items():
             attribute = getattr(models.StrategyStep, key, None)
@@ -2003,17 +2025,19 @@ def strategy_step_update_all(context, filters, values):
             if attribute:
                 query = query.filter(attribute == value)
 
-        query.update(values)
+        query.update(values, synchronize_session="fetch")
 
 
 @db_session_cleanup
 @require_admin_context
-def strategy_step_destroy_all(context):
+def strategy_step_destroy_all(context, steps_id=None):
     with write_session() as session:
-        strategy_step_stages = strategy_step_get_all(context)
-        if strategy_step_stages:
-            for strategy_step_ref in strategy_step_stages:
-                session.delete(strategy_step_ref)
+        query = session.query(models.StrategyStep).filter_by(deleted=0)
+
+        if steps_id:
+            query = query.filter(models.StrategyStep.id.in_(steps_id))
+
+        query.delete(synchronize_session="fetch")
 
 
 ##########################

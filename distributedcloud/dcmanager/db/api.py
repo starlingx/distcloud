@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -25,6 +25,7 @@ from oslo_config import cfg
 from oslo_db import api
 
 from dccommon import consts as dccommon_consts
+from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import models
 
 CONF = cfg.CONF
@@ -896,9 +897,36 @@ def strategy_step_get_by_name(context, name):
     return IMPL.strategy_step_get_by_name(context, name)
 
 
-def strategy_step_get_all(context):
+def strategy_step_get_all(context, steps_id=None, last_update_threshold=None):
     """Retrieve all patch strategy steps."""
-    return IMPL.strategy_step_get_all(context)
+    return IMPL.strategy_step_get_all(
+        context, steps_id=steps_id, last_update_threshold=last_update_threshold
+    )
+
+
+def strategy_step_count_all_states(context):
+    """Retrieve the count of steps in each possible state"""
+    return IMPL.strategy_step_count_all_states(context)
+
+
+def strategy_step_states_to_dict(states):
+    """Convert a list of strategy step states and their count to a dictionary"""
+
+    # Pre-fill the dict with the required states to avoid key errors
+    content = {
+        consts.STRATEGY_STATE_INITIAL: 0,
+        consts.STRATEGY_STATE_COMPLETE: 0,
+        consts.STRATEGY_STATE_ABORTED: 0,
+        consts.STRATEGY_STATE_FAILED: 0,
+        "total": 0,
+    }
+
+    # The states object is presented as [("initial", 2)]
+    for state in states:
+        content[state[0]] = state[1]
+        content["total"] += state[1]
+
+    return content
 
 
 def strategy_step_bulk_create(context, subcloud_ids, stage, state, details):
@@ -926,19 +954,20 @@ def strategy_step_update(
     )
 
 
-def strategy_step_update_all(context, filters, values):
+def strategy_step_update_all(context, filters, values, steps_id=None):
     """Updates all strategy steps
 
     :param context: request context object
     :param filters: filters to be applied in the query
     :param values: values to be set for the specified strategies
+    :param steps_id: list of strategy steps to update
     """
-    return IMPL.strategy_step_update_all(context, filters, values)
+    return IMPL.strategy_step_update_all(context, filters, values, steps_id)
 
 
-def strategy_step_destroy_all(context):
+def strategy_step_destroy_all(context, steps_id=None):
     """Destroy all the patch strategy steps."""
-    return IMPL.strategy_step_destroy_all(context)
+    return IMPL.strategy_step_destroy_all(context, steps_id)
 
 
 ###################
