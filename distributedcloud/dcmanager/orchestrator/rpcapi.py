@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -75,3 +75,48 @@ class ManagerOrchestratorClient(object):
         return self.call(
             ctxt, self.make_msg("abort_sw_update_strategy", update_type=update_type)
         )
+
+    def stop_strategy(self, ctxt, strategy_type):
+        return self.call(
+            ctxt, self.make_msg("stop_strategy", strategy_type=strategy_type)
+        )
+
+
+class ManagerOrchestratorWorkerClient(object):
+    """Client side of the DC Manager Orchestrator Worker RPC API.
+
+    Version History:
+     1.0 - Initial version
+    """
+
+    BASE_RPC_API_VERSION = "1.0"
+
+    def __init__(self, timeout=None):
+        self._client = messaging.get_rpc_client(
+            timeout=timeout,
+            topic=consts.TOPIC_DC_MANAGER_ORCHESTRATOR_WORKER,
+            version=self.BASE_RPC_API_VERSION,
+        )
+
+    @staticmethod
+    def make_msg(method, **kwargs):
+        return method, kwargs
+
+    def call(self, ctxt, msg, fanout=None, version=None):
+        method, kwargs = msg
+        if fanout or version:
+            client = self._client.prepare(fanout=fanout, version=version)
+        else:
+            client = self._client
+        return client.call(ctxt, method, **kwargs)
+
+    def orchestrate(self, ctxt, steps_id, strategy_type):
+        return self.call(
+            ctxt,
+            self.make_msg(
+                "orchestrate", steps_id=steps_id, strategy_type=strategy_type
+            ),
+        )
+
+    def stop_processing(self, ctxt):
+        return self.call(ctxt, self.make_msg("stop_processing"), fanout=True)

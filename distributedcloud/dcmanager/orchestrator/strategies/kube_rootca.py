@@ -42,14 +42,9 @@ class KubeRootcaStrategy(BaseStrategy):
         APPLY_VIM_STRATEGY: ApplyingVIMKubeRootcaUpdateStrategyState,
     }
 
-    def __init__(self, audit_rpc_client):
+    def __init__(self):
         super().__init__(
-            audit_rpc_client,
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
             vim.STRATEGY_NAME_KUBE_ROOTCA_UPDATE,
             consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK,
         )
-
-    def trigger_audit(self):
-        """Trigger an audit for kube rootca update"""
-        self.audit_rpc_client.trigger_kube_rootca_update_audit(self.context)

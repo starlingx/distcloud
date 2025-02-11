@@ -31,9 +31,8 @@ class SoftwareStrategy(BaseStrategy):
         consts.STRATEGY_STATE_SW_FINISH_STRATEGY: FinishStrategyState,
     }
 
-    def __init__(self, audit_rpc_client):
+    def __init__(self):
         super().__init__(
-            audit_rpc_client,
             consts.SW_UPDATE_TYPE_SOFTWARE,  # software update strategy type
             vim.STRATEGY_NAME_SW_USM,  # strategy type used by vim
             consts.STRATEGY_STATE_SW_PRE_CHECK,  # starting state
@@ -42,10 +41,6 @@ class SoftwareStrategy(BaseStrategy):
         # Initialize shared cache instances for the states that require them
         self._shared_caches = SharedCacheRepository(consts.SW_UPDATE_TYPE_SOFTWARE)
         self._shared_caches.initialize_caches()
-
-    def trigger_audit(self):
-        """Trigger an audit for software"""
-        self.audit_rpc_client.trigger_software_audit(self.context)
 
     def pre_apply_setup(self):
         # Restart caches for next strategy

@@ -47,13 +47,9 @@ class PatchStrategy(BaseStrategy):
         APPLY_VIM_STRATEGY: ApplyingVIMPatchStrategyState,
     }
 
-    def __init__(self, audit_rpc_client):
+    def __init__(self):
         super().__init__(
-            audit_rpc_client,
             consts.SW_UPDATE_TYPE_PATCH,
             vim.STRATEGY_NAME_SW_PATCH,
             starting_state=consts.STRATEGY_STATE_PRE_CHECK,
         )
-
-    def trigger_audit(self):
-        self.audit_rpc_client.trigger_patch_audit(self.context)

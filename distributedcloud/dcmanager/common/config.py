@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -158,11 +158,19 @@ scheduler_opts = [
         default=900,
         help="default time interval for patch audit",
     ),
+    cfg.IntOpt(
+        "orchestration_interval",
+        default=120,
+        help="default time interval for retrieving pending steps during processing",
+    ),
 ]
 
 common_opts = [
     cfg.IntOpt("workers", default=1, help="number of workers"),
     cfg.IntOpt("orch_workers", default=1, help="number of orchestrator workers"),
+    cfg.IntOpt(
+        "orch_worker_workers", default=2, help="number of orchestrator-worker workers"
+    ),
     cfg.IntOpt("state_workers", default=8, help="number of state workers"),
     cfg.IntOpt("audit_workers", default=1, help="number of audit workers"),
     cfg.IntOpt(

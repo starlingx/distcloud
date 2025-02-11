@@ -1742,23 +1742,64 @@ class Connection(object):
         return result
 
     @require_context()
-    def strategy_step_get_all(self, steps_id=None, last_update_threshold=None):
+    def strategy_step_get_all(self, steps_id=None, limit=None):
         with read_session() as session:
-            query = (
-                session.query(models.StrategyStep)
-                .filter_by(deleted=0)
-                .options(joinedload("*"))
-            )
+            query = model_query(
+                self.context, models.StrategyStep, session=session
+            ).filter_by(deleted=0)
 
             if steps_id:
                 query = query.filter(models.StrategyStep.id.in_(steps_id))
 
-            if last_update_threshold:
-                query = query.filter(
-                    models.StrategyStep.updated_at < last_update_threshold
-                )
+            query = query.order_by(models.StrategyStep.id)
 
-            return query.order_by(models.StrategyStep.id).all()
+            if limit:
+                query = query.limit(limit)
+
+            return query.all()
+
+    def _strategy_step_get_all_processing(self, session, max_parallel_subclouds):
+        # Acquire all subclouds up to max_parallel_subclouds that have not reached
+        # a final state yet. That is, the ones that are either processing or waiting
+        # to be processed
+        return (
+            session.query(models.StrategyStep.id)
+            .filter_by(deleted=0)
+            .filter(
+                models.StrategyStep.state.notin_(
+                    [
+                        consts.STRATEGY_STATE_ABORTED,
+                        consts.STRATEGY_STATE_COMPLETE,
+                        consts.STRATEGY_STATE_FAILED,
+                    ]
+                )
+            )
+            .order_by(models.StrategyStep.id)
+            .limit(max_parallel_subclouds)
+        )
+
+    @require_context()
+    def strategy_step_get_all_to_process(
+        self, last_update_threshold, max_parallel_subclouds
+    ):
+        with read_session() as session:
+            subquery = self._strategy_step_get_all_processing(
+                session, max_parallel_subclouds
+            )
+
+            # Besides acquiring the steps based on the last updated time, it is
+            # also necessary to get all steps that might be in initial state as
+            # those won't have the updated_at field set
+            return (
+                model_query(self.context, models.StrategyStep, session=session)
+                .filter(models.StrategyStep.id.in_(subquery))
+                .filter(
+                    or_(
+                        models.StrategyStep.updated_at < last_update_threshold,
+                        models.StrategyStep.state == consts.STRATEGY_STATE_INITIAL,
+                    )
+                )
+            ).all()
 
     @require_context()
     def strategy_step_count_all_states(self):
@@ -1816,6 +1857,7 @@ class Connection(object):
         details=None,
         started_at=None,
         finished_at=None,
+        updated_at=None,
     ):
         with write_session() as session:
             strategy_step_ref = self.strategy_step_get(subcloud_id)
@@ -1829,6 +1871,8 @@ class Connection(object):
                 strategy_step_ref.started_at = started_at
             if finished_at is not None:
                 strategy_step_ref.finished_at = finished_at
+            if updated_at is not None:
+                strategy_step_ref.updated_at = updated_at
             strategy_step_ref.save(session)
             return strategy_step_ref
 
@@ -1853,6 +1897,19 @@ class Connection(object):
                     query = query.filter(attribute == value)
 
             query.update(values, synchronize_session="fetch")
+
+    @require_context(admin=True)
+    def strategy_step_abort_all_not_processing(self, max_parallel_subclouds):
+        with write_session() as session:
+            subquery = self._strategy_step_get_all_processing(
+                session, max_parallel_subclouds
+            )
+
+            session.query(models.StrategyStep).filter(
+                models.StrategyStep.id.notin_(subquery)
+            ).update(
+                {"state": consts.STRATEGY_STATE_ABORTED}, synchronize_session="fetch"
+            )
 
     @require_context(admin=True)
     def strategy_step_destroy_all(self, steps_id=None):

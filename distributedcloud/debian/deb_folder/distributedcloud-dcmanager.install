@@ -7,11 +7,13 @@ usr/bin/dcmanager-manage
 usr/bin/dcmanager-manager
 usr/bin/dcmanager-state
 usr/bin/dcmanager-orchestrator
+usr/bin/dcmanager-orchestrator-worker
 usr/lib/ocf/resource.d/openstack/dcmanager-*
 usr/lib/python3/dist-packages/dcmanager/*
 usr/lib/systemd/system/dcmanager-api.service
 usr/lib/systemd/system/dcmanager-audit.service
 usr/lib/systemd/system/dcmanager-audit-worker.service
 usr/lib/systemd/system/dcmanager-orchestrator.service
+usr/lib/systemd/system/dcmanager-orchestrator-worker.service
 usr/lib/systemd/system/dcmanager-manager.service
 usr/lib/tmpfiles.d/dcmanager.conf
