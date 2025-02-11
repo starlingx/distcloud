@@ -43,6 +43,7 @@ override_dh_install:
 	install -p -D -m 644 files/dcorch.conf $(TMP_DIR)/dcorch.conf
 	install -p -D -m 644 files/dcmanager.conf $(TMP_DIR)/dcmanager.conf
 	install -p -D -m 644 files/dcagent.conf $(TMP_DIR)/dcagent.conf
+	install -p -D -m 644 files/dccertmon.conf $(TMP_DIR)/dccertmon.conf
 
 	# install systemd unit files for optional second instance
 	install -p -D -m 644 files/dcdbsync-openstack-api.service $(SYSTEMD_DIR)/dcdbsync-openstack-api.service
@@ -67,6 +68,7 @@ override_dh_install:
 	PYTHONPATH=. oslo-config-generator --config-file=./dcorch/config-generator.conf
 	PYTHONPATH=. oslo-config-generator --config-file=./dcdbsync/config-generator.conf
 	PYTHONPATH=. oslo-config-generator --config-file=./dcagent/config-generator.conf
+	PYTHONPATH=. oslo-config-generator --config-file=./dccertmon/config-generator.conf
 
 	# install default config files
 	oslo-config-generator \
@@ -89,6 +91,11 @@ override_dh_install:
 		--output-file ./dcagent/dcagent.conf.sample
 	install -p -D -m 640 ./dcagent/dcagent.conf.sample $(SYS_CONF_DIR)/dcagent/dcagent.conf
 
+	oslo-config-generator \
+		--config-file ./dccertmon/config-generator.conf \
+		--output-file ./dccertmon/dccertmon.conf.sample
+	install -p -D -m 640 ./dccertmon/dccertmon.conf.sample $(SYS_CONF_DIR)/dccertmon/dccertmon.conf
+
 	# install rvmc_install.py script
 	install -d $(ROOT)/usr/local/bin/
 	install -p -D -m 700 scripts/rvmc_install.py $(ROOT)/usr/local/bin
@@ -98,6 +105,7 @@ override_dh_install:
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcmanager/tests
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcorch/tests
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcagent/tests
+	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dccertmon/tests
 
 	dh_install
 
@@ -109,7 +117,8 @@ override_dh_fixperms:
 		--exclude etc/dcdbsync/dcdbsync.conf \
 		--exclude etc/dcmanager/dcmanager.conf \
 		--exclude etc/dcorch/dcorch.conf \
-		--exclude etc/dcagent/dcagent.conf
+		--exclude etc/dcagent/dcagent.conf \
+		--exclude etc/dccertmon/dccertmon.conf
 
 execute_after_dh_fixperms:
 	# forcing 600 for /var/opt/dc/ansible

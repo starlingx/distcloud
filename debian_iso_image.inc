@@ -6,5 +6,6 @@ distributedcloud-dcdbsync
 distributedcloud-dcmanager
 distributedcloud-dcorch
 distributedcloud-dcagent
+distributedcloud-dccertmon
 
 python3-redfish
