@@ -54,31 +54,31 @@ class SubcloudBackupController(object):
         expected_params = dict()
         if verb == "create":
             expected_params = {
-                "subcloud": "text",
-                "group": "text",
-                "local_only": "text",
-                "registry_images": "text",
-                "backup_values": "yaml",
-                "sysadmin_password": "text",
+                "subcloud": str,
+                "group": str,
+                "local_only": str,
+                "registry_images": str,
+                "backup_values": dict,
+                "sysadmin_password": str,
             }
         elif verb == "delete":
             expected_params = {
-                "release": "text",
-                "subcloud": "text",
-                "group": "text",
-                "local_only": "text",
-                "sysadmin_password": "text",
+                "release": str,
+                "subcloud": str,
+                "group": str,
+                "local_only": str,
+                "sysadmin_password": str,
             }
         elif verb == "restore":
             expected_params = {
-                "with_install": "text",
-                "release": "text",
-                "local_only": "text",
-                "registry_images": "text",
-                "sysadmin_password": "text",
-                "restore_values": "text",
-                "subcloud": "text",
-                "group": "text",
+                "with_install": str,
+                "release": str,
+                "local_only": str,
+                "registry_images": str,
+                "sysadmin_password": str,
+                "restore_values": dict,
+                "subcloud": str,
+                "group": str,
             }
         else:
             pecan.abort(400, _("Unexpected verb received"))
@@ -86,9 +86,11 @@ class SubcloudBackupController(object):
         content_type = request.headers.get("content-type")
         LOG.info("Request content-type: %s" % content_type)
         if "multipart/form-data" in content_type.lower():
+
             return SubcloudBackupController._get_multipart_payload(
                 request, expected_params
             )
+
         else:
             return SubcloudBackupController._get_json_payload(request, expected_params)
 
@@ -109,6 +111,20 @@ class SubcloudBackupController(object):
         if not set(payload.keys()).issubset(expected_params.keys()):
             LOG.info("Got an unexpected parameter in: %s" % payload)
             pecan.abort(400, _("Unexpected parameter received"))
+
+        for key, value in payload.items():
+            expected_type = expected_params[key]
+
+            if key == "sysadmin_password":
+                # Do nothing, let _validate_and_decode_sysadmin_password
+                # handle this case
+                continue
+            if not isinstance(value, expected_type):
+                _msg = (
+                    f"Invalid type for {key}: Expected "
+                    f"{expected_type.__name__}, got {type(value).__name__}"
+                )
+                pecan.abort(400, _msg)
 
         return payload
 

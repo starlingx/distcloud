@@ -185,8 +185,13 @@ class TestSubcloudBackupPost(BaseTestSubcloudBackupPost):
     def test_post_fails_without_sysadmin_password_in_multipart_payload(self):
         """Test post fails without sysadmin password in multipart payload"""
 
+        self.params = {
+            "subcloud": str(self.subcloud.id),
+        }
+
+        fake_restore_values = json.dumps(FAKE_RESTORE_VALUES_VALID_IP).encode()
         self.upload_files = [
-            ("subcloud", "fake_subcloud", json.dumps(self.subcloud.id).encode()),
+            ("backup_values", "fake_backup_values", fake_restore_values)
         ]
 
         self._update_subcloud()
