@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2022,2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -26,12 +26,20 @@ subclouds_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "get",
-        check_str="rule:" + base.READER_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.READER_OR_OPERATOR_IN_SYSTEM_PROJECTS,
         description="Get subclouds data.",
         operations=[
             {"method": "GET", "path": "/v1.0/subclouds"},
             {"method": "GET", "path": "/v1.0/subclouds/{subcloud}"},
             {"method": "GET", "path": "/v1.0/subclouds/{subcloud}/detail"},
+        ],
+    ),
+    policy.DocumentedRuleDefault(
+        name=POLICY_ROOT % "manage_unmanage",
+        check_str="rule:" + base.ADMIN_OR_OPERATOR_IN_SYSTEM_PROJECTS,
+        description="manage/unmanage subcloud",
+        operations=[
+            {"method": "PATCH", "path": "/v1.0/subclouds/{subcloud}"},
         ],
     ),
     policy.DocumentedRuleDefault(

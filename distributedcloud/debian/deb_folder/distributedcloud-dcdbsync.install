@@ -1,3 +1,4 @@
+etc/dcdbsync/policy.yaml etc/dcdbsync
 etc/dcdbsync/dcdbsync.conf
 usr/bin/dcdbsync-api
 usr/lib/ocf/resource.d/openstack/dcdbsync-*

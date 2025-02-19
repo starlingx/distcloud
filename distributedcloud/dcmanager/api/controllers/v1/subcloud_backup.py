@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022,2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -334,14 +334,9 @@ class SubcloudBackupController(object):
         """
         context = restcomm.extract_context_from_environ()
         payload = self._get_payload(pecan_request, verb)
+        context.is_admin = self.authorize_user(verb)
 
         if verb == "delete":
-            policy.authorize(
-                subcloud_backup_policy.POLICY_ROOT % "delete",
-                {},
-                restcomm.extract_credentials_for_policy(),
-            )
-
             if not release_version:
                 pecan.abort(400, _("Release version required"))
 
@@ -380,11 +375,6 @@ class SubcloudBackupController(object):
                 LOG.exception("Unable to delete subcloud backups")
                 pecan.abort(500, _("Unable to delete subcloud backups"))
         elif verb == "restore":
-            policy.authorize(
-                subcloud_backup_policy.POLICY_ROOT % "restore",
-                {},
-                restcomm.extract_credentials_for_policy(),
-            )
 
             if not payload:
                 pecan.abort(400, _("Body required"))
@@ -484,3 +474,16 @@ class SubcloudBackupController(object):
                 pecan.abort(500, _("Unable to restore subcloud"))
         else:
             pecan.abort(400, _("Invalid request"))
+
+    def authorize_user(self, verb):
+        """check the user has access to the API call
+
+        :param verb: None,delete,restore
+        :request: True or False
+        """
+
+        rule = subcloud_backup_policy.POLICY_ROOT % verb
+        has_api_access = policy.authorize(
+            rule, {}, restcomm.extract_credentials_for_policy()
+        )
+        return has_api_access

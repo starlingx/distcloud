@@ -665,13 +665,8 @@ class SubcloudsController(object):
         :param verb: Specifies the patch action to be taken
         or subcloud update operation
         """
-
-        policy.authorize(
-            subclouds_policy.POLICY_ROOT % "modify",
-            {},
-            restcomm.extract_credentials_for_policy(),
-        )
         context = restcomm.extract_context_from_environ()
+        context.is_admin = self.authorize_user(verb)
         subcloud = None
 
         if subcloud_ref is None:
@@ -1448,3 +1443,20 @@ class SubcloudsController(object):
 
         result = {"result": "OK"}
         return result
+
+    def authorize_user(self, verb):
+        """check the user has access to the API call
+
+        :param verb: None,redeploy,prestage,reconfigure,restore
+        """
+        rule = subclouds_policy.POLICY_ROOT % "modify"
+        if verb is None:
+            payload = self._get_patch_data(request)
+            if not payload:
+                pecan.abort(400, _("Body required"))
+            if payload.get("management-state"):
+                rule = subclouds_policy.POLICY_ROOT % "manage_unmanage"
+        has_api_access = policy.authorize(
+            rule, {}, restcomm.extract_credentials_for_policy()
+        )
+        return has_api_access

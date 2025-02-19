@@ -1,3 +1,4 @@
+etc/dcagent/policy.yaml etc/dcagent
 etc/dcagent/dcagent.conf
 usr/bin/dcagent-api
 usr/lib/ocf/resource.d/openstack/dcagent-*

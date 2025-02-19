@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2022,2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -28,7 +28,7 @@ subcloud_groups_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "get",
-        check_str="rule:" + base.READER_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.READER_OR_OPERATOR_IN_SYSTEM_PROJECTS,
         description="Get subcloud groups.",
         operations=[
             {"method": "GET", "path": "/v1.0/subcloud-groups"},

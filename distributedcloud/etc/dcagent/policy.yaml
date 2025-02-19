@@ -1,0 +1,7 @@
+# Base rule.
+#"admin_in_system_projects": "role:admin and
+# (project_name:admin or project_name:services)"
+
+# Base rule.
+#"reader_in_system_projects": "role:reader and
+# (project_name:admin or project_name:services)"

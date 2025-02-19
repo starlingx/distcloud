@@ -1,3 +1,4 @@
+etc/dcmanager/policy.yaml etc/dcmanager
 etc/dcmanager/dcmanager.conf
 usr/bin/dcmanager-api
 usr/bin/dcmanager-audit
