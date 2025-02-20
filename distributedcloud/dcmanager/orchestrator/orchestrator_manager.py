@@ -66,7 +66,7 @@ class OrchestratorManager(manager.Manager):
     def __init__(self, *args, **kwargs):
         LOG.debug("Orchestrator manager initialization...")
 
-        super().__init__(service_name="sw_update_manager", *args, **kwargs)
+        super().__init__(service_name="orchestrator_manager", *args, **kwargs)
         self.context = context.get_admin_context()
 
         # Used to protect strategies when an atomic read/update is required.

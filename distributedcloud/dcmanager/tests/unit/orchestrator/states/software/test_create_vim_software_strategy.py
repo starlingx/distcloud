@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -69,7 +69,9 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         # API calls acts as expected
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Assert release parameter is passed to create_strategy
         self.vim_client.create_strategy.assert_called_with(
@@ -99,7 +101,9 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         # API calls acts as expected
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Assert ApplyVIMStrategyFailedException is called with the correct parameters
         expected_message = f"VIM strategy build failed: {BUILD_PHASE_ERROR.response}"

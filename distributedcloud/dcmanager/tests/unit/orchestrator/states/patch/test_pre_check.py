@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -37,7 +37,9 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.return_value = []
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the get alarms API call was invoked
         self.fm_client.get_alarms.assert_called()
@@ -54,7 +56,9 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.return_value = [FakeAlarm("100.114", "False")]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the get alarms API call was invoked
         self.fm_client.get_alarms.assert_called()
@@ -77,7 +81,9 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.return_value = alarm_list
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the get alarms API call was invoked
         self.fm_client.get_alarms.assert_called()
@@ -100,7 +106,9 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.return_value = alarm_list
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the get alarms API call was invoked
         self.fm_client.get_alarms.assert_called()
@@ -118,7 +126,9 @@ class TestPatchPreCheckStage(TestPatchState):
         self.fm_client.get_alarms.side_effect = Exception("Test error message")
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the get alarms API call was invoked
         self.fm_client.get_alarms.assert_called()

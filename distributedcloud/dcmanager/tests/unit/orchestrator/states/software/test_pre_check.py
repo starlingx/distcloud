@@ -148,7 +148,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
     def test_pre_check_success(self):
         """Test pre-check when the API call succeeds."""
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -161,7 +163,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         """Test pre-check when the API call succeeds."""
 
         self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_DEPLOYED
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -176,7 +180,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         """Test pre-check when the API call succeeds."""
 
         self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_AVAILABLE
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -192,7 +198,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.software_client.list.return_value = (
             FAKE_SUBCLOUD_RELEASES_DEPLOYED_AVAILABLE
         )
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -205,7 +213,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         """Test pre-check when the API call succeeds."""
 
         self.strategy_step.subcloud.software_version = "9.0"
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -221,7 +231,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
@@ -237,7 +249,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
             FAKE_INVALID_CURRENT_STRATEGY
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -255,7 +269,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
             FAKE_EXISTING_CURRENT_STRATEGY
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -272,7 +288,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         # No releases in state deployed
         self.mock_read_from_cache.return_value = []
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()

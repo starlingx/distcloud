@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -64,7 +64,9 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.install_license.return_value = MISSING_LICENSE_RESPONSE
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the license install was invoked
         self.sysinv_client.install_license.assert_called()
@@ -94,7 +96,9 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.install_license.return_value = LICENSE_VALID_RESPONSE
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the license install was invoked
         self.sysinv_client.install_license.assert_called()
@@ -114,7 +118,9 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # A license install should not have been attempted due to the license
         # already being up to date
@@ -138,7 +144,9 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.install_license.return_value = LICENSE_VALID_RESPONSE
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the license install was invoked
         self.sysinv_client.install_license.assert_called()
@@ -153,7 +161,9 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.get_license.return_value = MISSING_LICENSE_RESPONSE
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Should skip install_license API call
         self.sysinv_client.install_license.assert_not_called()
@@ -168,7 +178,9 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
         self.sysinv_client.get_license.return_value = GENERIC_ERROR_RESPONSE
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         subcloud = db_api.subcloud_get(self.ctx, self.subcloud.id)
 

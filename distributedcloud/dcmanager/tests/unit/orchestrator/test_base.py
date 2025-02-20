@@ -13,15 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-import mock
 from oslo_config import cfg
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import context
+from dcmanager.common.scheduler import ThreadGroupManager
 from dcmanager.db import api as db_api
+from dcmanager.orchestrator import orchestrator_worker
 from dcmanager.orchestrator.states.base import BaseState
-from dcmanager.orchestrator import sw_update_manager
 from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
@@ -31,7 +31,6 @@ from dcmanager.tests.unit.orchestrator.states.fakes import FakeKeystoneClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakePatchingClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSoftwareClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSysinvClient
-from dcmanager.tests.unit.orchestrator.test_sw_update_manager import FakeOrchThread
 
 CONF = cfg.CONF
 
@@ -43,12 +42,12 @@ class TestSwUpdate(base.DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
-        # construct an upgrade orch thread
-        self.worker = self.setup_orch_worker(self.DEFAULT_STRATEGY_TYPE)
-
         # Mock the context
         mock_get_admin_context = self._mock_object(context, "get_admin_context")
         mock_get_admin_context.return_value = self.ctx
+
+        self._mock_object(ThreadGroupManager, "start")
+        self._mock_object(orchestrator_worker, "ManagerOrchestratorClient")
 
         # Mock the clients defined in the base state class
         self.keystone_client = FakeKeystoneClient()
@@ -71,71 +70,14 @@ class TestSwUpdate(base.DCManagerTestCase):
             mock_get_keystone_client = self._mock_object(BaseState, key)
             mock_get_keystone_client.return_value = value
 
+        # construct an upgrade orch thread
+        self.worker = self.setup_orch_worker(self.DEFAULT_STRATEGY_TYPE)
+
     def setup_orch_worker(self, strategy_type):
-        worker = None
+        worker = orchestrator_worker.OrchestratorWorker()
 
-        # There are many orch threads. Only one needs to be setup based on type
-        if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-            sw_update_manager.SoftwareOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.SoftwareOrchThread(mock.Mock(), mock.Mock())
-        else:
-            # mock the software orch thread
-            mock_software_orch_thread = self._mock_object(
-                sw_update_manager, "SoftwareOrchThread"
-            )
-            mock_software_orch_thread.return_value = FakeOrchThread()
-
-        if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-            sw_update_manager.PatchOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.PatchOrchThread(mock.Mock(), mock.Mock())
-        else:
-            # mock the patch orch thread
-            mock_sw_patch_orch_thread = self._mock_object(
-                sw_update_manager, "PatchOrchThread"
-            )
-            mock_sw_patch_orch_thread.return_value = FakeOrchThread()
-
-        if strategy_type == consts.SW_UPDATE_TYPE_FIRMWARE:
-            sw_update_manager.FwUpdateOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.FwUpdateOrchThread(mock.Mock(), mock.Mock())
-        else:
-            # mock the firmware orch thread
-            mock_fw_update_orch_thread = self._mock_object(
-                sw_update_manager, "FwUpdateOrchThread"
-            )
-            mock_fw_update_orch_thread.return_value = FakeOrchThread()
-
-        if strategy_type == consts.SW_UPDATE_TYPE_KUBERNETES:
-            sw_update_manager.KubeUpgradeOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.KubeUpgradeOrchThread(mock.Mock(), mock.Mock())
-        else:
-            # mock the kube upgrade orch thread
-            mock_kube_upgrade_orch_thread = self._mock_object(
-                sw_update_manager, "KubeUpgradeOrchThread"
-            )
-            mock_kube_upgrade_orch_thread.return_value = FakeOrchThread()
-
-        if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-            sw_update_manager.KubeRootcaUpdateOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.KubeRootcaUpdateOrchThread(
-                mock.Mock(), mock.Mock()
-            )
-        else:
-            # mock the kube rootca update orch thread
-            mock_kube_rootca_update_orch_thread = self._mock_object(
-                sw_update_manager, "KubeRootcaUpdateOrchThread"
-            )
-            mock_kube_rootca_update_orch_thread.return_value = FakeOrchThread()
-
-        if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-            sw_update_manager.PrestageOrchThread.stopped = lambda x: False
-            worker = sw_update_manager.PrestageOrchThread(mock.Mock(), mock.Mock())
-        else:
-            # mock the prestage orch thread
-            mock_prestage_orch_thread = self._mock_object(
-                sw_update_manager, "PrestageOrchThread"
-            )
-            mock_prestage_orch_thread.return_value = FakeOrchThread()
+        # sw_update_manager.SoftwareOrchThread.stopped = lambda x: False
+        # mock the software orch thread
 
         return worker
 
@@ -164,10 +106,12 @@ class TestSwUpdate(base.DCManagerTestCase):
         return db_api.strategy_step_destroy_all(self.ctx)
 
     def assert_step_updated(self, subcloud_id, update_state):
+        self.worker._bulk_update_subcloud_and_strategy_steps()
         step = db_api.strategy_step_get(self.ctx, subcloud_id)
         self.assertEqual(update_state, step.state)
 
     def assert_step_details(self, subcloud_id, details):
+        self.worker._bulk_update_subcloud_and_strategy_steps()
         step = db_api.strategy_step_get(self.ctx, subcloud_id)
         self.assertEqual(details, step.details)
 

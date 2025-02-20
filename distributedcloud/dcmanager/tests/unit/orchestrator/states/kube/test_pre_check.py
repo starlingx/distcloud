@@ -149,7 +149,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the single query (for the system controller)
         self.mock_read_from_cache.assert_called_once()
@@ -176,7 +178,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
             )
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.mock_read_from_cache.assert_called_once()
 
@@ -202,7 +206,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                 obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state="active"
             ),
         ]
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
         self.sysinv_client.get_kube_upgrade_health.assert_called_once()
         self.assert_step_updated(self.strategy_step.subcloud_id, STRATEGY_STATE_FAILED)
 
@@ -222,7 +228,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
             KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_AND_KUBERNETES_ALARM
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.get_kube_upgrade_health.assert_called_once()
         self.assert_step_updated(self.strategy_step.subcloud_id, STRATEGY_STATE_FAILED)
@@ -249,7 +257,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                 obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state="active"
             ),
         ]
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
         self.sysinv_client.get_kube_upgrade_health.assert_called_once()
         self.assert_step_updated(
             self.strategy_step.subcloud_id,
@@ -272,7 +282,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                 obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state="active"
             ),
         ]
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
         self.sysinv_client.get_kube_upgrade_health.assert_called_once()
 
         self.assert_step_updated(
@@ -311,7 +323,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
             ),
         ]
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the expected next state happened
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
@@ -366,7 +380,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         next_state = STRATEGY_STATE_COMPLETE
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # cached get_kube_versions gets called (more than once)
         self.mock_read_from_cache.assert_called()
@@ -403,7 +419,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
@@ -440,7 +458,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
@@ -499,7 +519,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
@@ -551,7 +573,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the transition to the  expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
@@ -575,7 +599,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the transition to the  expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
@@ -600,7 +626,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the transition to the  expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
