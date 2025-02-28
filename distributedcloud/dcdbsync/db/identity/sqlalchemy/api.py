@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -86,7 +86,7 @@ def get_write_connection():
 def row2dict(table, row):
     d = {}
     for c in table.columns:
-        c_value = getattr(row, c.name)
+        c_value = row[c.name]
         d[c.name] = c_value
 
     return d

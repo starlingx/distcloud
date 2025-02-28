@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, 2024 Wind River Inc.
+# Copyright (c) 2017-2018, 2024-2025 Wind River Inc.
 # All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -109,7 +109,8 @@ def upgrade(migrate_engine):
             raise
 
     rows = (
-        quota_classes.count()  # pylint: disable=no-value-for-parameter
+        sqlalchemy.select([sqlalchemy.func.count()])
+        .select_from(quota_classes)
         .where(quota_classes.c.class_name == "default")
         .execute()
         .scalar()

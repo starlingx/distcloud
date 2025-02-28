@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,9 +19,10 @@
 Implementation of SQLAlchemy backend.
 """
 
+import functools
 import sys
-import threading
 
+import eventlet
 from oslo_db import exception as db_exc
 from oslo_db.exception import DBDuplicateEntry
 from oslo_db.sqlalchemy import enginefacade
@@ -35,7 +36,7 @@ from sqlalchemy import desc
 from sqlalchemy import insert
 from sqlalchemy import or_
 from sqlalchemy.orm import exc
-from sqlalchemy.orm import joinedload_all
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.expression import true
 from sqlalchemy import update
@@ -52,7 +53,6 @@ LOG = logging.getLogger(__name__)
 _facade = None
 
 _main_context_manager = None
-_CONTEXT = threading.local()
 
 
 def _get_main_context_manager():
@@ -71,11 +71,13 @@ def get_session():
 
 
 def read_session():
-    return _get_main_context_manager().reader.using(_CONTEXT)
+    _context = eventlet.greenthread.getcurrent()
+    return _get_main_context_manager().reader.using(_context)
 
 
 def write_session():
-    return _get_main_context_manager().writer.using(_CONTEXT)
+    _context = eventlet.greenthread.getcurrent()
+    return _get_main_context_manager().writer.using(_context)
 
 
 def get_backend():
@@ -83,10 +85,63 @@ def get_backend():
     return sys.modules[__name__]
 
 
-def model_query(context, *args):
-    with read_session() as session:
-        query = session.query(*args).options(joinedload_all("*"))
-        return query
+def db_session_cleanup(func):
+    """Class decorator that automatically adds session cleanup to method"""
+
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        _context = eventlet.greenthread.getcurrent()
+        exc_info = (None, None, None)
+
+        try:
+            return func(self, *args, **kwargs)
+        except Exception:
+            exc_info = sys.exc_info()
+            raise
+        finally:
+            if (
+                hasattr(_context, "_db_session_context")
+                and _context._db_session_context is not None
+            ):
+                try:
+                    _context._db_session_context.__exit__(*exc_info)
+                except Exception as e:
+                    LOG.warning(f"Error closing database session: {e}")
+
+                # Clear the session
+                _context._db_session = None
+                _context._db_session_context = None
+
+    return wrapper
+
+
+# TODO(vgluzrom): Put all db functions inside a class and apply db_session_cleanup
+# to the class itself, so it's not necessary for the function caller to apply it
+# to each function call.
+def model_query(context, *args, **kwargs):
+    """Query helper for simpler session usage.
+
+    If the session is already provided in the kwargs, use it. Otherwise,
+    try to get it from thread context. If it's not there, create a new one.
+
+    Note: If not providing a session, the calling function need to have
+    the db_session_cleanup decorator to clean up the session.
+
+    :param session: if present, the session to use
+    """
+    session = kwargs.get("session")
+    if not session:
+        _context = eventlet.greenthread.getcurrent()
+        if hasattr(_context, "_db_session") and _context._db_session is not None:
+            session = _context._db_session
+        else:
+            session_context = read_session()
+            session = session_context.__enter__()  # pylint: disable=no-member
+            _context._db_session = session
+            # Need to store the session context to call __exit__ method later
+            _context._db_session_context = session_context
+
+    return session.query(*args).options(joinedload("*"))
 
 
 def _session(context):
@@ -147,6 +202,7 @@ def require_context(f):
 ###################
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audits_get(context, subcloud_id):
     result = (
@@ -162,6 +218,7 @@ def subcloud_audits_get(context, subcloud_id):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audits_get_all(context, subcloud_ids=None):
     """Get subcloud_audits info for subclouds
@@ -179,6 +236,7 @@ def subcloud_audits_get_all(context, subcloud_ids=None):
         return query.all()
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audits_update_all(context, values):
     with write_session() as session:
@@ -188,6 +246,7 @@ def subcloud_audits_update_all(context, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_audits_create(context, subcloud_id):
     with write_session() as session:
@@ -197,6 +256,7 @@ def subcloud_audits_create(context, subcloud_id):
         return subcloud_audits_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_audits_update(context, subcloud_id, values):
     with write_session() as session:
@@ -206,6 +266,7 @@ def subcloud_audits_update(context, subcloud_id, values):
         return subcloud_audits_ref
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
     with read_session() as session:
@@ -242,6 +303,7 @@ def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
 # by the DB server.  If server time is in UTC func.now() might work.
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audits_get_and_start_audit(context, subcloud_id):
     with write_session() as session:
@@ -251,6 +313,7 @@ def subcloud_audits_get_and_start_audit(context, subcloud_id):
         return subcloud_audits_ref
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audits_bulk_end_audit(context, audits_finished):
     """Update the subcloud's audit end status in a bulk request
@@ -286,19 +349,23 @@ def subcloud_audits_bulk_end_audit(context, audits_finished):
         return session.bulk_update_mappings(models.SubcloudAudits, update_list)
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audits_bulk_update_audit_finished_at(context, subcloud_ids):
     values = {"audit_finished_at": timeutils.utcnow()}
-    with write_session():
-        model_query(context, models.SubcloudAudits).filter_by(deleted=0).filter(
-            models.SubcloudAudits.subcloud_id.in_(subcloud_ids)
-        ).update(values, synchronize_session="fetch")
+    with write_session() as session:
+        model_query(context, models.SubcloudAudits, session=session).filter_by(
+            deleted=0
+        ).filter(models.SubcloudAudits.subcloud_id.in_(subcloud_ids)).update(
+            values, synchronize_session="fetch"
+        )
 
 
 # Find and fix up subcloud audits where the audit has taken too long.
 # We want to find subclouds that started an audit but never finished
 # it and update the "finished at" timestamp to be the same as
 # the "started at" timestamp.  Returns the number of rows updated.
+@db_session_cleanup
 @require_context
 def subcloud_audits_fix_expired_audits(
     context, last_audit_threshold, trigger_audits=False
@@ -330,14 +397,10 @@ def subcloud_audits_fix_expired_audits(
 ###################
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get(context, subcloud_id):
-    result = (
-        model_query(context, models.Subcloud)
-        .filter_by(deleted=0)
-        .filter_by(id=subcloud_id)
-        .first()
-    )
+    result = model_query(context, models.Subcloud).get(subcloud_id)
 
     if not result:
         raise exception.SubcloudNotFound(subcloud_id=subcloud_id)
@@ -345,6 +408,7 @@ def subcloud_get(context, subcloud_id):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_with_status(context, subcloud_id):
     result = (
@@ -366,6 +430,7 @@ def subcloud_get_with_status(context, subcloud_id):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_by_name(context, name):
     result = (
@@ -381,6 +446,7 @@ def subcloud_get_by_name(context, name):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_by_region_name(context, region_name):
     result = (
@@ -396,6 +462,7 @@ def subcloud_get_by_region_name(context, region_name):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_by_name_or_region_name(context, name):
     result = (
@@ -411,11 +478,13 @@ def subcloud_get_by_name_or_region_name(context, name):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_all(context):
     return model_query(context, models.Subcloud).filter_by(deleted=0).all()
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_all_by_group_id(context, group_id):
     """Retrieve all subclouds that belong to the specified group id"""
@@ -428,6 +497,7 @@ def subcloud_get_all_by_group_id(context, group_id):
     )
 
 
+@db_session_cleanup
 def subcloud_get_all_ordered_by_id(context):
     return (
         model_query(context, models.Subcloud)
@@ -437,6 +507,7 @@ def subcloud_get_all_ordered_by_id(context):
     )
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_all_with_status(context):
     result = (
@@ -458,6 +529,7 @@ def subcloud_get_all_with_status(context):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_all_valid_for_strategy_step_creation(
     context,
@@ -511,6 +583,7 @@ def subcloud_get_all_valid_for_strategy_step_creation(
         return query.all()
 
 
+@db_session_cleanup
 @require_context
 def subcloud_count_invalid_for_strategy_type(
     context, endpoint_type, group_id=None, subcloud_name=None, force=False
@@ -555,6 +628,7 @@ def subcloud_count_invalid_for_strategy_type(
         return query.count()
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_create(
     context,
@@ -604,6 +678,7 @@ def subcloud_create(
         return subcloud_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_update(
     context,
@@ -702,14 +777,18 @@ def subcloud_update(
         return subcloud_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):
-    with write_session():
-        model_query(context, models.Subcloud).filter_by(deleted=0).filter(
-            models.Subcloud.id.in_(subcloud_ids)
-        ).update(update_form, synchronize_session="fetch")
+    with write_session() as session:
+        model_query(context, models.Subcloud, session=session).filter_by(
+            deleted=0
+        ).filter(models.Subcloud.id.in_(subcloud_ids)).update(
+            update_form, synchronize_session="fetch"
+        )
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_destroy(context, subcloud_id):
     with write_session() as session:
@@ -720,6 +799,7 @@ def subcloud_destroy(context, subcloud_id):
 ##########################
 
 
+@db_session_cleanup
 @require_context
 def subcloud_status_get(context, subcloud_id, endpoint_type):
     result = (
@@ -738,6 +818,7 @@ def subcloud_status_get(context, subcloud_id, endpoint_type):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_status_get_all(context, subcloud_id):
     return (
@@ -749,6 +830,7 @@ def subcloud_status_get_all(context, subcloud_id):
     )
 
 
+@db_session_cleanup
 @require_context
 def _subcloud_status_get_by_endpoint_types(context, subcloud_id, endpoint_types):
     return (
@@ -760,6 +842,7 @@ def _subcloud_status_get_by_endpoint_types(context, subcloud_id, endpoint_types)
     )
 
 
+@db_session_cleanup
 @require_context
 def subcloud_status_get_all_by_name(context, name):
     return (
@@ -771,6 +854,7 @@ def subcloud_status_get_all_by_name(context, name):
     )
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_status_create(context, subcloud_id, endpoint_type):
     with write_session() as session:
@@ -782,6 +866,7 @@ def subcloud_status_create(context, subcloud_id, endpoint_type):
         return subcloud_status_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_status_create_all(context, subcloud_id):
     with write_session() as session:
@@ -793,6 +878,7 @@ def subcloud_status_create_all(context, subcloud_id):
             session.add(subcloud_status_ref)
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_status_delete(context, subcloud_id, endpoint_type):
     with write_session() as session:
@@ -800,6 +886,7 @@ def subcloud_status_delete(context, subcloud_id, endpoint_type):
         session.delete(subcloud_status_ref)
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_status_update(context, subcloud_id, endpoint_type, sync_status):
     with write_session() as session:
@@ -809,6 +896,7 @@ def subcloud_status_update(context, subcloud_id, endpoint_type, sync_status):
         return subcloud_status_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_status_update_endpoints(
     context, subcloud_id, endpoint_type_list, sync_status
@@ -833,6 +921,7 @@ def subcloud_status_update_endpoints(
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_status_bulk_update_endpoints(context, subcloud_id, endpoint_list):
     """Update the status of the specified endpoints for a subcloud
@@ -877,6 +966,7 @@ def subcloud_status_bulk_update_endpoints(context, subcloud_id, endpoint_list):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_status_destroy_all(context, subcloud_id):
     with write_session() as session:
@@ -893,6 +983,7 @@ def subcloud_status_destroy_all(context, subcloud_id):
 ###################
 
 
+@db_session_cleanup
 @require_context
 def sw_update_strategy_get(context, update_type=None):
     query = model_query(context, models.SwUpdateStrategy).filter_by(deleted=0)
@@ -905,6 +996,7 @@ def sw_update_strategy_get(context, update_type=None):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_strategy_create(
     context,
@@ -928,6 +1020,7 @@ def sw_update_strategy_create(
         return sw_update_strategy_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_strategy_update(
     context, state=None, update_type=None, additional_args=None
@@ -950,6 +1043,7 @@ def sw_update_strategy_update(
         return sw_update_strategy_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_strategy_destroy(context, update_type=None):
     with write_session() as session:
@@ -962,6 +1056,7 @@ def sw_update_strategy_destroy(context, update_type=None):
 ##########################
 
 
+@db_session_cleanup
 @require_context
 def sw_update_opts_get(context, subcloud_id):
     result = (
@@ -975,6 +1070,7 @@ def sw_update_opts_get(context, subcloud_id):
     return result
 
 
+@db_session_cleanup
 @require_context
 def sw_update_opts_get_all_plus_subcloud_info(context):
     result = (
@@ -992,6 +1088,7 @@ def sw_update_opts_get_all_plus_subcloud_info(context):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_opts_create(
     context,
@@ -1014,6 +1111,7 @@ def sw_update_opts_create(
         return sw_update_opts_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_opts_update(
     context,
@@ -1040,6 +1138,7 @@ def sw_update_opts_update(
         return sw_update_opts_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_opts_destroy(context, subcloud_id):
     with write_session() as session:
@@ -1050,6 +1149,7 @@ def sw_update_opts_destroy(context, subcloud_id):
 ##########################
 
 
+@db_session_cleanup
 @require_context
 def sw_update_opts_default_get(context):
     result = (
@@ -1060,6 +1160,7 @@ def sw_update_opts_default_get(context):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_opts_default_create(
     context,
@@ -1081,6 +1182,7 @@ def sw_update_opts_default_create(
         return sw_update_opts_default_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_opts_default_update(
     context,
@@ -1106,6 +1208,7 @@ def sw_update_opts_default_update(
         return sw_update_opts_default_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def sw_update_opts_default_destroy(context):
     with write_session() as session:
@@ -1116,6 +1219,7 @@ def sw_update_opts_default_destroy(context):
 ##########################
 # system peer
 ##########################
+@db_session_cleanup
 @require_context
 def system_peer_get(context, peer_id):
     try:
@@ -1135,6 +1239,7 @@ def system_peer_get(context, peer_id):
     return result
 
 
+@db_session_cleanup
 @require_context
 def system_peer_get_by_name(context, name):
     try:
@@ -1155,6 +1260,7 @@ def system_peer_get_by_name(context, name):
     return result
 
 
+@db_session_cleanup
 @require_context
 def system_peer_get_by_uuid(context, uuid):
     try:
@@ -1175,6 +1281,7 @@ def system_peer_get_by_uuid(context, uuid):
     return result
 
 
+@db_session_cleanup
 @require_context
 def system_peer_get_all(context):
     result = (
@@ -1188,6 +1295,7 @@ def system_peer_get_all(context):
 
 
 # This method returns all subcloud peer groups for a particular system peer
+@db_session_cleanup
 @require_context
 def peer_group_get_for_system_peer(context, peer_id):
     return (
@@ -1203,6 +1311,7 @@ def peer_group_get_for_system_peer(context, peer_id):
     )
 
 
+@db_session_cleanup
 @require_admin_context
 def system_peer_create(
     context,
@@ -1237,6 +1346,7 @@ def system_peer_create(
         return system_peer_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def system_peer_update(
     context,
@@ -1286,6 +1396,7 @@ def system_peer_update(
         return system_peer_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def system_peer_destroy(context, peer_id):
     with write_session() as session:
@@ -1296,6 +1407,7 @@ def system_peer_destroy(context, peer_id):
 ##########################
 # subcloud group
 ##########################
+@db_session_cleanup
 @require_context
 def subcloud_group_get(context, group_id):
     try:
@@ -1315,6 +1427,7 @@ def subcloud_group_get(context, group_id):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_group_get_by_name(context, name):
     try:
@@ -1336,6 +1449,7 @@ def subcloud_group_get_by_name(context, name):
 
 
 # This method returns all subclouds for a particular subcloud group
+@db_session_cleanup
 @require_context
 def subcloud_get_for_group(context, group_id):
     return (
@@ -1347,6 +1461,7 @@ def subcloud_get_for_group(context, group_id):
     )
 
 
+@db_session_cleanup
 @require_context
 def subcloud_group_get_all(context):
     result = (
@@ -1359,6 +1474,7 @@ def subcloud_group_get_all(context):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_group_create(
     context, name, description, update_apply_type, max_parallel_subclouds
@@ -1373,6 +1489,7 @@ def subcloud_group_create(
         return subcloud_group_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_group_update(
     context,
@@ -1402,6 +1519,7 @@ def subcloud_group_update(
         return subcloud_group_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_group_destroy(context, group_id):
     with write_session() as session:
@@ -1446,6 +1564,7 @@ def initialize_subcloud_group_default(engine):
 ##########################
 # subcloud peer group
 ##########################
+@db_session_cleanup
 @require_context
 def subcloud_peer_group_get(context, group_id):
     try:
@@ -1465,6 +1584,7 @@ def subcloud_peer_group_get(context, group_id):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_for_peer_group(context, peer_group_id):
     """Get all subclouds for a subcloud peer group.
@@ -1481,6 +1601,7 @@ def subcloud_get_for_peer_group(context, peer_group_id):
     )
 
 
+@db_session_cleanup
 @require_context
 def subcloud_peer_group_get_all(context):
     result = (
@@ -1493,6 +1614,7 @@ def subcloud_peer_group_get_all(context):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_peer_group_get_by_name(context, name):
     try:
@@ -1513,6 +1635,7 @@ def subcloud_peer_group_get_by_name(context, name):
     return result
 
 
+@db_session_cleanup
 @require_context
 def subcloud_peer_group_get_by_leader_id(context, system_leader_id):
     result = (
@@ -1526,6 +1649,7 @@ def subcloud_peer_group_get_by_leader_id(context, system_leader_id):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_peer_group_create(
     context,
@@ -1550,6 +1674,7 @@ def subcloud_peer_group_create(
         return subcloud_peer_group_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_peer_group_destroy(context, group_id):
     with write_session() as session:
@@ -1557,6 +1682,7 @@ def subcloud_peer_group_destroy(context, group_id):
         session.delete(subcloud_peer_group_ref)
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_peer_group_update(
     context,
@@ -1598,6 +1724,7 @@ def subcloud_peer_group_update(
 ##########################
 # peer group association
 ##########################
+@db_session_cleanup
 @require_admin_context
 def peer_group_association_create(
     context,
@@ -1620,6 +1747,7 @@ def peer_group_association_create(
         return peer_group_association_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def peer_group_association_update(
     context, associate_id, peer_group_priority=None, sync_status=None, sync_message=None
@@ -1639,6 +1767,7 @@ def peer_group_association_update(
         return association_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def peer_group_association_destroy(context, association_id):
     with write_session() as session:
@@ -1646,6 +1775,7 @@ def peer_group_association_destroy(context, association_id):
         session.delete(association_ref)
 
 
+@db_session_cleanup
 @require_context
 def peer_group_association_get(context, association_id) -> models.PeerGroupAssociation:
     try:
@@ -1665,6 +1795,7 @@ def peer_group_association_get(context, association_id) -> models.PeerGroupAssoc
     return result
 
 
+@db_session_cleanup
 @require_context
 def peer_group_association_get_all(context) -> list[models.PeerGroupAssociation]:
     result = (
@@ -1679,6 +1810,7 @@ def peer_group_association_get_all(context) -> list[models.PeerGroupAssociation]
 
 # Each combination of 'peer_group_id' and 'system_peer_id' is unique
 # and appears only once in the entries.
+@db_session_cleanup
 @require_context
 def peer_group_association_get_by_peer_group_and_system_peer_id(
     context, peer_group_id, system_peer_id
@@ -1704,6 +1836,7 @@ def peer_group_association_get_by_peer_group_and_system_peer_id(
     return result
 
 
+@db_session_cleanup
 @require_context
 def peer_group_association_get_by_peer_group_id(
     context, peer_group_id
@@ -1719,6 +1852,7 @@ def peer_group_association_get_by_peer_group_id(
     return result
 
 
+@db_session_cleanup
 @require_context
 def peer_group_association_get_by_system_peer_id(
     context, system_peer_id
@@ -1737,6 +1871,7 @@ def peer_group_association_get_by_system_peer_id(
 ##########################
 
 
+@db_session_cleanup
 @require_context
 def strategy_step_get(context, subcloud_id):
     result = (
@@ -1752,6 +1887,7 @@ def strategy_step_get(context, subcloud_id):
     return result
 
 
+@db_session_cleanup
 @require_context
 def strategy_step_get_by_name(context, name):
     result = (
@@ -1768,6 +1904,7 @@ def strategy_step_get_by_name(context, name):
     return result
 
 
+@db_session_cleanup
 @require_context
 def strategy_step_get_all(context):
     result = (
@@ -1780,6 +1917,7 @@ def strategy_step_get_all(context):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def strategy_step_bulk_create(context, subcloud_ids, stage, state, details):
     """Creates the strategy step for a list of subclouds
@@ -1807,6 +1945,7 @@ def strategy_step_bulk_create(context, subcloud_ids, stage, state, details):
         return session.execute(insert(models.StrategyStep), strategy_steps)
 
 
+@db_session_cleanup
 @require_admin_context
 def strategy_step_create(context, subcloud_id, stage, state, details):
     with write_session() as session:
@@ -1819,6 +1958,7 @@ def strategy_step_create(context, subcloud_id, stage, state, details):
         return strategy_step_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def strategy_step_update(
     context,
@@ -1845,6 +1985,7 @@ def strategy_step_update(
         return strategy_step_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def strategy_step_update_all(context, filters, values):
     """Updates all strategy steps
@@ -1865,6 +2006,7 @@ def strategy_step_update_all(context, filters, values):
         query.update(values)
 
 
+@db_session_cleanup
 @require_admin_context
 def strategy_step_destroy_all(context):
     with write_session() as session:
@@ -1918,6 +2060,7 @@ def add_identity_filter(query, value, use_name=None):
         return query.filter_by(name=value)
 
 
+@db_session_cleanup
 @require_context
 def _subcloud_alarms_get(context, name):
     query = model_query(context, models.SubcloudAlarmSummary).filter_by(deleted=0)
@@ -1933,11 +2076,13 @@ def _subcloud_alarms_get(context, name):
         )
 
 
+@db_session_cleanup
 @require_context
 def subcloud_alarms_get(context, name):
     return _subcloud_alarms_get(context, name)
 
 
+@db_session_cleanup
 @require_context
 def subcloud_alarms_get_all(context, name=None):
     query = model_query(context, models.SubcloudAlarmSummary).filter_by(deleted=0)
@@ -1948,6 +2093,7 @@ def subcloud_alarms_get_all(context, name=None):
     return query.order_by(desc(models.SubcloudAlarmSummary.id)).all()
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_alarms_create(context, name, values):
     with write_session() as session:
@@ -1963,6 +2109,7 @@ def subcloud_alarms_create(context, name, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_alarms_update(context, name, values):
     with write_session() as session:
@@ -1972,12 +2119,14 @@ def subcloud_alarms_update(context, name, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_alarms_delete(context, name):
     with write_session() as session:
         session.query(models.SubcloudAlarmSummary).filter_by(name=name).delete()
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_rename_alarms(context, subcloud_name, new_name):
     with write_session() as session:

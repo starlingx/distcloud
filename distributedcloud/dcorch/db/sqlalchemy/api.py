@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2021, 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2023-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -21,9 +21,10 @@ Implementation of SQLAlchemy backend.
 """
 
 import datetime
+import functools
 import sys
-import threading
 
+import eventlet
 from oslo_db import exception as db_exc
 from oslo_db.sqlalchemy import enginefacade
 from oslo_log import log as logging
@@ -36,7 +37,7 @@ from sqlalchemy import desc
 from sqlalchemy import or_
 from sqlalchemy.orm.exc import MultipleResultsFound
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.orm import joinedload_all
+from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 from sqlalchemy import update
 
@@ -51,7 +52,6 @@ LOG = logging.getLogger(__name__)
 _facade = None
 
 _main_context_manager = None
-_CONTEXT = threading.local()
 
 
 def _get_main_context_manager():
@@ -70,11 +70,13 @@ def get_session():
 
 
 def read_session():
-    return _get_main_context_manager().reader.using(_CONTEXT)
+    _context = eventlet.greenthread.getcurrent()
+    return _get_main_context_manager().reader.using(_context)
 
 
 def write_session():
-    return _get_main_context_manager().writer.using(_CONTEXT)
+    _context = eventlet.greenthread.getcurrent()
+    return _get_main_context_manager().writer.using(_context)
 
 
 _DEFAULT_QUOTA_NAME = "default"
@@ -85,13 +87,63 @@ def get_backend():
     return sys.modules[__name__]
 
 
+def db_session_cleanup(func):
+    """Class decorator that automatically adds session cleanup to method"""
+
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        _context = eventlet.greenthread.getcurrent()
+        exc_info = (None, None, None)
+
+        try:
+            return func(self, *args, **kwargs)
+        except Exception:
+            exc_info = sys.exc_info()
+            raise
+        finally:
+            if (
+                hasattr(_context, "_db_session_context")
+                and _context._db_session_context is not None
+            ):
+                try:
+                    _context._db_session_context.__exit__(*exc_info)
+                except Exception as e:
+                    LOG.warning(f"Error closing database session: {e}")
+
+                # Clear the session
+                _context._db_session = None
+                _context._db_session_context = None
+
+    return wrapper
+
+
+# TODO(vgluzrom): Put all db functions inside a class and apply db_session_cleanup
+# to the class itself, so it's not necessary for the function caller to apply it
+# to each function call.
 def model_query(context, *args, **kwargs):
+    """Query helper for simpler session usage.
+
+    If the session is already provided in the kwargs, use it. Otherwise,
+    try to get it from thread context. If it's not there, create a new one.
+
+    Note: If not providing a session, the calling function need to have
+    the db_session_cleanup decorator to clean up the session.
+
+    :param session: if present, the session to use
+    """
     session = kwargs.get("session")
-    if session:
-        return session.query(*args).options(joinedload_all("*"))
-    else:
-        with read_session() as session:
-            return session.query(*args).options(joinedload_all("*"))
+    if not session:
+        _context = eventlet.greenthread.getcurrent()
+        if hasattr(_context, "_db_session") and _context._db_session is not None:
+            session = _context._db_session
+        else:
+            session_context = read_session()
+            session = session_context.__enter__()  # pylint: disable=no-member
+            _context._db_session = session
+            # Need to store the session context to call __exit__ method later
+            _context._db_session_context = session_context
+
+    return session.query(*args).options(joinedload("*"))
 
 
 def _session(context):
@@ -152,10 +204,11 @@ def require_context(f):
 ###################
 
 
+@db_session_cleanup
 @require_context
 def _quota_get(context, project_id, resource, session=None):
     result = (
-        model_query(context, models.Quota)
+        model_query(context, models.Quota, session=session)
         .filter_by(project_id=project_id)
         .filter_by(resource=resource)
         .first()
@@ -167,11 +220,13 @@ def _quota_get(context, project_id, resource, session=None):
     return result
 
 
+@db_session_cleanup
 @require_context
 def quota_get(context, project_id, resource):
     return _quota_get(context, project_id, resource)
 
 
+@db_session_cleanup
 @require_context
 def quota_get_all_by_project(context, project_id):
     rows = model_query(context, models.Quota).filter_by(project_id=project_id).all()
@@ -181,6 +236,7 @@ def quota_get_all_by_project(context, project_id):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def quota_create(context, project_id, resource, limit):
     with write_session() as session:
@@ -192,6 +248,7 @@ def quota_create(context, project_id, resource, limit):
         return quota_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def quota_update(context, project_id, resource, limit):
     with write_session() as session:
@@ -203,6 +260,7 @@ def quota_update(context, project_id, resource, limit):
         return quota_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def quota_destroy(context, project_id, resource):
     with write_session() as session:
@@ -212,12 +270,15 @@ def quota_destroy(context, project_id, resource):
         session.delete(quota_ref)
 
 
+@db_session_cleanup
 @require_admin_context
 def quota_destroy_all(context, project_id):
     with write_session() as session:
 
         quotas = (
-            model_query(context, models.Quota).filter_by(project_id=project_id).all()
+            model_query(context, models.Quota, session=session)
+            .filter_by(project_id=project_id)
+            .all()
         )
 
         if not quotas:
@@ -230,6 +291,7 @@ def quota_destroy_all(context, project_id):
 ##########################
 
 
+@db_session_cleanup
 @require_context
 def _quota_class_get(context, class_name, resource):
     result = (
@@ -246,16 +308,19 @@ def _quota_class_get(context, class_name, resource):
     return result
 
 
+@db_session_cleanup
 @require_context
 def quota_class_get(context, class_name, resource):
     return _quota_class_get(context, class_name, resource)
 
 
+@db_session_cleanup
 @require_context
 def quota_class_get_default(context):
     return quota_class_get_all_by_name(context, _DEFAULT_QUOTA_NAME)
 
 
+@db_session_cleanup
 @require_context
 def quota_class_get_all_by_name(context, class_name):
     rows = (
@@ -272,6 +337,7 @@ def quota_class_get_all_by_name(context, class_name):
     return result
 
 
+@db_session_cleanup
 @require_admin_context
 def quota_class_create(context, class_name, resource, limit):
     with write_session() as session:
@@ -283,6 +349,7 @@ def quota_class_create(context, class_name, resource, limit):
         return quota_class_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def quota_class_update(context, class_name, resource, limit):
     with write_session() as session:
@@ -300,6 +367,7 @@ def quota_class_update(context, class_name, resource, limit):
         return quota_class_ref
 
 
+@db_session_cleanup
 @require_admin_context
 def quota_class_destroy_all(context, class_name):
     with write_session() as session:
@@ -326,6 +394,7 @@ def db_version(engine):
     return migration.db_version(engine)
 
 
+@db_session_cleanup
 def service_create(context, service_id, host=None, binary=None, topic=None):
     with write_session() as session:
         time_now = timeutils.utcnow()
@@ -341,6 +410,7 @@ def service_create(context, service_id, host=None, binary=None, topic=None):
         return svc
 
 
+@db_session_cleanup
 def service_update(context, service_id, values=None):
     with write_session() as session:
         service = session.query(models.Service).get(service_id)
@@ -356,6 +426,7 @@ def service_update(context, service_id, values=None):
         return service
 
 
+@db_session_cleanup
 def service_delete(context, service_id):
     with write_session() as session:
         session.query(models.Service).filter_by(id=service_id).delete(
@@ -363,10 +434,12 @@ def service_delete(context, service_id):
         )
 
 
+@db_session_cleanup
 def service_get(context, service_id):
     return model_query(context, models.Service).get(service_id)
 
 
+@db_session_cleanup
 def service_get_all(context):
     return model_query(context, models.Service).all()
 
@@ -425,6 +498,7 @@ def add_filter_by_many_identities(query, model, values):
         )
 
 
+@db_session_cleanup
 @require_context
 def _subcloud_get(context, region_id, session=None):
     query = model_query(context, models.Subcloud, session=session).filter_by(deleted=0)
@@ -440,11 +514,13 @@ def _subcloud_get(context, region_id, session=None):
         )
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get(context, region_id):
     return _subcloud_get(context, region_id)
 
 
+@db_session_cleanup
 @require_context
 def subcloud_get_all(
     context,
@@ -466,6 +542,7 @@ def subcloud_get_all(
     return query.all()
 
 
+@db_session_cleanup
 @require_context
 def subcloud_capabilities_get_all(
     context,
@@ -493,6 +570,7 @@ def subcloud_capabilities_get_all(
     }
 
 
+@db_session_cleanup
 @require_context
 def subcloud_sync_update_all_to_in_progress(
     context, management_state, availability_status, initial_sync_state, sync_requests
@@ -542,6 +620,7 @@ def subcloud_sync_update_all_to_in_progress(
         return updated_rows
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audit_update_last_audit_time(context, subcloud_name):
     """Updates the last audit time for all rows of a subcloud"""
@@ -552,6 +631,7 @@ def subcloud_audit_update_last_audit_time(context, subcloud_name):
         ).update({models.SubcloudSync.last_audit_time: timeutils.utcnow()})
 
 
+@db_session_cleanup
 @require_context
 def subcloud_audit_update_all_to_in_progress(
     context, management_state, availability_status, initial_sync_state, audit_interval
@@ -616,6 +696,7 @@ def subcloud_audit_update_all_to_in_progress(
         return updated_rows
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_create(context, region_name, values):
     with write_session() as session:
@@ -631,6 +712,7 @@ def subcloud_create(context, region_name, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_update(context, region_name, values):
     with write_session() as session:
@@ -640,6 +722,7 @@ def subcloud_update(context, region_name, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_delete(context, region_name):
     with write_session() as session:
@@ -656,6 +739,7 @@ def subcloud_delete(context, region_name):
             raise exception.SubcloudNotFound(region_name=region_name)
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_update_initial_state(
     context, region_name, pre_initial_sync_state, initial_sync_state
@@ -670,6 +754,7 @@ def subcloud_update_initial_state(
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_update_all_initial_state(
     context, pre_initial_sync_state, initial_sync_state
@@ -684,6 +769,7 @@ def subcloud_update_all_initial_state(
         return updated_count
 
 
+@db_session_cleanup
 @require_context
 def _resource_get(context, resource_type, master_id, session):
     query = model_query(context, models.Resource, session=session).filter_by(deleted=0)
@@ -702,12 +788,14 @@ def _resource_get(context, resource_type, master_id, session):
         )
 
 
+@db_session_cleanup
 @require_context
 def resource_get_by_type_and_master_id(context, resource_type, master_id):
     with read_session() as session:
         return _resource_get(context, resource_type, master_id, session)
 
 
+@db_session_cleanup
 @require_context
 def resource_get_by_id(context, resource_id, session=None):
     query = model_query(context, models.Resource, session=session).filter_by(deleted=0)
@@ -718,6 +806,7 @@ def resource_get_by_id(context, resource_id, session=None):
         raise exception.ResourceNotFound(id=resource_id)
 
 
+@db_session_cleanup
 @require_context
 def resource_get_all(context, resource_type=None):
     query = model_query(context, models.Resource).filter_by(deleted=0)
@@ -728,6 +817,7 @@ def resource_get_all(context, resource_type=None):
     return query.all()
 
 
+@db_session_cleanup
 @require_admin_context
 def resource_create(context, resource_type, values):
     with write_session() as session:
@@ -740,6 +830,7 @@ def resource_create(context, resource_type, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def resource_update(context, resource_id, values):
     with write_session() as session:
@@ -749,6 +840,7 @@ def resource_update(context, resource_id, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def resource_delete(context, resource_type, master_id):
     with write_session() as session:
@@ -773,6 +865,7 @@ def add_subcloud_resource_filter_by_subcloud(query, value):
         return query.filter(models.Subcloud.uuid == value)
 
 
+@db_session_cleanup
 @require_context
 def _subcloud_resource_get(context, subcloud_resource_id, session=None):
     query = model_query(context, models.SubcloudResource, session=session).filter_by(
@@ -785,11 +878,13 @@ def _subcloud_resource_get(context, subcloud_resource_id, session=None):
         raise exception.SubcloudResourceNotFound(resource=subcloud_resource_id)
 
 
+@db_session_cleanup
 @require_context
 def subcloud_resource_get(context, subcloud_resource_id):
     return _subcloud_resource_get(context, subcloud_resource_id)
 
 
+@db_session_cleanup
 @require_context
 def subcloud_resources_get_by_subcloud(context, subcloud_id):
     query = model_query(context, models.SubcloudResource).filter_by(deleted=0)
@@ -803,6 +898,7 @@ def subcloud_resources_get_by_subcloud(context, subcloud_id):
     return query.all()
 
 
+@db_session_cleanup
 @require_context
 def subcloud_resources_get_by_resource(context, resource_id):
     # query by resource id or uuid, not resource master uuid.
@@ -817,11 +913,13 @@ def subcloud_resources_get_by_resource(context, resource_id):
     return query.all()
 
 
+@db_session_cleanup
 def subcloud_resources_get_all(context):
     query = model_query(context, models.SubcloudResource).filter_by(deleted=0)
     return query.all()
 
 
+@db_session_cleanup
 @require_context
 def subcloud_resource_get_by_resource_and_subcloud(context, resource_id, subcloud_id):
     query = (
@@ -843,6 +941,7 @@ def subcloud_resource_get_by_resource_and_subcloud(context, resource_id, subclou
         )
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_resource_create(context, subcloud_id, resource_id, values):
     with write_session() as session:
@@ -861,6 +960,7 @@ def subcloud_resource_create(context, subcloud_id, resource_id, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_resource_update(context, subcloud_resource_id, values):
     with write_session() as session:
@@ -870,6 +970,7 @@ def subcloud_resource_update(context, subcloud_resource_id, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def subcloud_resource_delete(context, subcloud_resource_id):
     with write_session() as session:
@@ -889,6 +990,7 @@ def add_orch_job_filter_by_resource(query, value):
         return query.filter(models.OrchJob.uuid == value)
 
 
+@db_session_cleanup
 @require_context
 def _orch_job_get(context, orch_job_id, session=None):
     query = model_query(context, models.OrchJob, session=session).filter_by(deleted=0)
@@ -899,11 +1001,13 @@ def _orch_job_get(context, orch_job_id, session=None):
         raise exception.OrchJobNotFound(orch_job=orch_job_id)
 
 
+@db_session_cleanup
 @require_context
 def orch_job_get(context, orch_job_id):
     return _orch_job_get(context, orch_job_id)
 
 
+@db_session_cleanup
 @require_context
 def orch_job_get_all(context, resource_id=None):
     query = model_query(context, models.OrchJob).filter_by(deleted=0)
@@ -917,6 +1021,7 @@ def orch_job_get_all(context, resource_id=None):
     return query.all()
 
 
+@db_session_cleanup
 @require_admin_context
 def orch_job_create(context, resource_id, endpoint_type, operation_type, values):
     with write_session() as session:
@@ -938,6 +1043,7 @@ def orch_job_create(context, resource_id, endpoint_type, operation_type, values)
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def orch_job_update(context, orch_job_id, values):
     with write_session() as session:
@@ -947,6 +1053,7 @@ def orch_job_update(context, orch_job_id, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def orch_job_delete(context, orch_job_id):
     with write_session() as session:
@@ -966,6 +1073,7 @@ def add_orch_request_filter_by_resource(query, value):
         return query.filter(models.OrchRequest.uuid == value)
 
 
+@db_session_cleanup
 @require_context
 def _orch_request_get(context, orch_request_id, session=None):
     query = model_query(context, models.OrchRequest, session=session).filter_by(
@@ -978,11 +1086,13 @@ def _orch_request_get(context, orch_request_id, session=None):
         raise exception.OrchRequestNotFound(orch_request=orch_request_id)
 
 
+@db_session_cleanup
 @require_context
 def orch_request_get(context, orch_request_id):
     return _orch_request_get(context, orch_request_id)
 
 
+@db_session_cleanup
 @require_context
 def orch_request_get_most_recent_failed_request(context):
     query = (
@@ -997,6 +1107,7 @@ def orch_request_get_most_recent_failed_request(context):
         return None
 
 
+@db_session_cleanup
 @require_context
 def orch_request_get_all(context, orch_job_id=None):
     query = model_query(context, models.OrchRequest).filter_by(deleted=0)
@@ -1010,6 +1121,7 @@ def orch_request_get_all(context, orch_job_id=None):
     return query.all()
 
 
+@db_session_cleanup
 @require_context
 def orch_request_get_by_attrs(
     context, endpoint_type, resource_type=None, target_region_name=None, states=None
@@ -1047,6 +1159,7 @@ def orch_request_get_by_attrs(
     return query
 
 
+@db_session_cleanup
 @require_admin_context
 def orch_request_create(context, orch_job_id, target_region_name, values):
     with write_session() as session:
@@ -1065,6 +1178,7 @@ def orch_request_create(context, orch_job_id, target_region_name, values):
         return result
 
 
+@db_session_cleanup
 def orch_request_create_bulk(context, orch_requests):
     for request in orch_requests:
         if "orch_job_id" not in request:
@@ -1082,6 +1196,7 @@ def orch_request_create_bulk(context, orch_requests):
         session.bulk_insert_mappings(models.OrchRequest, orch_requests)
 
 
+@db_session_cleanup
 @require_admin_context
 def orch_request_update(context, orch_request_id, values):
     with write_session() as session:
@@ -1091,6 +1206,7 @@ def orch_request_update(context, orch_request_id, values):
         return result
 
 
+@db_session_cleanup
 @require_admin_context
 def orch_request_destroy(context, orch_request_id):
     with write_session() as session:
@@ -1103,6 +1219,7 @@ def orch_request_destroy(context, orch_request_id):
         session.delete(orch_request_ref)
 
 
+@db_session_cleanup
 @require_admin_context
 def orch_request_delete_by_subcloud(context, region_name):
     """Delete all orch_request entries for a given subcloud.
@@ -1116,6 +1233,7 @@ def orch_request_delete_by_subcloud(context, region_name):
         ).delete()
 
 
+@db_session_cleanup
 @require_admin_context
 def orch_request_delete_previous_failed_requests(context, delete_timestamp):
     """Soft delete orch_request entries.
@@ -1136,6 +1254,7 @@ def orch_request_delete_previous_failed_requests(context, delete_timestamp):
     LOG.info("%d previously failed sync requests soft deleted", count)
 
 
+@db_session_cleanup
 @require_admin_context
 def purge_deleted_records(context, age_in_days):
     deleted_age = timeutils.utcnow() - datetime.timedelta(days=age_in_days)
@@ -1182,6 +1301,7 @@ def purge_deleted_records(context, age_in_days):
         LOG.info("%d records were purged from resource table.", count)
 
 
+@db_session_cleanup
 def _subcloud_sync_get(context, subcloud_name, endpoint_type, session=None):
     query = (
         model_query(context, models.SubcloudSync, session=session)
@@ -1202,10 +1322,12 @@ def _subcloud_sync_get(context, subcloud_name, endpoint_type, session=None):
         raise exception.InvalidParameterValue(err=err)
 
 
+@db_session_cleanup
 def subcloud_sync_get(context, subcloud_name, endpoint_type):
     return _subcloud_sync_get(context, subcloud_name, endpoint_type)
 
 
+@db_session_cleanup
 def subcloud_sync_create(context, subcloud_name, endpoint_type, values):
     with write_session() as session:
         result = models.SubcloudSync()
@@ -1221,6 +1343,7 @@ def subcloud_sync_create(context, subcloud_name, endpoint_type, values):
         return result
 
 
+@db_session_cleanup
 def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
     with write_session() as session:
         result = _subcloud_sync_get(context, subcloud_name, endpoint_type, session)
@@ -1229,6 +1352,7 @@ def subcloud_sync_update(context, subcloud_name, endpoint_type, values):
         return result
 
 
+@db_session_cleanup
 def subcloud_sync_update_all_except_in_progress(
     context, management_state, endpoint_type, values
 ):
@@ -1254,6 +1378,7 @@ def subcloud_sync_update_all_except_in_progress(
         return result.rowcount
 
 
+@db_session_cleanup
 def subcloud_sync_delete(context, subcloud_name, endpoint_type):
     with write_session() as session:
         results = (
