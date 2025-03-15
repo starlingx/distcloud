@@ -83,6 +83,14 @@ Depends:
 Description: Distributed Cloud DCAgent
  Distributed Cloud DCAgent
 
+Package: distributedcloud-dccertmon
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${python3:Depends}
+Description: Distributed Cloud Certificate Monitor
+ Distributed Cloud Certificate Monitor
+
 Package: distributedcloud-wheels
 Architecture: any
 Depends:

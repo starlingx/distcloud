@@ -1,0 +1,5 @@
+etc/dccertmon/dccertmon.conf
+usr/bin/dccertmon
+usr/lib/ocf/resource.d/openstack/dccertmon*
+usr/lib/python3/dist-packages/dccertmon/*
+usr/lib/tmpfiles.d/dccertmon.conf

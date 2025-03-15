@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -23,6 +23,7 @@ TOPIC_DC_MANAGER_STATE = "dcmanager-state"
 TOPIC_DC_MANAGER_AUDIT = "dcmanager-audit"
 TOPIC_DC_MANAGER_AUDIT_WORKER = "dcmanager-audit-worker"
 TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
+TOPIC_DC_NOTIFICATION = "DCMANAGER-NOTIFICATION"
 
 CERTS_VAULT_DIR = "/opt/dc-vault/certs"
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -468,12 +468,9 @@ class DCManagerNotifications(RPCClient):
        1.0 - Initial version
     """
 
-    DCMANAGER_RPC_API_VERSION = "1.0"
-    TOPIC_DC_NOTIFICIATION = "DCMANAGER-NOTIFICATION"
-
     def __init__(self, timeout=None):
         super(DCManagerNotifications, self).__init__(
-            timeout, self.TOPIC_DC_NOTIFICIATION, self.DCMANAGER_RPC_API_VERSION
+            timeout, consts.TOPIC_DC_NOTIFICATION, consts.RPC_API_VERSION
         )
 
     def subcloud_online(self, ctxt, subcloud_name):
@@ -495,5 +492,5 @@ class DCManagerNotifications(RPCClient):
                 endpoint=endpoint,
             ),
             fanout=True,
-            version=self.DCMANAGER_RPC_API_VERSION,
+            version=consts.RPC_API_VERSION,
         )
