@@ -1,6 +1,6 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
 # Copyright 2015 Ericsson AB.
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -155,3 +155,7 @@ class EnrollInitExecutionFailed(DCCommonException):
 
 class VIMClientException(Exception):
     message = _("An error occurred in the VIM client.")
+
+
+class UnexpectedEvent(DCCommonException):
+    message = _("Unexpected event received: %(event)s")

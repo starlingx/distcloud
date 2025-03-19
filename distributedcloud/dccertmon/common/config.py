@@ -77,12 +77,86 @@ dc_cert_mon_opts = [
         default=10 * 60,  # retry every 10 minutes
         help="Interval to reattempt accessing external system if failure occurred",
     ),
+    cfg.IntOpt(
+        "max_retry",
+        default=14,  # retry 14 times to give at least 2 hours to recover
+        help="Max number of reattempts accessing external system if failure occurred",
+    ),
+    cfg.BoolOpt(
+        "startup_audit_all",
+        default=False,
+        help="Audit all subclouds on startup",
+    ),
+    cfg.IntOpt(
+        "network_retry_interval",
+        default=180,  # every 3 minutes
+        help=(
+            "Max times to reattempt accessing external system "
+            "if network failure occurred",
+        ),
+    ),
+    cfg.IntOpt(
+        "network_max_retry",
+        default=30,
+        help=(
+            "Interval to reattempt accessing external system "
+            "if network failure occurred",
+        ),
+    ),
+    cfg.IntOpt(
+        "audit_batch_size",
+        default=40,
+        help="Batch size of subcloud audits per audit_interval",
+    ),
+    cfg.IntOpt(
+        "audit_greenpool_size",
+        default=20,
+        help=(
+            "Size of subcloud audit greenpool. "
+            "Set to 0 to disable use of greenpool (force serial audit).",
+        ),
+    ),
+    cfg.IntOpt(
+        "certificate_timeout_secs",
+        default=5,
+        help="Connection timeout for certificate check (in seconds)",
+    ),
 ]
+
+keystone_opts = [
+    cfg.StrOpt("username", help="Username of account"),
+    cfg.StrOpt("auth_uri", help="authentication uri"),
+    cfg.StrOpt("password", help="Password of account"),
+    cfg.StrOpt("project_name", help="Tenant name of account"),
+    cfg.StrOpt(
+        "user_domain_name", default="Default", help="User domain name of account"
+    ),
+    cfg.StrOpt(
+        "project_domain_name", default="Default", help="Project domain name of account"
+    ),
+    cfg.StrOpt("region_name", default="", help="Region name"),
+    cfg.StrOpt("auth_url", default="", help="Authorization url"),
+]
+
+
+def init_keystone_auth_opts():
+    keystone_opt_group = cfg.OptGroup(
+        name="KEYSTONE_AUTHTOKEN", title="Keystone options"
+    )
+    CONF.register_opts(keystone_opts, group=keystone_opt_group.name)
+
+    endpoint_opts = keystone_opts[:]
+    endpoint_opts.append(
+        cfg.StrOpt("http_connect_timeout", default=10, help="HTTP connection timeout")
+    )
+    endpoint_cache_group = cfg.OptGroup(name="endpoint_cache", title="Endpoint cache")
+    CONF.register_opts(endpoint_opts, group=endpoint_cache_group.name)
 
 
 def register_config_opts():
     CONF.register_opts(common_opts)
     CONF.register_opts(dc_cert_mon_opts, "dccertmon")
+    init_keystone_auth_opts()
 
 
 def override_config_values():
