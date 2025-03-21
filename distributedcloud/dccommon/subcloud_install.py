@@ -393,6 +393,11 @@ class SubcloudInstall(object):
                         consts.GEN_ISO_OPTIONS[key],
                         ("extra_boot_params=%s" % str(values[key])),
                     ]
+                elif key == "wipe_osds":
+                    update_iso_cmd += [
+                        consts.GEN_ISO_OPTIONS[key],
+                        "wipe_osds=%s" % (1 if values[key] else 0),
+                    ]
                 else:
                     update_iso_cmd += [consts.GEN_ISO_OPTIONS[key], str(values[key])]
 

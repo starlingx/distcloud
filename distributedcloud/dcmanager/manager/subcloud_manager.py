@@ -2475,6 +2475,10 @@ class SubcloudManager(manager.Manager):
             data_install["image"] = matching_iso
             data_install["ansible_ssh_pass"] = payload["sysadmin_password"]
             data_install["ansible_become_pass"] = payload["sysadmin_password"]
+            # Set "wipe_osds" to false to preserve Ceph OSD partition during
+            # a backup restore. By default, the Ceph OSD partition will be wiped
+            # if "wipe_osds" is not explicitly set in the data_install dictionary.
+            data_install["wipe_osds"] = False
 
             # Notify dcorch of the software version update
             if subcloud.software_version != software_version:
