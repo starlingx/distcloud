@@ -311,6 +311,10 @@ class VaultLoadMissingError(DCManagerException):
     message = _("No matching: %(file_type)s found in vault: %(vault_dir)s")
 
 
+class StrategyNotFound(NotFound):
+    message = _("Strategy with type %(strategy_type)s doesn't exist.")
+
+
 class StrategyStepNotFound(NotFound):
     message = _("StrategyStep with subcloud_id %(subcloud_id)s doesn't exist.")
 
