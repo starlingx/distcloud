@@ -19,12 +19,13 @@ import abc
 
 from oslo_log import log as logging
 
-from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
+from dccommon import utils as cutils
 from dcmanager.common import context
 from dcmanager.common import utils
 
@@ -89,7 +90,7 @@ class BaseStrategy(object):
         """Subclass can override this method"""
 
     @staticmethod
-    def get_ks_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_ks_client(region_name: str = None) -> KeystoneClient:
         """This will get a cached keystone client (and token)
 
         throws an exception if keystone client cannot be initialized
@@ -102,18 +103,27 @@ class BaseStrategy(object):
         return os_client.keystone_client
 
     @staticmethod
-    def get_vim_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_vim_client(region_name: str = None) -> vim.VimClient:
+        if not region_name:
+            region_name = cutils.get_region_one_name()
+
         ks_client = BaseStrategy.get_ks_client(region_name)
         return vim.VimClient(region_name, ks_client.session)
 
     @staticmethod
-    def get_sysinv_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_sysinv_client(region_name: str = None) -> SysinvClient:
+        if not region_name:
+            region_name = cutils.get_region_one_name()
+
         ks_client = BaseStrategy.get_ks_client(region_name)
         endpoint = ks_client.endpoint_cache.get_endpoint("sysinv")
         return SysinvClient(region_name, ks_client.session, endpoint=endpoint)
 
     @staticmethod
-    def get_software_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_software_client(region_name: str = None) -> SoftwareClient:
+        if not region_name:
+            region_name = cutils.get_region_one_name()
+
         ks_client = BaseStrategy.get_ks_client(region_name)
         return SoftwareClient(
             ks_client.session,
@@ -121,7 +131,10 @@ class BaseStrategy(object):
         )
 
     @staticmethod
-    def get_patching_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_patching_client(region_name: str = None) -> PatchingClient:
+        if not region_name:
+            region_name = cutils.get_region_one_name()
+
         ks_client = BaseStrategy.get_ks_client(region_name)
         return PatchingClient(region_name, ks_client.session)
 

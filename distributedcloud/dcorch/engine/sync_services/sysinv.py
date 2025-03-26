@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -596,7 +596,7 @@ class SysinvSyncThread(SyncThread):
         super().post_audit()
         OpenStackDriver.delete_region_clients_for_thread(self.region_name, "audit")
         OpenStackDriver.delete_region_clients_for_thread(
-            dccommon_consts.CLOUD_0, "audit"
+            dccommon_utils.get_region_one_name(), "audit"
         )
 
     @classmethod

@@ -1,12 +1,12 @@
 #
-# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import os
 
-from dccommon import consts as dccommon_consts
+from dccommon import utils as cutils
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.firmware import utils
@@ -47,7 +47,7 @@ class ImportingFirmwareState(BaseState):
 
         # ==============  query system controller images ==============
         system_controller_images = self.get_sysinv_client(
-            dccommon_consts.DEFAULT_REGION_NAME
+            cutils.get_region_one_name()
         ).get_device_images()
         # determine list of applied system controller images
         applied_system_controller_images = utils.filter_applied_images(

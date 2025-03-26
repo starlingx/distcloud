@@ -1,4 +1,4 @@
-# Copyright 2017-2018, 2024 Wind River
+# Copyright 2017-2018, 2024-2025 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ class VolumeSyncThread(SyncThread):
             "3.0",
             session=self.admin_session,
             endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
-            region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD,
+            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME,
         )
 
         self.initialize_sc_clients()

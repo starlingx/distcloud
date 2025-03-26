@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024-2025 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ class QuotaManager(manager.Manager):
     def get_projects_users_with_modified_quotas(self):
         # get the list of project/user tuples that have modified quotas
         project_user_list = set([])
-        os_client = sdk.OpenStackDriver(dccommon_consts.VIRTUAL_MASTER_CLOUD)
+        os_client = sdk.OpenStackDriver()
         try:
             quotas = os_client.nova_client.nova_client.quotas.list()
             project_user_quotas = quotas["project_user_quotas"]
@@ -306,7 +306,7 @@ class QuotaManager(manager.Manager):
         # are managed by dcorch so delete them from all regions except
         # the master one.
         for region in regions_usage_dict_copy:
-            if region == dccommon_consts.VIRTUAL_MASTER_CLOUD:
+            if region == dccommon_consts.SYSTEM_CONTROLLER_NAME:
                 continue
             for quota in consts.QUOTAS_FOR_MANAGED_RESOURCES:
                 regions_usage_dict_copy[region].pop(quota, None)
@@ -362,7 +362,7 @@ class QuotaManager(manager.Manager):
 
         # Remove the master region from the list.  Its quotas should already
         # be up to date for managed resources.
-        region_lists.remove(dccommon_consts.VIRTUAL_MASTER_CLOUD)
+        region_lists.remove(dccommon_consts.SYSTEM_CONTROLLER_NAME)
 
         # (NOTE: knasim-wrs): The Master Cloud's Project ID and User ID
         # dont mean anything for the subcloud, so we need to first resolve
@@ -421,7 +421,7 @@ class QuotaManager(manager.Manager):
         # Return quota limits in the master cloud.  These are the overall
         # quota limits for the whole cloud.
         return self.get_tenant_quota_limits_region(
-            project_id, user_id, dccommon_consts.VIRTUAL_MASTER_CLOUD
+            project_id, user_id, dccommon_consts.SYSTEM_CONTROLLER_NAME
         )
 
     def get_tenant_quota_usage_per_region(self, project_id, user_id):

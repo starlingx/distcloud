@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,7 +17,6 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dcmanager.api.controllers import restcomm
@@ -74,12 +73,11 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
     def _get_local_system(self):
         try:
             ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             )
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
+                ks_client.region_name,
                 ks_client.keystone_client.session,
                 endpoint=ks_client.keystone_client.endpoint_cache.get_endpoint(
                     "sysinv"

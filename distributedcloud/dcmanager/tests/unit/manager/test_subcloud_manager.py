@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -37,6 +37,7 @@ import mock
 import netaddr
 from oslo_concurrency import lockutils
 from oslo_utils import timeutils
+from oslo_utils import uuidutils
 from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
@@ -147,6 +148,7 @@ class FakeKeystoneClient(object):
         self.keystone_client = mock.MagicMock()
         self.session = mock.MagicMock()
         self.endpoint_cache = mock.MagicMock()
+        self.region_name = uuidutils.generate_uuid().replace("-", "")
 
     def get_enabled_users(self, id_only):
         if not id_only:
@@ -4980,7 +4982,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         # Previous iso file must be cleaned up
         self.mock_os_remove.assert_called_once_with(self.iso_file)
 
-        # Makedirs shouldn't be invoked, given that prev iso exisited
+        # Makedirs shouldn't be invoked, given that prev iso existed
         self.mock_os_makedirs.assert_not_called()
 
         self.mock_log_subcloud_enrollment.info.assert_any_call(

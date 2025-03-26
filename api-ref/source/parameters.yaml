@@ -27,7 +27,7 @@ subcloud_group_uri:
 subcloud_options_uri:
   description: |
     The name of the subcloud to which the options apply.
-    Use `RegionOne` for querying the default.
+    Use `SystemController` for querying the default.
   in: path
   required: true
   type: string

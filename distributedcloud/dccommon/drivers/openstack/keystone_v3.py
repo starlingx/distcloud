@@ -1,5 +1,5 @@
 # Copyright 2012-2013 OpenStack Foundation
-# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -17,10 +17,10 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneclient.v3.contrib import endpoint_filter
 from oslo_utils import importutils
 
-from dccommon import consts
 from dccommon.drivers import base
 from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions
+from dccommon import utils
 
 # Ensure keystonemiddleware options are imported
 importutils.import_module("keystonemiddleware.auth_token")
@@ -41,7 +41,8 @@ class KeystoneClient(base.DriverBase):
         self.endpoint_cache = EndpointCache(region_name, auth_url, fetch_subcloud_ips)
         self.session = self.endpoint_cache.admin_session
         self.keystone_client = self.endpoint_cache.keystone_client
-        if region_name in [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]:
+        self.region_name = region_name
+        if region_name in utils.get_system_controller_region_names():
             self.services_list = EndpointCache.master_services_list
         else:
             self.services_list = self.keystone_client.services.list()

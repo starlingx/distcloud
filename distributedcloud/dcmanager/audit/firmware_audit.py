@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ from oslo_log import log as logging
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.utils import log_subcloud_msg
+from dccommon import utils as cutils
 from dcmanager.common import consts
 from dcmanager.common import utils
 
@@ -91,13 +91,12 @@ class FirmwareAudit(object):
         """
         try:
             m_os_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             endpoint = m_os_ks_client.endpoint_cache.get_endpoint("sysinv")
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
+                m_os_ks_client.region_name,
                 m_os_ks_client.session,
                 endpoint=endpoint,
             )
@@ -230,7 +229,7 @@ class FirmwareAudit(object):
                             subcloud_image = subcloud_device_images[uuid]
                         except Exception:
                             msg = "Cannot retrieve device image, skip firmware audit."
-                            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+                            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
                             return False
 
                         if cls._check_image_match(subcloud_image, image):
@@ -267,7 +266,7 @@ class FirmwareAudit(object):
                     enabled_host_device_list.append(device)
         except Exception:
             msg = "Cannot retrieve host device list, skip firmware audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
             return skip_audit
 
         # If there are no enabled devices on the subcloud, exit the firmware audit
@@ -278,20 +277,20 @@ class FirmwareAudit(object):
         try:
             subcloud_device_image_states = sysinv_client.get_device_image_states()
             msg = f"Device_image_states: {subcloud_device_image_states}"
-            log_subcloud_msg(LOG.debug, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
         except Exception:
             msg = "Cannot retrieve device image states, skip firmware audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
             return skip_audit
 
         # Retrieve device label list for all devices on this subcloud.
         try:
             subcloud_device_label_list = sysinv_client.get_device_label_list()
             msg = f"Subcloud_device_label_list: {subcloud_device_label_list}"
-            log_subcloud_msg(LOG.debug, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
         except Exception:
             msg = "Cannot retrieve device label list, skip firmware audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
             return skip_audit
 
         # Retrieve the device images on this subcloud.
@@ -302,10 +301,10 @@ class FirmwareAudit(object):
                     image.uuid: image for image in subcloud_device_images
                 }
             msg = f"Device_images: {subcloud_device_images}"
-            log_subcloud_msg(LOG.debug, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
         except Exception:
             msg = "Cannot retrieve device images, skip firmware audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
             return skip_audit
 
         return (
@@ -337,7 +336,7 @@ class FirmwareAudit(object):
         # sync status as in-sync
         if not enabled_host_device_list:
             msg = "No enabled devices on the subcloud, exiting firmware audit"
-            log_subcloud_msg(LOG.info, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.info, msg, subcloud_name)
             return dccommon_consts.SYNC_STATUS_IN_SYNC
         elif enabled_host_device_list == dccommon_consts.SKIP_AUDIT:
             return None

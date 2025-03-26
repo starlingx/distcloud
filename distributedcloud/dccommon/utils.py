@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -25,6 +25,7 @@ from typing import Callable
 
 from eventlet.green import subprocess
 import netaddr
+from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import timeutils
 
@@ -36,6 +37,8 @@ from dccommon import rvmc
 from dccommon.subprocess_cleanup import kill_subprocess_group
 from dccommon.subprocess_cleanup import SubprocessCleanup
 from dcorch.common.i18n import _
+
+CONF = cfg.CONF
 
 LOG = logging.getLogger(__name__)
 ANSIBLE_PASSWD_PARMS = ["ansible_ssh_pass", "ansible_become_pass"]
@@ -484,3 +487,21 @@ def build_subcloud_endpoint(ip: str, service: str) -> str:
         formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
         endpoint = endpoint.format(formatted_ip)
     return endpoint
+
+
+@functools.lru_cache(maxsize=1)
+def get_region_one_name() -> str:
+    return CONF.keystone_authtoken.region_name
+
+
+@functools.lru_cache(maxsize=1)
+def get_system_controller_region_names() -> tuple[str]:
+    return (consts.SYSTEM_CONTROLLER_NAME, CONF.keystone_authtoken.region_name)
+
+
+def is_region_one(region_name: str) -> bool:
+    return region_name == get_region_one_name()
+
+
+def is_system_controller_region(region_name: str) -> bool:
+    return region_name in get_system_controller_region_names()

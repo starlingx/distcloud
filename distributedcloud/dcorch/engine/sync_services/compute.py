@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2018, 2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +80,7 @@ class ComputeSyncThread(SyncThread):
             "2.38",
             session=self.admin_session,
             endpoint_type=dccommon_consts.KS_ENDPOINT_INTERNAL,
-            region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD,
+            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME,
         )
 
         self.initialize_sc_clients()

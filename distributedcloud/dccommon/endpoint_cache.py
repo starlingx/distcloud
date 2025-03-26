@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2018-2024 Wind River Systems, Inc.
+# Copyright (c) 2018-2025 Wind River Systems, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -137,7 +137,7 @@ class CachedV3Password(v3.Password):
 
         # Check if we should attempt to build a custom endpoint
         if (
-            region_name not in consts.SYSTEM_CONTROLLER_REGION_NAMES
+            not utils.is_system_controller_region(region_name)
             and interface == consts.KS_ENDPOINT_ADMIN
             and self.auth_url != CONF.endpoint_cache.auth_uri
         ):
@@ -307,7 +307,7 @@ class EndpointCache(object):
         if (
             not auth_url
             and region_name
-            and region_name not in [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]
+            and region_name not in utils.get_system_controller_region_names()
         ):
             try:
                 sc_auth_url = self.service_endpoint_map["keystone"]
@@ -413,8 +413,7 @@ class EndpointCache(object):
         :return: True if the region is a central cloud, False otherwise.
         :rtype: bool
         """
-        central_cloud_regions = [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]
-        return region_name in central_cloud_regions
+        return region_name in utils.get_system_controller_region_names()
 
     @staticmethod
     def _get_master_endpoint_map() -> dict:
@@ -631,7 +630,7 @@ class EndpointCache(object):
 
     def _create_master_cached_data(self) -> None:
         EndpointCache.master_keystone_client = ks_client.Client(
-            session=self.admin_session, region_name=consts.CLOUD_0
+            session=self.admin_session, region_name=utils.get_region_one_name()
         )
         try:
             EndpointCache.master_token = (

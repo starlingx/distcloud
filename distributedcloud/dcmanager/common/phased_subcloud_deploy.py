@@ -20,6 +20,7 @@ from dccommon.drivers.openstack import patching_v1
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import utils as cutils
 from dcmanager.common import consts
 from dcmanager.common.context import RequestContext
 from dcmanager.common import exceptions
@@ -59,10 +60,11 @@ BOOTSTRAP_VALUES_ADDRESSES = [
 ]
 
 
-def get_ks_client(
-    region_name=dccommon_consts.DEFAULT_REGION_NAME, management_ip: str = None
-):
+def get_ks_client(region_name: str = None, management_ip: str = None):
     """This will get a new keystone client (and new token)"""
+    if not region_name:
+        region_name = cutils.get_region_one_name()
+
     try:
         os_client = OpenStackDriver(
             region_name=region_name,
@@ -72,7 +74,7 @@ def get_ks_client(
         )
         return os_client.keystone_client
     except Exception:
-        LOG.warn("Failure initializing KeystoneClient for region %s" % region_name)
+        LOG.warn(f"Failure initializing KeystoneClient for region {region_name}")
         raise
 
 
@@ -149,7 +151,7 @@ def validate_bootstrap_values(payload: dict):
 def validate_system_controller_patch_status(operation: str):
     ks_client = get_ks_client()
     patching_client = PatchingClient(
-        dccommon_consts.DEFAULT_REGION_NAME,
+        cutils.get_region_one_name(),
         ks_client.session,
         endpoint=ks_client.endpoint_cache.get_endpoint("patching"),
     )
@@ -319,15 +321,12 @@ def validate_subcloud_config(
     # If a subcloud group is not passed, use the default
     group_id = payload.get("group_id", consts.DEFAULT_SUBCLOUD_GROUP_ID)
 
-    if payload.get("name") in [
-        dccommon_consts.DEFAULT_REGION_NAME,
-        dccommon_consts.SYSTEM_CONTROLLER_NAME,
-    ]:
+    if cutils.is_system_controller_region(payload.get("name")):
         pecan.abort(
             400,
             _("name cannot be %(bad_name1)s or %(bad_name2)s")
             % {
-                "bad_name1": dccommon_consts.DEFAULT_REGION_NAME,
+                "bad_name1": cutils.get_region_one_name,
                 "bad_name2": dccommon_consts.SYSTEM_CONTROLLER_NAME,
             },
         )
@@ -607,15 +606,16 @@ def validate_group_id(context, group_id):
         pecan.abort(400, _("Invalid group_id"))
 
 
-def get_sysinv_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+def get_sysinv_client(region_name: str = None) -> SysinvClient:
+    if not region_name:
+        region_name = cutils.get_region_one_name()
+
     ks_client = get_ks_client(region_name)
     endpoint = ks_client.endpoint_cache.get_endpoint("sysinv")
     return SysinvClient(region_name, ks_client.session, endpoint=endpoint)
 
 
-def get_network_address_pools(
-    network="management", region_name=dccommon_consts.DEFAULT_REGION_NAME
-):
+def get_network_address_pools(network="management", region_name: str = None):
     """Get the region network address pools"""
     sysinv_client = get_sysinv_client(region_name)
     if network == "admin":
