@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,7 +48,6 @@ BOOT_MENU_TIMEOUT = "5"
 SUBCLOUD_ISO_DOWNLOAD_PATH = "/var/www/pages/iso"
 PACKAGE_LIST_PATH = "/usr/local/share/pkg-list"
 GEN_ISO_COMMAND = "/usr/local/bin/gen-bootloader-iso.sh"
-GEN_ISO_COMMAND_CENTOS = "/usr/local/bin/gen-bootloader-iso-centos.sh"
 NETWORK_SCRIPTS = "/etc/sysconfig/network-scripts"
 NETWORK_INTERFACE_PREFIX = "ifcfg"
 NETWORK_ROUTE_PREFIX = "route"
@@ -213,52 +212,6 @@ class SubcloudInstall(object):
             for k, v in payload.items():
                 f_out_override_file.write("%s: %s\n" % (k, json.dumps(v)))
 
-    def create_ks_conf_file(self, filename, values):
-        try:
-            with open(filename, "w") as f:
-                # create ks-addon.cfg
-                default_route = False
-                static_route = False
-                if "nexthop_gateway" in values:
-                    if "network_address" in values:
-                        static_route = True
-                    else:
-                        default_route = True
-
-                f.write("OAM_DEV=" + str(values["bootstrap_interface"]) + "\n")
-
-                vlan_id = None
-                if "bootstrap_vlan" in values:
-                    vlan_id = values["bootstrap_vlan"]
-                    f.write("OAM_VLAN=" + str(vlan_id) + "\n\n")
-
-                interface = "$OAM_DEV"
-                self.config_device(f, interface)
-
-                ip_version = netaddr.IPAddress(values["bootstrap_address"]).version
-                if vlan_id is None:
-                    self.config_ip_address(f, values)
-                    if default_route:
-                        self.config_default_route(f, values, ip_version)
-                f.write("EOF\n\n")
-
-                route_interface = interface
-                if vlan_id is not None:
-                    vlan_interface = "$OAM_DEV.$OAM_VLAN"
-                    self.config_device(f, vlan_interface, vlan=True)
-                    self.config_ip_address(f, values)
-                    if default_route:
-                        self.config_default_route(f, values, ip_version)
-                    f.write("EOF\n")
-                    route_interface = vlan_interface
-
-                if static_route:
-                    self.config_static_route(f, route_interface, values, ip_version)
-        except IOError as e:
-            LOG.error("Failed to open file: %s", filename)
-            LOG.exception(e)
-            raise e
-
     def update_iso(self, override_path, values, subcloud_primary_oam_ip_family):
         if not os.path.isdir(self.www_iso_root):
             os.mkdir(self.www_iso_root, 0o755)
@@ -304,39 +257,23 @@ class SubcloudInstall(object):
             LOG.error(msg)
             raise exceptions.DCCommonException(resource=self.name, msg=msg)
 
-        is_subcloud_debian = dccommon_utils.is_debian(software_version)
+        LOG.info(f"Updating ISO file with {GEN_ISO_COMMAND}")
+        update_iso_cmd = [
+            GEN_ISO_COMMAND,
+            "--input",
+            self.input_iso,
+            "--www-root",
+            self.www_iso_root,
+            "--id",
+            self.name,
+            "--boot-hostname",
+            self.name,
+            "--timeout",
+            BOOT_MENU_TIMEOUT,
+            "--release",
+            software_version,
+        ]
 
-        if is_subcloud_debian:
-            update_iso_cmd = [
-                GEN_ISO_COMMAND,
-                "--input",
-                self.input_iso,
-                "--www-root",
-                self.www_iso_root,
-                "--id",
-                self.name,
-                "--boot-hostname",
-                self.name,
-                "--timeout",
-                BOOT_MENU_TIMEOUT,
-                "--release",
-                software_version,
-            ]
-        else:
-            update_iso_cmd = [
-                GEN_ISO_COMMAND_CENTOS,
-                "--input",
-                self.input_iso,
-                "--www-root",
-                self.www_iso_root,
-                "--id",
-                self.name,
-                "--boot-hostname",
-                self.name,
-                "--timeout",
-                BOOT_MENU_TIMEOUT,
-                "--patches-from-iso",
-            ]
         for key, _ in consts.GEN_ISO_OPTIONS.items():
             if key in values:
                 LOG.debug(
@@ -401,13 +338,6 @@ class SubcloudInstall(object):
                 else:
                     update_iso_cmd += [consts.GEN_ISO_OPTIONS[key], str(values[key])]
 
-        if not is_subcloud_debian:
-            # create ks-addon.cfg
-            addon_cfg = os.path.join(override_path, "ks-addon.cfg")
-            self.create_ks_conf_file(addon_cfg, values)
-
-            update_iso_cmd += ["--addon", addon_cfg]
-
         image_base_url = self.get_image_base_url(
             self.get_https_enabled(), self.sysinv_client, subcloud_primary_oam_ip_family
         )
@@ -439,24 +369,15 @@ class SubcloudInstall(object):
             os.remove(self.input_iso)
 
         if self.www_iso_root is not None and os.path.isdir(self.www_iso_root):
-            if dccommon_utils.is_debian(software_version):
-                cleanup_cmd = [
-                    GEN_ISO_COMMAND,
-                    "--id",
-                    self.name,
-                    "--www-root",
-                    self.www_iso_root,
-                    "--delete",
-                ]
-            else:
-                cleanup_cmd = [
-                    GEN_ISO_COMMAND_CENTOS,
-                    "--id",
-                    self.name,
-                    "--www-root",
-                    self.www_iso_root,
-                    "--delete",
-                ]
+            cleanup_cmd = [
+                GEN_ISO_COMMAND,
+                "--id",
+                self.name,
+                "--www-root",
+                self.www_iso_root,
+                "--delete",
+            ]
+
             LOG.info("Running install cleanup: %s", self.name)
             result = subprocess.run(
                 cleanup_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
@@ -579,9 +500,7 @@ class SubcloudInstall(object):
             os.mkdir(override_path, 0o755)
 
         self.www_iso_root = os.path.join(consts.SUBCLOUD_ISO_PATH, software_version)
-
-        if dccommon_utils.is_debian(software_version):
-            ostree_mount.validate_ostree_iso_mount(software_version)
+        ostree_mount.validate_ostree_iso_mount(software_version)
 
         # Clean up iso directory if it already exists
         # This may happen if a previous installation attempt was abruptly
@@ -619,37 +538,6 @@ class SubcloudInstall(object):
         for k in consts.BMC_INSTALL_VALUES + consts.OPTIONAL_BMC_INSTALL_VALUES:
             if k in payload:
                 del payload[k]
-
-        # Only applicable for 22.06:
-        if (
-            dccommon_utils.is_centos(software_version)
-            and software_version == dccommon_utils.LAST_SW_VERSION_IN_CENTOS
-        ):
-            # when adding a new subcloud, the subcloud will pull
-            # the file "packages_list" from the controller.
-            # The subcloud pulls from /var/www/pages/iso/<version>/.
-            # The file needs to be copied from /var/www/pages/feed to
-            # this location, as packages_list.
-            pkg_file_dest = os.path.join(
-                SUBCLOUD_ISO_DOWNLOAD_PATH,
-                software_version,
-                "nodes",
-                self.name,
-                software_version + "_packages_list.txt",
-            )
-
-            pkg_file_src = os.path.join(
-                consts.SUBCLOUD_FEED_PATH,
-                "rel-{version}".format(version=software_version),
-                "package_checksums",
-            )
-
-            if not os.path.exists(pkg_file_src):
-                # the file does not exist. copy it from the bootimage.
-                self._copy_packages_list_from_bootimage(software_version, pkg_file_src)
-
-            # since we now have package_checksums, copy to destination.
-            shutil.copy(pkg_file_src, pkg_file_dest)
 
         # remove the boot image url from the payload
         if "image" in payload:

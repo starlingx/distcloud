@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -224,14 +224,7 @@ MONITORED_ALARM_ENTITIES = [
     "host.starlingx.windriver.com",
 ]
 
-# OS type
-OS_RELEASE_FILE = "/etc/os-release"
-OS_CENTOS = "centos"
-OS_DEBIAN = "debian"
-SUPPORTED_OS_TYPES = [OS_CENTOS, OS_DEBIAN]
-
 # SSL cert
-CERT_CA_FILE_CENTOS = "ca-cert.pem"
 CERT_CA_FILE_DEBIAN = "ca-cert.crt"
 SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
 

@@ -552,14 +552,6 @@ class SubcloudManager(manager.Manager):
             subcloud_region,
         )
 
-        # TODO(yuxing) Remove the validate_keystone_passwords_script when end
-        # the support of rehoming a subcloud with a software version below 22.12
-        if software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS:
-            extra_vars += (
-                " validate_keystone_passwords_script='%s'"
-                % ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT
-            )
-
         rehome_command = [
             "ansible-playbook",
             utils.get_playbook_for_software_version(
@@ -1587,13 +1579,6 @@ class SubcloudManager(manager.Manager):
                     keyring.get_password(user, dccommon_consts.SERVICES_USER_NAME)
                 )
 
-            # TODO(Yuxing) remove replicating the smapi user when end the support
-            # of rehoming a subcloud with a software version below 22.12
-            if subcloud.software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS:
-                payload["users"]["smapi"] = str(
-                    keyring.get_password("smapi", dccommon_consts.SERVICES_USER_NAME)
-                )
-
             if "region_name" not in payload:
                 payload["region_name"] = subcloud.region_name
 
@@ -1741,15 +1726,6 @@ class SubcloudManager(manager.Manager):
             for user in USERS_TO_REPLICATE:
                 payload["users"][user] = str(
                     keyring.get_password(user, dccommon_consts.SERVICES_USER_NAME)
-                )
-
-            # TODO(Yuxing) remove replicating the smapi user when end the support
-            # of rehoming a subcloud with a software version below 22.12
-            if rehoming and (
-                subcloud.software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS
-            ):
-                payload["users"]["smapi"] = str(
-                    keyring.get_password("smapi", dccommon_consts.SERVICES_USER_NAME)
                 )
 
             # Ansible inventory filename for the specified subcloud
