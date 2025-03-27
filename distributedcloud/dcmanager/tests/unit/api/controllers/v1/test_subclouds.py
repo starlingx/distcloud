@@ -846,6 +846,7 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         """Test post succeeds with secondary in payload"""
 
         self.params["secondary"] = "true"
+        self.params.update({"region_name": "test_region"})
 
         response = self._send_request()
 
