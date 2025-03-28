@@ -74,18 +74,6 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
         response = psd_common.check_deploy_files_in_alternate_location(payload)
         self.assertEqual(response, True)
 
-    def test_check_deploy_files_deploy_overrides_not_exists(self):
-        payload = {}
-        self.mock_os_path_isdir.return_value = True
-        self.mock_os_listdir.return_value = [
-            "deploy-chart-fake-deployment-manager.tgz",
-            "deploy-overrides.yaml",
-            "deploy-playbook-fake-deployment-manager.yaml",
-        ]
-
-        response = psd_common.check_deploy_files_in_alternate_location(payload)
-        self.assertEqual(response, False)
-
     def test_check_deploy_files_deploy_playbook_not_exists(self):
         payload = {}
         self.mock_os_path_isdir.return_value = True

@@ -201,24 +201,6 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
             f"error: argument --{consts.DEPLOY_PLAYBOOK} is required",
         )
 
-    def test_post_fails_with_missing_deploy_overrides(self):
-        """Test post fails with missing deploy overrides"""
-
-        file_options = [
-            consts.DEPLOY_PLAYBOOK,
-            consts.DEPLOY_CHART,
-            consts.DEPLOY_PRESTAGE,
-        ]
-        self.upload_files = self._create_fake_fields(file_options, False)
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.BAD_REQUEST,
-            f"error: argument --{consts.DEPLOY_OVERRIDES} is required",
-        )
-
     def test_post_succeeds_with_missing_deploy_prestage(self):
         """Test post succeeds with missing deploy prestage"""
 

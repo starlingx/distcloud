@@ -298,6 +298,10 @@ DEPLOY_CHART = "deploy_chart"
 DEPLOY_CONFIG = "deploy_config"
 DEPLOY_PRESTAGE = "prestage_images"
 
+REQUIRED_DEPLOY_FILE_OPTIONS = [
+    DEPLOY_PLAYBOOK,
+    DEPLOY_CHART,
+]
 DEPLOY_COMMON_FILE_OPTIONS = [
     DEPLOY_PLAYBOOK,
     DEPLOY_OVERRIDES,
@@ -412,9 +416,6 @@ ANSIBLE_PREVIOUS_VERSION_BASE_PATH = "/opt/dc-vault/playbooks"
 
 # The deployment manager artifacts usr directories
 ALTERNATE_DEPLOY_FILES_DIR = "/usr/local/share/applications"
-
-ALTERNATE_HELM_CHART_OVERRIDES_DIR = ALTERNATE_DEPLOY_FILES_DIR + "/overrides"
-HELM_CHART_OVERRIDES_POSTFIX = "-overrides-subcloud.yaml"
 
 ALTERNATE_HELM_CHART_DIR = ALTERNATE_DEPLOY_FILES_DIR + "/helm"
 HELM_CHART_POSTFIX = "deployment-manager"
