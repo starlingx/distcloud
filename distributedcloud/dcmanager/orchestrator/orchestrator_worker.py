@@ -81,19 +81,11 @@ class OrchestratorWorker(object):
     @staticmethod
     def _get_subcloud_name(step):
         """Get the subcloud name for a step"""
-
-        if step.subcloud_id is None:
-            # This is the SystemController.
-            return dccommon_consts.DEFAULT_REGION_NAME
         return step.subcloud.name
 
     @staticmethod
     def _get_region_name(step):
         """Get the region name for a step"""
-
-        if step.subcloud_id is None:
-            # This is the SystemController.
-            return dccommon_consts.DEFAULT_REGION_NAME
         return step.subcloud.region_name
 
     @staticmethod

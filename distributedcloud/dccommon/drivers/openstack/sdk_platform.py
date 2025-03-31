@@ -1,4 +1,4 @@
-# Copyright 2017-2024 Wind River Inc
+# Copyright 2017-2025 Wind River Inc
 
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -33,7 +33,7 @@ from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions
-from dccommon.utils import is_token_expiring_soon
+from dccommon import utils
 
 from dcdbsync.dbsyncclient.client import Client as dbsyncclient
 
@@ -66,7 +66,7 @@ region_client_class_map = {
 class OpenStackDriver(object):
     """An OpenStack driver for managing external services clients.
 
-    :param region_name: The name of the region. Defaults to "RegionOne".
+    :param region_name: The name of the region. Defaults to the local region
     :type region_name: str
     :param thread_name: The name of the thread. Defaults to "dc".
     :type thread_name: str
@@ -94,7 +94,7 @@ class OpenStackDriver(object):
 
     def __init__(
         self,
-        region_name: str = consts.DEFAULT_REGION_NAME,
+        region_name: str = None,
         thread_name: str = "dc",
         auth_url: str = None,
         region_clients: List[str] = SUPPORTED_REGION_CLIENTS,
@@ -103,6 +103,9 @@ class OpenStackDriver(object):
         subcloud_management_ip: str = None,
         attempts: int = 3,
     ):
+        if not region_name:
+            region_name = utils.get_region_one_name()
+
         self.region_name = region_name
         self.keystone_client = None
 
@@ -113,7 +116,7 @@ class OpenStackDriver(object):
         self.dbsync_client = None
 
         # Update the endpoint cache for the subcloud with the specified IP
-        if subcloud_management_ip and region_name != consts.DEFAULT_REGION_NAME:
+        if subcloud_management_ip and region_name != utils.get_region_one_name():
             # Check if the IP is different from the one already cached
             endpoint_map = EndpointCache.master_service_endpoint_map.get(region_name)
             if endpoint_map:
@@ -134,7 +137,7 @@ class OpenStackDriver(object):
                 region_name, KEYSTONE_CLIENT_NAME, self.keystone_client
             )
             # Clear client object cache
-            if region_name != consts.DEFAULT_REGION_NAME:
+            if region_name != utils.get_region_one_name():
                 OpenStackDriver.os_clients_dict[region_name] = collections.defaultdict(
                     dict
                 )
@@ -290,7 +293,7 @@ class OpenStackDriver(object):
         if keystone_client and self._is_token_valid(region_name):
             self.keystone_client = keystone_client
         # Else if master region, create a new keystone client
-        elif region_name in (consts.DEFAULT_REGION_NAME, consts.SYSTEM_CONTROLLER_NAME):
+        elif region_name in utils.get_system_controller_region_names():
             self.initialize_keystone_client(auth_url, fetch_subcloud_ips, attempts)
             os_clients_dict[region_name][KEYSTONE_CLIENT_NAME] = self.keystone_client
 
@@ -422,7 +425,7 @@ class OpenStackDriver(object):
             return False
 
         # If token is expiring soon, reset cached data and return False.
-        if is_token_expiring_soon(token=cached_tokens[region_name]):
+        if utils.is_token_expiring_soon(token=cached_tokens[region_name]):
             LOG.info(
                 f"The cached keystone token for subcloud {region_name} will "
                 f"expire soon {cached_tokens[region_name]['expires_at']}"

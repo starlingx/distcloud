@@ -50,6 +50,7 @@ from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import kubeoperator
+from dccommon import utils as cutils
 from dcmanager.audit import alarm_aggregation
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -812,13 +813,8 @@ def get_region_from_subcloud_address(payload):
         err_cause = "exception %s occurred" % type(e).__name__
         subcloud_region = None
 
-    system_regions = [
-        dccommon_consts.DEFAULT_REGION_NAME,
-        dccommon_consts.SYSTEM_CONTROLLER_NAME,
-    ]
-
-    if subcloud_region in system_regions:
-        err_cause = "region %s is not valid for a subcloud" % subcloud_region
+    if subcloud_region in cutils.get_system_controller_region_names():
+        err_cause = f"region {subcloud_region} is not valid for a subcloud"
         subcloud_region = None
 
     if err_cause:
@@ -1169,9 +1165,7 @@ def is_subcloud_healthy(subcloud_region, management_ip: str = None):
     return False
 
 
-def get_system_controller_software_list(
-    region_name=dccommon_consts.DEFAULT_REGION_NAME,
-):
+def get_system_controller_software_list(region_name: str = None) -> list[dict]:
     """Get software list from USM API
 
     This function is responsible for querying the USM API for the list of releases
@@ -1188,6 +1182,9 @@ def get_system_controller_software_list(
         list of dict: each dict item contains the parameters that identify
         the release from API response
     """
+    if not region_name:
+        region_name = cutils.get_region_one_name()
+
     try:
         os_client = OpenStackDriver(
             region_name=region_name,
@@ -2084,13 +2081,12 @@ def validate_name(
 
 def get_local_system():
     m_ks_client = OpenStackDriver(
-        region_name=dccommon_consts.DEFAULT_REGION_NAME,
         region_clients=None,
         fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
     ).keystone_client
     endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
     sysinv_client = SysinvClient(
-        dccommon_consts.DEFAULT_REGION_NAME, m_ks_client.session, endpoint=endpoint
+        m_ks_client.region_name, m_ks_client.session, endpoint=endpoint
     )
     system = sysinv_client.get_system()
     return system

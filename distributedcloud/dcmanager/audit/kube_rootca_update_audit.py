@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +13,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.utils import log_subcloud_msg
+from dccommon import utils as cutils
 from dcmanager.common import utils
 from dcmanager.db.sqlalchemy import models
 
@@ -50,13 +50,12 @@ class KubeRootcaUpdateAudit(object):
         """
         try:
             m_os_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             endpoint = m_os_ks_client.endpoint_cache.get_endpoint("sysinv")
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
+                m_os_ks_client.region_name,
                 m_os_ks_client.session,
                 endpoint=endpoint,
             )
@@ -98,7 +97,7 @@ class KubeRootcaUpdateAudit(object):
                 msg = (
                     f"Failed to get Kubernetes root CA status, skip {AUDIT_TYPE} audit."
                 )
-                log_subcloud_msg(LOG.exception, msg, subcloud_name)
+                cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
                 return skip_audit
 
             if success:
@@ -108,7 +107,7 @@ class KubeRootcaUpdateAudit(object):
             detected_alarms = fm_client.get_alarms_by_ids(KUBE_ROOTCA_ALARM_LIST)
         except Exception:
             msg = f"Failed to get alarms by id, skip {AUDIT_TYPE} audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
             return skip_audit
         return ALARM_BASED, detected_alarms
 
@@ -168,7 +167,7 @@ class KubeRootcaUpdateAudit(object):
         # Skip the audit if cannot get the region one cert ID.
         if not regionone_rootca_certid:
             msg = f"No region one audit data, exiting {AUDIT_TYPE} audit"
-            log_subcloud_msg(LOG.debug, msg, subcloud.name)
+            cutils.log_subcloud_msg(LOG.debug, msg, subcloud.name)
             return dccommon_consts.SYNC_STATUS_IN_SYNC
 
         sync_status = self.get_subcloud_sync_status(
@@ -220,7 +219,7 @@ class KubeRootcaUpdateAudit(object):
                 "Failed to get Kubernetes root CA cert id, error: "
                 f"{subcloud_cert_data.error}, skip {AUDIT_TYPE} audit."
             )
-            log_subcloud_msg(LOG.error, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.error, msg, subcloud_name)
             return None
 
         out_of_sync = subcloud_cert_data.cert_id != regionone_rootca_certid

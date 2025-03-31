@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,8 +14,8 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import utils
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import (
     peer_group_association as peer_group_association_policy,
@@ -85,7 +85,7 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
     def _validate_peer_group_leader_id(self, system_leader_id):
         ks_client = psd_common.get_ks_client()
         sysinv_client = SysinvClient(
-            dccommon_consts.DEFAULT_REGION_NAME,
+            utils.get_region_one_name(),
             ks_client.session,
             endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
         )

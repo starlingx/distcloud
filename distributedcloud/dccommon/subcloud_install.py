@@ -116,14 +116,15 @@ class SubcloudInstall(object):
 
     @staticmethod
     def get_sysinv_client():
+        region_name = dccommon_utils.get_region_one_name()
         ks_client = OpenStackDriver(
-            region_name=consts.DEFAULT_REGION_NAME,
+            region_name=region_name,
             region_clients=None,
             fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
         ).keystone_client
         session = ks_client.session
         endpoint = ks_client.endpoint_cache.get_endpoint("sysinv")
-        return SysinvClient(consts.CLOUD_0, session, endpoint=endpoint)
+        return SysinvClient(region_name, session, endpoint=endpoint)
 
     @staticmethod
     def format_address(ip_address):

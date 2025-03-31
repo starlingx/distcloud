@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -463,7 +463,7 @@ class IdentitySyncThread(SyncThread):
 
         if not m_users:
             LOG.error(
-                "No users returned from {}".format(dccommon_consts.VIRTUAL_MASTER_CLOUD)
+                f"No users returned from {dccommon_consts.SYSTEM_CONTROLLER_NAME}"
             )
             raise exceptions.SyncRequestFailed
 
@@ -483,9 +483,7 @@ class IdentitySyncThread(SyncThread):
 
         if not m_groups:
             LOG.info(
-                "No groups returned from {}".format(
-                    dccommon_consts.VIRTUAL_MASTER_CLOUD
-                )
+                f"No groups returned from {dccommon_consts.SYSTEM_CONTROLLER_NAME}"
             )
 
         # get groups from the subcloud
@@ -504,9 +502,7 @@ class IdentitySyncThread(SyncThread):
 
         if not m_projects:
             LOG.error(
-                "No projects returned from {}".format(
-                    dccommon_consts.VIRTUAL_MASTER_CLOUD
-                )
+                f"No projects returned from {dccommon_consts.SYSTEM_CONTROLLER_NAME}"
             )
             raise exceptions.SyncRequestFailed
 
@@ -526,7 +522,7 @@ class IdentitySyncThread(SyncThread):
 
         if not m_roles:
             LOG.error(
-                "No roles returned from {}".format(dccommon_consts.VIRTUAL_MASTER_CLOUD)
+                f"No roles returned from {dccommon_consts.SYSTEM_CONTROLLER_NAME}"
             )
             raise exceptions.SyncRequestFailed
 
@@ -2021,7 +2017,7 @@ class IdentitySyncThread(SyncThread):
                 else:
                     continue
 
-                # The id of a Role Assigment is:
+                # The id of a Role Assignment is:
                 # projectID_userID_roleID
                 assignment_dict["id"] = "{}_{}_{}".format(project_id, actor_id, role_id)
 
@@ -2299,7 +2295,7 @@ class IdentitySyncThread(SyncThread):
             except dbsync_exceptions.Unauthorized as e:
                 LOG.info(
                     "Get master resource [{}] request failed for {}: {}.".format(
-                        resource_type, dccommon_consts.VIRTUAL_MASTER_CLOUD, str(e)
+                        resource_type, dccommon_consts.SYSTEM_CONTROLLER_NAME, str(e)
                     ),
                     extra=self.log_extra,
                 )
@@ -2320,7 +2316,7 @@ class IdentitySyncThread(SyncThread):
             except keystone_exceptions.Unauthorized as e:
                 LOG.info(
                     "Get master resource [{}] request failed for {}: {}.".format(
-                        resource_type, dccommon_consts.VIRTUAL_MASTER_CLOUD, str(e)
+                        resource_type, dccommon_consts.SYSTEM_CONTROLLER_NAME, str(e)
                     ),
                     extra=self.log_extra,
                 )

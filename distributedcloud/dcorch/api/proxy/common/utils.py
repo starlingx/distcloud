@@ -1,4 +1,4 @@
-# Copyright 2017-2024 Wind River
+# Copyright 2017-2025 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import psutil
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon import utils as cutils
 from dcorch.common import consts
 
 LOG = logging.getLogger(__name__)
@@ -148,10 +149,9 @@ def set_request_forward_environ(req, remote_host, remote_port):
         req.environ["HTTP_X_FORWARDED_FOR"] = req.environ["REMOTE_ADDR"]
 
 
-def _get_fernet_keys():
+def _get_fernet_keys() -> list[str]:
     """Get fernet keys from sysinv."""
     os_client = OpenStackDriver(
-        region_name=dccommon_consts.CLOUD_0,
         region_clients=("sysinv",),
         thread_name="proxy",
     )
@@ -164,14 +164,16 @@ def _get_fernet_keys():
     ) as e:
         LOG.info(
             "get_fernet_keys: cloud {} is not reachable [{}]".format(
-                dccommon_consts.CLOUD_0, str(e)
+                cutils.get_region_one_name(), str(e)
             )
         )
-        OpenStackDriver.delete_region_clients(dccommon_consts.CLOUD_0)
+        OpenStackDriver.delete_region_clients(cutils.get_region_one_name())
         return None
     except (AttributeError, TypeError) as e:
         LOG.info("get_fernet_keys error {}".format(e))
-        OpenStackDriver.delete_region_clients(dccommon_consts.CLOUD_0, clear_token=True)
+        OpenStackDriver.delete_region_clients(
+            cutils.get_region_one_name(), clear_token=True
+        )
         return None
     except Exception as e:
         LOG.exception(e)

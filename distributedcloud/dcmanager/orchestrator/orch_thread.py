@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -24,11 +24,13 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
+from dccommon import utils as cutils
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -134,7 +136,7 @@ class OrchThread(threading.Thread):
         self.thread_group_manager.stop()
 
     @staticmethod
-    def get_ks_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_ks_client(region_name: str = None) -> KeystoneClient:
         """This will get a cached keystone client (and token)
 
         throws an exception if keystone client cannot be initialized
@@ -147,18 +149,18 @@ class OrchThread(threading.Thread):
         return os_client.keystone_client
 
     @staticmethod
-    def get_vim_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_vim_client(region_name: str = None) -> vim.VimClient:
         ks_client = OrchThread.get_ks_client(region_name)
-        return vim.VimClient(region_name, ks_client.session)
+        return vim.VimClient(ks_client.region_name, ks_client.session)
 
     @staticmethod
-    def get_sysinv_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_sysinv_client(region_name: str = None) -> SysinvClient:
         ks_client = OrchThread.get_ks_client(region_name)
         endpoint = ks_client.endpoint_cache.get_endpoint("sysinv")
-        return SysinvClient(region_name, ks_client.session, endpoint=endpoint)
+        return SysinvClient(ks_client.region_name, ks_client.session, endpoint=endpoint)
 
     @staticmethod
-    def get_software_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_software_client(region_name: str = None) -> SoftwareClient:
         ks_client = OrchThread.get_ks_client(region_name)
         return SoftwareClient(
             ks_client.session,
@@ -166,16 +168,16 @@ class OrchThread(threading.Thread):
         )
 
     @staticmethod
-    def get_patching_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+    def get_patching_client(region_name: str = None) -> PatchingClient:
         ks_client = OrchThread.get_ks_client(region_name)
-        return PatchingClient(region_name, ks_client.session)
+        return PatchingClient(ks_client.region_name, ks_client.session)
 
     @staticmethod
     def get_region_name(strategy_step):
         """Get the region name for a strategy step"""
         if strategy_step.subcloud_id is None:
             # This is the SystemController.
-            return dccommon_consts.DEFAULT_REGION_NAME
+            return cutils.get_region_one_name()
         return strategy_step.subcloud.region_name
 
     @staticmethod
@@ -183,7 +185,7 @@ class OrchThread(threading.Thread):
         """Get the subcloud name for a strategy step"""
         if strategy_step.subcloud_id is None:
             # This is the SystemController.
-            return dccommon_consts.DEFAULT_REGION_NAME
+            return cutils.get_region_one_name()
         return strategy_step.subcloud.name
 
     @staticmethod

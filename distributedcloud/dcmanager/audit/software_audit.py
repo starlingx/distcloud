@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -51,7 +51,6 @@ class SoftwareAudit(object):
         """
         try:
             m_os_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
@@ -60,7 +59,7 @@ class SoftwareAudit(object):
             )
             software_client = SoftwareClient(
                 m_os_ks_client.session,
-                dccommon_consts.DEFAULT_REGION_NAME,
+                m_os_ks_client.region_name,
                 endpoint=software_endpoint,
             )
         except Exception:

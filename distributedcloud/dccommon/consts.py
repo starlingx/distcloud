@@ -28,12 +28,6 @@ ENDPOINT_TYPE_IDENTITY_OS = "identity_openstack"
 # openstack endpoint types
 ENDPOINT_TYPES_LIST_OS = [ENDPOINT_TYPE_IDENTITY_OS]
 
-# distributed Cloud constants
-# TODO(gherzmann) Remove the following constants in favor of the
-# SYSTEM_CONTROLLER_NAME and DEFAULT_REGION_NAME constants
-CLOUD_0 = "RegionOne"
-VIRTUAL_MASTER_CLOUD = "SystemController"
-
 SW_UPDATE_DEFAULT_TITLE = "all clouds default"
 ANSIBLE_OVERRIDES_PATH = "/opt/dc-vault/ansible"
 SOFTWARE_VAULT_DIR = "/opt/dc-vault/software"
@@ -196,12 +190,6 @@ MIN_VERSION_FOR_DCAGENT = "24.09"
 
 # Well known region names
 SYSTEM_CONTROLLER_NAME = "SystemController"
-DEFAULT_REGION_NAME = "RegionOne"
-
-SYSTEM_CONTROLLER_REGION_NAMES = {
-    DEFAULT_REGION_NAME,
-    SYSTEM_CONTROLLER_NAME,
-}
 
 # Subcloud management state
 MANAGEMENT_UNMANAGED = "unmanaged"

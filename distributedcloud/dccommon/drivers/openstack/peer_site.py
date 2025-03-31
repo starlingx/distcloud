@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,7 +17,7 @@ from oslo_log import log
 from dccommon import consts
 from dccommon.drivers import base
 from dccommon import exceptions
-from dccommon.utils import is_token_expiring_soon
+from dccommon import utils
 
 LOG = log.getLogger(__name__)
 
@@ -38,9 +38,12 @@ class PeerSiteDriver(object):
         auth_url,
         username,
         password,
-        region_name=consts.CLOUD_0,
+        region_name=None,
         endpoint_type=consts.KS_ENDPOINT_PUBLIC,
     ):
+        if not region_name:
+            region_name = utils.get_region_one_name()
+
         if not (site_uuid and auth_url and username and password):
             raise exceptions.InvalidInputError
 
@@ -134,7 +137,7 @@ class PeerSiteDriver(object):
             PeerSiteDriver._identity_tokens[site_uuid] = None
             return False
 
-        token_expiring_soon = is_token_expiring_soon(
+        token_expiring_soon = utils.is_token_expiring_soon(
             token=self._identity_tokens[site_uuid]
         )
 
@@ -164,12 +167,15 @@ class PeerKeystoneClient(base.DriverBase):
         auth_url,
         username,
         password,
-        region_name=consts.CLOUD_0,
+        region_name=None,
         project_name=consts.KS_ENDPOINT_PROJECT_DEFAULT,
         project_domain_name=consts.KS_ENDPOINT_PROJECT_DOMAIN_DEFAULT,
         user_domain_name=consts.KS_ENDPOINT_USER_DOMAIN_DEFAULT,
         auth_type=consts.KS_ENDPOINT_PUBLIC,
     ):
+        if not region_name:
+            region_name = utils.get_region_one_name()
+
         if not (auth_url and username and password):
             raise exceptions.InvalidInputError
         self.auth_url = auth_url

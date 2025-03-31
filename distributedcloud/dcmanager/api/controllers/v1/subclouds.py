@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -534,9 +534,7 @@ class SubcloudsController(object):
     @staticmethod
     def is_valid_software_deploy_state():
         try:
-            m_os_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME, region_clients=None
-            ).keystone_client
+            m_os_ks_client = OpenStackDriver(region_clients=None).keystone_client
             software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
                 dccommon_consts.ENDPOINT_NAME_USM
             )

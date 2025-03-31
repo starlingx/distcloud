@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,10 +8,11 @@ import socket
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
-from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import utils as cutils
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ CLIENT_READ_MAX_ATTEMPTS = 2
 def get_sysinv_client():
     ks_client = get_keystone_client()
     return SysinvClient(
-        dccommon_consts.DEFAULT_REGION_NAME,
+        ks_client.region_name,
         ks_client.session,
         endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
         timeout=CLIENT_READ_TIMEOUT_SECONDS,
@@ -42,8 +43,10 @@ def get_software_client():
     )
 
 
-def get_keystone_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
+def get_keystone_client(region_name: str = None) -> KeystoneClient:
     """Construct a (cached) keystone client (and token)"""
+    if not region_name:
+        region_name = cutils.get_region_one_name()
 
     try:
         os_client = OpenStackDriver(

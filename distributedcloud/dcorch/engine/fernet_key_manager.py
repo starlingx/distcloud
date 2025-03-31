@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024-2025 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.endpoint_cache import EndpointCache
-from dccommon.utils import build_subcloud_endpoint
+from dccommon import utils as cutils
 from dcorch.common import consts
 from dcorch.common import context
 from dcorch.common import exceptions
@@ -72,7 +72,9 @@ class FernetKeyManager(manager.Manager):
     def _schedule_work(self, operation_type, subcloud=None):
         keys = self._get_master_keys()
         if not keys:
-            LOG.info(_("No fernet keys returned from %s") % dccommon_consts.CLOUD_0)
+            LOG.info(
+                _("No fernet keys returned from %s") % cutils.get_region_one_name()
+            )
             return
         try:
             resource_info = FernetKeyManager.to_resource_info(keys)
@@ -95,12 +97,13 @@ class FernetKeyManager(manager.Manager):
     def _get_master_keys():
         """get the keys from the local fernet key repo"""
         keys = []
+        local_region = cutils.get_region_one_name()
         try:
             # No cached client is required as it is called during the initial
             # sync and after weekly key rotation
-            ks_client = KeystoneClient(dccommon_consts.CLOUD_0)
+            ks_client = KeystoneClient(local_region)
             sysinv_client = SysinvClient(
-                dccommon_consts.CLOUD_0,
+                local_region,
                 ks_client.session,
                 endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
             )
@@ -111,8 +114,7 @@ class FernetKeyManager(manager.Manager):
             exceptions.TimeOut,
         ):
             LOG.exception(
-                _("Retrieving the fernet keys from %s timeout")
-                % dccommon_consts.CLOUD_0
+                _("Retrieving the fernet keys from %s timeout") % local_region
             )
         except Exception as e:
             LOG.exception(_("Fail to retrieve the master fernet keys: %s") % str(e))
@@ -136,7 +138,9 @@ class FernetKeyManager(manager.Manager):
     def distribute_keys(subcloud_name, management_ip):
         keys = FernetKeyManager._get_master_keys()
         if not keys:
-            LOG.info(_("No fernet keys returned from %s") % dccommon_consts.CLOUD_0)
+            LOG.info(
+                _("No fernet keys returned from %s") % cutils.get_region_one_name()
+            )
             return
         resource_info = FernetKeyManager.to_resource_info(keys)
         key_list = FernetKeyManager.from_resource_info(resource_info)
@@ -145,7 +149,9 @@ class FernetKeyManager(manager.Manager):
     @staticmethod
     def update_fernet_repo(subcloud_name, management_ip, key_list=None):
         try:
-            keystone_endpoint = build_subcloud_endpoint(management_ip, "keystone")
+            keystone_endpoint = cutils.build_subcloud_endpoint(
+                management_ip, "keystone"
+            )
             admin_session = EndpointCache.get_admin_session(
                 keystone_endpoint,
                 CONF.endpoint_cache.username,
@@ -157,7 +163,7 @@ class FernetKeyManager(manager.Manager):
             sysinv_client = SysinvClient(
                 region=subcloud_name,
                 session=admin_session,
-                endpoint=build_subcloud_endpoint(management_ip, "sysinv"),
+                endpoint=cutils.build_subcloud_endpoint(management_ip, "sysinv"),
             )
             sysinv_client.post_fernet_repo(key_list)
         except (

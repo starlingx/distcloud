@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -45,6 +45,7 @@ from tsconfig.tsconfig import SW_VERSION
 import yaml
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import endpoint_cache
@@ -1554,13 +1555,12 @@ class SubcloudManager(manager.Manager):
         try:
             # Write ansible based on rehome_data
             m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
+                m_ks_client.region_name,
                 m_ks_client.session,
                 endpoint=endpoint,
             )
@@ -1663,7 +1663,6 @@ class SubcloudManager(manager.Manager):
             # Create a new route to this subcloud on the management interface
             # on both controllers.
             m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
@@ -1674,7 +1673,7 @@ class SubcloudManager(manager.Manager):
             )
             endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
+                m_ks_client.region_name,
                 m_ks_client.session,
                 endpoint=endpoint,
             )
@@ -3155,7 +3154,9 @@ class SubcloudManager(manager.Manager):
         ]
         self._write_deploy_files(payload, subcloud_name)
 
-    def _delete_subcloud_routes(self, keystone_client, subcloud):
+    def _delete_subcloud_routes(
+        self, keystone_client: KeystoneClient, subcloud: Subcloud
+    ):
         """Delete the routes to this subcloud"""
 
         # Delete the route to this subcloud on the management interface on
@@ -3163,7 +3164,7 @@ class SubcloudManager(manager.Manager):
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
-            dccommon_consts.DEFAULT_REGION_NAME,
+            keystone_client.region_name,
             keystone_client.session,
             endpoint=endpoint,
         )
@@ -3216,7 +3217,6 @@ class SubcloudManager(manager.Manager):
         # down so is not accessible. Therefore set up a session with the
         # Central Region Keystone ONLY.
         keystone_client = OpenStackDriver(
-            region_name=dccommon_consts.DEFAULT_REGION_NAME,
             region_clients=None,
             fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
         ).keystone_client
@@ -3674,7 +3674,6 @@ class SubcloudManager(manager.Manager):
                 f"{systemcontroller_gateway_ip.split(',')[0]}. Replacing routes..."
             )
             m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
@@ -3902,7 +3901,6 @@ class SubcloudManager(manager.Manager):
 
         try:
             m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
@@ -3937,14 +3935,17 @@ class SubcloudManager(manager.Manager):
             self._delete_subcloud_routes(m_ks_client, subcloud)
 
     def _create_subcloud_route(
-        self, payload, keystone_client, systemcontroller_gateway_ip
+        self,
+        payload: dict,
+        keystone_client: KeystoneClient,
+        systemcontroller_gateway_ip: str,
     ):
         subcloud_subnet = netaddr.IPNetwork(
             utils.get_primary_management_subnet(payload)
         )
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
-            dccommon_consts.DEFAULT_REGION_NAME,
+            keystone_client.region_name,
             keystone_client.session,
             endpoint=endpoint,
         )
@@ -4130,7 +4131,9 @@ class SubcloudManager(manager.Manager):
 
     @utils.synchronized("regionone-data-cache", external=False)
     def _get_cached_regionone_data(
-        self, regionone_keystone_client, regionone_sysinv_client=None
+        self,
+        regionone_keystone_client: KeystoneClient,
+        regionone_sysinv_client: SysinvClient = None,
     ):
         if (
             not SubcloudManager.regionone_data
@@ -4157,7 +4160,7 @@ class SubcloudManager(manager.Manager):
                     "sysinv"
                 )
                 regionone_sysinv_client = SysinvClient(
-                    dccommon_consts.DEFAULT_REGION_NAME,
+                    regionone_keystone_client.region_name,
                     regionone_keystone_client.session,
                     endpoint=endpoint,
                 )

@@ -1524,9 +1524,9 @@ Response Example
             :language: json
 
 
-******************************************************************************************************************************
-Shows sw-update options (defaults or per subcloud). Use ``RegionOne`` as subcloud for default options which are pre-configured
-******************************************************************************************************************************
+*************************************************************************************************************************************
+Shows sw-update options (defaults or per subcloud). Use ``SystemController`` as subcloud for default options which are pre-configured
+*************************************************************************************************************************************
 
 .. rest_method:: GET /v1.0/sw-update-options/​{subcloud}​
 
@@ -1570,9 +1570,9 @@ Response Example
             :language: json
 
 
-******************************************************************************************************
-Updates sw-update options, defaults or per subcloud. Use ``RegionOne`` as subcloud for default options
-******************************************************************************************************
+*************************************************************************************************************
+Updates sw-update options, defaults or per subcloud. Use ``SystemController`` as subcloud for default options
+*************************************************************************************************************
 
 .. rest_method:: POST /v1.0/sw-update-options/​{subcloud}​
 

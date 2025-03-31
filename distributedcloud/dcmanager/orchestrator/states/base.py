@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,14 +11,15 @@ from typing import Type
 
 from oslo_log import log as logging
 
-from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
+from dccommon import utils as cutils
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
@@ -163,7 +164,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
         """Get the region name for a strategy step"""
         if strategy_step.subcloud_id is None:
             # This is the SystemController.
-            return dccommon_consts.DEFAULT_REGION_NAME
+            return cutils.get_region_one_name()
         return strategy_step.subcloud.region_name
 
     @staticmethod
@@ -171,13 +172,16 @@ class BaseState(object, metaclass=abc.ABCMeta):
         """Get the region name for a strategy step"""
         if strategy_step.subcloud_id is None:
             # This is the SystemController.
-            return dccommon_consts.DEFAULT_REGION_NAME
+            return cutils.get_region_one_name()
         return strategy_step.subcloud.name
 
     @staticmethod
     @lru_cache(maxsize=CLIENT_CACHE_SIZE)
-    def get_keystone_client(region_name: str = dccommon_consts.DEFAULT_REGION_NAME):
+    def get_keystone_client(region_name: str = None) -> KeystoneClient:
         """Construct a (cached) keystone client (and token)"""
+        if not region_name:
+            region_name = cutils.get_region_one_name()
+
         try:
             return OpenStackDriver(
                 region_name=region_name,
@@ -205,20 +209,16 @@ class BaseState(object, metaclass=abc.ABCMeta):
         return FmClient(region_name, keystone_client.session, endpoint=endpoint)
 
     @lru_cache(maxsize=CLIENT_CACHE_SIZE)
-    def get_patching_client(
-        self, region_name: str = dccommon_consts.DEFAULT_REGION_NAME
-    ) -> PatchingClient:
+    def get_patching_client(self, region_name: str = None) -> PatchingClient:
         """Get the Patching client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
-        return PatchingClient(region_name, keystone_client.session)
+        return PatchingClient(keystone_client.region_name, keystone_client.session)
 
     @lru_cache(maxsize=CLIENT_CACHE_SIZE)
-    def get_software_client(
-        self, region_name: str = dccommon_consts.DEFAULT_REGION_NAME
-    ) -> SoftwareClient:
+    def get_software_client(self, region_name: str = None) -> SoftwareClient:
         """Get the Software client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
-        return SoftwareClient(keystone_client.session, region_name)
+        return SoftwareClient(keystone_client.session, keystone_client.region_name)
 
     @lru_cache(maxsize=CLIENT_CACHE_SIZE)
     def get_barbican_client(self, region_name: str) -> BarbicanClient:
@@ -235,7 +235,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
     @property
     def local_sysinv(self) -> SysinvClient:
         """Return the local Sysinv client."""
-        return self.get_sysinv_client(dccommon_consts.DEFAULT_REGION_NAME)
+        return self.get_sysinv_client(cutils.get_region_one_name())
 
     @property
     def subcloud_sysinv(self) -> SysinvClient:
