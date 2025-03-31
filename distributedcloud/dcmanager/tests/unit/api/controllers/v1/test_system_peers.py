@@ -1,18 +1,17 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import http.client
 import json
-import uuid
 
 import mock
 from oslo_messaging import RemoteError
 
 from dcmanager.api.controllers.v1 import system_peers
 from dcmanager.common import consts
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import DeleteMixin
@@ -21,18 +20,6 @@ from dcmanager.tests.unit.api.controllers.v1.mixins import PostJSONMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import UpdateMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
 from dcmanager.tests.unit.common import fake_subcloud
-
-SAMPLE_SYSTEM_PEER_UUID = str(uuid.uuid4())
-SAMPLE_SYSTEM_PEER_NAME = "SystemPeer1"
-SAMPLE_MANAGER_ENDPOINT = "http://127.0.0.1:5000"
-SAMPLE_MANAGER_USERNAME = "admin"
-SAMPLE_MANAGER_PASSWORD = "password"
-SAMPLE_ADMINISTRATIVE_STATE = "enabled"
-SAMPLE_HEARTBEAT_INTERVAL = 10
-SAMPLE_HEARTBEAT_FAILURE_THRESHOLD = 3
-SAMPLE_HEARTBEAT_FAILURES_POLICY = "alarm"
-SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT = 600
-SAMPLE_PEER_CONTROLLER_GATEWAY_IP = "128.128.128.1"
 
 
 class SystemPeersAPIMixin(APIMixin):
@@ -54,59 +41,8 @@ class SystemPeersAPIMixin(APIMixin):
         "updated-at",
     ]
 
-    def _get_test_system_peer_dict(self, data_type, **kw):
-        # id should not be part of the structure
-        system_peer = {
-            "peer_uuid": kw.get("peer_uuid", SAMPLE_SYSTEM_PEER_UUID),
-            "peer_name": kw.get("peer_name", SAMPLE_SYSTEM_PEER_NAME),
-            "administrative_state": kw.get(
-                "administrative_state", SAMPLE_ADMINISTRATIVE_STATE
-            ),
-            "heartbeat_interval": kw.get(
-                "heartbeat_interval", SAMPLE_HEARTBEAT_INTERVAL
-            ),
-            "heartbeat_failure_threshold": kw.get(
-                "heartbeat_failure_threshold", SAMPLE_HEARTBEAT_FAILURE_THRESHOLD
-            ),
-            "heartbeat_failure_policy": kw.get(
-                "heartbeat_failure_policy", SAMPLE_HEARTBEAT_FAILURES_POLICY
-            ),
-            "heartbeat_maintenance_timeout": kw.get(
-                "heartbeat_maintenance_timeout", SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT
-            ),
-        }
-
-        if data_type == "db":
-            system_peer["endpoint"] = kw.get(
-                "manager_endpoint", SAMPLE_MANAGER_ENDPOINT
-            )
-            system_peer["username"] = kw.get(
-                "manager_username", SAMPLE_MANAGER_USERNAME
-            )
-            system_peer["password"] = kw.get(
-                "manager_password", SAMPLE_MANAGER_PASSWORD
-            )
-            system_peer["gateway_ip"] = kw.get(
-                "peer_controller_gateway_ip", SAMPLE_PEER_CONTROLLER_GATEWAY_IP
-            )
-        else:
-            system_peer["manager_endpoint"] = kw.get(
-                "manager_endpoint", SAMPLE_MANAGER_ENDPOINT
-            )
-            system_peer["manager_username"] = kw.get(
-                "manager_username", SAMPLE_MANAGER_USERNAME
-            )
-            system_peer["manager_password"] = kw.get(
-                "manager_password", SAMPLE_MANAGER_PASSWORD
-            )
-            system_peer["peer_controller_gateway_address"] = kw.get(
-                "peer_controller_gateway_ip", SAMPLE_PEER_CONTROLLER_GATEWAY_IP
-            )
-
-        return system_peer
-
     def _post_get_test_system_peer(self, **kw):
-        return self._get_test_system_peer_dict("dict", **kw)
+        return fake_subcloud.get_test_system_peer_dict("dict", **kw)
 
     # The following methods are required for subclasses of APIMixin
     def get_api_prefix(self):
@@ -122,7 +58,7 @@ class SystemPeersAPIMixin(APIMixin):
         return []
 
     def _create_db_object(self, context, **kw):
-        creation_fields = self._get_test_system_peer_dict("db", **kw)
+        creation_fields = fake_subcloud.get_test_system_peer_dict("db", **kw)
         return db_api.system_peer_create(context, **creation_fields)
 
     def get_post_object(self):

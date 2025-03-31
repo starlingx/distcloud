@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -29,11 +29,10 @@ from sqlalchemy import event
 
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.common import consts
-from dcmanager.db import api
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.tests import utils
 
-get_engine = api.get_engine
+get_engine = db_api.get_engine
 
 # Enable foreign key support in sqlite - see:
 # http://docs.sqlalchemy.org/en/latest/dialects/sqlite.html

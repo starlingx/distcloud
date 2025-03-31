@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -20,7 +20,7 @@ from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
-from dcorch.db.sqlalchemy import api as db_api
+from dcorch.db import api as db_api
 from dcorch.engine import generic_sync_manager
 from dcorch.rpc import client as rpc_client
 from dcorch.tests import base

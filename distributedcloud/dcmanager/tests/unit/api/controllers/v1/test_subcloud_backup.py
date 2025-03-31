@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,7 +14,7 @@ from oslo_messaging import RemoteError
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 import dcmanager.common.utils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests import base
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest

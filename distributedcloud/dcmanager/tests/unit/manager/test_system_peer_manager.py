@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,28 +14,18 @@ from dcmanager.audit import rpcapi
 from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import utils as dutils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.manager import system_peer_manager
 from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_subcloud
 
-# FAKE SYSINV DATA
-FAKE_SITE0_SYSTEM_UUID = str(uuid.uuid4())
-FAKE_SITE1_SYSTEM_UUID = str(uuid.uuid4())
-
 # FAKE SYSTEM PEER DATA
 FAKE_SYSTEM_PEER_ID = 1
-FAKE_SYSTEM_PEER_UUID = FAKE_SITE1_SYSTEM_UUID
-FAKE_SYSTEM_PEER_NAME = "PeerSite1"
-FAKE_MANAGER_ENDPOINT = "http://128.128.128.128:5000/v3"
-FAKE_MANAGER_USERNAME = "admin"
-FAKE_MANAGER_PASSWORD = "cGFzc3dvcmQ="
-FAKE_PEER_CONTROLLER_GATEWAY_IP = "128.128.1.1"
 
 # FAKE SUBCLOUD PEER GROUP DATA (SITE0)
 FAKE_SITE0_PEER_GROUP_ID = 1
 FAKE_SITE0_PEER_GROUP_NAME = "PeerGroup1"
-FAKE_SITE0_PEER_GROUP_SYSTEM_LEADER_ID = FAKE_SITE0_SYSTEM_UUID
+FAKE_SITE0_PEER_GROUP_SYSTEM_LEADER_ID = fake_subcloud.FAKE_SITE0_SYSTEM_UUID
 FAKE_SITE0_PEER_GROUP_SYSTEM_LEADER_NAME = "site0"
 FAKE_SITE0_PEER_GROUP_MAX_SUBCLOUDS_REHOMING = 50
 FAKE_SITE0_PEER_GROUP_PRIORITY = 0
@@ -72,7 +62,7 @@ class FakeSystem(object):
 
 class FakeSysinvClient(object):
     def __init__(self):
-        self.system = FakeSystem(FAKE_SITE1_SYSTEM_UUID)
+        self.system = FakeSystem(fake_subcloud.FAKE_SITE1_SYSTEM_UUID)
 
     def get_system(self):
         return self.system
@@ -164,17 +154,14 @@ class TestSystemPeerManager(base.DCManagerTestCase):
 
     @staticmethod
     def create_system_peer_static(ctxt, **kwargs):
-        values = {
-            "peer_uuid": FAKE_SYSTEM_PEER_UUID,
-            "peer_name": FAKE_SYSTEM_PEER_NAME,
-            "endpoint": FAKE_MANAGER_ENDPOINT,
-            "username": FAKE_MANAGER_USERNAME,
-            "password": FAKE_MANAGER_PASSWORD,
-            "gateway_ip": FAKE_PEER_CONTROLLER_GATEWAY_IP,
-            "availability_state": consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE,
-        }
-        values.update(kwargs)
-        return db_api.system_peer_create(ctxt, **values)
+        system_peer_fields = fake_subcloud.get_test_system_peer_dict("db")
+        system_peer_fields.update(kwargs)
+        peer = db_api.system_peer_create(ctxt, **system_peer_fields)
+        return db_api.system_peer_update(
+            ctxt,
+            peer.id,
+            availability_state=consts.SYSTEM_PEER_AVAILABILITY_STATE_AVAILABLE,
+        )
 
     @staticmethod
     def create_subcloud_peer_group_static(ctxt, **kwargs):
@@ -360,11 +347,13 @@ class TestSystemPeerManager(base.DCManagerTestCase):
     )
     def test_update_sync_status(self, mock_client):
         mock_client.return_value = self.mock_dc_client()
-        self.mock_get_local_system.return_value = FakeSystem(FAKE_SITE0_SYSTEM_UUID)
+        self.mock_get_local_system.return_value = FakeSystem(
+            fake_subcloud.FAKE_SITE0_SYSTEM_UUID
+        )
 
         db_api.peer_group_association_update(
             self.ctx,
-            associate_id=self.association.id,
+            id=self.association.id,
             sync_status=consts.ASSOCIATION_SYNC_STATUS_UNKNOWN,
         )
 
@@ -384,7 +373,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             self.peer_group.peer_group_name
         )
         self.mock_dc_client().get_system_peer.assert_called_once_with(
-            FAKE_SITE0_SYSTEM_UUID
+            fake_subcloud.FAKE_SITE0_SYSTEM_UUID
         )
         self.peer_group_association.assert_called_once_with(
             FAKE_SITE1_SYSTEM_PEER_ID, FAKE_SITE1_PEER_GROUP_ID
@@ -408,7 +397,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
 
         db_api.peer_group_association_update(
             self.ctx,
-            associate_id=self.association.id,
+            id=self.association.id,
             sync_status=consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
         )
 
@@ -433,7 +422,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
 
         db_api.peer_group_association_update(
             self.ctx,
-            associate_id=self.association.id,
+            id=self.association.id,
             sync_status=consts.ASSOCIATION_SYNC_STATUS_UNKNOWN,
         )
 
@@ -780,7 +769,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
         associations = db_api.peer_group_association_get_all(self.ctx)
         self.assertEqual(1, len(associations))
         self.mock_log.warning.assert_called_once_with(
-            f"Peer site system uuid {FAKE_SITE1_SYSTEM_UUID} "
+            f"Peer site system uuid {fake_subcloud.FAKE_SITE1_SYSTEM_UUID} "
             f"does not match with the peer_uuid {peer.peer_uuid}"
         )
 
