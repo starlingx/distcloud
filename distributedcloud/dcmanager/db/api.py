@@ -84,9 +84,13 @@ def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
 # by the DB server.  If server time is in UTC func.now() might work.
 
 
-def subcloud_audits_get_and_start_audit(context, subcloud_id):
-    """Set the 'audit started' timestamp for the main audit."""
-    return IMPL.Connection(context).subcloud_audits_get_and_start_audit(subcloud_id)
+def subcloud_audits_subcloud_get_and_start_audit(
+    context, subcloud_id
+) -> tuple[models.Subcloud, models.SubcloudAudits]:
+    """Get the subcloud with endpoints needed and start the audit"""
+    return IMPL.Connection(context).subcloud_audits_subcloud_get_and_start_audit(
+        subcloud_id
+    )
 
 
 def subcloud_audits_bulk_end_audit(context, audits_finished):

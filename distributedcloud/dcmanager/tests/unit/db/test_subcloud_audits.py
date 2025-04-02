@@ -163,7 +163,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(len(audits), 3)
 
     def test_subcloud_audits_start_and_end(self):
-        audit = db_api.subcloud_audits_get_and_start_audit(self.ctx, 3)
+        _, audit = db_api.subcloud_audits_subcloud_get_and_start_audit(self.ctx, 3)
         self.assertTrue(
             (timeutils.utcnow() - audit.audit_started_at)
             < datetime.timedelta(seconds=1)
@@ -185,13 +185,13 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         )
         # Set the 'start' timestamp later than the 'finished' timestamp
         # but with the 'finished' timestamp long ago.
-        db_api.subcloud_audits_get_and_start_audit(self.ctx, 1)
+        db_api.subcloud_audits_subcloud_get_and_start_audit(self.ctx, 1)
         # Set the 'start' timestamp later than the 'finished' timestamp
         # but with the 'finished' timestamp recent.
         db_api.subcloud_audits_bulk_end_audit(
             self.ctx, self._create_audits_finished(2, [])
         )
-        db_api.subcloud_audits_get_and_start_audit(self.ctx, 2)
+        db_api.subcloud_audits_subcloud_get_and_start_audit(self.ctx, 2)
         last_audit_threshold = timeutils.utcnow() - datetime.timedelta(seconds=100)
         count = db_api.subcloud_audits_fix_expired_audits(
             self.ctx, last_audit_threshold
@@ -204,7 +204,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
     def test_subcloud_audits_fix_expired_trigger_audits(self):
         # Set the 'start' timestamp later than the 'finished' timestamp
         # but with the 'finished' timestamp long ago.
-        db_api.subcloud_audits_get_and_start_audit(self.ctx, 1)
+        db_api.subcloud_audits_subcloud_get_and_start_audit(self.ctx, 1)
         last_audit_threshold = timeutils.utcnow() - datetime.timedelta(seconds=100)
         # Fix up expired audits and trigger subaudits.
         count = db_api.subcloud_audits_fix_expired_audits(

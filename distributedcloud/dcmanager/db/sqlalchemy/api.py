@@ -315,12 +315,29 @@ class Connection(object):
     # by the DB server.  If server time is in UTC func.now() might work.
 
     @require_context()
-    def subcloud_audits_get_and_start_audit(self, subcloud_id):
+    def subcloud_audits_subcloud_get_and_start_audit(self, subcloud_id):
         with write_session() as session:
-            subcloud_audits_ref = self.subcloud_audits_get(subcloud_id)
-            subcloud_audits_ref.audit_started_at = timeutils.utcnow()
-            subcloud_audits_ref.save(session)
-            return subcloud_audits_ref
+            result = (
+                session.query(models.Subcloud, models.SubcloudAudits)
+                .join(
+                    models.SubcloudAudits,
+                    models.Subcloud.id == models.SubcloudAudits.subcloud_id,
+                )
+                .filter(models.Subcloud.id == subcloud_id)
+                .filter(models.SubcloudAudits.deleted == 0)
+                .first()
+            )
+
+            if not result:
+                raise exception.SubcloudNotFound(subcloud_id=subcloud_id)
+
+            subcloud, subcloud_audit = result
+
+            # Start the new audit
+            subcloud_audit.audit_started_at = timeutils.utcnow()
+            subcloud_audit.save(session)
+
+            return subcloud, subcloud_audit
 
     @require_context()
     def subcloud_audits_bulk_end_audit(self, audits_finished):
