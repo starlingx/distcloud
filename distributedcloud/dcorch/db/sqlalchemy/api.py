@@ -41,6 +41,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 from sqlalchemy import update
 
+from dccommon import consts as dccommon_consts
 from dcorch.common import consts
 from dcorch.common import exceptions as exception
 from dcorch.common.i18n import _
@@ -1269,3 +1270,42 @@ class Connection(object):
             )
             for result in results:
                 session.delete(result)
+
+    @require_context()
+    def should_stop_subcloud_sync(self, subcloud_name, endpoint_type):
+        with read_session() as session:
+            try:
+                # Get minimal subcloud columns
+                subcloud = (
+                    session.query(
+                        models.Subcloud.availability_status,
+                        models.Subcloud.initial_sync_state,
+                    )
+                    .filter_by(deleted=0)
+                    .filter_by(region_name=subcloud_name)
+                    .one()
+                )
+            except NoResultFound:
+                raise exception.SubcloudNotFound(region_name=subcloud_name)
+            except MultipleResultsFound:
+                raise exception.InvalidParameterValue(
+                    err="Multiple entries found for subcloud %s" % subcloud_name
+                )
+
+            try:
+                # Verify sync exists
+                session.query(models.SubcloudSync).filter_by(
+                    subcloud_name=subcloud_name, endpoint_type=endpoint_type
+                ).one()
+
+            except NoResultFound:
+                return True
+            except MultipleResultsFound:
+                raise exception.InvalidParameterValue(
+                    err=f"Multiple entries found for subcloud {subcloud_name}"
+                )
+
+            return not (
+                subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE
+                and subcloud.initial_sync_state == consts.INITIAL_SYNC_STATE_COMPLETED
+            )

@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ from collections import namedtuple
 import json
 
 from keystoneauth1 import exceptions as keystone_exceptions
-from keystoneclient import client as keystoneclient
+from keystoneclient.v3 import client as keystoneclient
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 

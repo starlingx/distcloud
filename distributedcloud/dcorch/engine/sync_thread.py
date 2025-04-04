@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -428,7 +428,9 @@ class SyncThread(object):
         timeout = eventlet.timeout.Timeout(SYNC_TIMEOUT)
         try:
             for request in actual_sync_requests:
-                if not self.is_subcloud_enabled() or self.should_exit():
+                if db_api.should_stop_subcloud_sync(
+                    self.ctxt, self.subcloud_name, self.endpoint_type
+                ):
                     # Oops, someone disabled the endpoint while
                     # we were processing work for it.
                     raise exceptions.EndpointNotReachable()
@@ -671,7 +673,9 @@ class SyncThread(object):
                 return
 
         for resource_type in self.audit_resources:
-            if not self.is_subcloud_enabled() or self.should_exit():
+            if db_api.should_stop_subcloud_sync(
+                self.ctxt, self.subcloud_name, self.endpoint_type
+            ):
                 LOG.info(
                     "{}: aborting sync audit, as subcloud is disabled".format(
                         threading.currentThread().getName()
@@ -1127,13 +1131,7 @@ class SyncThread(object):
         return m_r
 
     def audit_dependants(self, resource_type, m_resource, sc_resource):
-        num_of_audit_jobs = 0
-        if not self.is_subcloud_enabled() or self.should_exit():
-            return num_of_audit_jobs
-        if not sc_resource:
-            # Handle None value for sc_resource
-            pass
-        return num_of_audit_jobs
+        return 0
 
     def audit_discrepancy(self, resource_type, m_resource, sc_resources):
         # Return true to try creating the resource again

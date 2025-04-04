@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -6,7 +6,7 @@
 import mock
 
 from keystoneauth1 import exceptions as keystone_exceptions
-from keystoneclient import client as keystone_client
+from keystoneclient.v3 import client as keystone_client
 from oslo_serialization import jsonutils
 
 from dccommon import consts as dccommon_consts
