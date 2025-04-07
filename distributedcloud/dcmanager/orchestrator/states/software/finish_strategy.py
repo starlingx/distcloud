@@ -61,20 +61,25 @@ class FinishStrategyState(BaseState):
 
         self.info_log(strategy_step, "Finishing software strategy")
 
-        regionone_deployed_releases = self._read_from_cache(
-            REGION_ONE_RELEASE_USM_CACHE_TYPE, state=software_v1.DEPLOYED
-        )
-
-        self.debug_log(
-            strategy_step,
-            f"regionone_deployed_releases: {regionone_deployed_releases}",
-        )
-
         try:
+            # Retrieve deployed releases id from RegionOne cache
+            regionone_deployed_releases_id = [
+                release["release_id"]
+                for release in self._read_from_cache(
+                    REGION_ONE_RELEASE_USM_CACHE_TYPE, state=software_v1.DEPLOYED
+                )
+            ]
+            self.debug_log(
+                strategy_step,
+                f"regionone_deployed_releases_id: {regionone_deployed_releases_id}",
+            )
+
+            # Retrieve subcloud releases
             software_client = self.get_software_client(self.region_name)
             subcloud_releases = software_client.list()
+            self.debug_log(strategy_step, f"Releases for subcloud: {subcloud_releases}")
         except Exception as exc:
-            details = "Cannot retrieve subcloud releases."
+            details = "Failed to retrieve necessary release information."
             self.handle_exception(
                 strategy_step,
                 details,
@@ -82,14 +87,15 @@ class FinishStrategyState(BaseState):
                 exc=exc,
             )
 
-        self.debug_log(strategy_step, f"Releases for subcloud: {subcloud_releases}")
-
-        # For this subcloud, determine which releases should be committed,
-        # which should be deleted and which should finish the deploy.
+        # Determine which releases should be deleted
         releases_to_delete = [
             release["release_id"]
             for release in subcloud_releases
-            if release["state"] in (software_v1.AVAILABLE, software_v1.UNAVAILABLE)
+            if release["state"] == software_v1.UNAVAILABLE
+            or (
+                release["state"] == software_v1.AVAILABLE
+                and release["release_id"] not in regionone_deployed_releases_id
+            )
         ]
 
         # TODO(nicodemos): Update releases_to_commit and handle it after
