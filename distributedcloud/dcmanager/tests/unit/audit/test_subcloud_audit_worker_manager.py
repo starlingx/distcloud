@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -27,7 +27,7 @@ from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.common import consts
 from dcmanager.common import scheduler
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests import base
 from dcorch.rpc import client as dcorch_rpc_client

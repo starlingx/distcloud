@@ -53,7 +53,7 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.manager import system_peer_manager
 from dcmanager.rpc import client as rpc_client

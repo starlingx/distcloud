@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,7 +11,7 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
 from dcmanager.common import scheduler
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.orch_thread import OrchThread
 
 from dcmanager.tests.unit.common import fake_strategy

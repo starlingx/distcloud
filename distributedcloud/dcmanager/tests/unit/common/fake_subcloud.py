@@ -1,13 +1,14 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import base64
+import uuid
 
 from dcmanager.common import consts
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 
 from dcmanager.tests import base
 from dcmanager.tests import utils
@@ -133,6 +134,24 @@ FAKE_UPGRADES_METADATA = (
     % FAKE_SOFTWARE_VERSION
 )
 
+# FAKE SYSINV DATA
+FAKE_SITE0_SYSTEM_UUID = str(uuid.uuid4())
+FAKE_SITE1_SYSTEM_UUID = str(uuid.uuid4())
+
+# SAMPLE SYSTEM PEER DATA
+SAMPLE_SYSTEM_PEER_UUID = FAKE_SITE1_SYSTEM_UUID
+SAMPLE_SYSTEM_PEER_NAME = "SystemPeer1"
+SAMPLE_MANAGER_ENDPOINT = "http://127.0.0.1:5000"
+SAMPLE_MANAGER_USERNAME = "admin"
+SAMPLE_MANAGER_PASSWORD = (base64.b64encode("password".encode("utf-8"))).decode("ascii")
+SAMPLE_PEER_CONTROLLER_GATEWAY_IP = "128.128.128.1"
+SAMPLE_ADMINISTRATIVE_STATE = "enabled"
+SAMPLE_HEARTBEAT_INTERVAL = 10
+SAMPLE_HEARTBEAT_FAILURE_THRESHOLD = 3
+SAMPLE_HEARTBEAT_FAILURES_POLICY = "alarm"
+SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT = 600
+SAMPLE_AVAILABILITY_STATE_AVAILABLE = "available"
+
 
 def create_fake_subcloud(ctxt, **kwargs):
     values = {
@@ -155,3 +174,47 @@ def create_fake_subcloud(ctxt, **kwargs):
     }
     values.update(kwargs)
     return db_api.subcloud_create(ctxt, **values)
+
+
+def get_test_system_peer_dict(data_type, **kw):
+    # id should not be part of the structure
+    system_peer = {
+        "peer_uuid": kw.get("peer_uuid", SAMPLE_SYSTEM_PEER_UUID),
+        "peer_name": kw.get("peer_name", SAMPLE_SYSTEM_PEER_NAME),
+        "administrative_state": kw.get(
+            "administrative_state", SAMPLE_ADMINISTRATIVE_STATE
+        ),
+        "heartbeat_interval": kw.get("heartbeat_interval", SAMPLE_HEARTBEAT_INTERVAL),
+        "heartbeat_failure_threshold": kw.get(
+            "heartbeat_failure_threshold", SAMPLE_HEARTBEAT_FAILURE_THRESHOLD
+        ),
+        "heartbeat_failure_policy": kw.get(
+            "heartbeat_failure_policy", SAMPLE_HEARTBEAT_FAILURES_POLICY
+        ),
+        "heartbeat_maintenance_timeout": kw.get(
+            "heartbeat_maintenance_timeout", SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT
+        ),
+    }
+
+    if data_type == "db":
+        system_peer["endpoint"] = kw.get("manager_endpoint", SAMPLE_MANAGER_ENDPOINT)
+        system_peer["username"] = kw.get("manager_username", SAMPLE_MANAGER_USERNAME)
+        system_peer["password"] = kw.get("manager_password", SAMPLE_MANAGER_PASSWORD)
+        system_peer["gateway_ip"] = kw.get(
+            "peer_controller_gateway_ip", SAMPLE_PEER_CONTROLLER_GATEWAY_IP
+        )
+    else:
+        system_peer["manager_endpoint"] = kw.get(
+            "manager_endpoint", SAMPLE_MANAGER_ENDPOINT
+        )
+        system_peer["manager_username"] = kw.get(
+            "manager_username", SAMPLE_MANAGER_USERNAME
+        )
+        system_peer["manager_password"] = kw.get(
+            "manager_password", SAMPLE_MANAGER_PASSWORD
+        )
+        system_peer["peer_controller_gateway_address"] = kw.get(
+            "peer_controller_gateway_ip", SAMPLE_PEER_CONTROLLER_GATEWAY_IP
+        )
+
+    return system_peer

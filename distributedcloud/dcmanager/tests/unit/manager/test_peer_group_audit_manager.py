@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,11 +12,12 @@ import mock
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import utils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.manager import peer_group_audit_manager
 from dcmanager.manager import subcloud_manager
 from dcmanager.manager.system_peer_manager import SystemPeerManager
 from dcmanager.tests.base import DCManagerTestCase
+from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.manager import test_peer_monitor_manager as tpm
 from dcmanager.tests.unit.manager import test_system_peer_manager as tsm
 
@@ -222,7 +223,7 @@ class TestPeerGroupAudit(DCManagerTestCase):
         )
         # Verify that the system leader id is updated to the peer site uuid
         self.assertEqual(
-            tpm.FAKE_SITE1_SYSTEM_UUID,
+            fake_subcloud.FAKE_SITE1_SYSTEM_UUID,
             db_api.subcloud_peer_group_get(
                 self.ctx, self.peer_group.id
             ).system_leader_id,
@@ -259,7 +260,7 @@ class TestPeerGroupAudit(DCManagerTestCase):
         )
         # Verify that the system leader id is updated to the peer site uuid
         self.assertEqual(
-            tpm.FAKE_SITE1_SYSTEM_UUID,
+            fake_subcloud.FAKE_SITE1_SYSTEM_UUID,
             db_api.subcloud_peer_group_get(
                 self.ctx, self.peer_group.id
             ).system_leader_id,
@@ -296,7 +297,7 @@ class TestPeerGroupAudit(DCManagerTestCase):
         )
         # Verify that the system leader id is updated to the peer site uuid
         self.assertEqual(
-            tpm.FAKE_SITE1_SYSTEM_UUID,
+            fake_subcloud.FAKE_SITE1_SYSTEM_UUID,
             db_api.subcloud_peer_group_get(
                 self.ctx, self.peer_group.id
             ).system_leader_id,

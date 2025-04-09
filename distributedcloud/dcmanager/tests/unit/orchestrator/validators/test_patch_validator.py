@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,7 +8,7 @@ Patch strategy validation tests
 """
 
 from dcmanager.common import consts
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.validators.patch_validator import PatchStrategyValidator
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.orchestrator.validators.validators_mixin import (

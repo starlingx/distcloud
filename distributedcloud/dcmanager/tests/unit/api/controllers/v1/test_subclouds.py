@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -40,7 +40,6 @@ from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db import api as db_api
-from dcmanager.db.sqlalchemy import api as sql_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import PostMixin
@@ -211,7 +210,7 @@ class SubcloudAPIMixin(APIMixin):
 
     def _create_db_object(self, context, **kw):
         creation_fields = self._get_test_subcloud_dict(**kw)
-        return sql_api.subcloud_create(context, **creation_fields)
+        return db_api.subcloud_create(context, **creation_fields)
 
     def get_post_params(self):
         return copy.copy(fake_subcloud.FAKE_BOOTSTRAP_VALUE)
@@ -269,7 +268,7 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
         self.mock_is_valid_software_deploy_state.return_value = True
 
     def _update_subcloud(self, **kwargs):
-        self.subcloud = sql_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
+        self.subcloud = db_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
 
 
 class TestSubcloudsController(BaseTestSubcloudsController):
@@ -1598,7 +1597,7 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
     def _assert_response_payload(self, response, key, value):
         """Asserts the response's payload"""
 
-        updated_subcloud = sql_api.subcloud_get(self.ctx, self.subcloud.id)
+        updated_subcloud = db_api.subcloud_get(self.ctx, self.subcloud.id)
         self.assertEqual(updated_subcloud[key], value)
 
     def test_patch_fails_without_subcloud_ref(self):
@@ -1898,11 +1897,11 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         update_subcloud_with_network_reconfig.assert_called_once()
         self.mock_vim_client().get_strategy.assert_called_once()
 
-    @mock.patch.object(sql_api, "strategy_step_get")
-    def test_patch_fails_with_db_api_get_vim_strategy_exception(self, mock_sql_api):
+    @mock.patch.object(db_api, "strategy_step_get")
+    def test_patch_fails_with_db_api_get_vim_strategy_exception(self, mock_db_api):
         """Test patch fails with db api's get vim strategy exception"""
 
-        mock_sql_api.side_effect = Exception()
+        mock_db_api.side_effect = Exception()
 
         self._test_patch_fails_with_vim_strategy()
 
@@ -2266,10 +2265,15 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
     def _setup_system_peer_for_subcloud(self, availability_state):
         system_peer = (
             test_system_peer_manager.TestSystemPeerManager.create_system_peer_static(
-                self.ctx, availability_state=availability_state
+                self.ctx
             )
         )
-        self.peer_group = sql_api.subcloud_peer_group_update(
+        db_api.system_peer_update(
+            self.ctx,
+            system_peer.id,
+            availability_state=availability_state,
+        )
+        self.peer_group = db_api.subcloud_peer_group_update(
             self.ctx, self.peer_group.id, group_priority=1
         )
         system_peer_manager = test_system_peer_manager.TestSystemPeerManager
@@ -2368,7 +2372,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
     def test_patch_with_peer_group_fails_on_non_primary_site(self):
         """Test patch with peer group fails on non primary site"""
 
-        self.peer_group = sql_api.subcloud_peer_group_update(
+        self.peer_group = db_api.subcloud_peer_group_update(
             self.ctx, self.peer_group.id, group_priority=1
         )
         self._update_subcloud(rehome_data="", peer_group_id=self.peer_group.id)
@@ -2443,7 +2447,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         self.mock_rpc_client().update_association_sync_status.assert_not_called()
         self.assertEqual(
             consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
-            sql_api.peer_group_association_get(
+            db_api.peer_group_association_get(
                 self.ctx, self.peer_group_association.id
             ).sync_status,
         )
@@ -2489,7 +2493,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         )
         self.assertEqual(
             consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
-            sql_api.peer_group_association_get(
+            db_api.peer_group_association_get(
                 self.ctx, self.peer_group_association.id
             ).sync_status,
         )

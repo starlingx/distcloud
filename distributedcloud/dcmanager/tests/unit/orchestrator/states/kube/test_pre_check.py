@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +13,7 @@ from dcmanager.common.consts import (
     STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
 )
 from dcmanager.common.consts import STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm

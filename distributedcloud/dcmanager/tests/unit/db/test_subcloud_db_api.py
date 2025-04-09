@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -23,13 +23,12 @@ from dccommon import consts as dccommon_consts
 from dcmanager.common import config
 from dcmanager.common import consts
 from dcmanager.common import exceptions
-from dcmanager.db import api
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
 config.register_options()
-get_engine = api.get_engine
+get_engine = db_api.get_engine
 
 
 @event.listens_for(Engine, "connect")
