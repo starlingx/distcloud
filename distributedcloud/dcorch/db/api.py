@@ -404,3 +404,9 @@ def subcloud_sync_create(context, subcloud_name, endpoint_type, values):
 
 def subcloud_sync_delete(context, subcloud_name, endpoint_type):
     return IMPL.Connection(context).subcloud_sync_delete(subcloud_name, endpoint_type)
+
+
+def should_stop_subcloud_sync(context, subcloud_name, endpoint_type):
+    return IMPL.Connection(context).should_stop_subcloud_sync(
+        subcloud_name, endpoint_type
+    )
