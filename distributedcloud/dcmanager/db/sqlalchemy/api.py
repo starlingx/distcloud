@@ -86,39 +86,46 @@ def get_backend():
     return sys.modules[__name__]
 
 
-def db_session_cleanup(func):
-    """Class decorator that automatically adds session cleanup to method"""
+def db_session_cleanup(cls):
+    """Class decorator that adds session cleanup to all non-special methods."""
 
-    @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
-        _context = eventlet.greenthread.getcurrent()
-        exc_info = (None, None, None)
+    def method_decorator(method):
+        @functools.wraps(method)
+        def wrapper(self, *args, **kwargs):
+            _context = eventlet.greenthread.getcurrent()
+            exc_info = (None, None, None)
 
-        try:
-            return func(self, *args, **kwargs)
-        except Exception:
-            exc_info = sys.exc_info()
-            raise
-        finally:
-            if (
-                hasattr(_context, "_db_session_context")
-                and _context._db_session_context is not None
-            ):
-                try:
-                    _context._db_session_context.__exit__(*exc_info)
-                except Exception as e:
-                    LOG.warning(f"Error closing database session: {e}")
+            try:
+                return method(self, *args, **kwargs)
+            except Exception:
+                exc_info = sys.exc_info()
+                raise
+            finally:
+                if (
+                    hasattr(_context, "_db_session_context")
+                    and _context._db_session_context is not None
+                ):
+                    try:
+                        _context._db_session_context.__exit__(*exc_info)
+                    except Exception as e:
+                        LOG.warning(f"Error closing database session: {e}")
 
-                # Clear the session
-                _context._db_session = None
-                _context._db_session_context = None
+                    # Clear the session
+                    _context._db_session = None
+                    _context._db_session_context = None
 
-    return wrapper
+        return wrapper
+
+    for attr_name in dir(cls):
+        # Skip special methods
+        if not attr_name.startswith("__"):
+            attr = getattr(cls, attr_name)
+            if callable(attr):
+                setattr(cls, attr_name, method_decorator(attr))
+
+    return cls
 
 
-# TODO(vgluzrom): Put all db functions inside a class and apply db_session_cleanup
-# to the class itself, so it's not necessary for the function caller to apply it
-# to each function call.
 def model_query(context, *args, **kwargs):
     """Query helper for simpler session usage.
 
@@ -194,6 +201,7 @@ def require_context(admin=False):
     return decorator
 
 
+@db_session_cleanup
 class Connection(object):
 
     def __init__(self, context):
@@ -213,7 +221,6 @@ class Connection(object):
         """Display the current database version."""
         return migration.db_version(engine)
 
-    @db_session_cleanup
     @require_context()
     def subcloud_audits_get(self, subcloud_id):
         result = (
@@ -228,7 +235,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_audits_get_all(self, subcloud_ids=None):
         """Get subcloud_audits info for subclouds
@@ -246,7 +252,6 @@ class Connection(object):
 
             return query.all()
 
-    @db_session_cleanup
     @require_context()
     def subcloud_audits_update_all(self, values):
         with write_session() as session:
@@ -255,7 +260,6 @@ class Connection(object):
             )
             return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_audits_create(self, subcloud_id):
         with write_session() as session:
@@ -264,7 +268,6 @@ class Connection(object):
             session.add(subcloud_audits_ref)
             return subcloud_audits_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_audits_update(self, subcloud_id, values):
         with write_session() as session:
@@ -273,7 +276,6 @@ class Connection(object):
             subcloud_audits_ref.save(session)
             return subcloud_audits_ref
 
-    @db_session_cleanup
     @require_context()
     def subcloud_audits_get_all_need_audit(self, last_audit_threshold):
         with read_session() as session:
@@ -312,7 +314,6 @@ class Connection(object):
     # In the functions below it would be cleaner if the timestamp were calculated
     # by the DB server.  If server time is in UTC func.now() might work.
 
-    @db_session_cleanup
     @require_context()
     def subcloud_audits_get_and_start_audit(self, subcloud_id):
         with write_session() as session:
@@ -321,7 +322,6 @@ class Connection(object):
             subcloud_audits_ref.save(session)
             return subcloud_audits_ref
 
-    @db_session_cleanup
     @require_context()
     def subcloud_audits_bulk_end_audit(self, audits_finished):
         """Update the subcloud's audit end status in a bulk request
@@ -355,7 +355,6 @@ class Connection(object):
         with write_session() as session:
             return session.bulk_update_mappings(models.SubcloudAudits, update_list)
 
-    @db_session_cleanup
     @require_context()
     def subcloud_audits_bulk_update_audit_finished_at(self, subcloud_ids):
         values = {"audit_finished_at": timeutils.utcnow()}
@@ -370,7 +369,6 @@ class Connection(object):
     # We want to find subclouds that started an audit but never finished
     # it and update the "finished at" timestamp to be the same as
     # the "started at" timestamp.  Returns the number of rows updated.
-    @db_session_cleanup
     @require_context()
     def subcloud_audits_fix_expired_audits(
         self, last_audit_threshold, trigger_audits=False
@@ -398,9 +396,6 @@ class Connection(object):
             )
         return result
 
-    ###################
-
-    @db_session_cleanup
     @require_context()
     def subcloud_get(self, subcloud_id):
         result = model_query(self.context, models.Subcloud).get(subcloud_id)
@@ -410,7 +405,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_with_status(self, subcloud_id):
         result = (
@@ -431,7 +425,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_by_name(self, name):
         result = (
@@ -446,7 +439,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_by_region_name(self, region_name):
         result = (
@@ -461,7 +453,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_by_name_or_region_name(self, name):
         result = (
@@ -478,12 +469,10 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_all(self):
         return model_query(self.context, models.Subcloud).filter_by(deleted=0).all()
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_all_by_group_id(self, group_id):
         """Retrieve all subclouds that belong to the specified group id"""
@@ -495,7 +484,6 @@ class Connection(object):
             .all()
         )
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_all_ordered_by_id(self):
         return (
@@ -505,7 +493,6 @@ class Connection(object):
             .all()
         )
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_all_with_status(self):
         result = (
@@ -526,7 +513,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_all_valid_for_strategy_step_creation(
         self,
@@ -578,7 +564,6 @@ class Connection(object):
 
             return query.all()
 
-    @db_session_cleanup
     @require_context()
     def subcloud_count_invalid_for_strategy_type(
         self, endpoint_type, group_id=None, subcloud_name=None, force=False
@@ -622,7 +607,6 @@ class Connection(object):
 
             return query.count()
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_create(
         self,
@@ -671,7 +655,6 @@ class Connection(object):
             self.subcloud_audits_create(subcloud_ref.id)
             return subcloud_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_update(
         self,
@@ -771,7 +754,6 @@ class Connection(object):
             subcloud_ref.save(session)
             return subcloud_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_bulk_update_by_ids(self, subcloud_ids, update_form):
         with write_session() as session:
@@ -781,16 +763,12 @@ class Connection(object):
                 update_form, synchronize_session="fetch"
             )
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_destroy(self, subcloud_id):
         with write_session() as session:
             subcloud_ref = self.subcloud_get(subcloud_id)
             session.delete(subcloud_ref)
 
-    ##########################
-
-    @db_session_cleanup
     @require_context()
     def subcloud_status_get(self, subcloud_id, endpoint_type):
         result = (
@@ -808,7 +786,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_status_get_all(self, subcloud_id):
         return (
@@ -821,7 +798,6 @@ class Connection(object):
             .all()
         )
 
-    @db_session_cleanup
     @require_context()
     def _subcloud_status_get_by_endpoint_types(self, subcloud_id, endpoint_types):
         return (
@@ -832,7 +808,6 @@ class Connection(object):
             .all()
         )
 
-    @db_session_cleanup
     @require_context()
     def subcloud_status_get_all_by_name(self, name):
         return (
@@ -845,7 +820,6 @@ class Connection(object):
             .all()
         )
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_status_create(self, subcloud_id, endpoint_type):
         with write_session() as session:
@@ -856,7 +830,6 @@ class Connection(object):
             session.add(subcloud_status_ref)
             return subcloud_status_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_status_create_all(self, subcloud_id):
         with write_session() as session:
@@ -867,14 +840,12 @@ class Connection(object):
                 subcloud_status_ref.sync_status = dccommon_consts.SYNC_STATUS_UNKNOWN
                 session.add(subcloud_status_ref)
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_status_delete(self, subcloud_id, endpoint_type):
         with write_session() as session:
             subcloud_status_ref = self.subcloud_status_get(subcloud_id, endpoint_type)
             session.delete(subcloud_status_ref)
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_status_update(self, subcloud_id, endpoint_type, sync_status):
         with write_session() as session:
@@ -883,7 +854,6 @@ class Connection(object):
             subcloud_status_ref.save(session)
             return subcloud_status_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_status_update_endpoints(
         self, subcloud_id, endpoint_type_list, sync_status
@@ -907,7 +877,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_status_bulk_update_endpoints(self, subcloud_id, endpoint_list):
         """Update the status of the specified endpoints for a subcloud
@@ -951,7 +920,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_status_destroy_all(self, subcloud_id):
         with write_session() as session:
@@ -964,9 +932,6 @@ class Connection(object):
                     subcloud_id=subcloud_id, endpoint_type="any"
                 )
 
-    ###################
-
-    @db_session_cleanup
     @require_context()
     def sw_update_strategy_get(self, update_type=None):
         query = model_query(self.context, models.SwUpdateStrategy).filter_by(deleted=0)
@@ -978,7 +943,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_strategy_create(
         self,
@@ -1001,7 +965,6 @@ class Connection(object):
             session.add(sw_update_strategy_ref)
             return sw_update_strategy_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_strategy_update(
         self, state=None, update_type=None, additional_args=None
@@ -1023,7 +986,6 @@ class Connection(object):
             sw_update_strategy_ref.save(session)
             return sw_update_strategy_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_strategy_destroy(self, update_type=None):
         with write_session() as session:
@@ -1032,9 +994,6 @@ class Connection(object):
             )
             session.delete(sw_update_strategy_ref)
 
-    ##########################
-
-    @db_session_cleanup
     @require_context()
     def sw_update_opts_get(self, subcloud_id):
         result = (
@@ -1047,7 +1006,6 @@ class Connection(object):
         # Note we will return None if not found
         return result
 
-    @db_session_cleanup
     @require_context()
     def sw_update_opts_get_all_plus_subcloud_info(self):
         result = (
@@ -1064,7 +1022,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_opts_create(
         self,
@@ -1086,7 +1043,6 @@ class Connection(object):
             session.add(sw_update_opts_ref)
             return sw_update_opts_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_opts_update(
         self,
@@ -1112,16 +1068,12 @@ class Connection(object):
             sw_update_opts_ref.save(session)
             return sw_update_opts_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_opts_destroy(self, subcloud_id):
         with write_session() as session:
             sw_update_opts_ref = self.sw_update_opts_get(subcloud_id)
             session.delete(sw_update_opts_ref)
 
-    ##########################
-
-    @db_session_cleanup
     @require_context()
     def sw_update_opts_default_get(self):
         result = (
@@ -1133,7 +1085,6 @@ class Connection(object):
         # Note we will return None if not found
         return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_opts_default_create(
         self,
@@ -1154,7 +1105,6 @@ class Connection(object):
             session.add(sw_update_opts_default_ref)
             return sw_update_opts_default_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_opts_default_update(
         self,
@@ -1183,17 +1133,12 @@ class Connection(object):
             sw_update_opts_default_ref.save(session)
             return sw_update_opts_default_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def sw_update_opts_default_destroy(self):
         with write_session() as session:
             sw_update_opts_default_ref = self.sw_update_opts_default_get()
             session.delete(sw_update_opts_default_ref)
 
-    ##########################
-    # system peer
-    ##########################
-    @db_session_cleanup
     @require_context()
     def system_peer_get(self, peer_id):
         try:
@@ -1212,7 +1157,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def system_peer_get_by_name(self, name):
         try:
@@ -1232,7 +1176,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def system_peer_get_by_uuid(self, uuid):
         try:
@@ -1252,7 +1195,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def system_peer_get_all(self):
         result = (
@@ -1265,7 +1207,6 @@ class Connection(object):
         return result
 
     # This method returns all subcloud peer groups for a particular system peer
-    @db_session_cleanup
     @require_context()
     def peer_group_get_for_system_peer(self, peer_id):
         return (
@@ -1281,7 +1222,6 @@ class Connection(object):
             .all()
         )
 
-    @db_session_cleanup
     @require_context(admin=True)
     def system_peer_create(
         self,
@@ -1317,7 +1257,6 @@ class Connection(object):
             session.add(system_peer_ref)
             return system_peer_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def system_peer_update(
         self,
@@ -1368,17 +1307,12 @@ class Connection(object):
             system_peer_ref.save(session)
             return system_peer_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def system_peer_destroy(self, peer_id):
         with write_session() as session:
             system_peer_ref = self.system_peer_get(peer_id)
             session.delete(system_peer_ref)
 
-    ##########################
-    # subcloud group
-    ##########################
-    @db_session_cleanup
     @require_context()
     def subcloud_group_get(self, group_id):
         try:
@@ -1397,7 +1331,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_group_get_by_name(self, name):
         try:
@@ -1418,7 +1351,6 @@ class Connection(object):
         return result
 
     # This method returns all subclouds for a particular subcloud group
-    @db_session_cleanup
     @require_context()
     def subcloud_get_for_group(self, group_id):
         return (
@@ -1429,7 +1361,6 @@ class Connection(object):
             .all()
         )
 
-    @db_session_cleanup
     @require_context()
     def subcloud_group_get_all(self):
         result = (
@@ -1441,7 +1372,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_group_create(
         self, name, description, update_apply_type, max_parallel_subclouds
@@ -1455,7 +1385,6 @@ class Connection(object):
             session.add(subcloud_group_ref)
             return subcloud_group_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_group_update(
         self,
@@ -1484,7 +1413,6 @@ class Connection(object):
             subcloud_group_ref.save(session)
             return subcloud_group_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_group_destroy(self, group_id):
         with write_session() as session:
@@ -1493,12 +1421,6 @@ class Connection(object):
                 raise exception.SubcloudGroupDefaultNotDeletable(group_id=group_id)
             session.delete(subcloud_group_ref)
 
-    ##########################
-
-    ##########################
-    # subcloud peer group
-    ##########################
-    @db_session_cleanup
     @require_context()
     def subcloud_peer_group_get(self, group_id):
         try:
@@ -1517,7 +1439,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_get_for_peer_group(self, peer_group_id):
         """Get all subclouds for a subcloud peer group.
@@ -1532,7 +1453,6 @@ class Connection(object):
             .all()
         )
 
-    @db_session_cleanup
     @require_context()
     def subcloud_peer_group_get_all(self):
         result = (
@@ -1544,7 +1464,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_peer_group_get_by_name(self, name):
         try:
@@ -1564,7 +1483,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def subcloud_peer_group_get_by_leader_id(self, system_leader_id):
         result = (
@@ -1577,7 +1495,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_peer_group_create(
         self,
@@ -1601,14 +1518,12 @@ class Connection(object):
             session.add(subcloud_peer_group_ref)
             return subcloud_peer_group_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_peer_group_destroy(self, group_id):
         with write_session() as session:
             subcloud_peer_group_ref = self.subcloud_peer_group_get(group_id)
             session.delete(subcloud_peer_group_ref)
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_peer_group_update(
         self,
@@ -1643,12 +1558,6 @@ class Connection(object):
             subcloud_peer_group_ref.save(session)
             return subcloud_peer_group_ref
 
-    ##########################
-
-    ##########################
-    # peer group association
-    ##########################
-    @db_session_cleanup
     @require_context(admin=True)
     def peer_group_association_create(
         self,
@@ -1670,7 +1579,6 @@ class Connection(object):
             session.add(peer_group_association_ref)
             return peer_group_association_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def peer_group_association_update(
         self,
@@ -1693,14 +1601,12 @@ class Connection(object):
             association_ref.save(session)
             return association_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def peer_group_association_destroy(self, association_id):
         with write_session() as session:
             association_ref = self.peer_group_association_get(association_id)
             session.delete(association_ref)
 
-    @db_session_cleanup
     @require_context()
     def peer_group_association_get(self, association_id) -> models.PeerGroupAssociation:
         try:
@@ -1720,7 +1626,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def peer_group_association_get_all(
         self,
@@ -1736,7 +1641,6 @@ class Connection(object):
 
     # Each combination of 'peer_group_id' and 'system_peer_id' is unique
     # and appears only once in the entries.
-    @db_session_cleanup
     @require_context()
     def peer_group_association_get_by_peer_group_and_system_peer_id(
         self, peer_group_id, system_peer_id
@@ -1761,7 +1665,6 @@ class Connection(object):
             )
         return result
 
-    @db_session_cleanup
     @require_context()
     def peer_group_association_get_by_peer_group_id(
         self, peer_group_id
@@ -1776,7 +1679,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def peer_group_association_get_by_system_peer_id(
         self, system_peer_id
@@ -1791,9 +1693,6 @@ class Connection(object):
 
         return result
 
-    ##########################
-
-    @db_session_cleanup
     @require_context()
     def strategy_step_get(self, subcloud_id):
         result = (
@@ -1808,7 +1707,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def strategy_step_get_by_name(self, name):
         result = (
@@ -1826,7 +1724,6 @@ class Connection(object):
 
         return result
 
-    @db_session_cleanup
     @require_context()
     def strategy_step_get_all(self, steps_id=None, last_update_threshold=None):
         with read_session() as session:
@@ -1846,7 +1743,6 @@ class Connection(object):
 
             return query.order_by(models.StrategyStep.id).all()
 
-    @db_session_cleanup
     @require_context()
     def strategy_step_count_all_states(self):
         with read_session() as session:
@@ -1858,7 +1754,6 @@ class Connection(object):
                 .group_by(models.StrategyStep.state)
             ).all()
 
-    @db_session_cleanup
     @require_context(admin=True)
     def strategy_step_bulk_create(self, subcloud_ids, stage, state, details):
         """Creates the strategy step for a list of subclouds
@@ -1884,7 +1779,6 @@ class Connection(object):
         with write_session() as session:
             return session.execute(insert(models.StrategyStep), strategy_steps)
 
-    @db_session_cleanup
     @require_context(admin=True)
     def strategy_step_create(self, subcloud_id, stage, state, details):
         with write_session() as session:
@@ -1896,7 +1790,6 @@ class Connection(object):
             session.add(strategy_step_ref)
             return strategy_step_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def strategy_step_update(
         self,
@@ -1922,7 +1815,6 @@ class Connection(object):
             strategy_step_ref.save(session)
             return strategy_step_ref
 
-    @db_session_cleanup
     @require_context(admin=True)
     def strategy_step_update_all(self, filters, values, steps_id=None):
         """Updates all strategy steps
@@ -1945,7 +1837,6 @@ class Connection(object):
 
             query.update(values, synchronize_session="fetch")
 
-    @db_session_cleanup
     @require_context(admin=True)
     def strategy_step_destroy_all(self, steps_id=None):
         with write_session() as session:
@@ -1956,7 +1847,6 @@ class Connection(object):
 
             query.delete(synchronize_session="fetch")
 
-    @db_session_cleanup
     @require_context()
     def _subcloud_alarms_get(self, name):
         query = model_query(self.context, models.SubcloudAlarmSummary).filter_by(
@@ -1973,12 +1863,10 @@ class Connection(object):
                 err="Multiple entries found for subcloud %s" % name
             )
 
-    @db_session_cleanup
     @require_context()
     def subcloud_alarms_get(self, name):
         return self._subcloud_alarms_get(name)
 
-    @db_session_cleanup
     @require_context()
     def subcloud_alarms_get_all(self, name=None):
         query = model_query(self.context, models.SubcloudAlarmSummary).filter_by(
@@ -1990,7 +1878,6 @@ class Connection(object):
 
         return query.order_by(desc(models.SubcloudAlarmSummary.id)).all()
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_alarms_create(self, name, values):
         with write_session() as session:
@@ -2005,7 +1892,6 @@ class Connection(object):
                 raise exception.SubcloudAlreadyExists(region_name=name)
             return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_alarms_update(self, name, values):
         with write_session() as session:
@@ -2014,13 +1900,11 @@ class Connection(object):
             result.save(session)
             return result
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_alarms_delete(self, name):
         with write_session() as session:
             session.query(models.SubcloudAlarmSummary).filter_by(name=name).delete()
 
-    @db_session_cleanup
     @require_context(admin=True)
     def subcloud_rename_alarms(self, subcloud_name, new_name):
         with write_session() as session:
