@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -138,9 +138,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
         for subcloud_id in subcloud_ids:
             # Retrieve the subcloud and subcloud audit info
             try:
-                subcloud = db_api.subcloud_get(self.context, subcloud_id)
-                subcloud_audits = db_api.subcloud_audits_get_and_start_audit(
-                    self.context, subcloud_id
+                subcloud, subcloud_audits = (
+                    db_api.subcloud_audits_subcloud_get_and_start_audit(
+                        self.context, subcloud_id
+                    )
                 )
             except exceptions.SubcloudNotFound:
                 # Possibility subcloud could have been deleted since the list of
