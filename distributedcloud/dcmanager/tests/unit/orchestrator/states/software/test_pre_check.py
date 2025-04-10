@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -74,9 +74,42 @@ FAKE_SUBCLOUD_RELEASES_AVAILABLE = [
         "sw_version": "9.0.2",
     },
     {
+        "release_id": "starlingx-9.0.3",
+        "state": "available",
+        "sw_version": "9.0.3",
+    },
+    {
         "release_id": "starlingx-8.0-patch01",
         "state": "unavailable",
         "sw_version": "8.0",
+    },
+]
+
+FAKE_SUBCLOUD_RELEASES_DEPLOYED_AVAILABLE = [
+    {
+        "release_id": "starlingx-9.0.0",
+        "state": "deployed",
+        "sw_version": "9.0.0",
+    },
+    {
+        "release_id": "starlingx-9.0.1",
+        "state": "deployed",
+        "sw_version": "9.0.1",
+    },
+    {
+        "release_id": "starlingx-9.0.2",
+        "state": "deployed",
+        "sw_version": "9.0.2",
+    },
+    {
+        "release_id": "starlingx-9.0.3",
+        "state": "available",
+        "sw_version": "9.0.3",
+    },
+    {
+        "release_id": "starlingx-9.0.4",
+        "state": "available",
+        "sw_version": "9.0.4",
     },
 ]
 
@@ -153,6 +186,20 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.assert_step_updated(
             self.strategy_step.subcloud_id, self.on_success_state_available
         )
+
+    def test_pre_check_success_remove_already_deployed_and_available(self):
+
+        self.software_client.list.return_value = (
+            FAKE_SUBCLOUD_RELEASES_DEPLOYED_AVAILABLE
+        )
+        self.worker.perform_state_action(self.strategy_step)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_not_called()
+        self.software_client.list.assert_called()
+
+        # On success, the state should transition to the next state
+        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_pre_check_success_patch_release(self):
         """Test pre-check when the API call succeeds."""
