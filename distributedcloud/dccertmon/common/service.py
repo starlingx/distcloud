@@ -98,14 +98,15 @@ class CertificateMonitorService(service.Service):
     def subcloud_online(self, context, subcloud_name=None):
         """Trigger a subcloud online audit."""
         LOG.info("%s is online. An online audit is queued" % subcloud_name)
-        # Set priority to 0 for the audit to be processed immediately
-        # Multiple audits with priority 0 will be processed in FIFO order
-        self.manager.audit_subcloud(subcloud_name, priority=0)
+        # Enqueue the subcloud into the dedicated notification queue
+        # to trigger an immediate certificate audit, independent from
+        # the periodic audit queue.
+        self.manager.audit_subcloud(subcloud_name, self.manager.sc_notify_audit_queue)
 
     def subcloud_managed(self, context, subcloud_name=None):
         """Trigger a subcloud audit."""
         LOG.info("%s is managed. An audit is queued" % subcloud_name)
-        self.manager.audit_subcloud(subcloud_name)
+        self.manager.audit_subcloud(subcloud_name, self.manager.sc_audit_queue)
 
     def subcloud_sysinv_endpoint_update(self, ctxt, subcloud_name, endpoint):
         """Update sysinv endpoint of dc token cache."""
