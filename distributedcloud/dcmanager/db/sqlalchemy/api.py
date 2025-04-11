@@ -1899,6 +1899,15 @@ class Connection(object):
             query.update(values, synchronize_session="fetch")
 
     @require_context(admin=True)
+    def strategy_step_update_reset_updated_at(self, steps_id, last_update_threshold):
+        with write_session() as session:
+            model_query(self.context, models.StrategyStep, session=session).filter(
+                models.StrategyStep.id.in_(steps_id)
+            ).filter(models.StrategyStep.updated_at < last_update_threshold).update(
+                {"updated_at": timeutils.utcnow()}, synchronize_session="fetch"
+            )
+
+    @require_context(admin=True)
     def strategy_step_abort_all_not_processing(self, max_parallel_subclouds):
         with write_session() as session:
             subquery = self._strategy_step_get_all_processing(
@@ -1912,12 +1921,15 @@ class Connection(object):
             )
 
     @require_context(admin=True)
-    def strategy_step_destroy_all(self, steps_id=None):
+    def strategy_step_destroy_all(self, steps_id=None, states=None):
         with write_session() as session:
             query = session.query(models.StrategyStep).filter_by(deleted=0)
 
             if steps_id:
                 query = query.filter(models.StrategyStep.id.in_(steps_id))
+
+            if states:
+                query = query.filter(models.StrategyStep.state.in_(states))
 
             query.delete(synchronize_session="fetch")
 

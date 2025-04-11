@@ -16,13 +16,13 @@
 #
 
 import datetime
-import os
 import threading
 import time
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import vim
@@ -69,7 +69,6 @@ class OrchestratorWorker(object):
         self.strategy_type = None
 
         self.orchestrator_manager_rpc_client = ManagerOrchestratorClient()
-        self.pid = os.getpid()
         # Determines if the worker is still processing the strategy steps or if the
         # execution should finish
         self._processing = True
@@ -77,6 +76,11 @@ class OrchestratorWorker(object):
         self._stop = threading.Event()
         # Time for the orchestration to sleep after every loop
         self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+        # Time for the last cycle evaluation. Because the manager thread retrieves
+        # the subclouds that needs to be processed every so often, the workers needs
+        # to ensure the updated_at is reset after some time to avoid the manager
+        # picking a subcloud that is still being processed
+        self._last_update = None
         # Strategies orchestration process
         self.strategies = {
             consts.SW_UPDATE_TYPE_FIRMWARE: FirmwareStrategy(),
@@ -90,11 +94,6 @@ class OrchestratorWorker(object):
     def stop(self):
         self.thread_group_manager.stop()
         self.thread_group_manager = None
-
-    @staticmethod
-    def _get_subcloud_name(step):
-        """Get the subcloud name for a step"""
-        return step.subcloud.name
 
     @staticmethod
     def _get_region_name(step):
@@ -119,19 +118,36 @@ class OrchestratorWorker(object):
     def stop_processing(self):
         self._stop.set()
 
+    def reset_updated_at(self):
+        # Everytime half of the orchestration interval has passed, the updated_at
+        # field needs to be reset to the current time to show that the subclouds
+        # are in active orchestration, avoiding the manager identifying them as idle
+        if (timeutils.utcnow() - self._last_update).total_seconds() > (
+            CONF.scheduler.orchestration_interval / 2
+        ):
+            last_update_threshold = timeutils.utcnow() - datetime.timedelta(
+                seconds=(CONF.scheduler.orchestration_interval / 2)
+            )
+            self._last_update = timeutils.utcnow()
+
+            db_api.strategy_step_update_reset_updated_at(
+                self.context, self.steps_to_process, last_update_threshold
+            )
+
     def orchestrate(self, steps_id, strategy_type):
         if self.strategy_type is None:
-            LOG.info(
-                f"Orchestration starting for {strategy_type} with steps: {steps_id}"
-            )
+            LOG.info(f"({strategy_type}) Orchestration starting with steps: {steps_id}")
             self.steps_to_process = set(steps_id)
             self.strategy_type = strategy_type
             self.thread_group_manager.start(self.orchestration_thread)
+            self._last_update = timeutils.utcnow()
         else:
             # There can only be a single strategy executing at all times. Because of
             # that, if the strategy is already being tracked in the worker, only the
             # steps needs to be extended
-            LOG.info(f"New steps were received for processing: {steps_id}")
+            LOG.info(
+                f"({strategy_type}) New steps were received for processing: {steps_id}"
+            )
             self.steps_to_process.update(steps_id)
 
     def orchestration_thread(self):
@@ -140,10 +156,10 @@ class OrchestratorWorker(object):
         self._processing = True
 
         while self._processing:
+            self.reset_updated_at()
+
             try:
-                LOG.debug(
-                    f"({self.pid}) Orchestration is running for {self.strategy_type}"
-                )
+                LOG.debug(f"({self.strategy_type}) Orchestration is running")
 
                 strategy = db_api.sw_update_strategy_get(
                     self.context, update_type=self.strategy_type
@@ -163,25 +179,30 @@ class OrchestratorWorker(object):
                 # When a strategy reaches a finished state, it needs to return to
                 # stop the thread
                 else:
-                    return
+                    LOG.info(f"({self.strategy_type}) Orchestration stopped")
+                    self._processing = False
+                    continue
             except exceptions.StrategyNotFound:
+                LOG.error(
+                    f"({self.strategy_type}) The strategy was not found, "
+                    "stopping orchestration"
+                )
                 self._processing = False
-                LOG.error(f"A strategy of type {self.strategy_type} was not found")
             except Exception:
                 # We catch all exceptions to avoid terminating the thread.
                 LOG.exception(
-                    f"Orchestration got an unexpected exception when "
-                    f"processing strategy {self.strategy_type}"
+                    f"({self.strategy_type}) Orchestration got an unexpected exception "
+                    "when processing strategy"
                 )
 
             # Wake up every so often to see if there is work to do.
             time.sleep(self._sleep_time)
 
-        LOG.info(f"Orchestration finished for {self.strategy_type}")
         # The strategy_type needs to be reset so that a new orchestration request
         # is identified in orchestrate(), starting the orchestration thread again
         self.strategy_type = None
         self.steps_to_process = list()
+        self._last_update = None
 
     def _adjust_sleep_time(self, number_of_subclouds, strategy_type):
         prev_sleep_time = self._sleep_time
@@ -198,7 +219,7 @@ class OrchestratorWorker(object):
         if new_sleep_time != prev_sleep_time:
             self._sleep_time = new_sleep_time
             LOG.debug(
-                f"({self.pid}) Adjusted {strategy_type} orch thread sleep time "
+                f"({strategy_type}) Adjusted orch thread sleep time "
                 f"from {prev_sleep_time} to {self._sleep_time} "
                 f"based on {number_of_subclouds} parallel subclouds."
             )
@@ -225,7 +246,9 @@ class OrchestratorWorker(object):
         if region in self.subcloud_workers:
             # The orchestration for this subcloud has either completed/failed/aborted,
             # remove it from the dictionary.
-            LOG.debug(f"({self.pid}) Remove {region} from subcloud workers dict")
+            LOG.debug(
+                f"({self.strategy_type}) Remove {region} from subcloud workers dict"
+            )
             del self.subcloud_workers[region]
 
         # Remove the step from the steps to process
@@ -264,8 +287,8 @@ class OrchestratorWorker(object):
 
         try:
             LOG.info(
-                f"({self.pid}) Strategy: {strategy_type} Stage: {step.stage}, "
-                f"State: {step.state}, Subcloud: {self._get_subcloud_name(step)}"
+                f"({strategy_type}) Stage: {step.stage}, State: {step.state}, "
+                f"Subcloud: {step.subcloud.name}"
             )
             # Instantiate the state operator and perform the state actions
             state_operator = self.strategies[strategy_type].determine_state_operator(
@@ -278,9 +301,8 @@ class OrchestratorWorker(object):
             )
         except exceptions.StrategySkippedException as ex:
             LOG.info(
-                f"({self.pid}) Skipping subcloud, Strategy: {strategy_type} "
-                f"Stage: {step.stage}, State: {step.state}, "
-                f"Subcloud: {step.subcloud_name}"
+                f"({strategy_type}) Skipping subcloud, Stage: {step.stage}, "
+                f"State: {step.state}, Subcloud: {step.subcloud.name}"
             )
             # Transition immediately to complete. Update the details to show
             # that this subcloud has been skipped
@@ -293,8 +315,8 @@ class OrchestratorWorker(object):
         except Exception as ex:
             # Catch ALL exceptions and set the strategy to failed
             LOG.exception(
-                f"({self.pid}) Failed! Strategy: {strategy_type} Stage: {step.stage}, "
-                f"State: {step.state}, Subcloud: {step.subcloud.name}"
+                f"({strategy_type}) Failed! Stage: {step.stage}, State: {step.state}, "
+                f"Subcloud: {step.subcloud.name}"
             )
             self._strategy_step_update(
                 strategy_type,
@@ -310,19 +332,13 @@ class OrchestratorWorker(object):
             if self.subcloud_workers[region][0] == step.state:
                 # A worker already exists. Let it finish whatever it was doing.
                 if log_error:
-                    LOG.error(
-                        f"({self.pid}) Worker should not exist for {region} "
-                        f"in strategy {strategy_type}."
-                    )
+                    LOG.error(f"({strategy_type}) Worker should not exist for {region}")
                 else:
-                    LOG.debug(
-                        f"({self.pid}) Update worker exists for {region} "
-                        f"in strategy {strategy_type}."
-                    )
+                    LOG.debug(f"({strategy_type}) Update worker exists for {region}")
             else:
-                LOG.info(
-                    f"({self.pid}) Starting a new worker for region {region} at state "
-                    f"{step.state} (update) in strategy {strategy_type}"
+                LOG.debug(
+                    f"({strategy_type}) Starting a new worker for region {region} at "
+                    f"state {step.state} (update) in strategy"
                 )
                 # Advance to the next state. The previous greenthread has exited,
                 # create a new one.
@@ -335,9 +351,9 @@ class OrchestratorWorker(object):
         else:
             # This is the first state. Create a greenthread to start processing the
             # update for the subcloud and invoke the perform_state_action method.
-            LOG.info(
-                f"({self.pid}) Starting a new worker for region {region} at state "
-                f"{step.state} in strategy {strategy_type}"
+            LOG.debug(
+                f"({strategy_type}) Starting a new worker for region {region} at state "
+                f"{step.state}"
             )
             self.subcloud_workers[region] = (
                 step.state,
@@ -349,7 +365,7 @@ class OrchestratorWorker(object):
     def _apply(self, strategy, steps_id):
         """Apply a strategy"""
 
-        LOG.debug(f"({self.pid}) Applying strategy {strategy.type}")
+        LOG.debug(f"({strategy.type}) Applying strategy")
         steps = db_api.strategy_step_get_all(self.context, steps_id)
         # Adjust sleep time based on the number of subclouds being processed
         # in parallel
@@ -378,8 +394,8 @@ class OrchestratorWorker(object):
                 if step.subcloud_id is None:
                     # Strategy on SystemController failed. We are done.
                     LOG.info(
-                        f"({self.pid}) Stopping strategy {strategy.type} due to "
-                        "failure while processing update step on SystemController"
+                        f"({strategy.type}) Stopping strategy due to a failure while "
+                        "processing update step on SystemController"
                     )
                     self.orchestrator_manager_rpc_client.stop_strategy(
                         self.context, strategy.type
@@ -412,18 +428,13 @@ class OrchestratorWorker(object):
 
             if not work_remaining:
                 # We have completed the remaining steps
-                LOG.info(
-                    f"({self.pid}) Stopping strategy {strategy.type} due to failure"
-                )
+                LOG.info(f"({strategy.type}) Stopping strategy due to failure")
                 self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
 
         for step in steps:
             region = self._get_region_name(step)
             if self._stop.is_set():
-                LOG.info(
-                    f"({self.pid}) Exiting {strategy.type} strategy because task "
-                    "is stopped"
-                )
+                LOG.info(f"({strategy.type}) Exiting strategy because task is stopped")
                 self.subcloud_workers.clear()
                 self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
                 self._processing = False
@@ -434,14 +445,14 @@ class OrchestratorWorker(object):
                 consts.STRATEGY_STATE_ABORTED,
             ]:
                 LOG.debug(
-                    f"({self.pid}) Intermediate step is {step.state} for strategy "
-                    f"{strategy.type}"
+                    f"({strategy.type}) Intermediate step is {step.state} for strategy"
                 )
                 self._delete_subcloud_worker(region, step.subcloud_id, step.id)
             elif step.state == consts.STRATEGY_STATE_INITIAL:
-                if (strategy.max_parallel_subclouds / CONF.orch_worker_workers) > len(
-                    self.subcloud_workers
-                ) and not self._stop.is_set():
+                if (
+                    strategy.max_parallel_subclouds > len(self.subcloud_workers)
+                    and not self._stop.is_set()
+                ):
                     # Don't start upgrading this subcloud if it has been unmanaged by
                     # the user. If orchestration was already started, it will be allowed
                     # to complete.
@@ -450,8 +461,8 @@ class OrchestratorWorker(object):
                         and step.subcloud.management_state
                         == dccommon_consts.MANAGEMENT_UNMANAGED
                     ):
-                        message = f"Subcloud {step.subcloud_name} is unmanaged."
-                        LOG.warn(f"({self.pid}) {message}")
+                        message = f"Subcloud {step.subcloud.name} is unmanaged."
+                        LOG.warn(f"({strategy.type}) {message}")
                         self._strategy_step_update(
                             strategy.type,
                             step.subcloud_id,
@@ -483,7 +494,7 @@ class OrchestratorWorker(object):
     def _abort(self, strategy, steps_id):
         """Abort a strategy"""
 
-        LOG.info(f"({self.pid}) Aborting strategy {strategy.type}")
+        LOG.info(f"({strategy.type}) Aborting strategy")
 
         # Only strategy steps that did not start processing can be updated to aborted
         filters = {"state": consts.STRATEGY_STATE_INITIAL}
@@ -503,7 +514,7 @@ class OrchestratorWorker(object):
         """Delete the vim strategy in the subcloud"""
 
         LOG.info(
-            f"({self.pid}) Deleting vim strategy:({strategy_type}) for "
+            f"({strategy_type}) Deleting vim strategy:({strategy_type}) for "
             f"region:({region})"
         )
 
@@ -514,10 +525,7 @@ class OrchestratorWorker(object):
                 self.strategies[strategy_type].vim_strategy_name
             )
         except (keystone_exceptions.EndpointNotFound, IndexError):
-            LOG.warn(
-                f"({self.pid}) Endpoint for subcloud: {region} not found in "
-                f"strategy {strategy_type}."
-            )
+            LOG.warn(f"({strategy_type}) Endpoint for subcloud: {region} not found")
             return
         except Exception:
             # Strategy doesn't exist so there is nothing to do
@@ -530,7 +538,7 @@ class OrchestratorWorker(object):
         ]:
             # Can't delete a vim strategy in these states
             LOG.warn(
-                f"({self.pid}) Vim strategy:("
+                f"({strategy_type}) Vim strategy:("
                 f"{self.strategies[strategy_type].vim_strategy_name}) for region:("
                 f"{region}) in wrong state:({subcloud_strategy.state}) for delete."
             )
@@ -541,7 +549,7 @@ class OrchestratorWorker(object):
             vim_client.delete_strategy(self.strategies[strategy_type].vim_strategy_name)
         except Exception:
             LOG.warn(
-                f"({self.pid}) Vim strategy:"
+                f"({strategy_type}) Vim strategy:"
                 f"({self.strategies[strategy_type].vim_strategy_name}) delete failed "
                 f"for region:({region})"
             )
@@ -556,7 +564,7 @@ class OrchestratorWorker(object):
         try:
             self._do_delete_subcloud_strategy(strategy_type, region, step)
         except Exception as e:
-            LOG.exception(e)
+            LOG.exception(f"({strategy_type}) {e}")
         finally:
             # The worker is done.
             if region in self.subcloud_workers:
@@ -565,7 +573,7 @@ class OrchestratorWorker(object):
     def _delete(self, strategy, steps_id):
         """Delete an update strategy"""
 
-        LOG.info(f"({self.pid}) Deleting strategy {strategy.type}")
+        LOG.info(f"({strategy.type}) Deleting strategy")
 
         steps = db_api.strategy_step_get_all(self.context, steps_id)
 
@@ -578,10 +586,7 @@ class OrchestratorWorker(object):
 
             if region in self.subcloud_workers:
                 # A worker already exists. Let it finish whatever it was doing.
-                LOG.debug(
-                    f"({self.pid}) Worker already exists for {region} in strategy "
-                    f"{strategy.type}."
-                )
+                LOG.debug(f"({strategy.type}) Worker already exists for {region}")
             else:
                 # Create a greenthread to delete the subcloud strategy
                 delete_thread = self.thread_group_manager.start(
@@ -592,8 +597,7 @@ class OrchestratorWorker(object):
 
             if self._stop.is_set():
                 LOG.info(
-                    f"({self.pid}) Exiting because task is stopped for strategy "
-                    f"{strategy.type}"
+                    f"({strategy.type}) Exiting because task is stopped for strategy"
                 )
                 return
 
@@ -610,13 +614,11 @@ class OrchestratorWorker(object):
         try:
             db_api.strategy_step_destroy_all(self.context, steps_id)
         except Exception as e:
-            LOG.exception(
-                f"({self.pid}) exception during delete in strategy {strategy.type}"
-            )
+            LOG.exception(f"({strategy.type}) exception during delete")
             raise e
         finally:
             # The orchestration is complete, halt the processing
             self._processing = False
             self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
 
-        LOG.info(f"({self.pid}) Finished deleting strategy {strategy.type}")
+        LOG.info(f"({strategy.type}) Finished deleting strategy")
