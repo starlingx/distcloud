@@ -908,10 +908,20 @@ def strategy_step_get_by_name(context, name):
     return IMPL.Connection(context).strategy_step_get_by_name(name)
 
 
-def strategy_step_get_all(context, steps_id=None, last_update_threshold=None):
+def strategy_step_get_all(context, steps_id=None, limit=None):
     """Retrieve all patch strategy steps."""
     return IMPL.Connection(context).strategy_step_get_all(
-        steps_id=steps_id, last_update_threshold=last_update_threshold
+        steps_id=steps_id, limit=limit
+    )
+
+
+def strategy_step_get_all_to_process(
+    context, last_update_threshold, max_parallel_subclouds
+):
+    """Retrieve all strategy steps that needs to be processed in orchestration"""
+    return IMPL.Connection(context).strategy_step_get_all_to_process(
+        last_update_threshold=last_update_threshold,
+        max_parallel_subclouds=max_parallel_subclouds,
     )
 
 
@@ -962,10 +972,11 @@ def strategy_step_update(
     details=None,
     started_at=None,
     finished_at=None,
+    updated_at=None,
 ):
     """Update a patch strategy step or raise if it does not exist."""
     return IMPL.Connection(context).strategy_step_update(
-        subcloud_id, stage, state, details, started_at, finished_at
+        subcloud_id, stage, state, details, started_at, finished_at, updated_at
     )
 
 
@@ -978,6 +989,13 @@ def strategy_step_update_all(context, filters, values, steps_id=None):
     :param steps_id: list of strategy steps to update
     """
     return IMPL.Connection(context).strategy_step_update_all(filters, values, steps_id)
+
+
+def strategy_step_abort_all_not_processing(context, max_parallel_subclouds):
+    """Aborts all strategies that are not executing"""
+    return IMPL.Connection(context).strategy_step_abort_all_not_processing(
+        max_parallel_subclouds
+    )
 
 
 def strategy_step_destroy_all(context, steps_id=None):

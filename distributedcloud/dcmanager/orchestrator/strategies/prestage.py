@@ -31,9 +31,8 @@ class PrestageStrategy(BaseStrategy):
         consts.STRATEGY_STATE_PRESTAGE_IMAGES: states.PrestageImagesState,
     }
 
-    def __init__(self, audit_rpc_client):
+    def __init__(self):
         super().__init__(
-            audit_rpc_client,
             consts.SW_UPDATE_TYPE_PRESTAGE,
             None,
             consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK,
@@ -51,6 +50,3 @@ class PrestageStrategy(BaseStrategy):
         state = super().determine_state_operator(region_name, strategy_step)
         state.add_shared_caches(self._shared_caches)
         return state
-
-    def trigger_audit(self):
-        """Trigger an audit"""

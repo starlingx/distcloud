@@ -15,7 +15,6 @@
 #    under the License.
 #
 
-import abc
 
 from oslo_log import log as logging
 
@@ -44,15 +43,12 @@ class BaseStrategy(object):
 
     def __init__(
         self,
-        audit_rpc_client,
         update_type,
         vim_strategy_name,
         starting_state,
     ):
         # Context object for RPC queries
         self.context = context.get_admin_context()
-        # Used to notify dcmanager-audit to trigger an audit
-        self.audit_rpc_client = audit_rpc_client
         # The update type for the orch thread
         self.update_type = update_type
         # The vim strategy name for the orch thread
@@ -61,13 +57,6 @@ class BaseStrategy(object):
         self.starting_state = starting_state
         # Track if the strategy setup function was executed
         self._setup = False
-
-    @abc.abstractmethod
-    def trigger_audit(self):
-        """Subclass MUST override this method"""
-        LOG.warn(
-            "(%s) BaseStrategy subclass must override trigger_audit" % self.update_type
-        )
 
     def _pre_apply_setup(self):
         """Setup performed once before a strategy starts to apply"""

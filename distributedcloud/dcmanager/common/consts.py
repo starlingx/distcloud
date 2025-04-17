@@ -24,6 +24,7 @@ TOPIC_DC_MANAGER_AUDIT = "dcmanager-audit"
 TOPIC_DC_MANAGER_AUDIT_WORKER = "dcmanager-audit-worker"
 TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
 TOPIC_DC_NOTIFICATION = "DCMANAGER-NOTIFICATION"
+TOPIC_DC_MANAGER_ORCHESTRATOR_WORKER = "dcmanager-orchestrator-worker"
 
 CERTS_VAULT_DIR = "/opt/dc-vault/certs"
 PATCH_VAULT_DIR = "/opt/dc-vault/patches"
