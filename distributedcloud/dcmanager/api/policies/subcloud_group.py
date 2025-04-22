@@ -14,13 +14,13 @@ POLICY_ROOT = "dc_api:subcloud_groups:%s"
 subcloud_groups_rules = [
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "create",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Create subcloud group.",
         operations=[{"method": "POST", "path": "/v1.0/subcloud-groups"}],
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "delete",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Delete subcloud group.",
         operations=[
             {"method": "DELETE", "path": "/v1.0/subcloud-groups/{subcloud_group}"}
@@ -28,7 +28,7 @@ subcloud_groups_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "get",
-        check_str="rule:" + base.READER_OR_OPERATOR_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.READER_OR_OPERATOR_OR_CONFIGURATOR,
         description="Get subcloud groups.",
         operations=[
             {"method": "GET", "path": "/v1.0/subcloud-groups"},
@@ -41,7 +41,7 @@ subcloud_groups_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "modify",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Modify subcloud group.",
         operations=[
             {"method": "PATCH", "path": "/v1.0/subcloud-groups/{subcloud_group}"}

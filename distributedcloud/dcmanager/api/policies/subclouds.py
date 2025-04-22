@@ -14,19 +14,19 @@ POLICY_ROOT = "dc_api:subclouds:%s"
 subclouds_rules = [
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "create",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Create a subcloud.",
         operations=[{"method": "POST", "path": "/v1.0/subclouds"}],
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "delete",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Delete a subcloud.",
         operations=[{"method": "DELETE", "path": "/v1.0/subclouds/{alarm_uuid}"}],
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "get",
-        check_str="rule:" + base.READER_OR_OPERATOR_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.READER_OR_OPERATOR_OR_CONFIGURATOR,
         description="Get subclouds data.",
         operations=[
             {"method": "GET", "path": "/v1.0/subclouds"},
@@ -36,7 +36,7 @@ subclouds_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "manage_unmanage",
-        check_str="rule:" + base.ADMIN_OR_OPERATOR_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_OPERATOR_OR_CONFIGURATOR,
         description="manage/unmanage subcloud",
         operations=[
             {"method": "PATCH", "path": "/v1.0/subclouds/{subcloud}"},
@@ -44,7 +44,7 @@ subclouds_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "modify",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Modify a subcloud.",
         operations=[
             {"method": "PATCH", "path": "/v1.0/subclouds/{subcloud}"},

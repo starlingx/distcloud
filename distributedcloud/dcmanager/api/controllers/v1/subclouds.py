@@ -580,12 +580,12 @@ class SubcloudsController(object):
     def post(self):
         """Create and deploy a new subcloud."""
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subclouds_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         self.validate_software_deploy_state()
 
@@ -1352,12 +1352,13 @@ class SubcloudsController(object):
 
         :param subcloud_ref: ID or name of subcloud to delete.
         """
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subclouds_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
         subcloud = None
 
         if subcloud_ref.isdigit():

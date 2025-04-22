@@ -14,7 +14,7 @@ POLICY_ROOT = "dc_api:alarm_manager:%s"
 alarm_manager_rules = [
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "get",
-        check_str="rule:" + base.READER_OR_OPERATOR_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.READER_OR_OPERATOR_OR_CONFIGURATOR,
         description="Get alarms from subclouds.",
         operations=[{"method": "GET", "path": "/v1.0/alarms"}],
     )

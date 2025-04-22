@@ -156,12 +156,13 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
     @index.when(method="POST", template="json")
     def post(self):
         """Create a new subcloud peer group."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_peer_group_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         payload = json.loads(request.body)
         if not payload:
@@ -251,12 +252,13 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         :param group_ref: ID or name of subcloud group to update
         """
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_peer_group_policy.POLICY_ROOT % "modify",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
+
         if group_ref is None:
             pecan.abort(
                 httpclient.BAD_REQUEST, _("Subcloud Peer Group Name or ID required")
@@ -631,12 +633,13 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
     @index.when(method="delete", template="json")
     def delete(self, group_ref):
         """Delete the subcloud peer group."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_peer_group_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         if group_ref is None:
             pecan.abort(

@@ -14,13 +14,13 @@ POLICY_ROOT = "dc_api:sw_update_options:%s"
 sw_update_options_rules = [
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "delete",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Delete per subcloud sw-update options.",
         operations=[{"method": "DELETE", "path": "/v1.0/sw-update-options/{subcloud}"}],
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "get",
-        check_str="rule:" + base.READER_OR_OPERATOR_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.READER_OR_OPERATOR_OR_CONFIGURATOR,
         description="Get sw-update options.",
         operations=[
             {"method": "GET", "path": "/v1.0/sw-update-options"},
@@ -29,7 +29,7 @@ sw_update_options_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "update",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Update sw-update options (defaults or per subcloud).",
         operations=[{"method": "POST", "path": "/v1.0/sw-update-options/{subcloud}"}],
     ),

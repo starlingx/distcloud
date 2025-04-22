@@ -178,12 +178,13 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
     @index.when(method="POST", template="json")
     def post(self):
         """Create a new peer group association."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             peer_group_association_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         payload = self._get_payload(request)
         if not payload:
@@ -422,12 +423,13 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         :param sync: sync action that sync the peer group
         """
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             peer_group_association_policy.POLICY_ROOT % "modify",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
+
         if association_id is None:
             pecan.abort(httpclient.BAD_REQUEST, _("Peer Group Association ID required"))
         elif not association_id.isdigit():
@@ -456,12 +458,13 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
 
         :param association_id: ID of peer group association to delete
         """
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             peer_group_association_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         if association_id is None:
             pecan.abort(httpclient.BAD_REQUEST, _("Peer Group Association ID required"))
