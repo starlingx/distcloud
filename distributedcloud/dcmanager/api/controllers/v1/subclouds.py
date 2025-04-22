@@ -23,7 +23,6 @@ import os
 import re
 
 from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
-from netaddr import IPNetwork
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -278,18 +277,14 @@ class SubcloudsController(object):
             LOG.exception(msg)
             pecan.abort(400, msg)
 
-        subcloud_subnets = []
         subclouds = db_api.subcloud_get_all(context)
-        for subcloud in subclouds:
-            subcloud_subnets.append(IPNetwork(subcloud.management_subnet))
 
         psd_common.validate_admin_network_config(
             payload.get("management_subnet"),
             payload.get("management_start_ip"),
             payload.get("management_end_ip"),
             payload.get("management_gateway_ip"),
-            subcloud_subnets,
-            None,
+            existing_subclouds=subclouds,
         )
 
     def _get_deploy_config_sync_status(self, context, subcloud_name, keystone_client):
