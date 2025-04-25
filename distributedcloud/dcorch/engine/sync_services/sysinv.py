@@ -489,9 +489,7 @@ class SysinvSyncThread(SyncThread):
 
     def update_fernet_repo(self, sysinv_client, request, rsrc):
         LOG.info(
-            "update_fernet_repo region {} resource_info={}".format(
-                self.region_name, request.orch_job.resource_info
-            ),
+            f"Update fernet repo of region {self.region_name}",
             extra=self.log_extra,
         )
         resource_info = jsonutils.loads(request.orch_job.resource_info)
@@ -509,8 +507,9 @@ class SysinvSyncThread(SyncThread):
             raise exceptions.SyncRequestFailedRetry
 
         LOG.info(
-            "fernet_repo {} {} {} update".format(
-                rsrc.id, subcloud_rsrc_id, resource_info
+            (
+                "Fernet keys updated. "
+                f"Id: {rsrc.id} Subcloud Resource Id: {subcloud_rsrc_id}"
             ),
             extra=self.log_extra,
         )
@@ -866,9 +865,7 @@ class SysinvSyncThread(SyncThread):
             return dumps
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
             LOG.info(
-                "get_resource_info resource_type={} resource={}".format(
-                    resource_type, resource
-                ),
+                f"get_resource_info of {resource_type}",
                 extra=self.log_extra,
             )
             return jsonutils.dumps(resource)

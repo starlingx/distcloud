@@ -1256,7 +1256,9 @@ class Connection(object):
                 .values(values)
             )
 
-            result = session.execute(stmt)
+            result = session.execute(
+                stmt.execution_options(synchronize_session="fetch")
+            )
 
             return result.rowcount
 
