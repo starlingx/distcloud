@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 ###############################################################################
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -122,7 +122,6 @@ import signal
 import sys
 import time
 
-from dccommon import consts
 from dccommon import rvmc
 
 
@@ -174,6 +173,14 @@ def parse_arguments():
         "--eject_image_only",
         action="store_true",
         help="Optional execution mode to strictly eject an inserted image",
+    )
+
+    parser.add_argument(
+        "--excluded_operations",
+        type=str,
+        required=False,
+        default="",
+        help="Optional execution mode to exclude operations",
     )
 
     return parser.parse_args()
@@ -278,6 +285,9 @@ if __name__ == "__main__":
     # get config file
     config_file = args.config_file
 
+    # get excluded operations
+    excluded_operations = args.excluded_operations
+
     # RVMC PID file
     rvmc_pid_file = os.path.join(
         RVMC_PID_FILE_PATH, subcloud_name + RVMC_PID_FILENAME_POSTFIX
@@ -314,18 +324,13 @@ if __name__ == "__main__":
             if args.eject_image_only:
                 target_object.eject_image_only()
             else:
-                excluded_operations = []
-                # TODO(srana): Decouple this from ENROLL_INIT_SEED_ISO_NAME.
-                # We should generalize the approach and pass the excluded operations
-                # to the script for enrollment.
-                if (
-                    os.path.basename(target_object.img)
-                    == consts.ENROLL_INIT_SEED_ISO_NAME
-                ):
-                    # If the host image is a seed ISO,
-                    # the boot order should not be changed.
-                    excluded_operations = ["set_boot_override"]
+                excluded_operations = (
+                    [op.strip() for op in excluded_operations.split(",")]
+                    if excluded_operations
+                    else []
+                )
 
+                logging_util.ilog(f"Excluded operations: {excluded_operations}")
                 target_object.execute(excluded_operations)
         except eventlet.timeout.Timeout as e:
             if e is not script_timeout:
