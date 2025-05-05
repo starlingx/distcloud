@@ -116,7 +116,7 @@ class APIController(Middleware):
             return {
                 key: (
                     "******"
-                    if key == "password"
+                    if "password" in str(key).lower()
                     else (
                         self._mask_sensitive_info(value)
                         if isinstance(value, (dict, list))
