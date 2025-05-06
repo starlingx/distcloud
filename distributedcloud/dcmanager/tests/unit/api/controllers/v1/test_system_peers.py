@@ -426,7 +426,7 @@ class TestSystemPeersGet(BaseTestSystemPeersController, GetMixin):
         response = self._send_request()
 
         self._assert_response(response)
-        self.assertTrue("subcloud_peer_groups" in response.json)
+        self.assertIn("subcloud_peer_groups", response.json)
         self.assertEqual(response.json["subcloud_peer_groups"], [])
 
 

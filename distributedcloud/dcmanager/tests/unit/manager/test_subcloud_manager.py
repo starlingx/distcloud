@@ -3744,8 +3744,8 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 1)
 
         # Verify the prestage request release was passed to the playbooks
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5]
         )
 
     @mock.patch.object(cutils, "get_filename_by_prefix")
@@ -3777,15 +3777,13 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 2)
         # Verify the "image_list_file" was passed to the prestage image playbook
         # for the local prestage
-        self.assertTrue(
-            "image_list_file" in mock_run_ansible.call_args_list[1].args[1][5]
-        )
+        self.assertIn("image_list_file", mock_run_ansible.call_args_list[1].args[1][5])
         # Verify the prestage request release was passed to the playbooks
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5]
         )
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[1].args[1][5]
         )
 
     @mock.patch.object(cutils, "get_filename_by_prefix")
@@ -3817,8 +3815,8 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 2)
         # Verify the "image_list_file" was not passed to the prestage image playbook
         # for the local prestage
-        self.assertTrue(
-            "image_list_file" not in mock_run_ansible.call_args_list[1].args[1][5]
+        self.assertNotIn(
+            "image_list_file", mock_run_ansible.call_args_list[1].args[1][5]
         )
         # Verify the prestage request release was passed to the playbooks
         self.assertIn(
