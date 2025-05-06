@@ -308,7 +308,11 @@ class SubcloudManager(manager.Manager):
         return ansible_filename
 
     def compose_install_command(
-        self, subcloud_name, ansible_subcloud_inventory_file, software_version=None
+        self,
+        subcloud_name,
+        ansible_subcloud_inventory_file,
+        software_version=None,
+        auto_restore_mode=None,
     ):
         install_command = [
             "ansible-playbook",
@@ -337,6 +341,10 @@ class SubcloudManager(manager.Manager):
                 dccommon_consts.RVMC_CONFIG_FILE_NAME,
             ),
         ]
+
+        if auto_restore_mode:
+            install_command += ["-e", f"auto_restore_mode={auto_restore_mode}"]
+
         return install_command
 
     # TODO(glyraper): software_version will be used in the future
@@ -2420,9 +2428,16 @@ class SubcloudManager(manager.Manager):
             subcloud_inventory_file = self._create_subcloud_inventory_file(
                 subcloud, bootstrap_address=bootstrap_address
             )
+
+            auto_restore_mode = None
+            if payload.get("factory"):
+                auto_restore_mode = "factory"
+            elif payload.get("auto"):
+                auto_restore_mode = "auto"
+
             # Prepare for restore
             overrides_file = self._create_overrides_for_backup_or_restore(
-                "restore", payload, subcloud.name
+                "restore", payload, subcloud.name, auto_restore_mode
             )
             restore_command = self.compose_backup_restore_command(
                 subcloud.name, subcloud_inventory_file
@@ -2442,7 +2457,10 @@ class SubcloudManager(manager.Manager):
             data_install = json.loads(subcloud.data_install)
             software_version = payload.get("software_version")
             install_command = self.compose_install_command(
-                subcloud.name, subcloud_inventory_file, software_version
+                subcloud.name,
+                subcloud_inventory_file,
+                software_version,
+                auto_restore_mode,
             )
             # Update data_install with missing data
             matching_iso, _ = utils.get_vault_load_files(software_version)
@@ -2461,8 +2479,28 @@ class SubcloudManager(manager.Manager):
                     context, subcloud.region_name, software_version
                 )
             install_success = self._run_subcloud_install(
-                context, subcloud, install_command, log_file, data_install
+                context,
+                subcloud,
+                install_command,
+                log_file,
+                data_install,
+                overrides_file,
             )
+
+            # With auto-restore enabled, the restore playbook is executed
+            # automatically within the subcloud after installation, so we
+            # skip running it remotely.
+            if auto_restore_mode:
+                if install_success:
+                    LOG.info(f"Successfully auto-restored subcloud {subcloud.name}")
+                    db_api.subcloud_update(
+                        context, subcloud.id, deploy_status=consts.DEPLOY_STATE_DONE
+                    )
+                    utils.delete_subcloud_inventory(overrides_file)
+                # TODO(gherzmann): Add support to detect the failure type
+                # once the IPMI SEL event monitoring is implemented
+                return subcloud, install_success
+
             if not install_success:
                 return subcloud, False
 
@@ -2526,7 +2564,9 @@ class SubcloudManager(manager.Manager):
         )
         return ansible_subcloud_inventory_file
 
-    def _create_overrides_for_backup_or_restore(self, op, payload, subcloud_name):
+    def _create_overrides_for_backup_or_restore(
+        self, op, payload, subcloud_name, auto_restore_mode=None
+    ):
         # Set override names as expected by the playbook
         if not payload.get("override_values"):
             payload["override_values"] = {}
@@ -2566,6 +2606,11 @@ class SubcloudManager(manager.Manager):
             )
             for key, value in payload.get("restore_values").items():
                 payload["override_values"][key] = value
+
+        # auto_restore_mode allows the auto restore script running inside the
+        # subcloud to determine which type of restore to run
+        if op == "restore" and auto_restore_mode:
+            payload["override_values"]["auto_restore_mode"] = auto_restore_mode
 
         return self._create_backup_overrides_file(payload, subcloud_name, suffix)
 
@@ -2864,7 +2909,9 @@ class SubcloudManager(manager.Manager):
         return True
 
     @staticmethod
-    def _run_subcloud_install(context, subcloud, install_command, log_file, payload):
+    def _run_subcloud_install(
+        context, subcloud, install_command, log_file, payload, overrides_file=None
+    ):
         software_version = str(payload["software_version"])
         LOG.info(
             "Preparing remote install of %s, version: %s",
@@ -2890,6 +2937,7 @@ class SubcloudManager(manager.Manager):
                 dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                 payload,
                 subcloud_primary_oam_ip_family,
+                overrides_file,
             )
         except Exception as e:
             LOG.exception(e)

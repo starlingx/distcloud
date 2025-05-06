@@ -1084,6 +1084,8 @@ serviceUnavailable (503)
   - subcloud: backup_subcloud_name_or_id
   - group: backup_subcloud_group_name_or_id
   - restore_values: backup_restore_values
+  - auto: auto_restore
+  - factory: factory_restore
 
 Request Example
 ----------------

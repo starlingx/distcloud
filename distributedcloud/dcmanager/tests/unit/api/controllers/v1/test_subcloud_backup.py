@@ -1107,7 +1107,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "Option release cannot be used without with_install option.",
+            "Option release cannot be used without one of the following options: "
+            "with_install, auto or factory.",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_install_values(self):
@@ -1124,8 +1125,9 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "The restore operation was requested with_install, but the following "
-            f"subcloud(s) does not contain install values: {self.subcloud.name}",
+            "The restore operation was requested with with_install, auto or "
+            "factory, but the following subcloud(s) does not contain install "
+            f"values: {self.subcloud.name}",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_matching_iso(self):

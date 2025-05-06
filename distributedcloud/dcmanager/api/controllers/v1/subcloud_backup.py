@@ -79,6 +79,8 @@ class SubcloudBackupController(object):
                 "restore_values": dict,
                 "subcloud": str,
                 "group": str,
+                "auto": str,
+                "factory": str,
             }
         else:
             pecan.abort(400, _("Unexpected verb received"))
@@ -382,7 +384,8 @@ class SubcloudBackupController(object):
             self._validate_and_decode_sysadmin_password(payload, "sysadmin_password")
 
             self._convert_param_to_bool(
-                payload, ["local_only", "with_install", "registry_images"]
+                payload,
+                ("local_only", "with_install", "registry_images", "auto", "factory"),
             )
 
             if not payload["local_only"] and payload["registry_images"]:
@@ -394,10 +397,15 @@ class SubcloudBackupController(object):
                     ),
                 )
 
-            if not payload["with_install"] and payload.get("release"):
+            if payload.get("release") and not (
+                payload["with_install"] or payload["auto"] or payload["factory"]
+            ):
                 pecan.abort(
                     400,
-                    _("Option release cannot be used without with_install option."),
+                    _(
+                        "Option release cannot be used without one of the "
+                        "following options: with_install, auto or factory."
+                    ),
                 )
 
             request_entity = self._read_entity_from_request_params(context, payload)
@@ -427,7 +435,11 @@ class SubcloudBackupController(object):
 
             payload[request_entity.type] = request_entity.id
 
-            if payload.get("with_install"):
+            if (
+                payload.get("with_install")
+                or payload.get("auto")
+                or payload.get("factory")
+            ):
                 subclouds_without_install_values = [
                     subcloud.name
                     for subcloud in request_entity.subclouds
@@ -438,9 +450,9 @@ class SubcloudBackupController(object):
                     pecan.abort(
                         400,
                         _(
-                            "The restore operation was requested with_install, "
-                            "but the following subcloud(s) does not contain "
-                            "install values: %s" % subclouds_str
+                            "The restore operation was requested with with_install, "
+                            "auto or factory, but the following subcloud(s) does "
+                            "not contain install values: %s" % subclouds_str
                         ),
                     )
                 # Confirm the requested or active load is still in dc-vault
@@ -456,6 +468,17 @@ class SubcloudBackupController(object):
                 LOG.info(
                     "Restore operation will use image %s in subcloud installation"
                     % matching_iso
+                )
+
+            # An auto or factory restore implies with-install and registry-images
+            if payload.get("auto") or payload.get("factory"):
+                payload["with_install"] = True
+                payload["registry_images"] = True
+
+                # TODO(gherzmann): Remove this after auto-restore is implemented
+                pecan.abort(
+                    400,
+                    _("Auto or factory restore is currently unsupported"),
                 )
 
             try:
