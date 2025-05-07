@@ -15,13 +15,13 @@ peer_group_associations_rules = [
     # CRUD of peer_group_associations entity
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "create",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Create peer group association.",
         operations=[{"method": "POST", "path": "/v1.0/peer-group-associations"}],
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "delete",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Delete peer group association.",
         operations=[
             {"method": "DELETE", "path": "/v1.0/peer-group-associations/{associate_id}"}
@@ -29,7 +29,7 @@ peer_group_associations_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "get",
-        check_str="rule:" + base.READER_OR_OPERATOR_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.READER_OR_OPERATOR_OR_CONFIGURATOR,
         description="Get peer group associations.",
         operations=[
             {"method": "GET", "path": "/v1.0/peer-group-associations"},
@@ -38,7 +38,7 @@ peer_group_associations_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "modify",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Modify peer group association.",
         operations=[
             {"method": "PATCH", "path": "/v1.0/peer-group-associations/{associate_id}"},

@@ -1,7 +1,7 @@
-# admin role base rule
-#"admin_in_system_projects": "role:admin and
+# Base rule.
+#"admin_or_configurator": "(role:admin or role:configurator and
 # (project_name:admin or project_name:services)"
 
-# reader or operator role base rule
-#"reader_or_operator_in_system_projects": "(role:reader or role:operator)
-# and (project_name:admin or project_name:services)"
+# Base rule.
+#"reader_or_operator_or_configurator": "(role:reader or role:operator or
+# role:configurator) and (project_name:admin or project_name:services)"

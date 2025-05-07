@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2022,2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -134,12 +134,13 @@ class SubcloudGroupsController(restcomm.GenericPathController):
     @index.when(method="POST", template="json")
     def post(self):
         """Create a new subcloud group."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_group_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         payload = eval(request.body)
         if not payload:
@@ -189,12 +190,13 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         :param group_ref: ID or name of subcloud group to update
         """
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_group_policy.POLICY_ROOT % "modify",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
+
         if group_ref is None:
             pecan.abort(httpclient.BAD_REQUEST, _("Subcloud Group Name or ID required"))
 
@@ -262,12 +264,13 @@ class SubcloudGroupsController(restcomm.GenericPathController):
     @index.when(method="delete", template="json")
     def delete(self, group_ref):
         """Delete the subcloud group."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_group_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         if group_ref is None:
             pecan.abort(httpclient.BAD_REQUEST, _("Subcloud Group Name or ID required"))

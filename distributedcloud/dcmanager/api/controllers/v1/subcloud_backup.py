@@ -292,12 +292,8 @@ class SubcloudBackupController(object):
         """Create a new subcloud backup."""
         context = restcomm.extract_context_from_environ()
         payload = self._get_payload(pecan_request, "create")
+        context.is_admin = self.authorize_user("create")
 
-        policy.authorize(
-            subcloud_backup_policy.POLICY_ROOT % "create",
-            {},
-            restcomm.extract_credentials_for_policy(),
-        )
         self._validate_and_decode_sysadmin_password(payload, "sysadmin_password")
 
         if not payload.get("local_only") and payload.get("registry_images"):
@@ -478,7 +474,7 @@ class SubcloudBackupController(object):
     def authorize_user(self, verb):
         """check the user has access to the API call
 
-        :param verb: None,delete,restore
+        :param verb: None,delete,restore,create
         :request: True or False
         """
 

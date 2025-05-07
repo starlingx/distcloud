@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -113,7 +113,7 @@ class RequestContext(base_context.RequestContext):
         # Check user is admin or not
         if is_admin is None:
             self.is_admin = policy.authorize(
-                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(), do_raise=False
+                base_policy.ADMIN_OR_CONFIGURATOR, {}, self.to_dict(), do_raise=False
             )
         else:
             self.is_admin = is_admin

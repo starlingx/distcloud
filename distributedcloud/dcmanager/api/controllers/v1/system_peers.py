@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -246,12 +246,12 @@ class SystemPeersController(restcomm.GenericPathController):
     def post(self):
         """Create a new system peer."""
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             system_peer_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
         LOG.info("Creating a new system peer: %s" % context)
 
         payload = self._get_payload(request)
@@ -366,12 +366,12 @@ class SystemPeersController(restcomm.GenericPathController):
         :param peer_ref: ID or UUID of system peer to update
         """
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             system_peer_policy.POLICY_ROOT % "modify",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
         LOG.info("Updating system peer: %s" % context)
 
         if peer_ref is None:
@@ -545,12 +545,12 @@ class SystemPeersController(restcomm.GenericPathController):
     def delete(self, peer_ref):
         """Delete the system peer."""
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             system_peer_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
         LOG.info("Deleting system peer: %s" % context)
 
         if peer_ref is None:

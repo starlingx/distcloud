@@ -123,12 +123,12 @@ class SwUpdateOptionsController(object):
         # Note creating or updating subcloud specific options require
         # setting all options.
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             sw_update_options_policy.POLICY_ROOT % "update",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         payload = eval(request.body)
         if not payload:
@@ -221,12 +221,12 @@ class SwUpdateOptionsController(object):
     def delete(self, subcloud_ref):
         """Delete the software update options."""
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             sw_update_options_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         if subcloud_ref in (dccommon_consts.SYSTEM_CONTROLLER_NAME, REGION_ONE):
             # Delete defaults.

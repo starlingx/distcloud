@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -155,7 +155,7 @@ class PhasedSubcloudDeployController(object):
         self.dcmanager_rpc_client = rpc_client.ManagerClient()
 
     def _deploy_create(self, context: RequestContext, request: pecan.Request):
-        policy.authorize(
+        context.is_admin = policy.authorize(
             phased_subcloud_deploy_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
@@ -669,12 +669,12 @@ class PhasedSubcloudDeployController(object):
         or subcloud operation
         """
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             phased_subcloud_deploy_policy.POLICY_ROOT % "modify",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         if not subcloud_ref:
             pecan.abort(400, _("Subcloud ID required"))
