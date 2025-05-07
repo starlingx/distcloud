@@ -1323,7 +1323,7 @@ class SubcloudsController(object):
             try:
                 self.dcmanager_rpc_client.prestage_subcloud(context, payload)
                 # local update to prestage_status - this is just for CLI response:
-                subcloud.prestage_status = consts.PRESTAGE_STATE_PACKAGES
+                subcloud.prestage_status = consts.PRESTAGE_STATE_PRESTAGING
 
                 subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
                 subcloud_dict.update(

@@ -330,6 +330,11 @@ def subcloud_update(
     )
 
 
+def subcloud_bulk_update(context, entries):
+    """Update subclouds in bulk."""
+    return IMPL.Connection(context).subcloud_bulk_update(entries)
+
+
 def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):
     """Update subclouds in bulk using a set of subcloud IDs."""
     return IMPL.Connection(context).subcloud_bulk_update_by_ids(
@@ -989,6 +994,11 @@ def strategy_step_update_all(context, filters, values, steps_id=None):
     :param steps_id: list of strategy steps to update
     """
     return IMPL.Connection(context).strategy_step_update_all(filters, values, steps_id)
+
+
+def strategy_step_bulk_update(context, entries):
+    """Bulk updates a list of strategy steps"""
+    return IMPL.Connection(context).strategy_step_bulk_update(entries)
 
 
 def strategy_step_update_reset_updated_at(context, steps_id, last_update_threshold):
