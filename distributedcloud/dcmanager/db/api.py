@@ -991,6 +991,13 @@ def strategy_step_update_all(context, filters, values, steps_id=None):
     return IMPL.Connection(context).strategy_step_update_all(filters, values, steps_id)
 
 
+def strategy_step_update_reset_updated_at(context, steps_id, last_update_threshold):
+    """Bulk updates the updated_at field for processing subclouds"""
+    return IMPL.Connection(context).strategy_step_update_reset_updated_at(
+        steps_id, last_update_threshold
+    )
+
+
 def strategy_step_abort_all_not_processing(context, max_parallel_subclouds):
     """Aborts all strategies that are not executing"""
     return IMPL.Connection(context).strategy_step_abort_all_not_processing(
@@ -998,9 +1005,9 @@ def strategy_step_abort_all_not_processing(context, max_parallel_subclouds):
     )
 
 
-def strategy_step_destroy_all(context, steps_id=None):
+def strategy_step_destroy_all(context, steps_id=None, states=None):
     """Destroy all the patch strategy steps."""
-    return IMPL.Connection(context).strategy_step_destroy_all(steps_id)
+    return IMPL.Connection(context).strategy_step_destroy_all(steps_id, states)
 
 
 ###################

@@ -117,7 +117,7 @@ class OrchestratorManager(manager.Manager):
                 consts.SW_UPDATE_STATE_FAILED,
             ]:
                 LOG.info(
-                    f"An active {strategy.type} strategy was found, restarting "
+                    f"({strategy.type}) An active strategy was found, restarting "
                     "its monitoring"
                 )
                 # The steps will only start processing after the orchestration interval
@@ -132,7 +132,7 @@ class OrchestratorManager(manager.Manager):
             )
 
     def stop_strategy(self, strategy_type):
-        LOG.info(f"A request to stop the strategy was performed for {strategy_type}")
+        LOG.info(f"({strategy_type}) A request to stop the strategy was performed")
 
         # Once a strategy with stop on failure has a failed step in any of the
         # workers, it needs to be set to failed and the workers must stop executing
@@ -153,7 +153,7 @@ class OrchestratorManager(manager.Manager):
     # table while the worker is responsible for the strategy steps.
     def periodic_strategy_monitoring(self, strategy_type):
         # Reset the flag to start the monitoring
-        LOG.debug(f"Starting periodic monitoring for {strategy_type}")
+        LOG.debug(f"({strategy_type}) Starting periodic monitoring")
         self._monitor_strategy = True
 
         while self._monitor_strategy:
@@ -165,12 +165,15 @@ class OrchestratorManager(manager.Manager):
                 return
             except exceptions.StrategyNotFound:
                 LOG.exception(
-                    f"The strategy {strategy_type} does not exist anymore, "
+                    f"({strategy_type}) The strategy does not exist anymore, "
                     "stopping monitoring"
                 )
                 return
             except Exception:
-                LOG.exception("An error occurred in the strategy monitoring loop")
+                LOG.exception(
+                    f"({strategy_type}) An error occurred in the strategy "
+                    "monitoring loop"
+                )
 
     def _create_and_send_step_batches(self, strategy_type, steps, update=False):
         steps_to_orchestrate = list()
@@ -188,16 +191,22 @@ class OrchestratorManager(manager.Manager):
                     self.context, steps_to_orchestrate, strategy_type
                 )
 
-                LOG.info(f"Sent steps to orchestrate: {steps_to_orchestrate}")
+                LOG.info(
+                    f"({strategy_type}) Sent {len(steps_to_orchestrate)} steps "
+                    "to orchestrate"
+                )
                 if update:
                     steps_to_update.extend(steps_to_orchestrate)
                 steps_to_orchestrate = []
 
         if steps_to_orchestrate:
-            self.thread_group_manager.start(
-                self.periodic_strategy_monitoring, strategy_type
+            self.orchestrator_worker_rpc_client.orchestrate(
+                self.context, steps_to_orchestrate, strategy_type
             )
-            LOG.info(f"Sent final steps to orchestrate: {steps_to_orchestrate}")
+            LOG.info(
+                f"({strategy_type}) Sent final {len(steps_to_orchestrate)} steps "
+                "to orchestrate"
+            )
 
             if update:
                 steps_to_update.extend(steps_to_orchestrate)
@@ -210,7 +219,7 @@ class OrchestratorManager(manager.Manager):
             )
 
         if steps:
-            LOG.info("Finished sending steps to orchestrate")
+            LOG.info(f"({strategy_type}) Finished sending steps to orchestrate")
 
     def _verify_pending_steps(self, strategy_type, max_parallel_subclouds):
         """Verifies if there are any steps that were not updated in the threshold
@@ -232,7 +241,8 @@ class OrchestratorManager(manager.Manager):
 
         if steps_to_process:
             LOG.info(
-                f"{len(steps_to_process)} pending steps were found, start processing"
+                f"({strategy_type}) {len(steps_to_process)} pending steps were found, "
+                "start processing"
             )
             self._create_and_send_step_batches(strategy_type, steps_to_process, True)
             return True
@@ -242,7 +252,7 @@ class OrchestratorManager(manager.Manager):
     def _periodic_strategy_monitoring_loop(self, strategy_type):
         """Verifies strategy and subcloud states"""
 
-        LOG.debug("Running periodic monitoring")
+        LOG.debug(f"({strategy_type}) Running periodic monitoring")
 
         strategy = db_api.sw_update_strategy_get(self.context, strategy_type)
 
@@ -280,8 +290,8 @@ class OrchestratorManager(manager.Manager):
             consts.SW_UPDATE_STATE_ABORTING,
         ]:
             LOG.debug(
-                f"The {strategy.type} strategy is not complete, verifying "
-                "possible state update"
+                f"({strategy_type}) The strategy is not complete, verifying possible "
+                "state update"
             )
 
             new_state = None
@@ -666,10 +676,26 @@ class OrchestratorManager(manager.Manager):
                 context, state=consts.SW_UPDATE_STATE_DELETING, update_type=update_type
             )
 
-        # Trigger the orchestration
+        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
+
+        # Because the strategy steps in initial and aborted state does not have a vim
+        # strategy created in the subcloud, they can just be deleted from the database
+        # directly
+        db_api.strategy_step_destroy_all(
+            context,
+            states=[consts.STRATEGY_STATE_INITIAL, consts.STRATEGY_STATE_ABORTED],
+        )
+
+        # Trigger the orchestration for complete and failed steps
         steps = db_api.strategy_step_get_all(
             context, limit=sw_update_strategy.max_parallel_subclouds
         )
+
+        if not steps:
+            db_api.sw_update_strategy_destroy(context, sw_update_strategy.type)
+
+            LOG.info(f"({sw_update_strategy.type}) Subcloud orchestration deleted")
+            return strategy_dict
 
         # Reduce the sleep time since the deletion is faster than apply
         self.sleep_time = self.sleep_time / 3
@@ -680,16 +706,13 @@ class OrchestratorManager(manager.Manager):
             self.periodic_strategy_monitoring, sw_update_strategy.type
         )
 
-        LOG.info(
-            f"Subcloud orchestration delete triggered for {sw_update_strategy.type}"
-        )
+        LOG.info(f"({sw_update_strategy.type}) Subcloud orchestration delete triggered")
 
         # handle extra_args processing such as removing from the vault
         self._process_extra_args_deletion(
             sw_update_strategy.type, sw_update_strategy.extra_args
         )
 
-        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
         return strategy_dict
 
     def apply_sw_update_strategy(self, context, update_type=None):
@@ -729,9 +752,7 @@ class OrchestratorManager(manager.Manager):
             self.periodic_strategy_monitoring, sw_update_strategy.type
         )
 
-        LOG.info(
-            f"Subcloud orchestration apply triggered for {sw_update_strategy.type}"
-        )
+        LOG.info(f"({sw_update_strategy.type}) Subcloud orchestration apply triggered")
 
         strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
         return strategy_dict
