@@ -15,7 +15,6 @@ from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import utils as cutils
 from dcmanager.common import utils
-from dcmanager.db.sqlalchemy import models
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -139,51 +138,6 @@ class KubeRootcaUpdateAudit(object):
                 subcloud_audit_data, regionone_rootca_certid, subcloud_name
             )
         return sync_status
-
-    def subcloud_kube_rootca_audit(
-        self,
-        sysinv_client: SysinvClient,
-        fm_client: FmClient,
-        subcloud: models.Subcloud,
-        regionone_rootca_certid: str,
-    ):
-        """Perform an audit of kube root CA update info in a subcloud.
-
-        The audit logic is as follow:
-            No region one cert ID -> skip audit
-            Failure to get alarms or subcloud cert ID -> skip audit
-            Subcloud was not rehomed -> alarm based
-            Subcloud was rehomed and doesn't have the API to get cert ID -> alarm based
-            Subcloud was rehomed and has the API to get cert ID -> cert based
-
-        :param sysinv_client: the sysinv client object
-        :param fm_client: the fm client object
-        :param subcloud: subcloud object
-        :param regionone_rootca_certid: the cert id of region one
-        """
-
-        LOG.info(f"Triggered {AUDIT_TYPE} audit for: {subcloud.name}")
-
-        # Skip the audit if cannot get the region one cert ID.
-        if not regionone_rootca_certid:
-            msg = f"No region one audit data, exiting {AUDIT_TYPE} audit"
-            cutils.log_subcloud_msg(LOG.debug, msg, subcloud.name)
-            return dccommon_consts.SYNC_STATUS_IN_SYNC
-
-        sync_status = self.get_subcloud_sync_status(
-            sysinv_client,
-            fm_client,
-            regionone_rootca_certid,
-            subcloud.rehomed,
-            subcloud.name,
-        )
-
-        if sync_status:
-            LOG.info(
-                f"{AUDIT_TYPE} audit completed for: {subcloud.name}, requesting "
-                f"sync_status update to {sync_status}"
-            )
-            return sync_status
 
     @staticmethod
     def subcloud_rootca_audit_alarm_based(detected_alarms):

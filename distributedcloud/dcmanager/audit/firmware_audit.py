@@ -359,26 +359,3 @@ class FirmwareAudit(object):
                 return dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         return dccommon_consts.SYNC_STATUS_IN_SYNC
-
-    def subcloud_firmware_audit(
-        self,
-        sysinv_client: SysinvClient,
-        subcloud_name: str,
-        audit_data: list[FirmwareAuditData],
-    ):
-        LOG.info(f"Triggered firmware audit for: {subcloud_name}.")
-
-        if not audit_data:
-            LOG.debug("No RegionOne images to audit, exiting firmware audit")
-            return dccommon_consts.SYNC_STATUS_IN_SYNC
-
-        sync_status = self.get_subcloud_sync_status(
-            sysinv_client, audit_data, subcloud_name
-        )
-
-        if sync_status:
-            LOG.info(
-                f"Firmware audit completed for: {subcloud_name}, requesting sync_status"
-                f"update to {sync_status}"
-            )
-            return sync_status
