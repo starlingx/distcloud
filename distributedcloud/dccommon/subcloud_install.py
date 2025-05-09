@@ -213,7 +213,9 @@ class SubcloudInstall(object):
             for k, v in payload.items():
                 f_out_override_file.write("%s: %s\n" % (k, json.dumps(v)))
 
-    def update_iso(self, override_path, values, subcloud_primary_oam_ip_family):
+    def update_iso(
+        self, override_path, values, subcloud_primary_oam_ip_family, overrides_file=None
+    ):
         if not os.path.isdir(self.www_iso_root):
             os.mkdir(self.www_iso_root, 0o755)
         LOG.debug(
@@ -274,6 +276,9 @@ class SubcloudInstall(object):
             "--release",
             software_version,
         ]
+
+        if overrides_file:
+            update_iso_cmd += ["--auto-restore-config", overrides_file]
 
         for key, _ in consts.GEN_ISO_OPTIONS.items():
             if key in values:
@@ -472,7 +477,13 @@ class SubcloudInstall(object):
     def is_serial_console(install_type):
         return install_type is not None and install_type in SERIAL_CONSOLE_INSTALL_TYPES
 
-    def prep(self, override_path, payload, subcloud_primary_oam_ip_family):
+    def prep(
+        self,
+        override_path,
+        payload,
+        subcloud_primary_oam_ip_family,
+        overrides_file=None,
+    ):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
 
@@ -517,7 +528,9 @@ class SubcloudInstall(object):
 
         # Update the default iso image based on the install values
         # Runs gen-bootloader-iso.sh
-        self.update_iso(override_path, iso_values, subcloud_primary_oam_ip_family)
+        self.update_iso(
+            override_path, iso_values, subcloud_primary_oam_ip_family, overrides_file
+        )
 
         # remove the iso values from the payload
         for k in iso_values:

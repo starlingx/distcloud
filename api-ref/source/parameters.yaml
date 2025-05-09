@@ -114,6 +114,16 @@ association_type:
   in: body
   required: true
   type: string
+auto_restore:
+  description: |
+    Performs a subcloud restore with installation, automatically triggering the
+    restore process locally in the subcloud after installation completes. Also
+    restores container images.
+    Can be used with or without the local-only option.
+    Defaults to False.
+  in: body
+  required: false
+  type: boolean
 availability_status:
   description: |
     The availability status of the subcloud.
@@ -302,6 +312,16 @@ extra_args:
   in: body
   required: false
   type: dictionary
+factory_restore:
+  description: |
+    Performs a subcloud restore with installation, automatically triggering a
+    factory restore locally in the subcloud after installation completes. Also
+    restores container images using the local factory backup stored in the
+    subcloud.
+    Defaults to False.
+  in: body
+  required: false
+  type: boolean
 for_install:
   description: |
     Indicates whether the prestage should be for install.

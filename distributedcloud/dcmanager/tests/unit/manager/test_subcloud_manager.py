@@ -2959,6 +2959,15 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
             ],
         )
 
+    def test_compose_install_command_with_auto_restore(self):
+        install_command = self.sm.compose_install_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            FAKE_PREVIOUS_SW_VERSION,
+            auto_restore_mode="factory",
+        )
+        self.assertIn("auto_restore_mode=factory", install_command)
+
     @mock.patch("os.path.isfile")
     def test_compose_bootstrap_command(self, mock_isfile):
         mock_isfile.return_value = True
@@ -4040,6 +4049,57 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
         )
 
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_restore_with_auto_and_factory_restore(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_run_restore_playbook,
+    ):
+        self.mock_run_subcloud_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+        self.mock_run_subcloud_install.return_value = True
+        mock_run_restore_playbook.return_value = True
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
+        values["factory"] = True
+        values["auto"] = True
+        values["with_install"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=self.data_install,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        # Assert that we called the _create_overrides_for_backup_or_restore and
+        # compose_install_command with auto_restore_mode = "factory"
+        mock_create_overrides.assert_called_once_with(
+            "restore", values, self.subcloud.name, "factory"
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_DONE, updated_subcloud.deploy_status)
+
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
     def test_backup_restore_with_install_failed(self, mock_prep):
         # FAILED installing playbook of (subcloud1).
@@ -4651,6 +4711,33 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
             mock.call(f"Successfully installed {self.subcloud.name}"),
         ]
         self.mock_log_subcloud_manager.info.assert_has_calls(Calls)
+
+    @mock.patch.object(request, "urlretrieve")
+    def test_subcloud_install_with_overrides_file(self, mock_request_urlretrieve):
+        mock_request_urlretrieve.return_value = "fake_path", "empty"
+        self.mock_ansible_run_playbook.return_value = False
+
+        self.sm._run_subcloud_install(
+            self.ctx,
+            self.subcloud,
+            self.mock_compose_install_command,
+            self.fake_log_file,
+            self.fake_install_values,
+            overrides_file="/fake/overrides/path",
+        )
+
+        # Assert that at least one gen-bootloader-iso.sh call was made
+        script_calls = [
+            call
+            for call in self.mock_subprocess_run.call_args_list
+            if "/usr/local/bin/gen-bootloader-iso.sh" in call[0][0]
+        ]
+        self.assertTrue(script_calls, "No call to gen-bootloader-iso.sh was found")
+
+        # Assert that the --auto-restore-config and path are present
+        script_args = [arg for call in script_calls for arg in call[0][0]]
+        self.assertIn("--auto-restore-config", script_args)
+        self.assertIn("/fake/overrides/path", script_args)
 
     def test_subcloud_install_prep_failed(self):
         install_success = self.sm._run_subcloud_install(
