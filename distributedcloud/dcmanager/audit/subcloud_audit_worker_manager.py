@@ -34,7 +34,6 @@ from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import kube_rootca_update_audit
 from dcmanager.audit import kubernetes_audit
-from dcmanager.audit import patch_audit
 from dcmanager.audit import software_audit
 from dcmanager.audit import utils as audit_utils
 from dcmanager.common import consts
@@ -81,7 +80,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self.subcloud_workers = dict()
         self.alarm_aggr = alarm_aggregation.AlarmAggregation(self.context)
         # todo(abailey): refactor the design pattern for adding new audits
-        self.patch_audit = patch_audit.PatchAudit(self.context)
         self.firmware_audit = firmware_audit.FirmwareAudit()
         self.kubernetes_audit = kubernetes_audit.KubernetesAudit()
         self.kube_rootca_update_audit = kube_rootca_update_audit.KubeRootcaUpdateAudit()
@@ -116,20 +114,15 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self,
         context,
         subcloud_ids,
-        patch_audit_data,
         firmware_audit_data,
         kubernetes_audit_data,
-        do_openstack_audit,
         kube_rootca_update_audit_data,
         software_audit_data,
         use_cache,
     ):
         """Run audits of the specified subcloud(s)"""
 
-        LOG.debug(
-            "PID: %s, subclouds to audit: %s, do_openstack_audit: %s"
-            % (self.pid, subcloud_ids, do_openstack_audit)
-        )
+        LOG.debug("PID: %s, subclouds to audit: %s" % (self.pid, subcloud_ids))
 
         for subcloud_id in subcloud_ids:
             # Retrieve the subcloud and subcloud audit info
@@ -152,10 +145,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
             )
 
             # Check the per-subcloud audit flags
-            do_load_audit = subcloud_audits.load_audit_requested
-            # Currently we do the load audit as part of the patch audit,
-            # so if we want a load audit we need to do a patch audit.
-            do_patch_audit = subcloud_audits.patch_audit_requested or do_load_audit
             do_firmware_audit = subcloud_audits.firmware_audit_requested
             do_kubernetes_audit = subcloud_audits.kubernetes_audit_requested
             do_kube_rootca_update_audit = (
@@ -172,14 +161,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     self._do_audit_subcloud,
                     subcloud,
                     update_subcloud_state,
-                    do_openstack_audit,
-                    patch_audit_data,
                     firmware_audit_data,
                     kubernetes_audit_data,
                     kube_rootca_update_audit_data,
                     software_audit_data,
-                    do_patch_audit,
-                    do_load_audit,
                     do_firmware_audit,
                     do_kubernetes_audit,
                     do_kube_rootca_update_audit,
@@ -223,14 +208,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self,
         subcloud: models.Subcloud,
         update_subcloud_state: bool,
-        do_audit_openstack: bool,
-        patch_audit_data,
         firmware_audit_data,
         kubernetes_audit_data,
         kube_rootca_update_audit_data,
         software_audit_data,
-        do_patch_audit: bool,
-        do_load_audit: bool,
         do_firmware_audit: bool,
         do_kubernetes_audit: bool,
         do_kube_rootca_update_audit: bool,
@@ -244,14 +225,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
             audits_done, failures = self._audit_subcloud(
                 subcloud,
                 update_subcloud_state,
-                do_audit_openstack,
-                patch_audit_data,
                 firmware_audit_data,
                 kubernetes_audit_data,
                 kube_rootca_update_audit_data,
                 software_audit_data,
-                do_patch_audit,
-                do_load_audit,
                 do_firmware_audit,
                 do_kubernetes_audit,
                 do_kube_rootca_update_audit,
@@ -347,14 +324,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self,
         subcloud: models.Subcloud,
         update_subcloud_state: bool,
-        do_audit_openstack: bool,
-        patch_audit_data,
         firmware_audit_data,
         kubernetes_audit_data,
         kube_rootca_update_audit_data,
         software_audit_data,
-        do_patch_audit: bool,
-        do_load_audit: bool,
         do_firmware_audit: bool,
         do_kubernetes_audit: bool,
         do_kube_rootca_update_audit: bool,
@@ -524,41 +497,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 endpoint_type = dccommon_consts.DCAGENT_ENDPOINT_TYPE_MAP[audit_type]
                 endpoint_data[endpoint_type] = audit_value
                 audits_done.append(endpoint_type)
-        # Patch and load audits are not done in dcagent,
-        # so we need to do it separately
-        if self._should_perform_additional_audit(
-            subcloud.management_state,
-            avail_to_set,
-            subcloud.first_identity_sync_complete,
-        ):
-            # TODO(nicodemos): Remove this when patching is no longer supported
-            if do_patch_audit:
-                try:
-                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_PATCHING] = (
-                        self.patch_audit.subcloud_patch_audit(
-                            keystone_client.keystone_client,
-                            subcloud,
-                        )
-                    )
-                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
-                except Exception:
-                    LOG.exception(
-                        failmsg
-                        % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_PATCHING)
-                    )
-                    failures.append(dccommon_consts.ENDPOINT_TYPE_PATCHING)
-            # TODO(nicodemos): Remove this when patching is no longer supported
-            if do_load_audit:
-                try:
-                    endpoint_data[dccommon_consts.ENDPOINT_TYPE_LOAD] = (
-                        self.patch_audit.subcloud_load_audit()
-                    )
-                    audits_done.append(dccommon_consts.ENDPOINT_TYPE_LOAD)
-                except Exception:
-                    LOG.exception(
-                        failmsg % (subcloud.name, dccommon_consts.ENDPOINT_TYPE_LOAD)
-                    )
-                    failures.append(dccommon_consts.ENDPOINT_TYPE_LOAD)
 
         if avail_to_set == dccommon_consts.AVAILABILITY_OFFLINE:
             if audit_fail_count < consts.AVAIL_FAIL_COUNT_MAX:

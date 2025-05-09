@@ -19,7 +19,6 @@
 from oslo_log import log as logging
 
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
-from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
@@ -118,14 +117,6 @@ class BaseStrategy(object):
             ks_client.session,
             endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
         )
-
-    @staticmethod
-    def get_patching_client(region_name: str = None) -> PatchingClient:
-        if not region_name:
-            region_name = cutils.get_region_one_name()
-
-        ks_client = BaseStrategy.get_ks_client(region_name)
-        return PatchingClient(region_name, ks_client.session)
 
     def determine_state_operator(self, region_name, strategy_step):
         """Return the state operator for the current state"""

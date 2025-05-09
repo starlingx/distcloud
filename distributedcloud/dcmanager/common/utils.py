@@ -31,7 +31,6 @@ import uuid
 import xml.etree.ElementTree as ElementTree
 
 from keystoneauth1 import exceptions as keystone_exceptions
-from keystoneclient.v3.client import Client as KeystoneClient
 import netaddr
 from oslo_concurrency import lockutils
 from oslo_config import cfg
@@ -2192,30 +2191,6 @@ def format_address(ip_address: str) -> str:
         raise
 
 
-def validate_patch_strategy(payload: dict):
-    patch_id = payload.get("patch_id")
-    if not patch_id:
-        message = (
-            "patch_id parameter is required for "
-            f"{consts.SW_UPDATE_TYPE_PATCH} strategy."
-        )
-        pecan.abort(400, _(message))
-
-    patch_file = (
-        f"{consts.PATCH_VAULT_DIR}/{consts.PATCHING_SW_VERSION}/{patch_id}.patch"
-    )
-    if not os.path.isfile(patch_file):
-        message = f"Patch file {patch_file} is missing in DC Vault patches."
-        pecan.abort(400, _(message))
-
-    remove = payload.get("remove", "").lower() == "true"
-    upload_only = payload.get("upload-only", "").lower() == "true"
-
-    if remove and upload_only:
-        message = "Both remove and upload-only parameters cannot be used together."
-        pecan.abort(400, _(message))
-
-
 def validate_software_strategy(release_id: str):
     if not release_id:
         message = (
@@ -2226,32 +2201,6 @@ def validate_software_strategy(release_id: str):
     elif release_id not in get_systemcontroller_installed_releases_ids():
         message = f"Release ID: {release_id} not deployed in the SystemController"
         pecan.abort(400, _(message))
-
-
-def has_usm_service(
-    subcloud_region: str, keystone_client: KeystoneClient = None
-) -> bool:
-
-    # Lookup keystone client session if not specified
-    if not keystone_client:
-        try:
-            keystone_client = OpenStackDriver(
-                region_name=subcloud_region,
-                region_clients=None,
-                fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-            ).keystone_client.keystone_client
-        except Exception as e:
-            LOG.exception(
-                f"Failed to get keystone client for subcloud_region: {subcloud_region}"
-            )
-            raise exceptions.InternalError() from e
-    try:
-        # Try to get the USM service for the subcloud.
-        keystone_client.services.find(name=dccommon_consts.ENDPOINT_NAME_USM)
-        return True
-    except keystone_exceptions.NotFound:
-        LOG.warning("USM service not found for subcloud_region: %s", subcloud_region)
-        return False
 
 
 def get_system_controller_deploy() -> Optional[dict]:

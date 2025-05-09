@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -205,8 +205,6 @@ class SubcloudAudits(BASE, DCManagerBase):
     audit_started_at = Column(DateTime(timezone=False), default=datetime.datetime.min)
     audit_finished_at = Column(DateTime(timezone=False), default=datetime.datetime.min)
     state_update_requested = Column(Boolean, nullable=False, default=False)
-    patch_audit_requested = Column(Boolean, nullable=False, default=False)
-    load_audit_requested = Column(Boolean, nullable=False, default=False)
     firmware_audit_requested = Column(Boolean, nullable=False, default=False)
     kubernetes_audit_requested = Column(Boolean, nullable=False, default=False)
     kube_rootca_update_audit_requested = Column(Boolean, nullable=False, default=False)
@@ -271,7 +269,7 @@ class SwUpdateOptsDefault(BASE, DCManagerBase):
 
 
 class StrategyStep(BASE, DCManagerBase):
-    """Represents a step for patching or upgrading subclouds"""
+    """Represents a step for a strategy application"""
 
     __tablename__ = "strategy_steps"
 

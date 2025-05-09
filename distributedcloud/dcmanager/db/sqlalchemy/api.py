@@ -326,9 +326,7 @@ class Connection(object):
                 )
                 .filter(
                     (models.SubcloudAudits.audit_finished_at < last_audit_threshold)
-                    | (models.SubcloudAudits.patch_audit_requested == true())
                     | (models.SubcloudAudits.firmware_audit_requested == true())
-                    | (models.SubcloudAudits.load_audit_requested == true())
                     | (
                         models.SubcloudAudits.kube_rootca_update_audit_requested
                         == true()
@@ -380,7 +378,7 @@ class Connection(object):
         # audits_finished structure:
         # "subcloud's id": {
         #   "timestamp": "2024-08-15 17:56:00",
-        #   "audits_finished": ["patching", "firmware"]
+        #   "audits_finished": ["firmware"]
         # }
 
         update_list = list()
@@ -423,9 +421,7 @@ class Connection(object):
         values = {"audit_finished_at": models.SubcloudAudits.audit_started_at}
         if trigger_audits:
             # request all the special audits
-            values["patch_audit_requested"] = True
             values["firmware_audit_requested"] = True
-            values["load_audit_requested"] = True
             values["kubernetes_audit_requested"] = True
             values["kube_rootca_update_audit_requested"] = True
             values["spare_audit_requested"] = True

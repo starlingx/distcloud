@@ -33,10 +33,6 @@
           "endpoint_type": "dc-cert"
         },
         {
-          "sync_status": "not-available",
-           "endpoint_type": "load"
-        },
-        {
           "sync_status": "in-sync",
           "endpoint_type": "firmware"
         },
@@ -57,12 +53,8 @@
           "endpoint_type": "identity"
         },
         {
-          "sync_status": "not-available",
-          "endpoint_type": "patching"
-        },
-        {
           "sync_status": "out-of-sync",
-          "endpoint_type": "usm"
+          "endpoint_type": "software"
         }
       ],
     }

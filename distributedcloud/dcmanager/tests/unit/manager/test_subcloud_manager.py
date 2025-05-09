@@ -125,11 +125,6 @@ FAKE_SERVICES = [
         dccommon_consts.ENDPOINT_TYPE_IDENTITY,
         2,
     ),
-    FakeService(
-        dccommon_consts.ENDPOINT_TYPE_PATCHING,
-        dccommon_consts.ENDPOINT_TYPE_PATCHING,
-        3,
-    ),
     FakeService(dccommon_consts.ENDPOINT_NAME_FM, dccommon_consts.ENDPOINT_TYPE_FM, 4),
     FakeService(
         dccommon_consts.ENDPOINT_NAME_VIM, dccommon_consts.ENDPOINT_TYPE_NFV, 5
@@ -320,7 +315,6 @@ FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL = {
 SERVICE_ENDPOINTS = [
     dccommon_consts.ENDPOINT_TYPE_PLATFORM,
     dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-    dccommon_consts.ENDPOINT_TYPE_PATCHING,
     dccommon_consts.ENDPOINT_TYPE_FM,
     dccommon_consts.ENDPOINT_TYPE_NFV,
     dccommon_consts.AUDIT_TYPE_SOFTWARE,
@@ -563,7 +557,8 @@ class TestSubcloudManager(BaseTestSubcloudManager):
                 f'{base.SUBCLOUD_1["region_name"]}'
             )
         self.assertEqual(
-            self.mock_dcmanager_api().subcloud_sysinv_endpoint_update.call_count, 6
+            self.mock_dcmanager_api().subcloud_sysinv_endpoint_update.call_count,
+            len(FAKE_SERVICES),
         )
 
     @mock.patch.object(kubeoperator, "KubeOperator")
@@ -2116,7 +2111,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2130,7 +2124,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2157,7 +2150,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2191,7 +2183,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2217,7 +2208,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
         ]:
@@ -2259,7 +2249,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
         ]:
@@ -2314,7 +2303,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2340,7 +2328,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             for endpoint in [
                 dccommon_consts.ENDPOINT_TYPE_PLATFORM,
                 dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-                dccommon_consts.ENDPOINT_TYPE_PATCHING,
                 dccommon_consts.ENDPOINT_TYPE_FM,
                 dccommon_consts.ENDPOINT_TYPE_NFV,
                 dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2381,7 +2368,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2421,10 +2407,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             "update_state_only": False,
             "audit_fail_count": 1,
         }
-        LOAD = dccommon_consts.ENDPOINT_TYPE_LOAD
         FIRMWARE = dccommon_consts.ENDPOINT_TYPE_FIRMWARE
         endpoint_data = {
-            LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
             FIRMWARE: dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         }
         endpoints = db_api.subcloud_status_get_all(self.ctx, self.subcloud.id)
@@ -2483,10 +2467,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
         )
 
-        LOAD = dccommon_consts.ENDPOINT_TYPE_LOAD
         FIRMWARE = dccommon_consts.ENDPOINT_TYPE_FIRMWARE
         endpoint_data = {
-            LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
             FIRMWARE: dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         }
 
@@ -2566,7 +2548,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,

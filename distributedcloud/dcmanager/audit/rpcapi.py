@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -65,12 +65,6 @@ class ManagerAuditClient(object):
     def trigger_kubernetes_audit(self, ctxt):
         return self.cast(ctxt, self.make_msg("trigger_kubernetes_audit"))
 
-    def trigger_patch_audit(self, ctxt):
-        return self.cast(ctxt, self.make_msg("trigger_patch_audit"))
-
-    def trigger_load_audit(self, ctxt):
-        return self.cast(ctxt, self.make_msg("trigger_load_audit"))
-
     def trigger_software_audit(self, ctxt):
         return self.cast(ctxt, self.make_msg("trigger_software_audit"))
 
@@ -81,14 +75,6 @@ class ManagerAuditClient(object):
                 "trigger_subcloud_audits",
                 subcloud_id=subcloud_id,
                 exclude_endpoints=exclude_endpoints,
-            ),
-        )
-
-    def trigger_subcloud_patch_load_audits(self, ctxt, subcloud_id):
-        return self.cast(
-            ctxt,
-            self.make_msg(
-                "trigger_subcloud_patch_load_audits", subcloud_id=subcloud_id
             ),
         )
 
@@ -144,10 +130,8 @@ class ManagerAuditWorkerClient(object):
         self,
         ctxt,
         subcloud_ids,
-        patch_audit_data=None,
         firmware_audit_data=None,
         kubernetes_audit_data=None,
-        do_openstack_audit=False,
         kube_rootca_update_data=None,
         software_audit_data=None,
         use_cache=True,
@@ -161,10 +145,8 @@ class ManagerAuditWorkerClient(object):
             self.make_msg(
                 "audit_subclouds",
                 subcloud_ids=subcloud_ids,
-                patch_audit_data=patch_audit_data,
                 firmware_audit_data=firmware_audit_data,
                 kubernetes_audit_data=kubernetes_audit_data,
-                do_openstack_audit=do_openstack_audit,
                 kube_rootca_update_audit_data=kube_rootca_update_data,
                 software_audit_data=software_audit_data,
                 use_cache=use_cache,

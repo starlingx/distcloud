@@ -106,28 +106,22 @@ ENDPOINT_TYPE_USM = "usm"
 ENDPOINT_TYPE_PLATFORM = "platform"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
-# TODO(nicodemos): Remove patching/load after patching is no longer supported
-ENDPOINT_TYPE_LOAD = "load"
+# TODO(rlima): remove this once patching client is deleted
 ENDPOINT_TYPE_PATCHING = "patching"
 
 # TODO(nicodemos): Rename all other audit to use AUDIT_TYPE_
 AUDIT_TYPE_SOFTWARE = "software"
 
 # All endpoint types
-# TODO(nicodemos): Remove patching after is no longer supported
 ENDPOINT_TYPES_LIST = [
     ENDPOINT_TYPE_PLATFORM,
-    ENDPOINT_TYPE_PATCHING,
     ENDPOINT_TYPE_IDENTITY,
     ENDPOINT_TYPE_USM,
 ]
 
-# TODO(nicodemos): Remove patching/load after is no longer supported
 AUDIT_TYPES_LIST = [
     ENDPOINT_TYPE_PLATFORM,
-    ENDPOINT_TYPE_PATCHING,
     ENDPOINT_TYPE_IDENTITY,
-    ENDPOINT_TYPE_LOAD,
     ENDPOINT_TYPE_DC_CERT,
     ENDPOINT_TYPE_FIRMWARE,
     ENDPOINT_TYPE_KUBERNETES,
@@ -137,7 +131,6 @@ AUDIT_TYPES_LIST = [
 
 
 # All endpoint audit requests
-# TODO(nicodemos): Remove patching/load after is no longer supported
 # TODO(nicodemos): The AUDIT_TYPE_SOFTWARE will use the 'spare_audit_requested'
 # temporarily until the USM feature is fully complete. Afterward, the software audit
 # will replace the patch audit.
@@ -145,18 +138,14 @@ ENDPOINT_AUDIT_REQUESTS = {
     ENDPOINT_TYPE_FIRMWARE: "firmware_audit_requested",
     ENDPOINT_TYPE_KUBERNETES: "kubernetes_audit_requested",
     ENDPOINT_TYPE_KUBE_ROOTCA: "kube_rootca_update_audit_requested",
-    ENDPOINT_TYPE_LOAD: "load_audit_requested",
-    ENDPOINT_TYPE_PATCHING: "patch_audit_requested",
     AUDIT_TYPE_SOFTWARE: "spare_audit_requested",
 }
 
-# TODO(nicodemos): Remove patching/load after is no longer supported
 ENDPOINT_URLS = {
     ENDPOINT_NAME_DCAGENT: "https://{}:8326",
     ENDPOINT_NAME_DCDBSYNC: "https://{}:8220/v1.0",
     ENDPOINT_NAME_FM: "https://{}:18003",
     ENDPOINT_NAME_KEYSTONE: "https://{}:5001/v3",
-    ENDPOINT_TYPE_PATCHING: "https://{}:5492",
     ENDPOINT_NAME_SYSINV: "https://{}:6386/v1",
     ENDPOINT_NAME_USM: "https://{}:5498",
     ENDPOINT_NAME_VIM: "https://{}:4546",

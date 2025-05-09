@@ -151,12 +151,10 @@ scheduler_opts = [
         default=90,
         help="Num days remaining for a kube rootca to be out-of-sync",
     ),
-    # TODO(lzhu1): Update the default value and modify the "_get_audits_needed"
-    #  method in "subcloud_audit_manager.py" when the patch audit is deprecated.
     cfg.IntOpt(
-        "patch_audit_interval",
+        "audit_interval",
         default=900,
-        help="default time interval for patch audit",
+        help="default time interval for firmware and root-ca audits",
     ),
     cfg.IntOpt(
         "orchestration_interval",

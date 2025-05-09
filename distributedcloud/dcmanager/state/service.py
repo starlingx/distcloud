@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -134,14 +134,6 @@ class DCManagerStateService(service.Service):
             alarmable,
             ignore_endpoints,
         )
-
-        # If the patching sync status is being set to unknown, trigger the
-        # patching audit so it can update the sync status ASAP.
-        if (
-            endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING
-            and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-        ):
-            self.audit_rpc_client.trigger_patch_audit(context)
 
         # If the software sync status is being set to unknown, trigger the
         # software audit so it can update the sync status ASAP.

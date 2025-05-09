@@ -24,7 +24,6 @@ import eventlet
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import timeutils
-from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dccommon import ostree_mount
@@ -47,7 +46,6 @@ from dcmanager.orchestrator.validators.kube_root_ca_validator import (
 from dcmanager.orchestrator.validators.kubernetes_validator import (
     KubernetesStrategyValidator,
 )
-from dcmanager.orchestrator.validators.patch_validator import PatchStrategyValidator
 from dcmanager.orchestrator.validators.prestage_validator import (
     PrestageStrategyValidator,
 )
@@ -82,7 +80,6 @@ class OrchestratorManager(manager.Manager):
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE: (
                 audit_rpc_client.trigger_kube_rootca_update_audit
             ),
-            consts.SW_UPDATE_TYPE_PATCH: audit_rpc_client.trigger_patch_audit,
             consts.SW_UPDATE_TYPE_PRESTAGE: lambda context: None,
         }
         self.orchestrator_worker_rpc_client = (
@@ -98,7 +95,6 @@ class OrchestratorManager(manager.Manager):
             consts.SW_UPDATE_TYPE_FIRMWARE: FirmwareStrategyValidator(),
             consts.SW_UPDATE_TYPE_KUBERNETES: KubernetesStrategyValidator(),
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE: KubeRootCaStrategyValidator(),
-            consts.SW_UPDATE_TYPE_PATCH: PatchStrategyValidator(),
             consts.SW_UPDATE_TYPE_PRESTAGE: PrestageStrategyValidator(),
         }
         self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=1)
@@ -538,25 +534,7 @@ class OrchestratorManager(manager.Manager):
             self.strategy_validators[strategy_type].build_sync_status_filter(force),
         )
 
-        # TODO(rlima): move this step to validators
-        if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-            # TODO(nicodemos): Remove the support for patch strategy in stx-11
-            for subcloud, _ in valid_subclouds:
-                # We need to check the software version of the subcloud and
-                # the system controller. If the software versions are the same, we
-                # cannot apply the patch.
-                if subcloud.software_version == SW_VERSION:
-                    msg = (
-                        f"Subcloud {subcloud.name} has the same software version as "
-                        f"the system controller. The {strategy_type} strategy can "
-                        "only be used for subclouds running the previous release."
-                    )
-                    LOG.error(
-                        "Failed creating software update strategy of type "
-                        f"{payload['type']}. {msg}"
-                    )
-                    raise exceptions.BadRequest(resource="strategy", msg=msg)
-        elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+        if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
             filtered_valid_subclouds = list()
 
             for subcloud, sync_status in valid_subclouds:

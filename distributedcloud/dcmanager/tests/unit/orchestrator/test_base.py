@@ -28,7 +28,6 @@ from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.fakes import FakeVimClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeFmClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKeystoneClient
-from dcmanager.tests.unit.orchestrator.states.fakes import FakePatchingClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSoftwareClient
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeSysinvClient
 
@@ -53,7 +52,6 @@ class TestSwUpdate(base.DCManagerTestCase):
         self.keystone_client = FakeKeystoneClient()
         self.sysinv_client = FakeSysinvClient()
         self.software_client = FakeSoftwareClient()
-        self.patching_client = FakePatchingClient()
         self.vim_client = FakeVimClient()
         self.fm_client = FakeFmClient()
 
@@ -61,7 +59,6 @@ class TestSwUpdate(base.DCManagerTestCase):
             "get_keystone_client": self.keystone_client,
             "get_sysinv_client": self.sysinv_client,
             "get_software_client": self.software_client,
-            "get_patching_client": self.patching_client,
             "get_vim_client": self.vim_client,
             "get_fm_client": self.fm_client,
         }
