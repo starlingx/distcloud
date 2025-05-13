@@ -10,6 +10,8 @@ import os
 import re
 
 from dateutil.parser import parse
+
+# TODO(ecandotti): Replace six library with urllib/requests
 from six.moves.urllib.error import URLError
 
 from kubernetes import __version__ as K8S_MODULE_VERSION
@@ -23,7 +25,7 @@ from oslo_serialization import base64
 from oslo_utils import encodeutils
 
 # pylint: disable=import-error
-# TODO(srana): copy sys_kube to dccertmon/common
+# TODO(ecandotti): import from dccommon/kubeoperator.py
 from sysinv.common import kubernetes as sys_kube
 
 # pylint: enable=import-error
