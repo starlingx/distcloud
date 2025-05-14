@@ -16,7 +16,7 @@ from dcmanager.common import utils
 CONF = cfg.CONF
 
 logging_default_format_string = (
-    "%(process)d %(levelname)s %(name)s [-] %(instance)s%(message)s"
+    "%(asctime)s.%(msecs)03d %(process)d %(levelname)s %(name)s [-] %(message)s"
 )
 
 config_values = {

@@ -30,3 +30,11 @@ SYSTEM_CONTROLLER_REGION = "SystemController"
 
 SERVICE_TYPE_PLATFORM = "platform"
 SYSINV_USERNAME = "sysinv"
+
+# The periodic audit runs every 5 seconds to process background audits across
+# all subclouds. Notification-triggered audits run more frequently (every 2
+# seconds) to ensure prompt handling when a subcloud comes online.
+# This separation allows faster responsiveness to events without interfering
+# with the regular audit cadence.
+PERIODIC_AUDIT_INTERVAL_SECS = 5
+NOTIFICATION_QUEUE_AUDIT_INTERVAL_SECS = 2

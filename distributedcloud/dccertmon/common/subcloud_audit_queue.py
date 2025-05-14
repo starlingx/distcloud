@@ -77,18 +77,13 @@ class SubcloudAuditPriorityQueue(PriorityQueue):
         delay_secs=0,
         timestamp=None,
         allow_requeue=False,
-        priority=None,
     ):
         """Custom top-level method to enqueue a subcloud in the audit.
 
         - convert delay to timestamp
         - increment audit_count
         """
-        if (
-            sc_audit_item.name in self.enqueued_subcloud_names
-            and not allow_requeue
-            and priority != 0
-        ):
+        if sc_audit_item.name in self.enqueued_subcloud_names and not allow_requeue:
             raise SubcloudAuditException(
                 "Subcloud already enqueued: %s" % sc_audit_item.name
             )
@@ -96,11 +91,6 @@ class SubcloudAuditPriorityQueue(PriorityQueue):
             timestamp = self.__get_next_audit_timestamp(delay_secs)
         else:
             timestamp += delay_secs
-
-        # If priority is set, use it as the timestamp so we can move
-        # the subcloud to the front of the queue
-        if priority is not None:
-            timestamp = priority
 
         # this PriorityQueue is ordered by the next timestamp:
         sc_audit_item.audit_count += 1
@@ -117,5 +107,20 @@ class SubcloudAuditPriorityQueue(PriorityQueue):
         """Modifies PriorityQueue.put() to track audited subcloud names."""
         subcloud_audit = item[1]
         self.enqueued_subcloud_names.append(subcloud_audit.name)
-        LOG.info("Enqueued: %s" % str(subcloud_audit))
+        LOG.info("Background queue: Enqueued %s" % str(subcloud_audit))
+        PriorityQueue._put(self, item, heappush)
+
+
+class NotificationAuditQueue(SubcloudAuditPriorityQueue):
+    """Dedicated queue for notification-triggered audits.
+
+    Subclouds added here will be audited immediately, regardless
+    of other audits in progress.
+    """
+
+    def _put(self, item, heappush=heapq.heappush):
+        """Modifies PriorityQueue.put() to track audited subcloud names."""
+        subcloud_audit = item[1]
+        self.enqueued_subcloud_names.append(subcloud_audit.name)
+        LOG.info("Notification queue: Enqueued %s" % str(subcloud_audit))
         PriorityQueue._put(self, item, heappush)

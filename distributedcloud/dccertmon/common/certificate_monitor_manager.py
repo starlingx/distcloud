@@ -9,6 +9,7 @@ import time
 import eventlet
 import greenlet
 
+from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log
 from oslo_serialization import base64
@@ -32,6 +33,7 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
         self.dc_token_cache = utils.get_dc_token_cache()
         self.reattempt_monitor_tasks = []
         self.sc_audit_queue = subcloud_audit_queue.SubcloudAuditPriorityQueue()
+        self.sc_notify_audit_queue = subcloud_audit_queue.NotificationAuditQueue()
 
         self.sc_audit_pool = None
         if CONF.dccertmon.audit_greenpool_size > 0:
@@ -51,7 +53,7 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                 dc_monitor = watcher.DC_CertWatcher()
                 dc_monitor.initialize(
                     audit_subcloud=lambda subcloud_name: self.audit_subcloud(
-                        subcloud_name, allow_requeue=True
+                        subcloud_name, self.sc_audit_queue, allow_requeue=True
                     ),
                     invalid_deploy_states=utils.INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES,
                 )
@@ -167,160 +169,163 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
         else:
             LOG.info("Startup audit: all subclouds are in-sync")
 
-    def do_subcloud_audit(self, sc_audit_item):
-        """Ensure the subcloud audit task is marked done within sc_audit_queue."""
+    def do_subcloud_audit(self, queue, sc_audit_item):
+        """Ensure the subcloud audit task is marked done within the given queue."""
         try:
-            self._subcloud_audit(sc_audit_item)
+            self._subcloud_audit(queue, sc_audit_item, subcloud_name=sc_audit_item.name)
         except Exception:
             LOG.exception("An error occurred during the subcloud audit task")
         finally:
-            self.sc_audit_queue.task_done()
+            queue.task_done()
 
-    def _subcloud_audit(self, sc_audit_item):
+    def _subcloud_audit(self, queue, sc_audit_item, subcloud_name=None):
         """Invoke a subcloud audit."""
-        subcloud_name = sc_audit_item.name
 
-        LOG.info(
-            "Auditing subcloud %s, attempt #%s [qsize: %s]"
-            % (subcloud_name, sc_audit_item.audit_count, self.sc_audit_queue.qsize())
-        )
-
-        def my_dc_token():
-            """Ensure we always have a valid token."""
-            return self.dc_token_cache.get_token()
-
-        # Abort audit if subcloud is in a valid deploy status
-        subcloud = utils.get_subcloud(my_dc_token(), subcloud_name)
-        if subcloud["deploy-status"] in utils.INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES:
+        lock_name = f"audit-subcloud-{subcloud_name}"
+        with lockutils.lock(name=lock_name, external=False):
             LOG.info(
-                f"Subcloud {subcloud_name} is in an invalid deploy status:"
-                f" {subcloud['deploy-status']}, aborting audit"
-            )
-            return
-
-        subcloud_sysinv_url = None
-        try:
-            subcloud_sysinv_url = utils.SubcloudSysinvEndpointCache.build_endpoint(
-                subcloud["management-start-ip"]
-            )
-            utils.SubcloudSysinvEndpointCache.update_endpoints(
-                {subcloud_name: subcloud_sysinv_url}
+                "Auditing subcloud %s, attempt #%s [qsize: %s]",
+                subcloud_name,
+                sc_audit_item.audit_count,
+                queue.qsize(),
             )
 
-            sc_ssl_cert = utils.get_endpoint_certificate(
-                subcloud_sysinv_url,
-                timeout_secs=CONF.dccertmon.certificate_timeout_secs,
-            )
+            def my_dc_token():
+                """Ensure we always have a valid token."""
+                return self.dc_token_cache.get_token()
 
-        except Exception:
-            if not utils.is_subcloud_online(subcloud_name, my_dc_token()):
-                LOG.warn("Subcloud is not online, aborting audit: %s" % subcloud_name)
-                return
-            # Handle network-level issues
-            # Re-enqueue the subcloud for reauditing
-            max_attempts = CONF.dccertmon.network_max_retry
-            if sc_audit_item.audit_count < max_attempts:
-                LOG.exception(
-                    "Cannot retrieve ssl certificate for %s "
-                    "via: %s (requeuing audit)" % (subcloud_name, subcloud_sysinv_url)
-                )
-                self.requeue_audit_subcloud(
-                    sc_audit_item, CONF.dccertmon.network_retry_interval
-                )
-            else:
-                LOG.exception(
-                    "Cannot retrieve ssl certificate for %s via: %s; "
-                    "maximum retry limit exceeded [%d], giving up"
-                    % (subcloud_name, subcloud_sysinv_url, max_attempts)
-                )
-                utils.update_subcloud_status(
-                    my_dc_token(), subcloud_name, utils.SYNC_STATUS_OUT_OF_SYNC
-                )
-            return
-        try:
-            secret = utils.get_sc_intermediate_ca_secret(subcloud_name)
-            check_list = ["ca.crt", "tls.crt", "tls.key"]
-            for item in check_list:
-                if item not in secret.data:
-                    raise Exception(
-                        "%s certificate data missing: %s" % (subcloud_name, item)
-                    )
-
-            txt_ssl_cert = base64.decode_as_text(secret.data["tls.crt"])
-            txt_ssl_key = base64.decode_as_text(secret.data["tls.key"])
-            txt_ca_cert = base64.decode_as_text(secret.data["ca.crt"])
-        except Exception:
-            # Handle certificate-level issues
-            if not utils.is_subcloud_online(subcloud_name, my_dc_token()):
-                LOG.exception(
-                    "Error getting subcloud intermediate cert. "
-                    "Subcloud is not online, aborting audit: %s" % subcloud_name
+            # Abort audit if subcloud is not in a valid deploy status
+            subcloud = utils.get_subcloud(my_dc_token(), subcloud_name)
+            if subcloud["deploy-status"] in utils.INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES:
+                LOG.info(
+                    f"Subcloud {subcloud_name} is in an invalid deploy status:"
+                    f" {subcloud['deploy-status']}, aborting audit"
                 )
                 return
-            LOG.exception(
-                "Cannot audit ssl certificate on %s. "
-                "Certificate is not ready." % subcloud_name
-            )
-            # certificate is not ready, no reaudit. Will be picked up
-            # by certificate MODIFIED event if it comes back
-            return
 
-        cert_chain = txt_ssl_cert + txt_ca_cert
-        if not utils.verify_intermediate_ca_cert(cert_chain, sc_ssl_cert):
-            # The subcloud needs renewal.
-            LOG.info("Updating %s intermediate CA as it is out-of-sync" % subcloud_name)
-            # reaudit this subcloud after delay
-            self.requeue_audit_subcloud(sc_audit_item)
+            subcloud_sysinv_url = None
             try:
-                utils.update_subcloud_ca_cert(
-                    my_dc_token(),
-                    subcloud_name,
+                subcloud_sysinv_url = utils.SubcloudSysinvEndpointCache.build_endpoint(
+                    subcloud["management-start-ip"]
+                )
+                utils.SubcloudSysinvEndpointCache.update_endpoints(
+                    {subcloud_name: subcloud_sysinv_url}
+                )
+
+                sc_ssl_cert = utils.get_endpoint_certificate(
                     subcloud_sysinv_url,
-                    txt_ca_cert,
-                    txt_ssl_cert,
-                    txt_ssl_key,
+                    timeout_secs=CONF.dccertmon.certificate_timeout_secs,
                 )
+
             except Exception:
-                LOG.exception("Failed to update intermediate CA on %s" % subcloud_name)
-                utils.update_subcloud_status(
-                    my_dc_token(), subcloud_name, utils.SYNC_STATUS_OUT_OF_SYNC
+                if not utils.is_subcloud_online(subcloud_name, my_dc_token()):
+                    LOG.warn(
+                        "Subcloud is not online, aborting audit: %s" % subcloud_name
+                    )
+                    return
+                # Handle network-level issues
+                # Re-enqueue the subcloud for reauditing
+                max_attempts = CONF.dccertmon.network_max_retry
+                if sc_audit_item.audit_count < max_attempts:
+                    LOG.exception(
+                        "Cannot retrieve ssl certificate for %s via:"
+                        " %s (requeuing audit)" % (subcloud_name, subcloud_sysinv_url)
+                    )
+                    self.requeue_audit_subcloud(
+                        queue, sc_audit_item, CONF.dccertmon.network_retry_interval
+                    )
+                else:
+                    LOG.exception(
+                        "Cannot retrieve ssl certificate for %s via: %s; "
+                        "maximum retry limit exceeded [%d], giving up"
+                        % (subcloud_name, subcloud_sysinv_url, max_attempts)
+                    )
+                    utils.update_subcloud_status(
+                        my_dc_token(), subcloud_name, utils.SYNC_STATUS_OUT_OF_SYNC
+                    )
+                return
+            try:
+                secret = utils.get_sc_intermediate_ca_secret(subcloud_name)
+                check_list = ["ca.crt", "tls.crt", "tls.key"]
+                for item in check_list:
+                    if item not in secret.data:
+                        raise Exception(
+                            "%s certificate data missing: %s" % (subcloud_name, item)
+                        )
+
+                txt_ssl_cert = base64.decode_as_text(secret.data["tls.crt"])
+                txt_ssl_key = base64.decode_as_text(secret.data["tls.key"])
+                txt_ca_cert = base64.decode_as_text(secret.data["ca.crt"])
+            except Exception:
+                # Handle certificate-level issues
+                if not utils.is_subcloud_online(subcloud_name, my_dc_token()):
+                    LOG.exception(
+                        "Error getting subcloud intermediate cert. "
+                        "Subcloud is not online, aborting audit: %s" % subcloud_name
+                    )
+                    return
+                LOG.exception(
+                    "Cannot audit ssl certificate on %s. "
+                    "Certificate is not ready." % subcloud_name
                 )
-        else:
-            LOG.info("%s intermediate CA cert is in-sync" % subcloud_name)
-            utils.update_subcloud_status(
-                my_dc_token(), subcloud_name, utils.SYNC_STATUS_IN_SYNC
-            )
+                # certificate is not ready, no reaudit. Will be picked up
+                # by certificate MODIFIED event if it comes back
+                return
 
-    def requeue_audit_subcloud(self, sc_audit_item, delay_secs=60):
-        if not self.sc_audit_queue.contains(sc_audit_item.name):
-            self.sc_audit_queue.enqueue(sc_audit_item, delay_secs)
+            cert_chain = txt_ssl_cert + txt_ca_cert
+            if not utils.verify_intermediate_ca_cert(cert_chain, sc_ssl_cert):
+                # The subcloud needs renewal.
+                LOG.info(
+                    "Updating %s intermediate CA as it is out-of-sync" % subcloud_name
+                )
+                # reaudit this subcloud after delay
+                self.requeue_audit_subcloud(queue, sc_audit_item)
+                try:
+                    utils.update_subcloud_ca_cert(
+                        my_dc_token(),
+                        subcloud_name,
+                        subcloud_sysinv_url,
+                        txt_ca_cert,
+                        txt_ssl_cert,
+                        txt_ssl_key,
+                    )
+                except Exception:
+                    LOG.exception(
+                        "Failed to update intermediate CA on %s" % subcloud_name
+                    )
+                    utils.update_subcloud_status(
+                        my_dc_token(), subcloud_name, utils.SYNC_STATUS_OUT_OF_SYNC
+                    )
+            else:
+                LOG.info("%s intermediate CA cert is in-sync" % subcloud_name)
+                utils.update_subcloud_status(
+                    my_dc_token(), subcloud_name, utils.SYNC_STATUS_IN_SYNC
+                )
 
-    def audit_subcloud(self, subcloud_name, allow_requeue=False, priority=None):
-        """Enqueue a subcloud audit.
+    def requeue_audit_subcloud(self, queue, sc_audit_item, delay_secs=60):
+        if not queue.contains(sc_audit_item.name):
+            queue.enqueue(sc_audit_item, delay_secs)
 
+    def audit_subcloud(self, subcloud_name, queue, allow_requeue=False):
+        """Enqueue a subcloud audit in the specified queue.
+
+        queue: The audit queue to use (either sc_audit_queue or
+               sc_notify_audit_queue).
         allow_requeue: This can come from a watch after a DC certificate renew.
                        i.e., outside of the periodic subcloud audit tasks.
                        We allow a re-enqueue here with a new delay.
-        priority: When set, this value will be used instead of timestamp for
-                  the position in the queue
         """
-        # Since there's no way to remove a subcloud from the queue, we always
-        # enqueue again if it came from a notification (priority == 0)
-        if self.sc_audit_queue.contains(subcloud_name) and priority != 0:
-            if (
-                allow_requeue
-                and self.sc_audit_queue.enqueued_subcloud_names.count(subcloud_name) < 2
-            ):
+        if queue.contains(subcloud_name):
+            if allow_requeue and queue.enqueued_subcloud_names.count(subcloud_name) < 2:
                 LOG.info("audit_subcloud: requeing %s" % subcloud_name)
             else:
                 LOG.debug(
                     "audit_subcloud: ignoring %s, already in queue" % subcloud_name
                 )
                 return
-        self.sc_audit_queue.enqueue(
+        queue.enqueue(
             subcloud_audit_queue.SubcloudAuditData(subcloud_name),
             allow_requeue=allow_requeue,
-            priority=priority,
         )
 
     @periodic_task.periodic_task(spacing=CONF.dccertmon.audit_interval)
@@ -357,7 +362,41 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                 # near the same time as we are auditing the subcloud
                 LOG.warn("Failed to enqueue subcloud audit: %s", str(exc))
 
-    @periodic_task.periodic_task(spacing=5)
+    def _process_audit_queue(self, queue, queue_name):
+        for batch_count in range(CONF.dccertmon.audit_batch_size):
+            if queue.qsize() < 1:
+                # Nothing to do
+                return
+
+            # Only continue if the next in queue is ready to be audited
+            # Peek into the timestamp of the next item in our priority queue
+            next_audit_timestamp = queue.queue[0][0]
+            if next_audit_timestamp > int(time.time()):
+                LOG.debug(
+                    "%s: no audits ready for processing, qsize=%s",
+                    queue_name,
+                    queue.qsize(),
+                )
+                return
+
+            _, sc_audit_item = queue.get()
+            LOG.debug(
+                "%s: processing audit %s (qsize=%s, batch=%s)",
+                queue_name,
+                sc_audit_item,
+                queue.qsize(),
+                batch_count,
+            )
+
+            # This item is ready for audit
+            if self.sc_audit_pool is not None:
+                self.sc_audit_pool.spawn_n(self.do_subcloud_audit, queue, sc_audit_item)
+            else:
+                self.do_subcloud_audit(queue, sc_audit_item)
+
+            eventlet.sleep()
+
+    @periodic_task.periodic_task(spacing=constants.PERIODIC_AUDIT_INTERVAL_SECS)
     def audit_sc_cert_task(self, context):
         """This task runs every N seconds and processes a single subcloud.
 
@@ -366,34 +405,16 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
         from the `sc_audit_queue` and spawns each item to be executed via the
         GreenPool. If the GreenPool is disabled, the audit is invoked directly.
         """
-        for batch_count in range(CONF.dccertmon.audit_batch_size):
-            if self.sc_audit_queue.qsize() < 1:
-                # Nothing to do
-                return
+        self._process_audit_queue(self.sc_audit_queue, "audit_sc_cert_task")
 
-            # Only continue if the next in queue is ready to be audited
-            # Peek into the timestamp of the next item in our priority queue
-            next_audit_timestamp = self.sc_audit_queue.queue[0][0]
-            if next_audit_timestamp > int(time.time()):
-                LOG.debug(
-                    "audit_sc_cert_task: no audits ready for "
-                    "processing, qsize=%s" % self.sc_audit_queue.qsize()
-                )
-                return
-
-            _, sc_audit_item = self.sc_audit_queue.get()
-            LOG.debug(
-                "audit_sc_cert_task: enqueue subcloud audit %s, "
-                "qsize:%s, batch:%s"
-                % (sc_audit_item, self.sc_audit_queue.qsize(), batch_count)
-            )
-
-            # This item is ready for audit
-            if self.sc_audit_pool is not None:
-                self.sc_audit_pool.spawn_n(self.do_subcloud_audit, sc_audit_item)
-            else:
-                self.do_subcloud_audit(sc_audit_item)
-            eventlet.sleep()
+    @periodic_task.periodic_task(
+        spacing=constants.NOTIFICATION_QUEUE_AUDIT_INTERVAL_SECS
+    )
+    def audit_notification_queue_task(self, context):
+        """Processes audits from the notification audit queue."""
+        self._process_audit_queue(
+            self.sc_notify_audit_queue, "audit_notification_queue_task"
+        )
 
     @periodic_task.periodic_task(spacing=CONF.dccertmon.retry_interval)
     def retry_monitor_task(self, context):
