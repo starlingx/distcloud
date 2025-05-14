@@ -1922,6 +1922,31 @@ def get_major_release(version):
     return ".".join(split_version[0:2])
 
 
+def get_minor_release(release_id: str) -> str:
+    """Returns the YY.MM.pp portion of the given release_id string"""
+    # Pattern for stx-YY.MM.pp like formats
+    match = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{1,3})", release_id)
+    if match:
+        return f"{match.group(1)}-{match.group(2)}.{match.group(3)}"
+
+    # Pattern for stx_YY.MM_PATCH_pp like formats
+    match = re.search(r"(\d{1,2})\.(\d{1,2}).*?(\d{1,4})", release_id)
+    if match:
+        return f"{match.group(1)}.{match.group(2)}.{match.group(3)}"
+
+    return None
+
+
+def get_latest_minor_release(releases: list[str]) -> str:
+    """Returns the maximum YY.MM.pp portion from the given release list"""
+    minor_releases = []
+    for release in releases:
+        minor_release = get_minor_release(release)
+        if minor_release:
+            minor_releases.append(minor_release)
+    return max(minor_releases, default=None)
+
+
 def get_software_version(releases):
     """Returns the maximum YY.MM portion from the given release list"""
     versions = []
