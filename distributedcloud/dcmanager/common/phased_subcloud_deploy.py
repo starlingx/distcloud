@@ -17,8 +17,6 @@ import pecan
 import tsconfig.tsconfig as tsc
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack import patching_v1
-from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import utils as cutils
@@ -164,30 +162,13 @@ def validate_bootstrap_values(payload: dict):
         pecan.abort(400, _("external_oam_floating_address required"))
 
 
-# TODO(nicodemos): Change to verify the releases instead of patching
-def validate_system_controller_patch_status(operation: str):
-    ks_client = get_ks_client()
-    patching_client = PatchingClient(
-        cutils.get_region_one_name(),
-        ks_client.session,
-        endpoint=ks_client.endpoint_cache.get_endpoint("patching"),
-    )
-    patches = patching_client.query()
-    patch_ids = list(patches.keys())
-    for patch_id in patch_ids:
-        valid_states = [
-            patching_v1.PATCH_STATE_PARTIAL_APPLY,
-            patching_v1.PATCH_STATE_PARTIAL_REMOVE,
-        ]
-        if patches[patch_id]["patchstate"] in valid_states:
-            pecan.abort(
-                422,
-                _(
-                    "Subcloud %s is not allowed while system "
-                    "controller patching is still in progress."
-                )
-                % operation,
-            )
+def validate_system_controller_deploy_status(operation: str):
+    if utils.is_system_controller_deploying():
+        message = (
+            f"Subcloud {operation} is not allowed while the system controller is "
+            "still undergoing software update."
+        )
+        pecan.abort(422, _(message))
 
 
 def validate_migrate_parameter(payload, request):
@@ -1282,7 +1263,7 @@ def pre_deploy_create(payload: dict, context: RequestContext, request: pecan.Req
 
     validate_subcloud_name_availability(context, payload["name"])
 
-    validate_system_controller_patch_status("create")
+    validate_system_controller_deploy_status("create")
 
     validate_subcloud_config(context, payload)
 
@@ -1373,7 +1354,7 @@ def pre_deploy_bootstrap(
     # Patch status and fresh_install_k8s_version may have been changed
     # between deploy create and deploy bootstrap commands. Validate them
     # again:
-    validate_system_controller_patch_status("bootstrap")
+    validate_system_controller_deploy_status("bootstrap")
     validate_k8s_version(payload)
 
 

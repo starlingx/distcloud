@@ -1,4 +1,4 @@
-# Copyright 2017-2024 Wind River
+# Copyright 2017-2025 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ from dcorch.api.proxy.apps.controller import SysinvAPIController
 from dcorch.api.proxy.apps.controller import USMAPIController
 from dcorch.api.proxy.apps.controller import VersionController
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
-from dcorch.api.proxy.apps.patch import PatchAPIController
 from dcorch.api.proxy.apps.router import Router
 from dcorch.api.proxy.common import constants as proxy_consts
 from dcorch.common import consts
@@ -53,13 +52,11 @@ class Acceptor(Router):
         else:
             forwarder = None
 
-        # NOTE(nicodemos): Remove patching after is no longer supported
         self.route_map = {
             consts.ENDPOINT_TYPE_COMPUTE: self.add_compute_routes,
             dccommon_consts.ENDPOINT_TYPE_PLATFORM: self.add_platform_routes,
             consts.ENDPOINT_TYPE_VOLUME: self.add_volume_routes,
             consts.ENDPOINT_TYPE_NETWORK: self.add_network_routes,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING: self.add_patch_routes,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY: self.add_identity_routes,
             dccommon_consts.ENDPOINT_TYPE_USM: self.add_usm_routes,
         }
@@ -117,13 +114,6 @@ class Acceptor(Router):
             CONF.type,
             method=["GET"],
         )
-
-    def add_patch_routes(self, app, conf, mapper):
-        api_controller = PatchAPIController(app, conf)
-        for key, value in proxy_consts.SOFTWARE_PATH_MAP.items():
-            self._add_resource(mapper, api_controller, value, key, CONF.type)
-        for key, value in proxy_consts.PATCH_PATH_MAP.items():
-            self._add_resource(mapper, api_controller, value, key, CONF.type)
 
     def add_identity_routes(self, app, conf, mapper):
         api_controller = IdentityAPIController(app, conf)

@@ -261,7 +261,10 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
         self._mock_object(prestage, "OpenStackDriver")
 
         self._mock_object(psd_common, "get_ks_client")
-        self.mock_query = self._mock_object(psd_common.PatchingClient, "query")
+        self.mock_is_system_controller_deploying = self._mock_object(
+            cutils, "is_system_controller_deploying"
+        )
+        self.mock_is_system_controller_deploying.return_value = False
         self.mock_is_valid_software_deploy_state = self._mock_object(
             SubcloudsController, "is_valid_software_deploy_state"
         )
@@ -3032,9 +3035,7 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
     def test_patch_prestage_fails_with_system_controller_software_deploy(self):
         """Test patch prestage fails when system controller has a deploy in-progress"""
 
-        self.mock_software_client().show_deploy.return_value = [
-            {"to_release": "24.09.0"}
-        ]
+        self.mock_is_system_controller_deploying.return_value = True
 
         response = self._send_request()
 
