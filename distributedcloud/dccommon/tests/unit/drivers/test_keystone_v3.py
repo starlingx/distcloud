@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -45,23 +45,6 @@ class TestKeystoneClient(base.DCCommonTestCase):
     def setUp(self):
         super(TestKeystoneClient, self).setUp()
         self.ctx = utils.dummy_context()
-
-    @mock.patch.object(keystone_v3, "KeystoneClient")
-    @mock.patch.object(keystone_v3, "EndpointCache")
-    def test_init(self, mock_endpoint_cache, mock_keystone):
-        mock_keystone().services_list = FAKE_SERVICE
-        mock_endpoint_cache().admin_session = "fake_session"
-        mock_endpoint_cache().keystone_client = "fake_key_client"
-        key_client = keystone_v3.KeystoneClient()
-        self.assertIsNotNone(key_client.keystone_client)
-        self.assertEqual(key_client.services_list, FAKE_SERVICE)
-
-    @mock.patch.object(keystone_v3, "KeystoneClient")
-    def test_is_service_enabled(self, mock_keystone):
-        key_client = keystone_v3.KeystoneClient()
-        mock_keystone().is_service_enabled.return_value = True
-        network_enabled = key_client.is_service_enabled("network")
-        self.assertEqual(network_enabled, True)
 
     @mock.patch.object(keystone_v3, "EndpointCache")
     def test_get_enabled_projects(self, mock_endpoint_cache):

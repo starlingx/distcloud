@@ -11,9 +11,9 @@ import uuid
 import mock
 from oslo_messaging import RemoteError
 
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.api.controllers.v1 import peer_group_association
 from dcmanager.common import consts
-from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
@@ -154,6 +154,7 @@ class BaseTestPeerGroupAssociationController(
 
         self.url = self.API_PREFIX
         self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
+        self._mock_object(EndpointCache, "get_admin_session")
 
         self.single_obj = None
         self.peer_id, self.peer_group_id = self._create_db_related_objects(self.ctx)
@@ -472,7 +473,6 @@ class BaseTestPeerGroupAssociationPatch(BaseTestPeerGroupAssociationController):
         self.method = self.app.patch_json
         self.params = self.get_update_object()
 
-        self._mock_object(psd_common, "OpenStackDriver")
         self.mock_sysinv_client = self._mock_object(
             peer_group_association, "SysinvClient"
         )

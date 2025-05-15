@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -135,16 +135,17 @@ class SysinvClient(base.DriverBase):
 
         kwargs = {}
 
+        if not endpoint:
+            endpoint = session.get_endpoint(
+                service_type=consts.ENDPOINT_TYPE_PLATFORM,
+                region_name=region,
+                interface=endpoint_type,
+            )
+
         # If the token is specified, use it instead of using the session
         if token:
             kwargs["token"] = token
             kwargs["timeout"] = timeout
-            if not endpoint:
-                endpoint = session.get_endpoint(
-                    service_type=consts.ENDPOINT_TYPE_PLATFORM,
-                    region_name=region,
-                    interface=endpoint_type,
-                )
         else:
             session.timeout = timeout
             kwargs["session"] = session

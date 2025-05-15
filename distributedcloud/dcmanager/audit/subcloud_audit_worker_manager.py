@@ -27,7 +27,6 @@ from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon import endpoint_cache
 from dccommon import utils as dccommon_utils
 from dcmanager.audit import alarm_aggregation
@@ -348,23 +347,21 @@ class SubcloudAuditWorkerManager(manager.Manager):
         # Set defaults to None and disabled so we will still set disabled
         # status if we encounter an error.
 
-        keystone_client = None
         dcagent_client = None
         avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
         failmsg = "Audit failure subcloud: %s, endpoint: %s"
         try:
-            keystone_client = OpenStackDriver(
-                region_name=subcloud_region,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-                attempts=1,
-            ).keystone_client
-            admin_session = keystone_client.session
+            subcloud_ks_endpoint = dccommon_utils.build_subcloud_endpoint(
+                subcloud_management_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
+            )
+            admin_session = endpoint_cache.EndpointCache.get_admin_session(
+                auth_url=subcloud_ks_endpoint
+            )
             dcagent_client = DcagentClient(
                 subcloud_region,
                 admin_session,
                 endpoint=dccommon_utils.build_subcloud_endpoint(
-                    subcloud_management_ip, "dcagent"
+                    subcloud_management_ip, dccommon_consts.ENDPOINT_NAME_DCAGENT
                 ),
             )
         # TODO(vgluzrom): Revise and improve the debug and error messages

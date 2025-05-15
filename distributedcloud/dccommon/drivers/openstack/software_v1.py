@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -41,6 +41,10 @@ class SoftwareClient(base.DriverBase):
         endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
         token: str = None,
     ):
+        if not (endpoint or region):
+            error = "Either endpoint or region must be provided"
+            raise exceptions.ClientException(client="Software", error=error)
+
         self.session = session
         self.endpoint = endpoint
         self.token = token

@@ -42,6 +42,7 @@ from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
+from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon import kubeoperator
 from dccommon import ostree_mount
@@ -139,7 +140,6 @@ class FakeKeystoneClient(object):
     def __init__(self):
         self.user_list = FAKE_USERS
         self.project_list = FAKE_PROJECTS
-        self.services_list = FAKE_SERVICES
         self.keystone_client = mock.MagicMock()
         self.session = mock.MagicMock()
         self.endpoint_cache = mock.MagicMock()
@@ -356,7 +356,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
 
         self.mock_audit_rpc_client = self._mock_object(rpcapi, "ManagerAuditClient")
         self._mock_object(rpc_client, "SubcloudStateClient")
-        self._mock_object(subcloud_install, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_subcloud_install_sysinv_client = self._mock_object(
             subcloud_install, "SysinvClient"
         )
@@ -1507,7 +1507,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
 
     def test_add_subcloud_create_failed(self):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
-        services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
         subcloud = self.create_subcloud_static(
@@ -1515,7 +1514,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         )
 
         self.mock_dcorch_api().add_subcloud.side_effect = Exception("boom")
-        self.mock_openstack_driver().services_list = services
 
         self.sm.add_subcloud(self.ctx, subcloud.id, payload=values)
         self.mock_get_cached_regionone_data.assert_called_once()
@@ -1528,7 +1526,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
     def test_add_subcloud_with_migrate_option_prep_failed(self):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values["migrate"] = "true"
-        services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
         subcloud = self.create_subcloud_static(
@@ -1536,7 +1533,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         )
 
         self.mock_dcorch_api().add_subcloud.side_effect = Exception("boom")
-        self.mock_openstack_driver().services_list = services
         self.mock_keyring.get_password.return_vaue = "testpass"
 
         self.sm.add_subcloud(self.ctx, subcloud.id, payload=values)

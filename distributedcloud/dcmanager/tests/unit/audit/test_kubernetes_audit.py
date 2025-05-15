@@ -19,6 +19,7 @@ from uuid import uuid4
 import mock
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.audit import kubernetes_audit
 from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
@@ -49,9 +50,7 @@ class TestKubernetesAudit(DCManagerTestCase):
         super().setUp()
 
         self._mock_object(rpcapi, "ManagerAuditWorkerClient")
-        self.mock_regionone_openstackdriver = self._mock_object(
-            kubernetes_audit, "OpenStackDriver"
-        )
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_regionone_sysinvclient = self._mock_object(
             kubernetes_audit, "SysinvClient"
         )
@@ -81,13 +80,13 @@ class TestKubernetesAudit(DCManagerTestCase):
         self.assertEqual(response, sync_status)
 
     def test_kubernetes_audit_region_one_client_creation_exception(self):
-        self.mock_regionone_openstackdriver.side_effect = Exception("fake")
+        self.mock_regionone_sysinvclient.side_effect = Exception("fake")
 
         response = self._get_kubernetes_audit_data()
 
         self.assertIsNone(response)
         self.mock_log.exception.assert_called_with(
-            "Failed init OS Client, skip kubernetes audit."
+            "Failed init Sysinv Client, skip kubernetes audit."
         )
 
     def test_kubernetes_audit_skip_on_get_kube_upgrades_exception(self):

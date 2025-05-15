@@ -43,10 +43,10 @@ import tsconfig.tsconfig as tsc
 import yaml
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import kubeoperator
 from dccommon import utils as cutils
@@ -665,14 +665,17 @@ def subcloud_db_list_to_dict(subclouds):
     }
 
 
-def get_oam_floating_ip_primary(subcloud, sc_ks_client):
+def get_oam_floating_ip_primary(subcloud, admin_session):
     """Get the subcloud's oam primary floating ip"""
 
     # First need to retrieve the Subcloud's Keystone session
     try:
-        endpoint = sc_ks_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
-            subcloud.region_name, sc_ks_client.session, endpoint=endpoint
+            region=subcloud.region_name,
+            session=admin_session,
+            endpoint=cutils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_SYSINV
+            ),
         )
         # We don't want to call sysinv_client.get_oam_address_pools()
         # here, as the subcloud's software version could be < 24.09.
@@ -1126,21 +1129,15 @@ def get_matching_iso(software_version=None):
         return None, str(e)
 
 
-def is_subcloud_healthy(subcloud_region, management_ip: str = None):
+def is_subcloud_healthy(subcloud_region, subcloud_ip: str = None):
 
     system_health = ""
     try:
-        os_client = OpenStackDriver(
-            region_name=subcloud_region,
-            region_clients=None,
-            fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-            subcloud_management_ip=management_ip,
+        subcloud_ks_endpoint = cutils.build_subcloud_endpoint(
+            subcloud_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
         )
-        keystone_client = os_client.keystone_client
-        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
-        sysinv_client = SysinvClient(
-            subcloud_region, keystone_client.session, endpoint=endpoint
-        )
+        admin_session = EndpointCache.get_admin_session(subcloud_ks_endpoint)
+        sysinv_client = SysinvClient(subcloud_region, admin_session)
         system_health = sysinv_client.get_system_health()
     except Exception as e:
         LOG.exception(e)
@@ -1164,7 +1161,7 @@ def is_subcloud_healthy(subcloud_region, management_ip: str = None):
     return False
 
 
-def get_system_controller_software_list(region_name: str = None) -> list[dict]:
+def _get_system_controller_software_list() -> list[dict]:
     """Get software list from USM API
 
     This function is responsible for querying the USM API for the list of releases
@@ -1173,27 +1170,17 @@ def get_system_controller_software_list(region_name: str = None) -> list[dict]:
     The node is determined from the parameter region_name, whose default value
     represents the region one.
 
-    Args:
-        region_name (str): The name of the region to be consulted. Default is
-        RegionOne.
-
     Returns:
         list of dict: each dict item contains the parameters that identify
         the release from API response
     """
-    if not region_name:
-        region_name = cutils.get_region_one_name()
+    region_name = cutils.get_region_one_name()
 
     try:
-        os_client = OpenStackDriver(
-            region_name=region_name,
-            region_clients=None,
-            fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-        )
-        ks_client = os_client.keystone_client
+        admin_session = EndpointCache.get_admin_session()
         software_client = software_v1.SoftwareClient(
-            ks_client.session,
-            endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
+            admin_session,
+            region=region_name,
         )
         return software_client.list()
 
@@ -1234,7 +1221,7 @@ def get_systemcontroller_deployed_releases(
 
 
 def get_systemcontroller_installed_releases_ids() -> List[str]:
-    software_list = get_system_controller_software_list()
+    software_list = _get_system_controller_software_list()
     return get_systemcontroller_deployed_releases(software_list, key="release_id")
 
 
@@ -1350,7 +1337,7 @@ def get_validated_sw_version_for_prestage(
 
     # Query to the USM API to get the software list
     if system_controller_sw_list is None:
-        system_controller_sw_list = get_system_controller_software_list()
+        system_controller_sw_list = _get_system_controller_software_list()
 
     # Gets only the list of deployed major releases.
     deployed_releases = get_major_releases(
@@ -2104,14 +2091,9 @@ def validate_name(
 
 
 def get_local_system():
-    m_ks_client = OpenStackDriver(
-        region_clients=None,
-        fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-    ).keystone_client
-    endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
-    sysinv_client = SysinvClient(
-        m_ks_client.region_name, m_ks_client.session, endpoint=endpoint
-    )
+    admin_session = EndpointCache.get_admin_session()
+    region_name = cutils.get_region_one_name()
+    sysinv_client = SysinvClient(region_name, admin_session)
     system = sysinv_client.get_system()
     return system
 
@@ -2229,26 +2211,9 @@ def validate_software_strategy(release_id: str):
 
 
 def get_system_controller_deploy() -> Optional[dict]:
-    # get a cached keystone client (and token)
-    try:
-        os_client = OpenStackDriver(
-            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME, region_clients=None
-        )
-    except Exception:
-        LOG.exception(
-            "Failed to get keystone client for %s",
-            dccommon_consts.SYSTEM_CONTROLLER_NAME,
-        )
-        raise
-
-    ks_client = os_client.keystone_client
-    software_client = software_v1.SoftwareClient(
-        ks_client.session,
-        dccommon_consts.SYSTEM_CONTROLLER_NAME,
-        endpoint=ks_client.endpoint_cache.get_endpoint(
-            dccommon_consts.ENDPOINT_NAME_USM
-        ),
-    )
+    admin_session = EndpointCache.get_admin_session()
+    region_name = cutils.get_region_one_name()
+    software_client = software_v1.SoftwareClient(admin_session, region=region_name)
     # Show deploy always returns either an empty list when there's no deploy
     # or a list with a single element when there's a deploy
     deploy_list = software_client.show_deploy()

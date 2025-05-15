@@ -20,7 +20,8 @@ import dccertmon.common.watcher
 from dccertmon.tests.base import DCCertMonTestCase
 
 OPT_GROUP_NAME = "dccertmon"
-cfg.CONF.import_group(OPT_GROUP_NAME, "keystonemiddleware.auth_token")
+if not cfg.CONF._get_group(OPT_GROUP_NAME)._opts:
+    cfg.CONF.import_group(OPT_GROUP_NAME, "keystonemiddleware.auth_token")
 
 
 class CertMonManagerBase(DCCertMonTestCase):

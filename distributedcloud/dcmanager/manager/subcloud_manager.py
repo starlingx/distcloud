@@ -2300,7 +2300,9 @@ class SubcloudManager(manager.Manager):
     def _backup_subcloud(self, context, payload, subcloud):
         try:
             # Health check validation
-            if not utils.is_subcloud_healthy(subcloud.region_name):
+            if not utils.is_subcloud_healthy(
+                subcloud.region_name, subcloud_ip=subcloud.management_start_ip
+            ):
                 db_api.subcloud_update(
                     context,
                     subcloud.id,
@@ -2547,14 +2549,15 @@ class SubcloudManager(manager.Manager):
 
         if not bootstrap_address:
             # Use subcloud floating IP for host reachability
-            keystone_client = OpenStackDriver(
-                region_name=subcloud.region_name,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
+            keystone_endpoint = dccommon_utils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
+            )
+            admin_session = endpoint_cache.EndpointCache.get_admin_session(
+                auth_url=keystone_endpoint
+            )
             # interested in subcloud's primary OAM address only
             bootstrap_address = utils.get_oam_floating_ip_primary(
-                subcloud, keystone_client
+                subcloud, admin_session
             )
 
         # Add parameters used to generate inventory

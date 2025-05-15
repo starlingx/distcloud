@@ -15,6 +15,7 @@ from pecan import expose
 from pecan import request
 
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import utils
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import (
@@ -24,7 +25,6 @@ from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
 from dcmanager.common.i18n import _
-from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 
@@ -83,11 +83,10 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         return payload
 
     def _validate_peer_group_leader_id(self, system_leader_id):
-        ks_client = psd_common.get_ks_client()
+        admin_session = EndpointCache.get_admin_session()
         sysinv_client = SysinvClient(
             utils.get_region_one_name(),
-            ks_client.session,
-            endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
+            admin_session,
         )
         system = sysinv_client.get_system()
         return True if system.uuid == system_leader_id else False

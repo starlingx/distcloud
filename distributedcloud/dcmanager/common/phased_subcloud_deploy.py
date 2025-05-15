@@ -17,8 +17,8 @@ import pecan
 import tsconfig.tsconfig as tsc
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import utils as cutils
 from dcmanager.common import consts
 from dcmanager.common.context import RequestContext
@@ -58,24 +58,6 @@ BOOTSTRAP_VALUES_ADDRESSES = [
     "admin_end_address",
     "admin_gateway_address",
 ]
-
-
-def get_ks_client(region_name: str = None, management_ip: str = None):
-    """This will get a new keystone client (and new token)"""
-    if not region_name:
-        region_name = cutils.get_region_one_name()
-
-    try:
-        os_client = OpenStackDriver(
-            region_name=region_name,
-            region_clients=None,
-            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            subcloud_management_ip=management_ip,
-        )
-        return os_client.keystone_client
-    except Exception:
-        LOG.warn(f"Failure initializing KeystoneClient for region {region_name}")
-        raise
 
 
 def validate_bootstrap_values(payload: dict):
@@ -642,18 +624,15 @@ def validate_group_id(context, group_id):
         pecan.abort(400, _("Invalid group_id"))
 
 
-def get_sysinv_client(region_name: str = None) -> SysinvClient:
-    if not region_name:
-        region_name = cutils.get_region_one_name()
-
-    ks_client = get_ks_client(region_name)
-    endpoint = ks_client.endpoint_cache.get_endpoint("sysinv")
-    return SysinvClient(region_name, ks_client.session, endpoint=endpoint)
+def get_sysinv_client() -> SysinvClient:
+    region_name = cutils.get_region_one_name()
+    admin_session = EndpointCache.get_admin_session()
+    return SysinvClient(region_name, admin_session)
 
 
-def get_network_address_pools(network="management", region_name: str = None):
+def get_network_address_pools(network="management"):
     """Get the region network address pools"""
-    sysinv_client = get_sysinv_client(region_name)
+    sysinv_client = get_sysinv_client()
     if network == "admin":
         return sysinv_client.get_admin_address_pools()
     return sysinv_client.get_management_address_pools()

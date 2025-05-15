@@ -31,12 +31,12 @@ from oslo_log import log as logging
 from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon import ostree_mount
-from dccommon.utils import AnsiblePlaybook
+from dccommon import utils as cutils
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -317,21 +317,21 @@ def _get_prestage_subcloud_info(subcloud):
     interactions.
     """
     try:
-        os_client = OpenStackDriver(
-            region_name=subcloud.region_name,
-            region_clients=None,
-            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            subcloud_management_ip=subcloud.management_start_ip,
+        keystone_endpoint = cutils.build_subcloud_endpoint(
+            subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
         )
-        keystone_client = os_client.keystone_client
-        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
+        admin_session = EndpointCache.get_admin_session(keystone_endpoint)
         sysinv_client = SysinvClient(
-            subcloud.region_name, keystone_client.session, endpoint=endpoint
+            region=subcloud.region_name,
+            session=admin_session,
+            endpoint=cutils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_SYSINV
+            ),
         )
         mode = sysinv_client.get_system().system_mode
         health = sysinv_client.get_system_health()
         # Interested only in primary OAM address of subcloud
-        oam_floating_ip = utils.get_oam_floating_ip_primary(subcloud, keystone_client)
+        oam_floating_ip = utils.get_oam_floating_ip_primary(subcloud, admin_session)
         controller_active_info = sysinv_client.get_host("controller-0")
         controller_0_is_active = (
             controller_active_info.capabilities["Personality"]
@@ -393,7 +393,7 @@ def _run_ansible(
     log_file = utils.get_subcloud_ansible_log_file(subcloud.name)
 
     try:
-        ansible = AnsiblePlaybook(subcloud.name)
+        ansible = cutils.AnsiblePlaybook(subcloud.name)
         ansible.run_playbook(
             log_file, prestage_command, timeout=timeout_seconds, register_cleanup=True
         )

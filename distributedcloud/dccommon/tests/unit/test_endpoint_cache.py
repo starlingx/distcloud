@@ -271,7 +271,9 @@ class TestCachedV3Password(base.DCCommonTestCase):
     # pylint: disable=protected-access
     def setUp(self):
         super().setUp()
-        self.auth = endpoint_cache.CachedV3Password(auth_url=FAKE_AUTH_URL)
+        self.auth = endpoint_cache.CachedV3Password(
+            auth_url=FAKE_AUTH_URL, password="fake_password"
+        )
         endpoint_cache.CachedV3Password._CACHE.clear()
 
         # Set a maxsize value so it doesn't try to read from the config file
@@ -315,7 +317,9 @@ class TestCachedV3Password(base.DCCommonTestCase):
 
     def test_get_auth_concurrent_access(self):
         auth_obj_list = [
-            endpoint_cache.CachedV3Password(auth_url=f"{FAKE_AUTH_URL}/{i}")
+            endpoint_cache.CachedV3Password(
+                auth_url=f"{FAKE_AUTH_URL}/{i}", password="fake_password"
+            )
             for i in range(1, 51)
         ]
         call_count = 0

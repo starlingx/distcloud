@@ -1452,6 +1452,8 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         # Create role assignment
+        role_ref = None
+        sc_rid = None
         if sc_user:
             self.get_sc_ks_client().roles.grant(sc_role, user=sc_user, project=sc_proj)
             role_ref = self.get_sc_ks_client().role_assignments.list(

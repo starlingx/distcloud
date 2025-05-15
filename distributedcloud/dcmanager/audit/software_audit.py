@@ -7,10 +7,10 @@
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
-from dccommon import utils as dccommon_utils
+from dccommon import endpoint_cache
+from dccommon import utils as cutils
 from dcmanager.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -47,17 +47,10 @@ class SoftwareAudit(object):
         :return: A new SoftwareAuditData object
         """
         try:
-            m_os_ks_client = OpenStackDriver(
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
-            software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
-                dccommon_consts.ENDPOINT_NAME_USM
-            )
+            admin_session = endpoint_cache.EndpointCache.get_admin_session()
             software_client = SoftwareClient(
-                m_os_ks_client.session,
-                m_os_ks_client.region_name,
-                endpoint=software_endpoint,
+                admin_session,
+                region=cutils.get_region_one_name(),
             )
         except Exception:
             LOG.exception("Failure initializing OS Client, skip software audit.")
@@ -85,7 +78,7 @@ class SoftwareAudit(object):
             subcloud_releases = software_client.list()
         except Exception:
             msg = "Cannot retrieve subcloud releases, skip software audit."
-            dccommon_utils.log_subcloud_msg(LOG.warn, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.warn, msg, subcloud_name)
             return dccommon_consts.SKIP_AUDIT
         return subcloud_releases
 
@@ -102,7 +95,7 @@ class SoftwareAudit(object):
             return None
 
         msg = f"Releases: {subcloud_releases}"
-        dccommon_utils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
+        cutils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
 
         sync_status = dccommon_consts.SYNC_STATUS_IN_SYNC
 

@@ -225,7 +225,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
     def get_vim_client(self, region_name: str) -> vim.VimClient:
         """Get the Vim client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
-        return vim.VimClient(region_name, keystone_client.session)
+        return vim.VimClient(keystone_client.session, region=region_name)
 
     @property
     def local_sysinv(self) -> SysinvClient:

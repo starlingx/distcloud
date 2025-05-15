@@ -113,6 +113,10 @@ class ApiException(DCCommonException):
     message = _("%(endpoint)s failed with status code: %(rc)d")
 
 
+class ClientException(DCCommonException):
+    message = _("Failed to create %(client)s Client: %(error)s")
+
+
 class SoftwareDataException(DCCommonException):
     message = _("%(endpoint)s failed with data error: %(error)s")
 

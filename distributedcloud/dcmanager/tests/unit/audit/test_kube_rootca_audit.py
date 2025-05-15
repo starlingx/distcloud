@@ -7,6 +7,7 @@
 import mock
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.audit import kube_rootca_update_audit
 from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
@@ -38,12 +39,10 @@ class BaseTestKubeRootCAUpdateAudit(DCManagerTestCase):
         super().setUp()
 
         self._mock_object(rpcapi, "ManagerAuditWorkerClient")
-        self.mock_regionone_openstackdriver = self._mock_object(
-            kube_rootca_update_audit, "OpenStackDriver"
-        )
         self.mock_regionone_sysinvclient = self._mock_object(
             kube_rootca_update_audit, "SysinvClient"
         )
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_log = self._mock_object(kube_rootca_update_audit, "LOG")
 
         self.mock_subcloud_sysinvclient = mock.MagicMock()
@@ -77,16 +76,6 @@ class TestKubeRootCAUpdateAudit(BaseTestKubeRootCAUpdateAudit):
     def setUp(self):
         super().setUp()
 
-    def test_kube_rootca_update_audit_region_one_client_creation_exception(self):
-        self.mock_regionone_openstackdriver.side_effect = Exception("fake")
-
-        response = self._get_rootca_audit_data()
-
-        self.assertIsNone(response)
-        self.mock_log.exception.assert_called_with(
-            "Failed init OS Client, skip Kubernetes root CA audit."
-        )
-
     def test_kube_rootca_update_audit_region_one_client_exception(self):
         self.mock_regionone_sysinvclient().get_kube_rootca_cert_id.side_effect = (
             Exception("fake")
@@ -96,8 +85,8 @@ class TestKubeRootCAUpdateAudit(BaseTestKubeRootCAUpdateAudit):
 
         self.assertIsNone(response)
         self.mock_log.exception.assert_called_with(
-            "Failed to get Kubernetes root CA from Region One, skip Kubernetes "
-            "root CA audit."
+            "Failed to get Kubernetes root CA from Region One, "
+            "skip Kubernetes root CA audit."
         )
 
 

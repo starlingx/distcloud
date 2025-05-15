@@ -7,6 +7,7 @@
 import mock
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.audit import rpcapi
 from dcmanager.audit import software_audit
 from dcmanager.audit import subcloud_audit_manager
@@ -21,9 +22,7 @@ class TestSoftwareAudit(DCManagerTestCase):
         self._setup_fake_releases()
 
         self._mock_object(rpcapi, "ManagerAuditWorkerClient")
-        self.mock_regionone_openstackdriver = self._mock_object(
-            software_audit, "OpenStackDriver"
-        )
+        self._mock_object(EndpointCache, "get_admin_session")
 
         self.mock_regionone_softwareclient = self._mock_object(
             software_audit, "SoftwareClient"

@@ -150,20 +150,15 @@ class FernetKeyManager(manager.Manager):
     def update_fernet_repo(subcloud_name, management_ip, key_list=None):
         try:
             keystone_endpoint = cutils.build_subcloud_endpoint(
-                management_ip, "keystone"
+                management_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
             )
-            admin_session = EndpointCache.get_admin_session(
-                keystone_endpoint,
-                CONF.endpoint_cache.username,
-                CONF.endpoint_cache.user_domain_name,
-                CONF.endpoint_cache.password,
-                CONF.endpoint_cache.project_name,
-                CONF.endpoint_cache.project_domain_name,
-            )
+            admin_session = EndpointCache.get_admin_session(auth_url=keystone_endpoint)
             sysinv_client = SysinvClient(
                 region=subcloud_name,
                 session=admin_session,
-                endpoint=cutils.build_subcloud_endpoint(management_ip, "sysinv"),
+                endpoint=cutils.build_subcloud_endpoint(
+                    management_ip, dccommon_consts.ENDPOINT_NAME_SYSINV
+                ),
             )
             sysinv_client.post_fernet_repo(key_list)
         except (

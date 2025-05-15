@@ -17,6 +17,7 @@
 import mock
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.audit import firmware_audit
 from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
@@ -199,14 +200,15 @@ class TestFirmwareAudit(DCManagerTestCase):
         super().setUp()
 
         self._mock_object(rpcapi, "ManagerAuditWorkerClient")
-        self.mock_regionone_openstackdriver = self._mock_object(
-            firmware_audit, "OpenStackDriver"
-        )
         self.mock_regionone_sysinvclient = self._mock_object(
             firmware_audit, "SysinvClient"
         )
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_log = self._mock_object(firmware_audit, "LOG")
 
+        self.mock_regionone_sysinvclient = self._mock_object(
+            firmware_audit, "SysinvClient"
+        )
         self.mock_subcloud_sysinvclient = mock.MagicMock()
 
         self.firmware_audit = firmware_audit.FirmwareAudit()
@@ -248,13 +250,13 @@ class TestFirmwareAudit(DCManagerTestCase):
         self.assertEqual(response, sync_status)
 
     def test_firmware_audit_region_one_client_creation_exception(self):
-        self.mock_regionone_openstackdriver.side_effect = Exception("fake")
+        self.mock_regionone_sysinvclient.side_effect = Exception("fake")
 
         response = self._get_firmware_audit_data()
 
         self.assertIsNone(response)
         self.mock_log.exception.assert_called_with(
-            "Failure initializing OS Client, skip firmware audit."
+            "Failure initializing Sysinv Client, skip firmware audit."
         )
 
     def test_firmware_audit_empty_regionone_response_on_get_device_images_exception(

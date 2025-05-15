@@ -123,9 +123,9 @@ class CachedV3Password(v3.Password):
 
     def get_endpoint(
         self,
-        session,
-        service_type: Optional[str] = None,
-        interface: Optional[str] = None,
+        session: session.Session,
+        service_type: str,
+        interface: Optional[str] = consts.KS_ENDPOINT_ADMIN,
         region_name: Optional[str] = None,
         **kwargs,
     ) -> Optional[str]:
@@ -287,14 +287,7 @@ class EndpointCache(object):
         :param auth_url: The authentication URL.
         :type auth_url: str
         """
-        self.admin_session = EndpointCache.get_admin_session(
-            self.external_auth_url,
-            CONF.endpoint_cache.username,
-            CONF.endpoint_cache.user_domain_name,
-            CONF.endpoint_cache.password,
-            CONF.endpoint_cache.project_name,
-            CONF.endpoint_cache.project_domain_name,
-        )
+        self.admin_session = EndpointCache.get_admin_session(self.external_auth_url)
 
         self.keystone_client, self.service_endpoint_map = (
             self.get_cached_master_keystone_client_and_region_endpoint_map(region_name)
@@ -322,14 +315,7 @@ class EndpointCache(object):
 
             # We assume that the dcmanager user names and passwords are the
             # same on this subcloud since this is an audited resource
-            self.admin_session = EndpointCache.get_admin_session(
-                sc_auth_url,
-                CONF.endpoint_cache.username,
-                CONF.endpoint_cache.user_domain_name,
-                CONF.endpoint_cache.password,
-                CONF.endpoint_cache.project_name,
-                CONF.endpoint_cache.project_domain_name,
-            )
+            self.admin_session = EndpointCache.get_admin_session(sc_auth_url)
 
             try:
                 self.keystone_client = ks_client.Client(
@@ -345,12 +331,12 @@ class EndpointCache(object):
     @classmethod
     def get_admin_session(
         cls,
-        auth_url: str,
-        user_name: str,
-        user_domain_name: str,
-        user_password: str,
-        user_project: str,
-        user_project_domain: str,
+        auth_url: str = None,
+        username: str = None,
+        user_domain_name: str = None,
+        password: str = None,
+        project_name: str = None,
+        project_domain_name: str = None,
         timeout=None,
     ) -> session.Session:
         """Get the admin session.
@@ -361,25 +347,38 @@ class EndpointCache(object):
         :type user_name: str
         :param user_domain_name: The user domain name.
         :type user_domain_name: str
-        :param user_password: The user password.
-        :type user_password: str
-        :param user_project: The user project.
-        :type user_project: str
-        :param user_project_domain: The user project domain.
-        :type user_project_domain: str
+        :param password: The user password.
+        :type password: str
+        :param project_name: The user project.
+        :type project_name: str
+        :param project_domain_name: The user project domain.
+        :type project_domain_name: str
         :param timeout: The discovery and read timeouts.
         :type timeout: Any
         :return: The admin session.
         :rtype: session.Session
         """
 
+        if not auth_url:
+            auth_url = CONF.endpoint_cache.auth_uri
+        if not username:
+            username = CONF.endpoint_cache.username
+        if not user_domain_name:
+            user_domain_name = CONF.endpoint_cache.user_domain_name
+        if not password:
+            password = CONF.endpoint_cache.password
+        if not project_name:
+            project_name = CONF.endpoint_cache.project_name
+        if not project_domain_name:
+            project_domain_name = CONF.endpoint_cache.project_domain_name
+
         user_auth = CachedV3Password(
             auth_url=auth_url,
-            username=user_name,
+            username=username,
             user_domain_name=user_domain_name,
-            password=user_password,
-            project_name=user_project,
-            project_domain_name=user_project_domain,
+            password=password,
+            project_name=project_name,
+            project_domain_name=project_domain_name,
             include_catalog=True,
         )
 
@@ -392,6 +391,8 @@ class EndpointCache(object):
                 CONF.endpoint_cache.http_connect_timeout if timeout is None else timeout
             )
 
+        adapter = TCPKeepAliveSingleConnectionAdapter()
+
         ks_session = session.Session(
             auth=user_auth,
             additional_headers=consts.USER_HEADER,
@@ -399,8 +400,8 @@ class EndpointCache(object):
         )
 
         # Mount the custom adapters
-        ks_session.session.mount("http://", TCPKeepAliveSingleConnectionAdapter())
-        ks_session.session.mount("https://", TCPKeepAliveSingleConnectionAdapter())
+        ks_session.session.mount("http://", adapter)
+        ks_session.session.mount("https://", adapter)
 
         return ks_session
 

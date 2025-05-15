@@ -10,6 +10,7 @@ from oslo_db import exception as db_exc
 from oslo_messaging import RemoteError
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.api.controllers.v1 import subcloud_peer_group
 from dcmanager.common import consts
 from dcmanager.db import api as db_api
@@ -149,7 +150,7 @@ class BaseTestSubcloudPeerGroupController(DCManagerApiTest, SubcloudPeerGroupAPI
         self.url = API_PREFIX
 
         self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
-        self._mock_object(subcloud_peer_group, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_sysinv_client = self._mock_object(subcloud_peer_group, "SysinvClient")
 
     def _create_subcloud(self):
