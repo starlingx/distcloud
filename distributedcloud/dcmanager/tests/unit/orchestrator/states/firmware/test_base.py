@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,12 +7,18 @@
 import uuid
 
 from dcmanager.common import consts
-from dcmanager.tests.unit.audit.test_firmware_audit_manager import DeviceImageState
 from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeDevice
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeDeviceImage
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeDeviceLabel
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
+
+
+class DeviceImageState(object):
+    def __init__(self, pcidevice_uuid, image_uuid, status):
+        self.pcidevice_uuid = pcidevice_uuid
+        self.image_uuid = image_uuid
+        self.status = status
 
 
 class TestFwUpdateState(TestSwUpdate):

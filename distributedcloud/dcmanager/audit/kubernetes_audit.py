@@ -152,29 +152,3 @@ class KubernetesAudit(object):
                 return dccommon_consts.SYNC_STATUS_IN_SYNC
 
         return dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-
-    def subcloud_kubernetes_audit(
-        self,
-        sysinv_client: SysinvClient,
-        subcloud_name: str,
-        regionone_audit_data: dict,
-    ):
-        LOG.info(f"Triggered kubernetes audit for: {subcloud_name}")
-
-        if not regionone_audit_data:
-            LOG.debug(
-                "No active target version found in region one audit data, "
-                "exiting kubernetes audit"
-            )
-            return dccommon_consts.SYNC_STATUS_IN_SYNC
-
-        sync_status = self.get_subcloud_sync_status(
-            sysinv_client, regionone_audit_data, subcloud_name
-        )
-
-        if sync_status:
-            LOG.info(
-                f"Kubernetes audit completed for: {subcloud_name}, requesting "
-                f"sync_status update to {sync_status}"
-            )
-            return sync_status
