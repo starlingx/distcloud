@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -99,7 +99,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         call_args, _ = self.software_client.delete.call_args_list[0]
         self.assertItemsEqual(["starlingx-9.0.4"], call_args[0])
@@ -115,7 +117,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = [REGION_ONE_RELEASES]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.software_client.delete.assert_not_called()
 
@@ -129,7 +133,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.software_client.list.side_effect = Exception()
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
@@ -141,7 +147,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
         self.software_client.delete.side_effect = Exception()
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
@@ -155,7 +163,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         mock_base_stopped.return_value = True
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED

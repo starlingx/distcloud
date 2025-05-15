@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -49,7 +49,9 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
             KUBE_ROOTCA_UPDATE_STARTED
         )
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the expected next state happened (upload cert)
         self.assert_step_updated(
@@ -66,7 +68,9 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
             KUBE_ROOTCA_UPDATE_STARTED
         ]
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the expected next state happened (upload cert)
         self.assert_step_updated(
@@ -86,7 +90,9 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
             KUBE_ROOTCA_UPDATE_STARTED
         )
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the expected next state happened (upload cert)
         self.assert_step_updated(
@@ -104,7 +110,9 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
             KUBE_ROOTCA_UPDATE_CERT_UPLOADED
         ]
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the expected next state happened (upload cert)
         self.assert_step_updated(

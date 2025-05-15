@@ -53,7 +53,9 @@ class TestPrestage(TestSwUpdate):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the transition to the expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)

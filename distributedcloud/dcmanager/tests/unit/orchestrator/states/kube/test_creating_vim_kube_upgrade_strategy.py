@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -129,7 +129,9 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.vim_client.create_strategy.assert_called_with(
             "kube-upgrade",
@@ -181,7 +183,9 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         )
         self.mock_read_from_cache.return_value = KUBE_VERSION_LIST_WITHOUT_ACTIVE
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED

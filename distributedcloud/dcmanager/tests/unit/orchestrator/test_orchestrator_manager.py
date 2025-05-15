@@ -30,7 +30,8 @@ from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db import api as db_api
-from dcmanager.orchestrator import sw_update_manager
+from dcmanager.orchestrator import orchestrator_manager
+from dcmanager.orchestrator import rpcapi as orchestrator_rpc_api
 
 from dcmanager.tests import base
 
@@ -101,10 +102,12 @@ class FakeOrchThread(object):
 
 class FakeDCManagerAuditAPI(object):
     def __init__(self):
+        self.trigger_firmware_audit = mock.MagicMock()
+        self.trigger_kube_rootca_update_audit = mock.MagicMock()
         self.trigger_patch_audit = mock.MagicMock()
 
 
-class TestSwUpdateManager(base.DCManagerTestCase):
+class TestOrchestratorManager(base.DCManagerTestCase):
     @staticmethod
     def create_subcloud(ctx, name, group_id, is_managed, is_online, sw_version="stx-9"):
         values = {
@@ -189,25 +192,14 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         mock_get_admin_context = self._mock_object(context, "get_admin_context")
         mock_get_admin_context.return_value = self.ctx
 
-        orch_threads = {
-            "PatchOrchThread": FakeOrchThread(),
-            "SoftwareOrchThread": FakeOrchThread(),
-            "FwUpdateOrchThread": FakeOrchThread(),
-            "KubeUpgradeOrchThread": FakeOrchThread(),
-            "KubeRootcaUpdateOrchThread": FakeOrchThread(),
-            "PrestageOrchThread": FakeOrchThread(),
-        }
-
-        for key, value in orch_threads.items():
-            mock_patch_orch_thread = self._mock_object(sw_update_manager, key)
-            mock_patch_orch_thread.return_value = value
-
         # Mock the dcmanager audit API
         mock_dcmanager_audit_api = self._mock_object(rpcapi, "ManagerAuditClient")
         mock_dcmanager_audit_api.return_value = FakeDCManagerAuditAPI()
 
+        self._mock_object(orchestrator_rpc_api, "ManagerOrchestratorWorkerClient")
+
         # Mock for logs
-        self._mock_object(sw_update_manager, "LOG")
+        self._mock_object(orchestrator_manager, "LOG")
 
         # Mock ostree_mount validate_ostree_iso_mount
         self._mock_object(ostree_mount, "validate_ostree_iso_mount")
@@ -229,13 +221,13 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
     def test_init(self):
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         self.assertIsNotNone(um)
-        self.assertEqual("sw_update_manager", um.service_name)
+        self.assertEqual("orchestrator_manager", um.service_name)
         self.assertEqual("localhost", um.host)
 
     def test_create_sw_update_strategy_no_subclouds(self):
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         # No strategy will be created, so it should raise:
         # 'Bad strategy request: Strategy has no steps to apply'
         self.assertRaises(
@@ -269,7 +261,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["subcloud_group"] = str(self.fake_group2.id)
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
@@ -316,7 +308,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["subcloud_group"] = str(self.fake_group3.id)
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
@@ -374,7 +366,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["sysadmin_password"] = fake_password
 
         data["subcloud_group"] = str(self.fake_group3.id)
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
@@ -446,7 +438,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_password = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
         data["sysadmin_password"] = fake_password
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
@@ -502,7 +494,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data = copy.copy(FAKE_SW_PRESTAGE_DATA)
         data["sysadmin_password"] = ""
         data["subcloud_group"] = str(self.fake_group3.id)
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
 
         self.assertRaises(
             exceptions.BadRequest,
@@ -538,7 +530,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["sysadmin_password"] = fake_password
         data["cloud_name"] = "subcloud1"
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
 
         self.assertRaises(
             exceptions.BadRequest,
@@ -562,7 +554,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         # Create a strategy with a cloud_name that doesn't exist
         data["cloud_name"] = "subcloud2"
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
@@ -615,7 +607,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
         self.update_subcloud_status(self.ctx, fake_subcloud7.id)
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         strategy_dict = um.create_sw_update_strategy(
             self.ctx, payload=FAKE_SW_UPDATE_DATA
         )
@@ -699,7 +691,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
 
         data = copy.copy(FAKE_SW_PATCH_DATA)
         data["subcloud_group"] = str(self.fake_group3.id)
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         response = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Verify strategy was created as expected using group values
@@ -736,7 +728,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
 
         data = copy.copy(FAKE_SW_PATCH_DATA)
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
 
         strategy = data.get("type")
         expected_message = (
@@ -782,7 +774,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         fake_release = "24.09"
         data[consts.PRESTAGE_REQUEST_RELEASE] = fake_release
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         mock_initial_subcloud_validate.return_value = None
@@ -851,7 +843,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
         self.update_subcloud_status(self.ctx, fake_subcloud7.id)
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["subcloud-apply-type"] = consts.SUBCLOUD_APPLY_TYPE_SERIAL
         strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
@@ -952,7 +944,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         del data["subcloud-apply-type"]
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that group values are being used for subcloud_apply_type
@@ -1052,7 +1044,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         del data["max-parallel-subclouds"]
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that values passed through CLI are used instead of
@@ -1158,7 +1150,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         del data["subcloud-apply-type"]
         del data["max-parallel-subclouds"]
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that group values are being used
@@ -1202,7 +1194,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.ctx, fake_subcloud4.id, None, dccommon_consts.SYNC_STATUS_UNKNOWN
         )
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
@@ -1242,7 +1234,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             OAM_FLOATING_IP,
         )
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         self.assertRaises(
             exceptions.BadRequest,
             um.create_sw_update_strategy,
@@ -1276,7 +1268,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         )
         self.update_subcloud_status(self.ctx, fake_subcloud4.id)
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["max-parallel-subclouds"] = 10
         strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
@@ -1344,7 +1336,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["subcloud_group"] = str(self.fake_group3.id)
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         strategy_dict = um.create_sw_update_strategy(self.ctx, payload=data)
 
         # Assert that values passed through CLI are used instead of group values
@@ -1371,7 +1363,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["cloud_name"] = "subcloud1"
@@ -1396,7 +1388,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             dccommon_consts.SYNC_STATUS_UNKNOWN,
         )
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["type"] = consts.SW_UPDATE_TYPE_SOFTWARE
         data["cloud_name"] = "subcloud1"
@@ -1412,7 +1404,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.create_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         deleted_strategy = um.delete_sw_update_strategy(self.ctx)
         self.assertEqual(deleted_strategy["state"], consts.SW_UPDATE_STATE_DELETING)
 
@@ -1420,7 +1412,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.create_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         deleted_strategy = um.delete_sw_update_strategy(
             self.ctx, update_type=consts.SW_UPDATE_TYPE_SOFTWARE
         )
@@ -1430,7 +1422,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.create_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_PRESTAGE, consts.SW_UPDATE_STATE_INITIAL
         )
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         # the strategy is PRESTAGE. The delete for SW-DEPLOY should fail
         self.assertRaises(
             exceptions.NotFound,
@@ -1444,7 +1436,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.create_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         self.assertRaises(exceptions.BadRequest, um.delete_sw_update_strategy, self.ctx)
 
     def test_apply_sw_update_strategy(self):
@@ -1453,7 +1445,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         updated_strategy = um.apply_sw_update_strategy(self.ctx)
         self.assertEqual(updated_strategy["state"], consts.SW_UPDATE_STATE_APPLYING)
 
@@ -1462,7 +1454,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
         self.create_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         self.assertRaises(exceptions.BadRequest, um.apply_sw_update_strategy, self.ctx)
 
     def test_abort_sw_update_strategy(self):
@@ -1471,7 +1463,7 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_APPLYING
         )
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         aborted_strategy = um.abort_sw_update_strategy(self.ctx)
         self.assertEqual(
             aborted_strategy["state"], consts.SW_UPDATE_STATE_ABORT_REQUESTED
@@ -1483,5 +1475,5 @@ class TestSwUpdateManager(base.DCManagerTestCase):
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_COMPLETE
         )
 
-        um = sw_update_manager.SwUpdateManager()
+        um = orchestrator_manager.OrchestratorManager()
         self.assertRaises(exceptions.BadRequest, um.apply_sw_update_strategy, self.ctx)

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -68,7 +68,9 @@ class ApplyingVIMStrategyMixin(object):
         self.vim_client.apply_strategy.return_value = STRATEGY_APPLYING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Successful promotion to next state
         self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
@@ -85,7 +87,9 @@ class ApplyingVIMStrategyMixin(object):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -102,7 +106,9 @@ class ApplyingVIMStrategyMixin(object):
         self.vim_client.apply_strategy.return_value = STRATEGY_APPLY_FAILED
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -123,7 +129,9 @@ class ApplyingVIMStrategyMixin(object):
         self.vim_client.apply_strategy.return_value = STRATEGY_APPLYING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -146,7 +154,9 @@ class ApplyingVIMStrategyMixin(object):
         self.vim_client.apply_strategy.return_value = STRATEGY_APPLYING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assertEqual(
             applying_vim_strategy.DEFAULT_MAX_WAIT_ATTEMPTS,
@@ -169,7 +179,9 @@ class ApplyingVIMStrategyMixin(object):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # apply_strategy API call should never be invoked
         self.vim_client.apply_strategy.assert_not_called()
@@ -187,7 +199,9 @@ class ApplyingVIMStrategyMixin(object):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         # apply API call should never be invoked
         self.vim_client.apply_strategy.assert_not_called()

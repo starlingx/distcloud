@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -57,7 +57,11 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         mock_open = mock.mock_open(read_data="test")
         with mock.patch("builtins.open", mock_open):
             # invoke the strategy state operation on the orch thread
-            self.worker.perform_state_action(self.strategy_step)
+            self.worker._perform_state_action(
+                self.DEFAULT_STRATEGY_TYPE,
+                self.subcloud.region_name,
+                self.strategy_step,
+            )
 
         # verify we attempted to call the mocked upload method
         self.sysinv_client.kube_rootca_update_upload_cert.assert_called()
@@ -78,7 +82,11 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         mock_open = mock.mock_open(read_data="test")
         with mock.patch("builtins.open", mock_open):
             # invoke the strategy state operation on the orch thread
-            self.worker.perform_state_action(self.strategy_step)
+            self.worker._perform_state_action(
+                self.DEFAULT_STRATEGY_TYPE,
+                self.subcloud.region_name,
+                self.strategy_step,
+            )
 
         # verify we attempted to call the mocked upload method
         self.sysinv_client.kube_rootca_update_upload_cert.assert_called()
@@ -104,7 +112,9 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
             SUCCESS_UPLOADING_CERT
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.kube_rootca_update_upload_cert.assert_not_called()
 

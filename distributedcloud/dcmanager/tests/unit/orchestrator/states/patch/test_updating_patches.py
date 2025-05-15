@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -89,7 +89,9 @@ class TestUpdatingPatchesStage(TestPatchState):
         self._create_fake_strategy(patch_id="stx-usm-9.2")
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.patching_client.upload.assert_called_with(
             [DC_VAULT_PATCH_DIR + "stx-usm-9.2.patch"]
@@ -111,7 +113,9 @@ class TestUpdatingPatchesStage(TestPatchState):
         self._create_fake_strategy(patch_id="stx-usm-9.2")
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.patching_client.upload.assert_not_called()
 
@@ -136,7 +140,9 @@ class TestUpdatingPatchesStage(TestPatchState):
         self._create_fake_strategy(upload_only=True, patch_id="stx-usm-9.2")
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.patching_client.upload.assert_called_with(
             [DC_VAULT_PATCH_DIR + "stx-usm-9.2.patch"]
@@ -164,7 +170,9 @@ class TestUpdatingPatchesStage(TestPatchState):
 
         mock_base_stopped.return_value = True
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
