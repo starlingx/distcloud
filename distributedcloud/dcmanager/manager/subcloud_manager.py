@@ -2483,7 +2483,7 @@ class SubcloudManager(manager.Manager):
                 install_command,
                 log_file,
                 data_install,
-                overrides_file,
+                overrides_file if auto_restore_mode else None,
             )
 
             # With auto-restore enabled, the restore playbook is executed
