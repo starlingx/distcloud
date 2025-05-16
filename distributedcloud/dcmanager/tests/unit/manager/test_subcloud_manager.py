@@ -2959,14 +2959,14 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
             ],
         )
 
-    def test_compose_install_command_with_auto_restore(self):
+    def test_compose_install_command_with_bmc_access_only(self):
         install_command = self.sm.compose_install_command(
             "subcloud1",
             f"{ANS_PATH}/subcloud1_inventory.yml",
             FAKE_PREVIOUS_SW_VERSION,
-            auto_restore_mode="factory",
+            bmc_access_only=True,
         )
-        self.assertIn("auto_restore_mode=factory", install_command)
+        self.assertIn("bmc_access_only=True", install_command)
 
     @mock.patch("os.path.isfile")
     def test_compose_bootstrap_command(self, mock_isfile):
@@ -4096,9 +4096,15 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             "restore", values, self.subcloud.name, "factory"
         )
 
+        mock_run_restore_playbook.assert_called_once_with(
+            mock.ANY, mock.ANY, mock.ANY, mock.ANY, "factory"
+        )
+
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_DONE, updated_subcloud.deploy_status)
+        self.assertEqual(
+            consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
+        )
 
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
     def test_backup_restore_with_install_failed(self, mock_prep):

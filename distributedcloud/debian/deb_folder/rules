@@ -101,6 +101,10 @@ override_dh_install:
 	install -d $(ROOT)/usr/local/bin/
 	install -p -D -m 700 scripts/rvmc_install.py $(ROOT)/usr/local/bin
 
+	# install ipmi_sel_event_monitor.py script
+	install -d $(ROOT)/usr/local/bin/
+	install -p -D -m 700 scripts/ipmi_sel_event_monitor.py $(ROOT)/usr/local/bin
+
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcmanagerclient/tests
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dccommon/tests
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcmanager/tests

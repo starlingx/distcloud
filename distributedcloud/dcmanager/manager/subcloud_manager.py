@@ -311,7 +311,7 @@ class SubcloudManager(manager.Manager):
         subcloud_name,
         ansible_subcloud_inventory_file,
         software_version=None,
-        auto_restore_mode=None,
+        bmc_access_only=None,
     ):
         install_command = [
             "ansible-playbook",
@@ -341,8 +341,8 @@ class SubcloudManager(manager.Manager):
             ),
         ]
 
-        if auto_restore_mode:
-            install_command += ["-e", f"auto_restore_mode={auto_restore_mode}"]
+        if bmc_access_only:
+            install_command += ["-e", f"bmc_access_only={bmc_access_only}"]
 
         return install_command
 
@@ -499,7 +499,7 @@ class SubcloudManager(manager.Manager):
         return backup_command
 
     def compose_backup_restore_command(
-        self, subcloud_name, ansible_subcloud_inventory_file
+        self, subcloud_name, ansible_subcloud_inventory_file, auto_restore_mode=None
     ):
         backup_command = [
             "ansible-playbook",
@@ -517,6 +517,19 @@ class SubcloudManager(manager.Manager):
                 + "_backup_restore_values.yml"
             ),
         ]
+
+        if auto_restore_mode:
+            backup_command += ["-e", f"auto_restore_mode={auto_restore_mode}"]
+            backup_command += [
+                "-e",
+                "rvmc_config_file=%s"
+                % os.path.join(
+                    dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                    subcloud_name,
+                    dccommon_consts.RVMC_CONFIG_FILE_NAME,
+                ),
+            ]
+
         return backup_command
 
     def compose_update_command(
@@ -2428,18 +2441,21 @@ class SubcloudManager(manager.Manager):
                 subcloud, bootstrap_address=bootstrap_address
             )
 
-            auto_restore_mode = None
+            bmc_access_only = True
             if payload.get("factory"):
                 auto_restore_mode = "factory"
             elif payload.get("auto"):
                 auto_restore_mode = "auto"
+            else:
+                auto_restore_mode = None
+                bmc_access_only = False
 
             # Prepare for restore
             overrides_file = self._create_overrides_for_backup_or_restore(
                 "restore", payload, subcloud.name, auto_restore_mode
             )
             restore_command = self.compose_backup_restore_command(
-                subcloud.name, subcloud_inventory_file
+                subcloud.name, subcloud_inventory_file, auto_restore_mode
             )
         except Exception:
             db_api.subcloud_update(
@@ -2448,7 +2464,7 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
             )
             LOG.exception(
-                "Failed to prepare subcloud %s for backup restore" % subcloud.name
+                f"Failed to prepare subcloud {subcloud.name} for backup restore"
             )
             return subcloud, False
 
@@ -2459,7 +2475,7 @@ class SubcloudManager(manager.Manager):
                 subcloud.name,
                 subcloud_inventory_file,
                 software_version,
-                auto_restore_mode,
+                bmc_access_only,
             )
             # Update data_install with missing data
             matching_iso, _ = utils.get_vault_load_files(software_version)
@@ -2486,25 +2502,11 @@ class SubcloudManager(manager.Manager):
                 overrides_file if auto_restore_mode else None,
             )
 
-            # With auto-restore enabled, the restore playbook is executed
-            # automatically within the subcloud after installation, so we
-            # skip running it remotely.
-            if auto_restore_mode:
-                if install_success:
-                    LOG.info(f"Successfully auto-restored subcloud {subcloud.name}")
-                    db_api.subcloud_update(
-                        context, subcloud.id, deploy_status=consts.DEPLOY_STATE_DONE
-                    )
-                    utils.delete_subcloud_inventory(overrides_file)
-                # TODO(gherzmann): Add support to detect the failure type
-                # once the IPMI SEL event monitoring is implemented
-                return subcloud, install_success
-
             if not install_success:
                 return subcloud, False
 
         success = self._run_subcloud_backup_restore_playbook(
-            subcloud, restore_command, context, log_file
+            subcloud, restore_command, context, log_file, auto_restore_mode
         )
 
         if success:
@@ -2736,7 +2738,7 @@ class SubcloudManager(manager.Manager):
             return False
 
     def _run_subcloud_backup_restore_playbook(
-        self, subcloud, restore_command, context, log_file
+        self, subcloud, restore_command, context, log_file, auto_restore_mode=None
     ):
         db_api.subcloud_update(
             context,
@@ -2750,10 +2752,17 @@ class SubcloudManager(manager.Manager):
             ansible.run_playbook(
                 log_file, restore_command, timeout=CONF.playbook_timeout
             )
-            LOG.info("Successfully restore subcloud %s" % subcloud.name)
-            db_api.subcloud_update(
-                context, subcloud.id, deploy_status=consts.DEPLOY_STATE_DONE
+
+            mode_str = f"{auto_restore_mode} " if auto_restore_mode else ""
+            LOG.info(f"Successfully {mode_str}restore subcloud {subcloud.name}")
+
+            complete_state = (
+                consts.DEPLOY_STATE_FACTORY_RESTORE_COMPLETE
+                if auto_restore_mode == "factory"
+                else consts.DEPLOY_STATE_DONE
             )
+
+            db_api.subcloud_update(context, subcloud.id, deploy_status=complete_state)
             return True
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
