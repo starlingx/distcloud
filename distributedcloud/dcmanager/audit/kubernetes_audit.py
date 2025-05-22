@@ -33,19 +33,6 @@ class KubernetesAuditData(object):
         self.version = version
         self.state = state
 
-    def to_dict(self):
-        return {
-            "target": self.target,
-            "version": self.version,
-            "state": self.state,
-        }
-
-    @classmethod
-    def from_dict(cls, values):
-        if values is None:
-            return None
-        return cls(**values)
-
 
 class KubernetesAudit(object):
     """Manages tasks related to kubernetes audits."""

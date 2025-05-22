@@ -66,6 +66,7 @@ class SoftwareAudit(object):
         # to the system.
         regionone_releases = software_client.list()
         LOG.debug(f"regionone_releases: {regionone_releases}")
+
         # Build lists of releases that should be deployed or committed in all
         # subclouds, based on their state in RegionOne.
         deployed_release_ids = list()
@@ -107,7 +108,9 @@ class SoftwareAudit(object):
 
         # audit_data will be a dict due to passing through RPC so objectify it
         audit_data = SoftwareAuditData.from_dict(audit_data)
-        expected_releases = set(audit_data.deployed_release_ids)
+        expected_releases = set()
+        if audit_data:
+            expected_releases = set(audit_data.deployed_release_ids)
         deployed_releases = {
             release["release_id"]
             for release in subcloud_releases

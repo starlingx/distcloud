@@ -110,14 +110,6 @@ class ManagerAuditWorkerClient(object):
     def make_msg(method, **kwargs):
         return method, kwargs
 
-    def call(self, ctxt, msg, version=None):
-        method, kwargs = msg
-        if version is not None:
-            client = self._client.prepare(version=version)
-        else:
-            client = self._client
-        return client.call(ctxt, method, **kwargs)
-
     def cast(self, ctxt, msg, fanout=None, version=None):
         method, kwargs = msg
         if version or fanout:

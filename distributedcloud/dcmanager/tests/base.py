@@ -147,7 +147,7 @@ class DCManagerTestCase(base.BaseTestCase):
             engine.execute(table.delete())
 
     def setUp(self):
-        super(DCManagerTestCase, self).setUp()
+        super().setUp()
 
         # register cleanup of DB before setup, in case setup fails
         self.addCleanup(self.reset_dummy_db)

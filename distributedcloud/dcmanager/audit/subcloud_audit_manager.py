@@ -310,15 +310,11 @@ class SubcloudAuditManager(manager.Manager):
         audit_software,
     ):
         """Return the firmware / kubernetes audit data as needed."""
-        software_audit_data = None
         firmware_audit_data = None
         kubernetes_audit_data = None
         kube_rootca_update_audit_data = None
         software_audit_data = None
 
-        if audit_software:
-            # Query RegionOne releases
-            software_audit_data = self.software_audit.get_regionone_audit_data()
         if audit_firmware:
             # Query RegionOne firmware
             firmware_audit_data = self.firmware_audit.get_regionone_audit_data()
@@ -330,6 +326,10 @@ class SubcloudAuditManager(manager.Manager):
             kube_rootca_update_audit_data = (
                 self.kube_rootca_update_audit.get_regionone_audit_data()
             )
+        if audit_software:
+            # Query RegionOne releases
+            software_audit_data = self.software_audit.get_regionone_audit_data()
+
         return (
             firmware_audit_data,
             kubernetes_audit_data,
