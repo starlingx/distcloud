@@ -1260,7 +1260,6 @@ serviceUnavailable (503)
   - stop-on-failure: stop_on_failure
   - subcloud-apply-type: subcloud_apply_type
   - type: sw_update_strategy_type
-  - upload-only: patch_strategy_upload_only
   - force: force_sync_status
 
 Request Example
@@ -1338,10 +1337,10 @@ Response Example
 Subcloud Update Strategy Actions
 --------------------------------
 
-Subcloud patch strategy can be actioned.
+Subcloud strategy can be actioned.
 
 ****************************************
-Executes an action on a patch strategy
+Executes an action on a strategy
 ****************************************
 
 .. rest_method:: POST /v1.0/sw-update-strategy/actions
@@ -1393,7 +1392,7 @@ Response Example
 Subcloud Software Update Strategy Steps
 ---------------------------------------
 
-Subcloud patch strategy steps can be retrieved.
+Subcloud strategy steps can be retrieved.
 
 *******************************************************
 Lists all software update strategy steps for all clouds
@@ -1436,7 +1435,7 @@ Response Example
             :language: json
 
 ******************************************************************
-Shows the details of patch strategy steps for a particular cloud
+Shows the details of strategy steps for a particular cloud
 ******************************************************************
 
 .. rest_method:: GET /v1.0/sw-update-strategy/steps/​{cloud_name}​

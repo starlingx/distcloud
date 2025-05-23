@@ -880,7 +880,7 @@ def sw_update_strategy_destroy(context, update_type=None):
 
 
 def strategy_step_db_model_to_dict(strategy_step):
-    """Convert patch strategy db model to dictionary."""
+    """Convert a strategy db model to dictionary."""
     if strategy_step.subcloud is not None:
         cloud = strategy_step.subcloud.name
     else:
@@ -900,7 +900,7 @@ def strategy_step_db_model_to_dict(strategy_step):
 
 
 def strategy_step_get(context, subcloud_id):
-    """Retrieve the patch strategy step for a subcloud ID.
+    """Retrieve the strategy step for a subcloud ID.
 
     Will raise if subcloud does not exist.
     """
@@ -909,12 +909,12 @@ def strategy_step_get(context, subcloud_id):
 
 
 def strategy_step_get_by_name(context, name):
-    """Retrieve the patch strategy step for a subcloud name."""
+    """Retrieve the strategy step for a subcloud name."""
     return IMPL.Connection(context).strategy_step_get_by_name(name)
 
 
 def strategy_step_get_all(context, steps_id=None, limit=None):
-    """Retrieve all patch strategy steps."""
+    """Retrieve all strategy steps."""
     return IMPL.Connection(context).strategy_step_get_all(
         steps_id=steps_id, limit=limit
     )
@@ -963,7 +963,7 @@ def strategy_step_bulk_create(context, subcloud_ids, stage, state, details):
 
 
 def strategy_step_create(context, subcloud_id, stage, state, details):
-    """Create a patch strategy step."""
+    """Create a strategy step."""
     return IMPL.Connection(context).strategy_step_create(
         subcloud_id, stage, state, details
     )
@@ -979,7 +979,7 @@ def strategy_step_update(
     finished_at=None,
     updated_at=None,
 ):
-    """Update a patch strategy step or raise if it does not exist."""
+    """Update a strategy step or raise if it does not exist."""
     return IMPL.Connection(context).strategy_step_update(
         subcloud_id, stage, state, details, started_at, finished_at, updated_at
     )
@@ -1016,7 +1016,7 @@ def strategy_step_abort_all_not_processing(context, max_parallel_subclouds):
 
 
 def strategy_step_destroy_all(context, steps_id=None, states=None):
-    """Destroy all the patch strategy steps."""
+    """Destroy all the strategy steps."""
     return IMPL.Connection(context).strategy_step_destroy_all(steps_id, states)
 
 

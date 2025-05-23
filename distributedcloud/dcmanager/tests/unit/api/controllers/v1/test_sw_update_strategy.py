@@ -75,11 +75,11 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
         super().setUp()
 
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, consts.SW_UPDATE_TYPE_PATCH
+            self.ctx, consts.SW_UPDATE_TYPE_FIRMWARE
         )
 
     def _assert_response_payload(self, response):
-        self.assertEqual(response.json["type"], consts.SW_UPDATE_TYPE_PATCH)
+        self.assertEqual(response.json["type"], consts.SW_UPDATE_TYPE_FIRMWARE)
         self.assertEqual(response.json["state"], consts.SW_UPDATE_STATE_INITIAL)
 
     def test_get_succeeds(self):
@@ -93,7 +93,7 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
     def test_get_succeeds_with_type(self):
         """Test get succeeds with type"""
 
-        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_PATCH}"
+        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_FIRMWARE}"
 
         response = self._send_request()
 
@@ -128,7 +128,7 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
     def test_get_fails_with_type_and_db_api_not_found_exception(self):
         """Test get fails with db api not found exception"""
 
-        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_PATCH}"
+        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_FIRMWARE}"
 
         db_api.sw_update_strategy_destroy(self.ctx)
 
@@ -137,7 +137,7 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
         self._assert_pecan_and_response(
             response,
             http.client.NOT_FOUND,
-            f"Strategy of type '{consts.SW_UPDATE_TYPE_PATCH}' not found",
+            f"Strategy of type '{consts.SW_UPDATE_TYPE_FIRMWARE}' not found",
         )
 
 
@@ -512,7 +512,7 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
     def test_post_actions_succeeds_with_type(self):
         """Test post actions succeeds with type"""
 
-        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_PATCH}"
+        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_FIRMWARE}"
 
         actions = [consts.SW_UPDATE_ACTION_APPLY, consts.SW_UPDATE_ACTION_ABORT]
 
@@ -627,7 +627,7 @@ class TestSwUpdateStrategyDelete(BaseTestSwUpdateStrategyController):
     def test_delete_succeeds_with_type(self):
         """Test delete succeeds with type"""
 
-        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_PATCH}"
+        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_FIRMWARE}"
 
         response = self._send_request()
 

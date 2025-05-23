@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -73,11 +73,11 @@ class FakeService(object):
 FAKE_SERVICES_LIST = [
     FakeService(1, "keystone", "identity", True),
     FakeService(2, "sysinv", "platform", True),
-    FakeService(3, "patching", "patching", True),
     FakeService(4, "barbican", "key-manager", True),
     FakeService(5, "vim", "nfv", True),
     FakeService(6, "dcmanager", "dcmanager", True),
     FakeService(7, "dcorch", "dcorch", True),
+    FakeService(8, "usm", "usm", True),
 ]
 
 FAKE_AUTH_URL = "http://fake.auth/url"
@@ -188,7 +188,6 @@ class EndpointCacheTest(base.DCCommonTestCase):
             "dcdbsync": f"https://{ip_with_brackets}:8220/v1.0",
             "fm": f"https://{ip_with_brackets}:18003",
             "keystone": f"https://{ip_with_brackets}:5001/v3",
-            "patching": f"https://{ip_with_brackets}:5492",
             "sysinv": f"https://{ip_with_brackets}:6386/v1",
             "usm": f"https://{ip_with_brackets}:5498",
             "vim": f"https://{ip_with_brackets}:4546",

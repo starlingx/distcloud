@@ -36,7 +36,6 @@ from dcmanager.orchestrator.rpcapi import ManagerOrchestratorClient
 from dcmanager.orchestrator.strategies.firmware import FirmwareStrategy
 from dcmanager.orchestrator.strategies.kube_rootca import KubeRootcaStrategy
 from dcmanager.orchestrator.strategies.kubernetes import KubernetesStrategy
-from dcmanager.orchestrator.strategies.patch import PatchStrategy
 from dcmanager.orchestrator.strategies.prestage import PrestageStrategy
 from dcmanager.orchestrator.strategies.software import SoftwareStrategy
 
@@ -86,7 +85,6 @@ class OrchestratorWorker(object):
             consts.SW_UPDATE_TYPE_FIRMWARE: FirmwareStrategy(),
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE: KubeRootcaStrategy(),
             consts.SW_UPDATE_TYPE_KUBERNETES: KubernetesStrategy(),
-            consts.SW_UPDATE_TYPE_PATCH: PatchStrategy(),
             consts.SW_UPDATE_TYPE_PRESTAGE: PrestageStrategy(),
             consts.SW_UPDATE_TYPE_SOFTWARE: SoftwareStrategy(),
         }

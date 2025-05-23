@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -62,7 +62,7 @@ class TestNotificationsControllerPost(BaseTestNotificationsController):
 
         response = self._send_request()
 
-        self.mock_audit_rpc_client().trigger_load_audit.assert_called_once()
+        self.mock_audit_rpc_client().trigger_software_audit.assert_called_once()
 
         self._assert_response(response)
 

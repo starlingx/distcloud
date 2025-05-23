@@ -94,7 +94,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
     @staticmethod
     def create_sw_update_strategy(ctxt, **kwargs):
         values = {
-            "type": consts.SW_UPDATE_TYPE_PATCH,
+            "type": consts.SW_UPDATE_TYPE_FIRMWARE,
             "state": consts.SW_UPDATE_STATE_INITIAL,
             "subcloud_apply_type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
             "max_parallel_subclouds": 10,

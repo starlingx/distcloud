@@ -14,7 +14,6 @@ from oslo_log import log as logging
 from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
-from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
@@ -209,12 +208,6 @@ class BaseState(object, metaclass=abc.ABCMeta):
         keystone_client = self.get_keystone_client(region_name)
         endpoint = keystone_client.endpoint_cache.get_endpoint("fm")
         return FmClient(region_name, keystone_client.session, endpoint=endpoint)
-
-    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
-    def get_patching_client(self, region_name: str = None) -> PatchingClient:
-        """Get the Patching client for the given region."""
-        keystone_client = self.get_keystone_client(region_name)
-        return PatchingClient(keystone_client.region_name, keystone_client.session)
 
     @lru_cache(maxsize=CLIENT_CACHE_SIZE)
     def get_software_client(self, region_name: str = None) -> SoftwareClient:

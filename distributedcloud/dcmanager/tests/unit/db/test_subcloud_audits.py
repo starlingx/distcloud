@@ -72,8 +72,6 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(result["subcloud_id"], 2)
         self.assertEqual(result["audit_started_at"], datetime.datetime(1, 1, 1, 0, 0))
         self.assertEqual(result["audit_finished_at"], datetime.datetime(1, 1, 1, 0, 0))
-        self.assertEqual(result["patch_audit_requested"], False)
-        self.assertEqual(result["load_audit_requested"], False)
         self.assertEqual(result["firmware_audit_requested"], False)
         self.assertEqual(result["kubernetes_audit_requested"], False)
         self.assertEqual(result["kube_rootca_update_audit_requested"], False)
@@ -109,32 +107,6 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
             result["subcloud_id"],
         )
 
-    def test_subcloud_audits_update(self):
-        result = db_api.subcloud_audits_get(self.ctx, 1)
-        self.assertEqual(result["patch_audit_requested"], False)
-        result = db_api.subcloud_audits_get(self.ctx, 2)
-        self.assertEqual(result["patch_audit_requested"], False)
-        values = {"patch_audit_requested": True}
-        result = db_api.subcloud_audits_update(self.ctx, 2, values)
-        self.assertEqual(result["patch_audit_requested"], True)
-        result = db_api.subcloud_audits_get(self.ctx, 1)
-        self.assertEqual(result["patch_audit_requested"], False)
-        result = db_api.subcloud_audits_get(self.ctx, 2)
-        self.assertEqual(result["patch_audit_requested"], True)
-
-    def test_subcloud_audits_update_all(self):
-        subcloud_audits = db_api.subcloud_audits_get_all(self.ctx)
-        for audit in subcloud_audits:
-            self.assertEqual(audit["patch_audit_requested"], False)
-            self.assertEqual(audit["load_audit_requested"], False)
-        values = {"patch_audit_requested": True, "load_audit_requested": True}
-        result = db_api.subcloud_audits_update_all(self.ctx, values)
-        self.assertEqual(result, 3)
-        subcloud_audits = db_api.subcloud_audits_get_all(self.ctx)
-        for audit in subcloud_audits:
-            self.assertEqual(audit["patch_audit_requested"], True)
-            self.assertEqual(audit["load_audit_requested"], True)
-
     def test_subcloud_audits_get_all_need_audit(self):
         current_time = timeutils.utcnow()
         last_audit_threshold = current_time - datetime.timedelta(seconds=1000)
@@ -155,7 +127,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(len(subcloud_ids), 2)
         self.assertNotIn(1, subcloud_ids)
         # Set one of the special audits to make sure it overrides.
-        values = {"patch_audit_requested": True}
+        values = {"kubernetes_audit_requested": True}
         db_api.subcloud_audits_update(self.ctx, 1, values)
         audits = db_api.subcloud_audits_get_all_need_audit(
             self.ctx, last_audit_threshold
@@ -199,7 +171,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(count, 1)
         # Check that for the one that was updated we didn't trigger sub-audits.
         result = db_api.subcloud_audits_get(self.ctx, 1)
-        self.assertEqual(result["patch_audit_requested"], False)
+        self.assertEqual(result["kubernetes_audit_requested"], False)
 
     def test_subcloud_audits_fix_expired_trigger_audits(self):
         # Set the 'start' timestamp later than the 'finished' timestamp
@@ -213,16 +185,12 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(count, 1)
         # For the fixed-up audits, subaudits should be requested.
         result = db_api.subcloud_audits_get(self.ctx, 1)
-        self.assertEqual(result["patch_audit_requested"], True)
         self.assertEqual(result["firmware_audit_requested"], True)
-        self.assertEqual(result["load_audit_requested"], True)
         self.assertEqual(result["kubernetes_audit_requested"], True)
         self.assertEqual(result["kube_rootca_update_audit_requested"], True)
         # For the not-fixed-up audits, subaudits should not be requested.
         result = db_api.subcloud_audits_get(self.ctx, 2)
-        self.assertEqual(result["patch_audit_requested"], False)
         self.assertEqual(result["firmware_audit_requested"], False)
-        self.assertEqual(result["load_audit_requested"], False)
         self.assertEqual(result["kubernetes_audit_requested"], False)
         self.assertEqual(result["kube_rootca_update_audit_requested"], False)
 

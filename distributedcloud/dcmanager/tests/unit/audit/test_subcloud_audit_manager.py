@@ -35,13 +35,6 @@ class FakeAuditWorkerAPI(object):
         self.update_subcloud_endpoints = mock.MagicMock()
 
 
-class FakePatchAudit(object):
-
-    def __init__(self):
-        self.get_regionone_audit_data = mock.MagicMock()
-        self.get_software_regionone_audit_data = mock.MagicMock()
-
-
 class FakeFirmwareAudit(object):
 
     def __init__(self):
@@ -260,10 +253,6 @@ class TestAuditManager(base.DCManagerTestCase):
         self.mock_context = self._mock_object(subcloud_audit_manager, "context")
         self.mock_context.get_admin_context.return_value = self.ctx
 
-        # Mock patch audit
-        self.mock_patch_audit = self._mock_object(subcloud_audit_manager, "patch_audit")
-        self.mock_patch_audit.PatchAudit.return_value = FakePatchAudit()
-
         # Mock firmware audit
         self.mock_firmware_audit = self._mock_object(
             subcloud_audit_manager, "firmware_audit"
@@ -342,9 +331,7 @@ class TestAuditManager(base.DCManagerTestCase):
         am.trigger_subcloud_audits(self.ctx, subcloud.id, None)
         # Subaudits should be requested.
         result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
-        self.assertEqual(result["patch_audit_requested"], True)
         self.assertEqual(result["firmware_audit_requested"], True)
-        self.assertEqual(result["load_audit_requested"], True)
         self.assertEqual(result["kubernetes_audit_requested"], True)
         self.assertEqual(result["kube_rootca_update_audit_requested"], True)
 
@@ -352,36 +339,11 @@ class TestAuditManager(base.DCManagerTestCase):
         subcloud = self.create_subcloud_static(self.ctx)
         am = subcloud_audit_manager.SubcloudAuditManager()
         exclude_endpoints = [
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
+            dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
         ]
         am.trigger_subcloud_audits(self.ctx, subcloud.id, exclude_endpoints)
         # Verify subaudits be requested.
         result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
-        self.assertEqual(result["patch_audit_requested"], False)
-        self.assertEqual(result["firmware_audit_requested"], True)
-        self.assertEqual(result["load_audit_requested"], False)
+        self.assertEqual(result["firmware_audit_requested"], False)
         self.assertEqual(result["kubernetes_audit_requested"], True)
         self.assertEqual(result["kube_rootca_update_audit_requested"], True)
-
-    def test_trigger_load_audit(self):
-        subcloud = self.create_subcloud_static(self.ctx)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.trigger_load_audit(self.ctx)
-        # Load audit should be requested.
-        result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
-        self.assertEqual(result["patch_audit_requested"], False)
-        self.assertEqual(result["load_audit_requested"], True)
-
-    def test_trigger_one_subcloud_patch_load_audits(self):
-        subcloud = self.create_subcloud_static(self.ctx)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.trigger_subcloud_patch_load_audits(self.ctx, subcloud.id)
-        # Subcloud patch and load audits should be requested.
-        result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
-        self.assertEqual(result["patch_audit_requested"], True)
-        self.assertEqual(result["load_audit_requested"], True)
-        # Other audits should not be requested
-        self.assertEqual(result["firmware_audit_requested"], False)
-        self.assertEqual(result["kubernetes_audit_requested"], False)
-        self.assertEqual(result["kube_rootca_update_audit_requested"], False)

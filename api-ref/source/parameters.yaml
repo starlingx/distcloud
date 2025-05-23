@@ -46,8 +46,8 @@ subcloud_uri:
 sw_update_strategy_type:
   description: |
     Filter to query a particular type of update strategy if it exists.
-    One of: `firmware`, `kube-rootca-update`, `kubernetes`, `patch`,
-    `prestage`, or `sw-deploy`.
+    One of: `firmware`, `kube-rootca-update`, `kubernetes`, `prestage`
+    or `sw-deploy`.
   in: path
   required: false
   type: string
@@ -474,13 +474,6 @@ openstack_installed:
     A flag indicating if openstack is installed in the subcloud.
   in: body
   required: true
-  type: boolean
-patch_strategy_upload_only:
-  description: |
-    Flag to indicate whether patches should only be uploaded to the subclouds
-    or not. This parameter is only used by 'patch' type strategies.
-  in: body
-  required: false
   type: boolean
 peer_controller_gateway_address:
   description: |

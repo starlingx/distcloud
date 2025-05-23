@@ -108,7 +108,6 @@ ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT = (
 
 USERS_TO_REPLICATE = [
     "sysinv",
-    "patching",  # TODO(nicodemos): Remove after patching is removed
     "usm",
     "vim",
     "mtce",

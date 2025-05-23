@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -40,7 +40,6 @@ SUPPORTED_STRATEGY_TYPES = [
     consts.SW_UPDATE_TYPE_FIRMWARE,
     consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
     consts.SW_UPDATE_TYPE_KUBERNETES,
-    consts.SW_UPDATE_TYPE_PATCH,
     consts.SW_UPDATE_TYPE_PRESTAGE,
     consts.SW_UPDATE_TYPE_SOFTWARE,
 ]
@@ -176,10 +175,7 @@ class SwUpdateStrategyController(object):
                 ]:
                     pecan.abort(400, _("subcloud-apply-type invalid"))
 
-            # TODO(nicodemos): Remove once sw-patch is deprecated
-            if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                utils.validate_patch_strategy(payload)
-            elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+            if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
                 utils.validate_software_strategy(payload.get("release_id"))
             elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                 prestaged_sw_version, message = (

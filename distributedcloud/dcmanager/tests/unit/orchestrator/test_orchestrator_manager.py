@@ -57,15 +57,6 @@ FAKE_SW_PRESTAGE_DATA = {
     "state": consts.SW_UPDATE_STATE_INITIAL,
 }
 
-FAKE_SW_PATCH_DATA = {
-    "type": consts.SW_UPDATE_TYPE_PATCH,
-    "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
-    "max-parallel-subclouds": "2",
-    "stop-on-failure": "true",
-    "patch": "usm.patch",
-    "state": consts.SW_UPDATE_STATE_INITIAL,
-}
-
 health_report_no_mgmt_alarm = "System Health:\n \
     All hosts are provisioned: [Fail]\n \
     1 Unprovisioned hosts\n \
@@ -104,7 +95,6 @@ class FakeDCManagerAuditAPI(object):
     def __init__(self):
         self.trigger_firmware_audit = mock.MagicMock()
         self.trigger_kube_rootca_update_audit = mock.MagicMock()
-        self.trigger_patch_audit = mock.MagicMock()
 
 
 class TestOrchestratorManager(base.DCManagerTestCase):
@@ -624,7 +614,7 @@ class TestOrchestratorManager(base.DCManagerTestCase):
         for index, strategy_step in enumerate(strategy_step_list):
             self.assertEqual(subcloud_ids[index], strategy_step.subcloud_id)
 
-    def test_create_sw_patching_subcloud_in_sync_out_of_sync(self):
+    def test_create_sw_update_subcloud_in_sync_out_of_sync(self):
         # Subcloud 1 will be patched
         fake_subcloud1 = self.create_subcloud(
             self.ctx,
@@ -637,7 +627,7 @@ class TestOrchestratorManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctx,
             fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -653,7 +643,7 @@ class TestOrchestratorManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctx,
             fake_subcloud2.id,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -669,7 +659,7 @@ class TestOrchestratorManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctx,
             fake_subcloud3.id,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         )
 
@@ -685,11 +675,11 @@ class TestOrchestratorManager(base.DCManagerTestCase):
         self.update_subcloud_status(
             self.ctx,
             fake_subcloud4.id,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
+            dccommon_consts.AUDIT_TYPE_SOFTWARE,
             dccommon_consts.SYNC_STATUS_IN_SYNC,
         )
 
-        data = copy.copy(FAKE_SW_PATCH_DATA)
+        data = copy.copy(FAKE_SW_UPDATE_DATA)
         data["subcloud_group"] = str(self.fake_group3.id)
         um = orchestrator_manager.OrchestratorManager()
         response = um.create_sw_update_strategy(self.ctx, payload=data)
@@ -699,7 +689,7 @@ class TestOrchestratorManager(base.DCManagerTestCase):
         self.assertEqual(
             response["subcloud-apply-type"], consts.SUBCLOUD_APPLY_TYPE_PARALLEL
         )
-        self.assertEqual(response["type"], consts.SW_UPDATE_TYPE_PATCH)
+        self.assertEqual(response["type"], consts.SW_UPDATE_TYPE_SOFTWARE)
 
         # Verify the strategy step list
         subcloud_ids = [1, 3]
@@ -708,36 +698,6 @@ class TestOrchestratorManager(base.DCManagerTestCase):
         for strategy_step in strategy_step_list:
             subcloud_id_processed.append(strategy_step.subcloud_id)
         self.assertEqual(subcloud_ids, subcloud_id_processed)
-
-    def test_create_sw_patching_subcloud_failed_current_version(self):
-        fake_subcloud1 = self.create_subcloud(
-            self.ctx,
-            "subcloud1",
-            self.fake_group2.id,
-            is_managed=True,
-            is_online=True,
-            # This is the current version in the test environment
-            sw_version="TEST.SW.VERSION",
-        )
-
-        self.update_subcloud_status(
-            self.ctx,
-            fake_subcloud1.id,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
-            dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-        )
-
-        data = copy.copy(FAKE_SW_PATCH_DATA)
-        um = orchestrator_manager.OrchestratorManager()
-
-        strategy = data.get("type")
-        expected_message = (
-            f"Bad strategy request: Subcloud {fake_subcloud1.name} has the same "
-            f"software version as the system controller. The {strategy} strategy "
-            "can only be used for subclouds running the previous release."
-        )
-        with self.assertRaisesRegex(exceptions.BadRequest, expected_message):
-            um.create_sw_update_strategy(self.ctx, payload=data)
 
     @mock.patch.object(prestage, "initial_subcloud_validate")
     @mock.patch.object(cutils, "get_system_controller_deploy", return_value=None)

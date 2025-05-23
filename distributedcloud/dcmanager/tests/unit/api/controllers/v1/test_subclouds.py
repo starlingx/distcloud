@@ -386,10 +386,8 @@ class TestSubcloudsGet(BaseTestSubcloudsGet):
         """
 
         mock_db_api.return_value = [
-            (self.subcloud, "patching", "not-available"),
             (self.subcloud, "platform", "in-sync"),
             (self.subcloud, "identity", "in-sync"),
-            (self.subcloud, "load", "not-available"),
             (self.subcloud, "dc-cert", "in-sync"),
             (self.subcloud, "firmware", "in-sync"),
             (self.subcloud, "kubernetes", "in-sync"),
@@ -812,20 +810,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
             self._assert_pecan_and_response(
                 response, http.client.BAD_REQUEST, error_msg, index
             )
-
-    def test_post_fails_with_partial_apply_patch(self):
-        """Test post fails with partial-apply patch"""
-
-        self.mock_query.return_value = {"value": {"patchstate": "Partial-Apply"}}
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.UNPROCESSABLE_ENTITY,
-            "Subcloud create is not allowed while system controller "
-            "patching is still in progress.",
-        )
 
     def test_post_fails_with_migrate_and_not_matching_subcloud_name(self):
         """Test post fails with migrate and not matching subcloud name"""

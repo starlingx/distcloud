@@ -27,7 +27,6 @@ TOPIC_DC_NOTIFICATION = "DCMANAGER-NOTIFICATION"
 TOPIC_DC_MANAGER_ORCHESTRATOR_WORKER = "dcmanager-orchestrator-worker"
 
 CERTS_VAULT_DIR = "/opt/dc-vault/certs"
-PATCH_VAULT_DIR = "/opt/dc-vault/patches"
 
 BOOTSTRAP_VALUES = "bootstrap_values"
 BOOTSTRAP_ADDRESS = "bootstrap-address"
@@ -79,7 +78,6 @@ AVAIL_FAIL_COUNT_MAX = 9999
 SW_UPDATE_TYPE_FIRMWARE = "firmware"
 SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE = "kube-rootca-update"
 SW_UPDATE_TYPE_KUBERNETES = "kubernetes"
-SW_UPDATE_TYPE_PATCH = "patch"
 SW_UPDATE_TYPE_PRESTAGE = "prestage"
 SW_UPDATE_TYPE_SOFTWARE = "sw-deploy"
 
@@ -125,14 +123,7 @@ STRATEGY_STATE_INITIAL = "initial"
 STRATEGY_STATE_COMPLETE = "complete"
 STRATEGY_STATE_ABORTED = "aborted"
 STRATEGY_STATE_FAILED = "failed"
-
-# Patch orchestrations states
 STRATEGY_STATE_PRE_CHECK = "pre check"
-STRATEGY_STATE_UPDATING_PATCHES = "updating patches"
-STRATEGY_STATE_CREATING_VIM_PATCH_STRATEGY = "creating VIM patch strategy"
-STRATEGY_STATE_DELETING_VIM_PATCH_STRATEGY = "deleting VIM patch strategy"
-STRATEGY_STATE_APPLYING_VIM_PATCH_STRATEGY = "applying VIM patch strategy"
-STRATEGY_STATE_FINISHING_PATCH_STRATEGY = "finishing patch strategy"
 
 # Software orchestration states
 STRATEGY_STATE_SW_PRE_CHECK = "sw-deploy pre-check"
@@ -329,16 +320,6 @@ EXTRA_ARGS_EXPIRY_DATE = "expiry-date"
 EXTRA_ARGS_SUBJECT = "subject"
 EXTRA_ARGS_SYSADMIN_PASSWORD = "sysadmin_password"
 EXTRA_ARGS_FORCE = "force"
-
-# TODO(nicodemos): Remove after patching is no longer supported
-# extra_args for patching
-EXTRA_ARGS_UPLOAD_ONLY = "upload-only"
-EXTRA_ARGS_PATCH_ID = "patch_id"
-EXTRA_ARGS_REMOVE = "remove"
-
-# TODO(nicodemos): Remove after patching is no longer supported
-# sw_version supported for patching legacy
-PATCHING_SW_VERSION = "22.12"
 
 # extra_args for software
 EXTRA_ARGS_RELEASE_ID = "release_id"
