@@ -199,6 +199,9 @@ DEPLOY_STATE_PRE_RESTORE = "pre-restore"
 DEPLOY_STATE_RESTORE_PREP_FAILED = "restore-prep-failed"
 DEPLOY_STATE_RESTORING = "restoring"
 DEPLOY_STATE_RESTORE_FAILED = "restore-failed"
+# TODO(gherzmann): Add support for enrolling an existing subcloud
+# that is in the DEPLOY_STATE_FACTORY_RESTORE_COMPLETE state.
+DEPLOY_STATE_FACTORY_RESTORE_COMPLETE = "factory-restore-complete"
 DEPLOY_STATE_PRE_REHOME = "pre-rehome"
 DEPLOY_STATE_PRE_ENROLL = "pre-enroll"
 DEPLOY_STATE_PRE_ENROLL_FAILED = "pre-enroll-failed"
