@@ -20,6 +20,7 @@ from oslo_log import log
 from oslo_serialization import base64
 from oslo_utils import encodeutils
 
+# TODO(ecandotti): Replace six library with urllib/requests
 from six.moves.urllib.error import HTTPError
 from six.moves.urllib.error import URLError
 from six.moves.urllib.parse import urlparse
@@ -27,7 +28,7 @@ from six.moves.urllib.request import Request
 from six.moves.urllib.request import urlopen
 
 # pylint: disable=import-error
-# TODO(srana): copy sys_kube to dccertmon/common
+# TODO(ecandotti):Import from dccommon/kubeoperator.py
 from sysinv.common import kubernetes as sys_kube
 
 # pylint: enable=import-error
@@ -52,6 +53,7 @@ INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES = [
     "secondary-failed",
 ]
 
+# TODO(ecandotti): Move constants to dccommon and remove if already present
 # Subcloud sync status
 ENDPOINT_TYPE_DC_CERT = "dc-cert"
 
@@ -405,6 +407,7 @@ def get_token():
     return token
 
 
+# TODO(ecandotti): Improve token retrieval using EndpointCache or keystoneauth1
 def get_dc_token(region_name=constants.SYSTEM_CONTROLLER_REGION):
     """Get token for the dcmanager user.
 
