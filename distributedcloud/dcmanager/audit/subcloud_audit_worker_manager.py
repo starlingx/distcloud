@@ -151,7 +151,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 subcloud_audits.kube_rootca_update_audit_requested
             )
             update_subcloud_state = subcloud_audits.state_update_requested
-            do_software_audit = subcloud_audits.spare_audit_requested
+            do_software_audit = subcloud_audits.software_audit_requested
 
             # Create a new greenthread for each subcloud to allow the audits
             # to be done in parallel. If there are not enough greenthreads

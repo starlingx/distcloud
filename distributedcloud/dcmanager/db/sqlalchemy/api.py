@@ -332,7 +332,7 @@ class Connection(object):
                         == true()
                     )
                     | (models.SubcloudAudits.kubernetes_audit_requested == true())
-                    | (models.SubcloudAudits.spare_audit_requested == true())
+                    | (models.SubcloudAudits.software_audit_requested == true())
                 )
                 .all()
             )
@@ -424,7 +424,7 @@ class Connection(object):
             values["firmware_audit_requested"] = True
             values["kubernetes_audit_requested"] = True
             values["kube_rootca_update_audit_requested"] = True
-            values["spare_audit_requested"] = True
+            values["software_audit_requested"] = True
         with write_session() as session:
             result = (
                 session.query(models.SubcloudAudits)

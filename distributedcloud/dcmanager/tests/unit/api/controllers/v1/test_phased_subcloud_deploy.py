@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -40,7 +40,10 @@ class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
 
         self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
         self._mock_object(psd_common, "get_ks_client")
-        self._mock_object(psd_common.PatchingClient, "query")
+        self.mock_is_system_controller_deploying = self._mock_object(
+            dutils, "is_system_controller_deploying"
+        )
+        self.mock_is_system_controller_deploying.return_value = False
 
 
 class TestPhasedSubcloudDeployController(BaseTestPhasedSubcloudDeployController):

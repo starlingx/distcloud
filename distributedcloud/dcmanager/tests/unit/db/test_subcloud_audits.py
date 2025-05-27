@@ -75,7 +75,7 @@ class DBAPISubcloudAuditsTest(base.DCManagerTestCase):
         self.assertEqual(result["firmware_audit_requested"], False)
         self.assertEqual(result["kubernetes_audit_requested"], False)
         self.assertEqual(result["kube_rootca_update_audit_requested"], False)
-        self.assertEqual(result["spare_audit_requested"], False)
+        self.assertEqual(result["software_audit_requested"], False)
         self.assertEqual(result["spare2_audit_requested"], False)
         self.assertEqual(result["reserved"], None)
 

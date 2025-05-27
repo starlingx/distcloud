@@ -193,7 +193,7 @@ class SubcloudAuditManager(manager.Manager):
             "firmware_audit_requested": True,
             "kubernetes_audit_requested": True,
             "kube_rootca_update_audit_requested": True,
-            "spare_audit_requested": True,
+            "software_audit_requested": True,
         }
         # For the endpoints excluded in the audit, set it to False in db
         # to disable the audit explicitly.

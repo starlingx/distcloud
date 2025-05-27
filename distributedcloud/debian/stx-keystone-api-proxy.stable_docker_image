@@ -5,7 +5,6 @@ PROJECT=infra
 PROJECT_REPO=nil
 PIP_PACKAGES="
         distributedcloud \
-        cgcs-patch \
         tsconfig \
         eventlet \
         pecan \

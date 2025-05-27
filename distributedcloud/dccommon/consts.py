@@ -106,8 +106,6 @@ ENDPOINT_TYPE_USM = "usm"
 ENDPOINT_TYPE_PLATFORM = "platform"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
-# TODO(rlima): remove this once patching client is deleted
-ENDPOINT_TYPE_PATCHING = "patching"
 
 # TODO(nicodemos): Rename all other audit to use AUDIT_TYPE_
 AUDIT_TYPE_SOFTWARE = "software"
@@ -131,14 +129,11 @@ AUDIT_TYPES_LIST = [
 
 
 # All endpoint audit requests
-# TODO(nicodemos): The AUDIT_TYPE_SOFTWARE will use the 'spare_audit_requested'
-# temporarily until the USM feature is fully complete. Afterward, the software audit
-# will replace the patch audit.
 ENDPOINT_AUDIT_REQUESTS = {
     ENDPOINT_TYPE_FIRMWARE: "firmware_audit_requested",
     ENDPOINT_TYPE_KUBERNETES: "kubernetes_audit_requested",
     ENDPOINT_TYPE_KUBE_ROOTCA: "kube_rootca_update_audit_requested",
-    AUDIT_TYPE_SOFTWARE: "spare_audit_requested",
+    AUDIT_TYPE_SOFTWARE: "software_audit_requested",
 }
 
 ENDPOINT_URLS = {
@@ -192,7 +187,6 @@ AVAILABILITY_ONLINE = "online"
 SYNC_STATUS_UNKNOWN = "unknown"
 SYNC_STATUS_IN_SYNC = "in-sync"
 SYNC_STATUS_OUT_OF_SYNC = "out-of-sync"
-SYNC_STATUS_NOT_AVAILABLE = "not-available"
 
 # Subcloud deploy configuration status
 DEPLOY_CONFIG_UP_TO_DATE = "Deployment: configurations up-to-date"
