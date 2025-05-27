@@ -15,7 +15,6 @@ from oslo_config import cfg
 from oslo_config import fixture as config_fixture
 
 from dccertmon.common import certificate_monitor_manager as cert_mon_manager
-from dccertmon.common import constants
 from dccertmon.common import subcloud_audit_queue
 import dccertmon.common.watcher
 from dccertmon.tests.base import DCCertMonTestCase
@@ -31,7 +30,6 @@ class CertMonManagerBase(DCCertMonTestCase):
         self.manager = cert_mon_manager.CertificateMonitorManager()
         self.manager.sc_audit_pool = None  # Force serial audit for testing
         self.config_fixture = self.useFixture(config_fixture.Config(cfg.CONF))
-        self.manager.dc_token_cache = self._mock_token_cache()
         self.mock_get_subcloud = self._mock_object(
             cert_mon_manager.utils, "get_subcloud"
         )
@@ -56,11 +54,10 @@ class CertMonManagerBase(DCCertMonTestCase):
         self.mock_update_ca_cert = self._mock_object(
             cert_mon_manager.utils, "update_subcloud_ca_cert"
         )
-        self.mock_get_dc_token = self._mock_object(
-            cert_mon_manager.utils, "get_dc_token"
-        )
+        self.mock_get_token = self._mock_object(self.manager.ks_mgr, "get_token")
 
         # Default return values
+        self.mock_get_token.return_value = "fake-token"
         self.mock_get_subcloud.return_value = self._mock_subcloud()
         self.mock_build_endpoint.return_value = "http://fake"
         self.mock_get_endpoint_certificate.return_value = (
@@ -70,7 +67,6 @@ class CertMonManagerBase(DCCertMonTestCase):
             self._get_sc_intermediate_ca_secret()
         )
         self.mock_is_subcloud_online.return_value = True
-        self.mock_get_dc_token.return_value = "fake-token"
 
     def _mock_token_cache(self):
         mock_token_cache = mock.Mock()
@@ -186,28 +182,22 @@ class TestAuditQueueBehavior(CertMonManagerBase):
     def test_audit_sc_cert_task_deep(self):
         """Validate a complete subcloud audit flow with all utils mocked"""
 
-        # also need to mock the TokenCache
-        with mock.patch(
-            "sysinv.cert_mon.utils.TokenCache", get_token=mock.DEFAULT
-        ) as token_cache_mock:
-            token_cache_mock["get_token"].return_value = None  # don"t care
+        self.manager.sc_audit_queue.enqueue(
+            subcloud_audit_queue.SubcloudAuditData("test1"), delay_secs=1
+        )
+        self.manager.sc_audit_queue.enqueue(
+            subcloud_audit_queue.SubcloudAuditData("test2"), delay_secs=2
+        )
+        self.assertEqual(self.manager.sc_audit_queue.qsize(), 2)
 
-            self.manager.sc_audit_queue.enqueue(
-                subcloud_audit_queue.SubcloudAuditData("test1"), delay_secs=1
-            )
-            self.manager.sc_audit_queue.enqueue(
-                subcloud_audit_queue.SubcloudAuditData("test2"), delay_secs=2
-            )
-            self.assertEqual(self.manager.sc_audit_queue.qsize(), 2)
+        # Run audit immediately, it should not have picked up anything
+        self.manager.audit_sc_cert_task(None)
+        self.assertEqual(self.manager.sc_audit_queue.qsize(), 2)
 
-            # Run audit immediately, it should not have picked up anything
-            self.manager.audit_sc_cert_task(None)
-            self.assertEqual(self.manager.sc_audit_queue.qsize(), 2)
-
-            time.sleep(3)
-            self.manager.audit_sc_cert_task(None)
-            # It should now be drained:
-            self.assertEqual(self.manager.sc_audit_queue.qsize(), 0)
+        time.sleep(3)
+        self.manager.audit_sc_cert_task(None)
+        # It should now be drained:
+        self.assertEqual(self.manager.sc_audit_queue.qsize(), 0)
 
     def test_requeue_audit_subcloud_enqueues_if_not_present(self):
         """Test that requeue_audit_subcloud adds the subcloud if not present."""
@@ -353,7 +343,7 @@ class TestSubcloudAuditFlow(CertMonManagerBase):
         )
         self.mock_verify_ca.assert_called_once()
         self.mock_update_subcloud_status.assert_called_once_with(
-            self.manager.dc_token_cache.get_token(),
+            self.manager.ks_mgr,
             "subcloud1",
             mock.ANY,
         )
@@ -365,7 +355,6 @@ class TestStartupAuditBehavior(CertMonManagerBase):
     def setUp(self):
         super().setUp()
         # Patch functions and methods commonly used across tests
-        self.mock_get_dc_role = self._mock_object(cert_mon_manager.utils, "get_dc_role")
         self.mock_get_subclouds = self._mock_object(
             cert_mon_manager.utils, "get_subclouds_from_dcmanager"
         )
@@ -377,7 +366,6 @@ class TestStartupAuditBehavior(CertMonManagerBase):
     def test_on_start_audits_out_of_sync_subclouds(self):
         """Test that on_start enqueues only out-of-sync subclouds."""
 
-        self.mock_get_dc_role.return_value = constants.DC_ROLE_SYSTEMCONTROLLER
         self.mock_get_subclouds.return_value = [
             self._mock_dcmanager_subcloud("subcloud1", "192.168.101.2", "out-of-sync"),
             self._mock_dcmanager_subcloud("subcloud2", "192.168.101.3", "in-sync"),
@@ -390,18 +378,9 @@ class TestStartupAuditBehavior(CertMonManagerBase):
         audit_data = mock_enqueue.call_args[0][0]
         self.assertEqual(audit_data.name, "subcloud1")
 
-    def test_on_start_not_systemcontroller(self):
-        """Test that on_start does nothing if not systemcontroller."""
-
-        self.mock_get_dc_role.return_value = "subcloud"
-        mock_enqueue = self._mock_object(self.manager.sc_audit_queue, "enqueue")
-        self.manager.on_start()
-        mock_enqueue.assert_not_called()
-
     def test_on_start_with_startup_audit_all(self):
         """Test that on_start triggers full audit when startup_audit_all is set."""
 
-        self.mock_get_dc_role.return_value = constants.DC_ROLE_SYSTEMCONTROLLER
         self.config_fixture.config(startup_audit_all=True, group=OPT_GROUP_NAME)
         mock_audit = self._mock_object(self.manager, "audit_sc_cert_start")
         self.manager.on_start()
@@ -411,7 +390,6 @@ class TestStartupAuditBehavior(CertMonManagerBase):
         """Test that subcloud already under audit is not re-enqueued."""
 
         self.config_fixture.config(startup_audit_all=False, group=OPT_GROUP_NAME)
-        self.mock_get_dc_role.return_value = constants.DC_ROLE_SYSTEMCONTROLLER
         self.mock_get_subclouds.return_value = [
             self._mock_dcmanager_subcloud("subcloud1", "192.168.101.2", "out-of-sync")
         ]
@@ -427,7 +405,6 @@ class TestStartupAuditBehavior(CertMonManagerBase):
     def test_audit_sc_cert_start_enqueues_all_subclouds(self):
         """Test that audit_sc_cert_start enqueues all subclouds for auditing."""
 
-        self.mock_get_dc_role.return_value = constants.DC_ROLE_SYSTEMCONTROLLER
         self.mock_get_subclouds.return_value = [
             {"name": "sc1", "management_ip": "1.2.3.4"},
             {"name": "sc2", "management_ip": "1.2.3.5"},
@@ -436,14 +413,6 @@ class TestStartupAuditBehavior(CertMonManagerBase):
         mock_enqueue = self._mock_object(self.manager.sc_audit_queue, "enqueue")
         self.manager.audit_sc_cert_start(None)
         self.assertEqual(mock_enqueue.call_count, 2)
-
-    def test_audit_sc_cert_start_not_systemcontroller(self):
-        """Test that audit_sc_cert_start skips if not systemcontroller."""
-
-        self.mock_get_dc_role.return_value = "subcloud"
-        mock_enqueue = self._mock_object(self.manager.sc_audit_queue, "enqueue")
-        self.manager.audit_sc_cert_start(None)
-        mock_enqueue.assert_not_called()
 
 
 class TestRetryMechanism(CertMonManagerBase):

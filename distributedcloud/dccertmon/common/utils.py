@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+from urllib.parse import urlparse
 
 import json
 import re
@@ -10,79 +11,22 @@ import socket
 import ssl
 import tempfile
 
-from eventlet.green import subprocess
+import requests
 
 import netaddr
 
+from eventlet.green import subprocess
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log
 from oslo_serialization import base64
-from oslo_utils import encodeutils
 
-# TODO(ecandotti): Replace six library with urllib/requests
-from six.moves.urllib.error import HTTPError
-from six.moves.urllib.error import URLError
-from six.moves.urllib.parse import urlparse
-from six.moves.urllib.request import Request
-from six.moves.urllib.request import urlopen
-
-# pylint: disable=import-error
-# TODO(ecandotti):Import from dccommon/kubeoperator.py
-from sysinv.common import kubernetes as sys_kube
-
-# pylint: enable=import-error
-
-from dccertmon.common import constants
-from dccertmon.common.keystone_objects import Token
-
-
-DC_ROLE_TIMEOUT_SECONDS = 180
-DC_ROLE_DELAY_SECONDS = 5
-
-INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES = [
-    # Secondary subclouds should not be audited as they are expected
-    # to be managed by a peer system controller (geo-redundancy feat.)
-    "create-complete",
-    "create-failed",
-    "pre-rehome",
-    "rehome-failed",
-    "rehome-pending",
-    "rehoming",
-    "secondary",
-    "secondary-failed",
-]
-
-# TODO(ecandotti): Move constants to dccommon and remove if already present
-# Subcloud sync status
-ENDPOINT_TYPE_DC_CERT = "dc-cert"
-
-SYNC_STATUS_UNKNOWN = "unknown"
-SYNC_STATUS_IN_SYNC = "in-sync"
-SYNC_STATUS_OUT_OF_SYNC = "out-of-sync"
-
-DEPLOY_STATE_DONE = "complete"
-
-MANAGEMENT_UNMANAGED = "unmanaged"
-MANAGEMENT_MANAGED = "managed"
-
-AVAILABILITY_OFFLINE = "offline"
-AVAILABILITY_ONLINE = "online"
-
-CERT_NAMESPACE_SYS_CONTROLLER = "dc-cert"
-CERT_NAMESPACE_SUBCLOUD_CONTROLLER = "sc-cert"
-DC_ROLE_UNDETECTED = "unknown"
-
-ENDPOINT_LOCK_NAME = "sysinv-endpoints"
-CERT_INSTALL_LOCK_NAME = "sysinv-certs"
+from dccertmon.common.keystone_objects import KeystoneSessionManager
+from dccommon import consts as constants
+from dccommon import kubeoperator as sys_kube
 
 LOG = log.getLogger(__name__)
 CONF = cfg.CONF
-
-dc_role = DC_ROLE_UNDETECTED
-
-internal_token_cache = None
-dc_token_cache = None
 
 
 def verify_intermediate_ca_cert(ca_crt, tls_crt):
@@ -104,25 +48,33 @@ def verify_intermediate_ca_cert(ca_crt, tls_crt):
             return True
         else:
             LOG.info(
-                "Provided intermediate CA cert is invalid\n%s\n%s\n%s"
-                % (tls_crt, stdout, stderr)
+                "Provided intermediate CA cert is invalid\n"
+                f"{tls_crt}\n{stdout}\n{stderr}"
             )
             return False
 
 
-def update_admin_ep_cert(token, ca_crt, tls_crt, tls_key):
-    service_type = "platform"
-    service_name = "sysinv"
-    sysinv_url = token.get_service_internal_url(service_type, service_name)
+def update_admin_ep_cert(ks_session_mgr, ca_crt, tls_crt, tls_key):
+    """Update admin endpoint certificate using the sysinv API."""
+
+    service_type = constants.ENDPOINT_TYPE_PLATFORM
+    service_name = constants.ENDPOINT_NAME_SYSINV
+
+    sysinv_url = ks_session_mgr.get_endpoint_url(
+        service_type=service_type,
+        service_name=service_name,
+        interface=constants.KS_ENDPOINT_INTERNAL,
+    )
+
     api_cmd = sysinv_url + "/certificate/certificate_renew"
-    api_cmd_payload = dict()
-    api_cmd_payload["certtype"] = constants.CERTIFICATE_TYPE_ADMIN_ENDPOINT
-    resp = rest_api_request(token, "POST", api_cmd, json.dumps(api_cmd_payload))
+    api_cmd_payload = {"certtype": constants.CERTIFICATE_TYPE_ADMIN_ENDPOINT}
+
+    resp = rest_api_request(ks_session_mgr, "POST", api_cmd, api_cmd_payload)
 
     if "result" in resp and resp["result"] == "OK":
         LOG.info("Update admin endpoint certificate request succeeded")
     else:
-        LOG.error("Request response %s" % resp)
+        LOG.error(f"Request response {resp}")
         raise Exception("Update admin endpoint certificate failed")
 
 
@@ -141,19 +93,21 @@ def verify_adminep_cert_chain():
     kube_op = sys_kube.KubeOperator()
 
     secret_ica = kube_op.kube_get_secret(
-        constants.SC_INTERMEDIATE_CA_SECRET_NAME, CERT_NAMESPACE_SUBCLOUD_CONTROLLER
+        constants.SC_INTERMEDIATE_CA_SECRET_NAME,
+        constants.CERT_NAMESPACE_SUBCLOUD_CONTROLLER,
     )
     if "tls.crt" not in secret_ica.data:
         raise Exception(
-            "%s tls.crt (ICA) data missing" % (constants.SC_INTERMEDIATE_CA_SECRET_NAME)
+            f"{constants.SC_INTERMEDIATE_CA_SECRET_NAME} tls.crt (ICA) data missing"
         )
 
     secret_adminep = kube_op.kube_get_secret(
-        constants.SC_ADMIN_ENDPOINT_SECRET_NAME, CERT_NAMESPACE_SUBCLOUD_CONTROLLER
+        constants.SC_ADMIN_ENDPOINT_SECRET_NAME,
+        constants.CERT_NAMESPACE_SUBCLOUD_CONTROLLER,
     )
     if "tls.crt" not in secret_adminep.data:
         raise Exception(
-            "%s tls.crt data missing" % (constants.SC_ADMIN_ENDPOINT_SECRET_NAME)
+            f"{(constants.SC_ADMIN_ENDPOINT_SECRET_NAME)} tls.crt data missing"
         )
 
     txt_ca_crt = base64.decode_as_text(secret_ica.data["tls.crt"])
@@ -189,70 +143,84 @@ def verify_adminep_cert_chain():
                 return True
             else:
                 LOG.info(
-                    "verify_adminep_cert_chain: Chain is invalid\n%s\n%s"
-                    % (stdout, stderr)
+                    "verify_adminep_cert_chain: Chain is invalid\n"
+                    f"{stdout}\n{stderr}"
                 )
 
-                res = kube_op.kube_delete_secret(
+                kube_op.kube_delete_secret(
                     constants.SC_ADMIN_ENDPOINT_SECRET_NAME,
-                    CERT_NAMESPACE_SUBCLOUD_CONTROLLER,
+                    constants.CERT_NAMESPACE_SUBCLOUD_CONTROLLER,
                 )
                 LOG.info(
                     "Deleting AdminEP secret due to invalid chain. "
-                    "%s:%s, result %s, msg %s",
-                    CERT_NAMESPACE_SUBCLOUD_CONTROLLER,
-                    constants.SC_ADMIN_ENDPOINT_SECRET_NAME,
-                    res.status,
-                    res.message,
+                    f"{constants.CERT_NAMESPACE_SUBCLOUD_CONTROLLER}:"
+                    f"{constants.SC_ADMIN_ENDPOINT_SECRET_NAME}"
                 )
                 return False
 
 
-def dc_get_service_endpoint_url(
-    token,
-    service_name="dcmanager",
-    service_type="dcmanager",
-    region=constants.SYSTEM_CONTROLLER_REGION,
-):
-    """Pulls the dcmanager service internal URL from the given token."""
-    url = token.get_service_internal_url(service_type, service_name, region)
-    if url:
-        LOG.debug("%s %s endpoint %s" % (region, service_name, url))
-        return url
-    else:
-        LOG.error("Cannot find %s endpoint for %s" % (service_name, region))
-        raise Exception("Cannot find %s endpoint for %s" % (service_name, region))
+def update_subcloud_ca_cert(ks_mgr, sc_name, sysinv_url, ca_crt, tls_crt, tls_key):
+    token = ks_mgr.get_token()
 
-
-def update_subcloud_ca_cert(token, sc_name, sysinv_url, ca_crt, tls_crt, tls_key):
-
-    api_cmd = sysinv_url + "/certificate/certificate_renew"
-    api_cmd_payload = {
+    api_url = f"{sysinv_url}/certificate/certificate_renew"
+    payload = {
         "certtype": constants.CERTIFICATE_TYPE_ADMIN_ENDPOINT_INTERMEDIATE_CA,
         "root_ca_crt": ca_crt,
         "sc_ca_cert": tls_crt,
         "sc_ca_key": tls_key,
     }
-    timeout = int(CONF.endpoint_cache.http_connect_timeout)
+    headers = {
+        "Content-type": "application/json",
+        "User-Agent": "cert-mon/1.0",
+        "X-Auth-Token": token,
+        "Accept": "application/json",
+    }
 
-    resp = rest_api_request(
-        token, "POST", api_cmd, json.dumps(api_cmd_payload), timeout=timeout
+    try:
+        response = requests.post(
+            api_url,
+            headers=headers,
+            json=payload,
+            timeout=CONF.endpoint_cache.http_connect_timeout,
+        )
+        response.raise_for_status()
+        resp_data = response.json()
+
+        if resp_data.get("result") == "OK":
+            LOG.info(f"Update f{sc_name} intermediate CA cert request succeeded")
+        else:
+            LOG.error(f"Request failed for {sc_name}: {resp_data}")
+            raise Exception(f"Update {sc_name} intermediate CA cert failed")
+
+    except requests.exceptions.RequestException as e:
+        LOG.exception(f"Failed to update intermediate CA cert for {sc_name}: {e}")
+        raise
+
+
+def get_subcloud(ks_mgr, subcloud_name):
+    token = ks_mgr.get_token()
+
+    endpoint_url = ks_mgr.get_endpoint_url(
+        "dcmanager", region_name=constants.SYSTEM_CONTROLLER_NAME
     )
+    api_url = f"{endpoint_url}/subclouds/{subcloud_name}"
 
-    if "result" in resp and resp["result"] == "OK":
-        LOG.info("Update %s intermediate CA cert request succeed" % sc_name)
-    else:
-        LOG.error("Request response %s" % resp)
-        raise Exception("Update %s intermediate CA cert failed" % sc_name)
+    headers = {
+        "Content-type": "application/json",
+        "User-Agent": "cert-mon/1.0",
+        "X-Auth-Token": token,
+        "Accept": "application/json",
+    }
 
-
-def get_subcloud(token, subcloud_name):
-    api_url = dc_get_service_endpoint_url(token)
-    api_cmd = api_url + "/subclouds/%s" % subcloud_name
-    LOG.info("api_cmd %s" % api_cmd)
-    resp = rest_api_request(token, "GET", api_cmd)
-
-    return resp
+    try:
+        response = requests.get(
+            api_url, headers=headers, timeout=CONF.endpoint_cache.http_connect_timeout
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        LOG.exception(f"Failed to retrieve subcloud {subcloud_name}: {e}")
+        raise
 
 
 def load_subclouds(resp, invalid_deploy_states=None):
@@ -274,46 +242,55 @@ def load_subclouds(resp, invalid_deploy_states=None):
     return sc_list
 
 
-def get_subclouds_from_dcmanager(token, invalid_deploy_states=None):
-    api_url = dc_get_service_endpoint_url(token)
-    api_cmd = api_url + "/subclouds"
-    LOG.debug("api_cmd %s" % api_cmd)
-    resp = rest_api_request(token, "GET", api_cmd)
+def get_subclouds_from_dcmanager(ks_mgr, invalid_deploy_states=None):
+    """Retrieve the list of subclouds from dcmanager."""
+    api_url = ks_mgr.get_endpoint_url(
+        "dcmanager", region_name=constants.SYSTEM_CONTROLLER_NAME
+    )
+    api_cmd = f"{api_url}/subclouds"
+    LOG.debug(f"api_cmd {api_cmd}")
+
+    resp = rest_api_request(ks_mgr, "GET", api_cmd)
 
     return load_subclouds(resp, invalid_deploy_states)
 
 
-def is_subcloud_online(subcloud_name, token=None):
+def is_subcloud_online(subcloud_name, ks_mgr=None):
     """Check if subcloud is online."""
-    if not token:
-        token = get_cached_token()
-    subcloud_info = get_subcloud(token, subcloud_name)
+    if ks_mgr is None:
+        ks_mgr = KeystoneSessionManager("endpoint_cache")
+
+    subcloud_info = get_subcloud(ks_mgr, subcloud_name)
     if not subcloud_info:
-        LOG.error("Cannot find subcloud %s" % subcloud_name)
+        LOG.error(f"Cannot find subcloud {subcloud_name}")
         return False
-    return subcloud_info["availability-status"] == AVAILABILITY_ONLINE
+    return subcloud_info["availability-status"] == constants.AVAILABILITY_ONLINE
 
 
 def query_subcloud_online_with_deploy_state(
-    subcloud_name, invalid_deploy_states=None, token=None
+    subcloud_name, invalid_deploy_states=None, ks_mgr=None
 ):
     """Check if subcloud is online and not in an invalid deploy state."""
-    if not token:
-        token = get_cached_token()
-    subcloud_info = get_subcloud(token, subcloud_name)
+    if ks_mgr is None:
+        ks_mgr = KeystoneSessionManager("endpoint_cache")
+
+    subcloud_info = get_subcloud(ks_mgr, subcloud_name)
     if not subcloud_info:
-        LOG.error("Cannot find subcloud %s" % subcloud_name)
+        LOG.error(f"Cannot find subcloud {subcloud_name}")
         return False, None, None
-    subcloud_valid_state = False
     if (
         invalid_deploy_states
         and subcloud_info["deploy-status"] in invalid_deploy_states
     ):
-        subcloud_valid_state = False
-    else:
-        subcloud_valid_state = (
-            subcloud_info["availability-status"] == AVAILABILITY_ONLINE
+        return (
+            False,
+            subcloud_info["availability-status"],
+            subcloud_info["deploy-status"],
         )
+
+    subcloud_valid_state = (
+        subcloud_info["availability-status"] == constants.AVAILABILITY_ONLINE
+    )
     return (
         subcloud_valid_state,
         subcloud_info["availability-status"],
@@ -321,174 +298,61 @@ def query_subcloud_online_with_deploy_state(
     )
 
 
-def update_subcloud_status(token, subcloud_name, status):
-    api_url = dc_get_service_endpoint_url(token)
-    api_cmd = api_url + "/subclouds/%s/update_status" % subcloud_name
-    api_cmd_payload = dict()
-    api_cmd_payload["endpoint"] = ENDPOINT_TYPE_DC_CERT
-    api_cmd_payload["status"] = status
-    resp = rest_api_request(token, "PATCH", api_cmd, json.dumps(api_cmd_payload))
+def update_subcloud_status(session_mgr, subcloud_name, status):
+    api_url = session_mgr.get_endpoint_url(
+        service_type="dcmanager",
+        interface=constants.KS_ENDPOINT_INTERNAL,
+        region_name=constants.SYSTEM_CONTROLLER_NAME,
+    )
+    api_cmd = f"{api_url}/subclouds/{subcloud_name}/update_status"
+    api_cmd_payload = {
+        "endpoint": constants.ENDPOINT_TYPE_DC_CERT,
+        "status": status,
+    }
 
-    if "result" in resp and resp["result"] == "OK":
-        LOG.info("Updated subcloud %s status: %s" % (subcloud_name, status))
+    resp = rest_api_request(
+        session_mgr,
+        "PATCH",
+        api_cmd,
+        api_cmd_payload,
+        timeout=CONF.endpoint_cache.http_connect_timeout,
+    )
+
+    if resp.get("result") == "OK":
+        LOG.info(f"Updated subcloud {subcloud_name} status: {status}")
     else:
-        LOG.error(
-            "Failed to update subcloud %s status to '%s', resp=%s"
-            % (subcloud_name, status, resp)
-        )
-        raise Exception("Update subcloud status failed, subcloud=%s" % subcloud_name)
+        LOG.error(f"Failed response while updating subcloud {subcloud_name}: {resp}")
+        raise Exception(f"Update subcloud status failed for {subcloud_name}")
 
 
-def rest_api_request(token, method, api_cmd, api_cmd_payload=None, timeout=45):
-    """Make a REST API request.
+def rest_api_request(session_mgr, method, api_cmd, api_cmd_payload=None, timeout=45):
+    """Make a REST API request using KeystoneSessionManager.
 
     Returns: response as a dictionary.
     """
-    api_cmd_headers = {
+    headers = {
         "Content-type": "application/json",
         "User-Agent": "cert-mon/1.0",
+        "Accept": "application/json",
+        "X-Auth-Token": session_mgr.get_token(),
     }
 
     try:
-        request_info = Request(api_cmd)
-        request_info.get_method = lambda: method
-        if token:
-            request_info.add_header("X-Auth-Token", token.get_id())
-        request_info.add_header("Accept", "application/json")
-
-        if api_cmd_headers is not None:
-            for header_type, header_value in api_cmd_headers.items():
-                request_info.add_header(header_type, header_value)
-
-        if api_cmd_payload is not None:
-            request_info.data = encodeutils.safe_encode(api_cmd_payload)
-
-        request = None
-        try:
-            request = urlopen(request_info, timeout=timeout)
-            response = request.read()
-        finally:
-            if request:
-                request.close()
-
-        if response == "":
-            response = json.loads("{}")
-        else:
-            response = json.loads(response)
-
-    except HTTPError as e:
-        if 401 == e.code:
-            if token:
-                token.set_expired()
-        raise
-
-    except URLError:
-        LOG.error("Cannot access %s" % api_cmd)
-        raise
-
-    return response
-
-
-def get_token():
-    """Get token for the sysinv user."""
-
-    keystone_conf = CONF.get("KEYSTONE_AUTHTOKEN")
-
-    token = _get_token(
-        keystone_conf.auth_url + "/v3/auth/tokens",
-        keystone_conf.project_name,
-        keystone_conf.username,
-        keystone_conf.password,
-        keystone_conf.user_domain_name,
-        keystone_conf.project_domain_name,
-        keystone_conf.region_name,
-    )
-
-    return token
-
-
-# TODO(ecandotti): Improve token retrieval using EndpointCache or keystoneauth1
-def get_dc_token(region_name=constants.SYSTEM_CONTROLLER_REGION):
-    """Get token for the dcmanager user.
-
-    Note: Although region_name can be specified, the token used here is a
-    "project-scoped" token (i.e., not specific to the subcloud/region name).
-    A token obtained using one region_name can be re-used across any
-    subcloud. We take advantage of this in our DC token caching strategy.
-    """
-    token = _get_token(
-        CONF.endpoint_cache.auth_uri + "/auth/tokens",
-        CONF.endpoint_cache.project_name,
-        CONF.endpoint_cache.username,
-        CONF.endpoint_cache.password,
-        CONF.endpoint_cache.user_domain_name,
-        CONF.endpoint_cache.project_domain_name,
-        region_name,
-    )
-    return token
-
-
-def _get_token(
-    auth_url,
-    auth_project,
-    username,
-    password,
-    user_domain,
-    project_domain,
-    region_name,
-    timeout=60,
-):
-    """Ask OpenStack Keystone for a token
-
-    Returns: token object or None on failure
-    """
-    try:
-        request_info = Request(auth_url)
-        request_info.add_header("Content-type", "application/json")
-        request_info.add_header("Accept", "application/json")
-        payload = json.dumps(
-            {
-                "auth": {
-                    "identity": {
-                        "methods": ["password"],
-                        "password": {
-                            "user": {
-                                "name": username,
-                                "password": password,
-                                "domain": {"name": user_domain},
-                            }
-                        },
-                    },
-                    "scope": {
-                        "project": {
-                            "name": auth_project,
-                            "domain": {"name": project_domain},
-                        }
-                    },
-                }
-            }
+        response = requests.request(
+            method=method,
+            url=api_cmd,
+            headers=headers,
+            data=json.dumps(api_cmd_payload) if api_cmd_payload else None,
+            timeout=timeout,
         )
-
-        request_info.data = encodeutils.safe_encode(payload)
-
-        request = urlopen(request_info, timeout=timeout)
-        # Identity API v3 returns token id in X-Subject-Token
-        # response header.
-        token_id = request.headers.get("X-Subject-Token")
-        json_response = request.read()
-        response = json.loads(json_response)
-        request.close()
-
-        # save the region name for service url lookup
-        return Token(response, token_id, region_name)
-
-    except HTTPError as e:
-        LOG.error("%s, %s" % (e.code, e.read()))
-        return None
-
-    except URLError as e:
-        LOG.error(e)
-        return None
+        response.raise_for_status()
+        return response.json() if response.content else {}
+    except requests.exceptions.HTTPError as e:
+        LOG.error(f"HTTP error on {method} {api_cmd}: {e.response.text}")
+        raise
+    except requests.exceptions.RequestException as e:
+        LOG.error(f"Error contacting {method} {api_cmd}: {str(e)}")
+        raise
 
 
 def get_subcloud_secrets():
@@ -500,7 +364,7 @@ def get_subcloud_secrets():
     """
     secret_pattern = re.compile("-adminep-ca-certificate$")
     kube_op = sys_kube.KubeOperator()
-    secret_list = kube_op.kube_list_secret(ENDPOINT_TYPE_DC_CERT)
+    secret_list = kube_op.kube_list_secret(constants.ENDPOINT_TYPE_DC_CERT)
 
     dict = {}
     for secret in secret_list:
@@ -532,104 +396,41 @@ def get_intermediate_ca_secret_name(sc):
 def get_sc_intermediate_ca_secret(sc):
     secret_name = get_intermediate_ca_secret_name(sc)
     kube_op = sys_kube.KubeOperator()
-    return kube_op.kube_get_secret(secret_name, CERT_NAMESPACE_SYS_CONTROLLER)
+    return kube_op.kube_get_secret(secret_name, constants.CERT_NAMESPACE_SYS_CONTROLLER)
 
 
 def get_endpoint_certificate(endpoint, timeout_secs=10):
+    """Retrieve the SSL certificate from a remote endpoint.
+
+    :param endpoint: URL (e.g. https://host:port)
+    :param timeout_secs: connection timeout in seconds
+    :returns: PEM-formatted certificate
+    :raises: socket.error or ssl.SSLError on failure
+    """
     url = urlparse(endpoint)
     host = url.hostname
     port = url.port
-    if timeout_secs is not None and timeout_secs > 0:
-        # The call to ssl.get_server_certificate blocks for a long time if the
-        # server is not available. A timeout is not available in python 2.7.
-        # See https://bugs.python.org/issue31870
-        # Until the timeout=<val> option is available in
-        # get_server_certificate(), we first check if the port is open
-        # by connecting using a timeout, then we do the certificate check:
-        sock = None
-        try:
-            sock = socket.create_connection((host, port), timeout=timeout_secs)
-        except Exception:
-            LOG.warn("get_endpoint_certificate: connection failed to %s:%s", host, port)
-            raise
-        finally:
-            if sock is not None:
-                sock.close()
-    return ssl.get_server_certificate((host, port))
+
+    context = ssl.create_default_context()
+    # In Python 3.9, ssl.get_server_certificate() does not support a timeout.
+    # See: https://bugs.python.org/issue31870
+    # To enforce a timeout and avoid indefinite blocking when the endpoint is down,
+    # we manually create a socket connection with a timeout and wrap it using SSL.
+    # In Python 3.10+, this could be simplified using the `timeout=` parameter
+    # in ssl.get_server_certificate().
+    try:
+        with socket.create_connection((host, port), timeout=timeout_secs) as sock:
+            with context.wrap_socket(sock, server_hostname=host) as ssock:
+                cert_bin = ssock.getpeercert(binary_form=True)
+                cert_pem = ssl.DER_cert_to_PEM_cert(cert_bin)
+                return cert_pem
+    except Exception:
+        LOG.warning(f"get_endpoint_certificate: connection failed to {host}:{port}")
+        raise
 
 
-def get_dc_role():
-    global dc_role
-    if dc_role == DC_ROLE_UNDETECTED:
-        token = get_cached_token()
-        if not token:
-            raise Exception("Failed to obtain keystone token")
-        service_type = "platform"
-        service_name = "sysinv"
-        sysinv_url = token.get_service_internal_url(service_type, service_name)
-        api_cmd = sysinv_url + "/isystems"
-        res = rest_api_request(token, "GET", api_cmd)["isystems"]
-        if len(res) == 1:
-            system = res[0]
-            dc_role = system["distributed_cloud_role"]
-            LOG.debug("DC role: %s" % system)
-        else:
-            raise Exception("Failed to access system data")
-
-    return dc_role
-
-
-class TokenCache(object):
-    """Simple token cache.
-
-    This class holds one keystone token.
-    """
-
-    token_getters = {"internal": get_token, "dc": get_dc_token}
-
-    def __init__(self, token_type):
-        self._token = None
-        self._token_type = token_type
-        self._getter_func = self.token_getters[token_type]
-
-    def get_token(self):
-        """Get a new token if required; otherwise use the cached token."""
-        if not self._token or self._token.is_expired():
-            LOG.debug(
-                "TokenCache %s, Acquiring new token, previous token: %s",
-                self._token_type,
-                self._token,
-            )
-            self._token = self._getter_func()
-        else:
-            LOG.debug(
-                "TokenCache %s, Token is still valid, reusing token: %s",
-                self._token_type,
-                self._token,
-            )
-        return self._token
-
-
-def get_internal_token_cache():
-    global internal_token_cache
-    if not internal_token_cache:
-        internal_token_cache = TokenCache("internal")
-    return internal_token_cache
-
-
-def get_cached_token():
-    return get_internal_token_cache().get_token()
-
-
-def get_dc_token_cache():
-    global dc_token_cache
-    if not dc_token_cache:
-        dc_token_cache = TokenCache("dc")
-    return dc_token_cache
-
-
-def get_cached_dc_token():
-    return get_dc_token_cache().get_token()
+def get_internal_keystone_session():
+    return KeystoneSessionManager(auth_section="keystone_authtoken")
 
 
 class SubcloudSysinvEndpointCache(object):
@@ -638,7 +439,7 @@ class SubcloudSysinvEndpointCache(object):
     cached_endpoints = {}
 
     @classmethod
-    @lockutils.synchronized(ENDPOINT_LOCK_NAME)
+    @lockutils.synchronized(constants.ENDPOINT_LOCK_NAME)
     def get_endpoint(cls, region_name: str, dc_token=None):
         """Retrieve the sysinv endpoint for the given region.
 
@@ -664,7 +465,7 @@ class SubcloudSysinvEndpointCache(object):
         return endpoint
 
     @classmethod
-    @lockutils.synchronized(ENDPOINT_LOCK_NAME)
+    @lockutils.synchronized(constants.ENDPOINT_LOCK_NAME)
     def update_endpoints(cls, endpoints_dict: dict):
         """Update the cached endpoints with the provided dictionary.
 
@@ -674,7 +475,7 @@ class SubcloudSysinvEndpointCache(object):
         cls.cached_endpoints.update(endpoints_dict)
 
     @classmethod
-    @lockutils.synchronized(ENDPOINT_LOCK_NAME)
+    @lockutils.synchronized(constants.ENDPOINT_LOCK_NAME)
     def cache_endpoints_by_ip(cls, subcloud_mgmt_ips: dict):
         """Cache endpoints based on management IPs.
 

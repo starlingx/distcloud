@@ -248,6 +248,24 @@ class KubeOperator(object):
             )
             raise
 
+    def kube_list_secret(self, namespace):
+        c = self._get_kubernetesclient_core()
+        try:
+            secret_list = c.list_namespaced_secret(namespace)
+            return secret_list.items
+        except ApiException as e:
+            if e.status == httplib.NOT_FOUND:
+                return None
+            else:
+                LOG.error(
+                    "Failed to list secret under "
+                    "Namespace %s: %s" % (namespace, e.body)
+                )
+                raise
+        except Exception as e:
+            LOG.exception(e)
+            raise
+
     def kube_copy_secret(self, name, src_namespace, dst_namespace):
         c = self._get_kubernetesclient_core()
         try:

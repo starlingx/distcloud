@@ -11,6 +11,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
+import os
 
 SECONDS_IN_HOUR = 3600
 
@@ -198,6 +199,54 @@ MONITORED_ALARM_ENTITIES = [
 # SSL cert
 CERT_CA_FILE_DEBIAN = "ca-cert.crt"
 SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+
+# DCCertMon
+# Unique name of certificate
+CERTIFICATE_TYPE_ADMIN_ENDPOINT = "admin-endpoint-cert"
+CERTIFICATE_TYPE_ADMIN_ENDPOINT_INTERMEDIATE_CA = "intermediate-ca-cert"
+CERT_MODE_SSL_CA = "ssl_ca"
+
+DC_ADMIN_ENDPOINT_SECRET_NAME = "dc-adminep-certificate"
+DC_ADMIN_ROOT_CA_SECRET_NAME = "dc-adminep-root-ca-certificate"
+
+SC_INTERMEDIATE_CA_SECRET_NAME = "sc-adminep-ca-certificate"
+SC_ADMIN_ENDPOINT_SECRET_NAME = "sc-adminep-certificate"
+
+DC_ROOT_CA_CERT_FILE = "dc-adminep-root-ca.crt"
+SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+DC_ROOT_CA_CERT_PATH = os.path.join(SSL_CERT_CA_DIR, DC_ROOT_CA_CERT_FILE)
+
+CERT_CA_FILE_DEBIAN = "ca-cert.crt"
+SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+
+CERT_NAMESPACE_SYS_CONTROLLER = "dc-cert"
+CERT_NAMESPACE_SUBCLOUD_CONTROLLER = "sc-cert"
+
+ENDPOINT_LOCK_NAME = "sysinv-endpoints"
+CERT_INSTALL_LOCK_NAME = "sysinv-certs"
+
+# The periodic dccertmon audit runs every 5 seconds to process background audits across
+# all subclouds. Notification-triggered audits run more frequently (every 2
+# seconds) to ensure prompt handling when a subcloud comes online.
+# This separation allows faster responsiveness to events without interfering
+# with the regular audit cadence.
+PERIODIC_AUDIT_INTERVAL_SECS = 5
+NOTIFICATION_QUEUE_AUDIT_INTERVAL_SECS = 2
+
+# TODO(ecandotti): Update this list when the deploy states are migrated from
+# dcmanager/common/consts.py to here.
+INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES = [
+    # Secondary subclouds should not be audited as they are expected
+    # to be managed by a peer system controller (geo-redundancy feat.)
+    "create-complete",
+    "create-failed",
+    "pre-rehome",
+    "rehome-failed",
+    "rehome-pending",
+    "rehoming",
+    "secondary",
+    "secondary-failed",
+]
 
 # RVMC
 RVMC_NAME_PREFIX = "rvmc"
