@@ -197,9 +197,11 @@ def subcloud_get(context, subcloud_id):
     return IMPL.Connection(context).subcloud_get(subcloud_id)
 
 
-def subcloud_get_with_status(context, subcloud_id):
+def subcloud_get_with_status(context, subcloud_id, endpoint_type=None):
     """Retrieve a subcloud and all endpoint sync statuses."""
-    return IMPL.Connection(context).subcloud_get_with_status(subcloud_id)
+    return IMPL.Connection(context).subcloud_get_with_status(
+        subcloud_id, endpoint_type=endpoint_type
+    )
 
 
 def subcloud_get_by_name(context, name) -> models.Subcloud:

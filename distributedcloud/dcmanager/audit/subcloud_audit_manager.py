@@ -459,14 +459,12 @@ class SubcloudAuditManager(manager.Manager):
                     audit_kube_rootca_update = True
                     break
         LOG.info(
-            "Triggered subcloud audit: firmware=(%s) kube=(%s) kube-rootca=(%s) "
-            "software=(%s)"
-            % (
-                audit_firmware,
-                audit_kubernetes,
-                audit_kube_rootca_update,
-                audit_software,
-            )
+            "Triggered subcloud audit: "
+            f"firmware=({audit_firmware}) "
+            f"kube=({audit_kubernetes}) "
+            f"kube-rootca=({audit_kube_rootca_update}) "
+            f"software=({audit_software}) "
+            f"update_state_only=({update_subcloud_state})"
         )
         (
             firmware_audit_data,
