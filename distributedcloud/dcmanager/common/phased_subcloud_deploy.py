@@ -72,11 +72,11 @@ def validate_bootstrap_values(payload: dict):
     # The admin network is optional, but takes precedence over the
     # management network for communication between the subcloud and
     # system controller if it is defined.
-    admin_subnet = payload.get("admin_subnet", None)
-    admin_start_ip = payload.get("admin_start_address", None)
-    admin_end_ip = payload.get("admin_end_address", None)
-    admin_gateway_ip = payload.get("admin_gateway_address", None)
-    admin_floating_ip = payload.get("admin_floating_address", None)
+    admin_subnet = payload.get("admin_subnet")
+    admin_start_ip = payload.get("admin_start_address")
+    admin_end_ip = payload.get("admin_end_address")
+    admin_gateway_ip = payload.get("admin_gateway_address")
+    admin_floating_ip = payload.get("admin_floating_address")
 
     if (
         admin_floating_ip
@@ -104,28 +104,51 @@ def validate_bootstrap_values(payload: dict):
             pecan.abort(400, _("admin_gateway_address required"))
 
     management_subnet = payload.get("management_subnet")
-    if not management_subnet:
-        pecan.abort(400, _("management_subnet required"))
-
     management_start_ip = payload.get("management_start_address")
-    if not management_start_ip:
-        pecan.abort(400, _("management_start_address required"))
-
     management_end_ip = payload.get("management_end_address")
-    if not management_end_ip:
-        pecan.abort(400, _("management_end_address required"))
-
     management_gateway_ip = payload.get("management_gateway_address")
-    if admin_gateway_ip and management_gateway_ip:
+    management_floating_ip = payload.get("management_floating_address")
+
+    if (
+        management_floating_ip
+        and not any([management_start_ip, management_end_ip])
+        and system_mode == consts.SYSTEM_MODE_SIMPLEX
+    ):
+        management_start_ip = management_floating_ip
+        management_end_ip = management_floating_ip
+        payload["management_start_address"] = management_floating_ip
+        payload["management_end_address"] = management_floating_ip
+
+    if management_floating_ip and management_floating_ip != management_start_ip:
         pecan.abort(
             400,
-            _(
-                "admin_gateway_address and management_gateway_address cannot be "
-                "specified at the same time"
-            ),
+            _("management_floating_address does not match management_start_address"),
         )
-    elif not admin_gateway_ip and not management_gateway_ip:
-        pecan.abort(400, _("management_gateway_address required"))
+
+    if any(
+        [
+            management_subnet,
+            management_start_ip,
+            management_end_ip,
+            management_gateway_ip,
+        ]
+    ):
+        if not management_subnet:
+            pecan.abort(400, _("management_subnet required"))
+        if not management_start_ip:
+            pecan.abort(400, _("management_start_address required"))
+        if not management_end_ip:
+            pecan.abort(400, _("management_end_address required"))
+        if admin_gateway_ip and management_gateway_ip:
+            pecan.abort(
+                400,
+                _(
+                    "admin_gateway_address and management_gateway_address cannot be "
+                    "specified at the same time"
+                ),
+            )
+        elif not admin_gateway_ip and not management_gateway_ip:
+            pecan.abort(400, _("management_gateway_address required"))
 
     systemcontroller_gateway_ip = payload.get("systemcontroller_gateway_address")
     if not systemcontroller_gateway_ip:
@@ -326,16 +349,22 @@ def validate_subcloud_config(
             continue
         subcloud_subnets.append(netaddr.IPNetwork(subcloud.management_subnet))
 
-    MIN_MANAGEMENT_SUBNET_SIZE = 7
-    # subtract 3 for network, gateway and broadcast addresses.
-    MIN_MANAGEMENT_ADDRESSES = MIN_MANAGEMENT_SUBNET_SIZE - 3
+    system_mode = payload.get("system_mode")
+    if not system_mode:
+        pecan.abort(400, _("system_mode required"))
+
+    min_management_subnet_size = 4 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 8
 
     management_subnets = []
     try:
+        # Use None as 'existing_networks' so the overlapping subnet
+        # validation is not executed. For the mgmt network, we
+        # perform a validation below to ensure the ranges of
+        # the management start <-> end are unique per subcloud,
+        # rather than the uniqueness of the entire subnet.
         management_subnets = utils.validate_network_str(
             payload.get("management_subnet"),
-            minimum_size=MIN_MANAGEMENT_SUBNET_SIZE,
-            existing_networks=subcloud_subnets,
+            minimum_size=min_management_subnet_size,
             operation=operation,
         )
     except exceptions.ValidateFail as e:
@@ -361,17 +390,27 @@ def validate_subcloud_config(
         LOG.exception(e)
         pecan.abort(400, _("management_end_address invalid: %s") % e)
 
+    min_management_valid_hosts = 1 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 4
+
     for start_ip, end_ip in zip(management_start_ips, management_end_ips):
         if start_ip > end_ip:
             pecan.abort(
                 400, _("management_start_address greater than management_end_address")
             )
 
-        if netaddr.IPRange(start_ip, end_ip).size < MIN_MANAGEMENT_ADDRESSES:
+        if netaddr.IPRange(start_ip, end_ip).size < min_management_valid_hosts:
             pecan.abort(
                 400,
                 _("management address range must contain at least %d addresses")
-                % MIN_MANAGEMENT_ADDRESSES,
+                % min_management_valid_hosts,
+            )
+
+        overlap, sc_name = check_range_overlaps(start_ip, end_ip, subclouds)
+        if overlap:
+            pecan.abort(
+                400,
+                _("Management address range overlaps with that of subcloud %s")
+                % sc_name,
             )
 
     # Parse/validate the gateway
@@ -385,10 +424,6 @@ def validate_subcloud_config(
         except exceptions.ValidateFail as e:
             LOG.exception(e)
             pecan.abort(400, _("management_gateway_address invalid: %s") % e)
-
-    system_mode = payload.get("system_mode")
-    if not system_mode:
-        pecan.abort(400, _("system_mode required"))
 
     validate_admin_network_config(
         admin_subnet,
@@ -455,12 +490,24 @@ def validate_subcloud_config(
     validate_group_id(context, group_id)
 
 
-def check_range_overlaps(networks1, networks2):
-    for n1 in networks1:
-        for n2 in networks2:
-            if n1.overlaps(n2):
-                return True
-    return False
+def check_range_overlaps(start_ip, end_ip, subclouds):
+    s0_nets = list(
+        ipaddress.summarize_address_range(
+            ipaddress.ip_address(start_ip), ipaddress.ip_address(end_ip)
+        )
+    )
+    for subcloud in subclouds:
+        s1_nets = list(
+            ipaddress.summarize_address_range(
+                ipaddress.ip_address(subcloud.management_start_ip),
+                ipaddress.ip_address(subcloud.management_end_ip),
+            )
+        )
+        for n1 in s0_nets:
+            for n2 in s1_nets:
+                if n1.overlaps(n2):
+                    return True, subcloud.name
+    return False, ""
 
 
 def validate_admin_network_config(
@@ -485,9 +532,7 @@ def validate_admin_network_config(
     if not existing_subclouds:
         existing_subclouds = []
 
-    MIN_ADMIN_SUBNET_SIZE = 3 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 5
-    # subtract 3 for network, gateway and broadcast addresses.
-    MIN_ADMIN_ADDRESSES = MIN_ADMIN_SUBNET_SIZE - 3
+    min_admin_subnet_size = 4 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 8
 
     admin_subnets = []
     try:
@@ -498,7 +543,7 @@ def validate_admin_network_config(
         # rather than the uniqueness of the entire subnet.
         admin_subnets = utils.validate_network_str(
             admin_subnet_str,
-            minimum_size=MIN_ADMIN_SUBNET_SIZE,
+            minimum_size=min_admin_subnet_size,
             operation=operation,
         )
     except exceptions.ValidateFail as e:
@@ -522,35 +567,25 @@ def validate_admin_network_config(
         LOG.exception(e)
         pecan.abort(400, _("admin_end_address invalid: %s") % e)
 
+    min_admin_valid_hosts = 1 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 4
+
     for start_ip, end_ip in zip(admin_start_ips, admin_end_ips):
         if start_ip > end_ip:
             pecan.abort(400, _("admin_start_address greater than admin_end_address"))
 
-        if netaddr.IPRange(start_ip, end_ip).size < MIN_ADMIN_ADDRESSES:
+        if netaddr.IPRange(start_ip, end_ip).size < min_admin_valid_hosts:
             pecan.abort(
                 400,
                 _("admin address range must contain at least %d addresses")
-                % MIN_ADMIN_ADDRESSES,
+                % min_admin_valid_hosts,
             )
 
-        s0_nets = list(
-            ipaddress.summarize_address_range(
-                ipaddress.ip_address(start_ip), ipaddress.ip_address(end_ip)
+        overlap, sc_name = check_range_overlaps(start_ip, end_ip, existing_subclouds)
+        if overlap:
+            pecan.abort(
+                400,
+                _("Admin address range overlaps with that of subcloud %s") % sc_name,
             )
-        )
-        for subcloud in existing_subclouds:
-            s1_nets = list(
-                ipaddress.summarize_address_range(
-                    ipaddress.ip_address(subcloud.management_start_ip),
-                    ipaddress.ip_address(subcloud.management_end_ip),
-                )
-            )
-            if check_range_overlaps(s0_nets, s1_nets):
-                pecan.abort(
-                    400,
-                    _("Admin address range overlaps with that of subcloud %s")
-                    % subcloud.name,
-                )
 
     # Parse/validate the gateway
     # admin_gateway_address is validated against admin_subnets.
