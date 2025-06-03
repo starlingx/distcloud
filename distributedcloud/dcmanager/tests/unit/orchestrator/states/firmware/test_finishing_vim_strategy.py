@@ -40,21 +40,10 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         # set the next state in the chain (when this state is successful)
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, consts.STRATEGY_STATE_FINISHING_FW_UPDATE
         )
-
-        # Add mock API endpoints for sysinv client calls invocked by this state
-        self.vim_client.get_strategy = mock.MagicMock()
-        self.vim_client.delete_strategy = mock.MagicMock()
-        self.sysinv_client.get_hosts = mock.MagicMock()
-        self.sysinv_client.get_host_device_list = mock.MagicMock()
-        self.sysinv_client.get_device_images = mock.MagicMock()
-        self.sysinv_client.get_device_image_states = mock.MagicMock()
 
         # Create fake variables to be used in sysinv_client methods
         self.fake_host = FakeController()
@@ -84,7 +73,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Successful promotion to next state
@@ -103,7 +92,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # ensure that the delete was not called
@@ -120,7 +109,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # verify the query was actually attempted
@@ -148,7 +137,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         """
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(
@@ -166,7 +155,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         ]
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.sysinv_client.get_hosts.assert_called_once()
@@ -184,7 +173,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_host_device_list.return_value = [self.fake_device]
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.sysinv_client.get_hosts.assert_called_once()
@@ -209,7 +198,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_host_device_list.return_value = [self.fake_device]
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.sysinv_client.get_hosts.assert_called_once()
@@ -233,7 +222,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_device_image_states.side_effect = Exception()
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.sysinv_client.get_hosts.assert_called_once()
@@ -282,7 +271,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         ]
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.sysinv_client.get_hosts.assert_called_once()

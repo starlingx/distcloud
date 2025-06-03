@@ -78,20 +78,11 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, consts.STRATEGY_STATE_SW_FINISH_STRATEGY
         )
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
-
-        # Add mock API endpoints for software client calls
-        # invoked by this state
-        self.software_client.list = mock.MagicMock()
-        self.software_client.delete = mock.MagicMock()
-        self.software_client.commit_patch = mock.MagicMock()
 
     def test_finish_strategy_success(self):
         """Test software finish strategy when the API call succeeds."""
@@ -100,7 +91,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         call_args, _ = self.software_client.delete.call_args_list[0]
@@ -118,7 +109,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.software_client.delete.assert_not_called()
@@ -134,7 +125,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = Exception()
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(
@@ -148,7 +139,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.delete.side_effect = Exception()
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(
@@ -164,7 +155,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         mock_base_stopped.return_value = True
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(

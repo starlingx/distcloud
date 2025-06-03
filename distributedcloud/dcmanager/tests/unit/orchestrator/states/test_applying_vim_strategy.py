@@ -43,9 +43,6 @@ class ApplyingVIMStrategyMixin(object):
         self.state = state
         self.on_success_state = success_state
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(self.subcloud.id, self.state)
 
@@ -69,7 +66,7 @@ class ApplyingVIMStrategyMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Successful promotion to next state
@@ -88,7 +85,7 @@ class ApplyingVIMStrategyMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -107,7 +104,7 @@ class ApplyingVIMStrategyMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -130,7 +127,7 @@ class ApplyingVIMStrategyMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -155,7 +152,7 @@ class ApplyingVIMStrategyMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assertEqual(
@@ -180,7 +177,7 @@ class ApplyingVIMStrategyMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # apply_strategy API call should never be invoked
@@ -200,7 +197,7 @@ class ApplyingVIMStrategyMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # apply API call should never be invoked

@@ -29,9 +29,6 @@ class CreatingVIMStrategyStageMixin(object):
         self.state = state
         self.on_success_state = success_state
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(self.subcloud.id, self.state)
 
@@ -56,7 +53,7 @@ class CreatingVIMStrategyStageMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Successful promotion to next state
@@ -75,7 +72,7 @@ class CreatingVIMStrategyStageMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -94,7 +91,7 @@ class CreatingVIMStrategyStageMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -117,7 +114,7 @@ class CreatingVIMStrategyStageMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -141,7 +138,7 @@ class CreatingVIMStrategyStageMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # verify the max number of queries was attempted (plus 1)
@@ -172,7 +169,7 @@ class CreatingVIMStrategyStageMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # delete API should have been invoked
@@ -194,7 +191,7 @@ class CreatingVIMStrategyStageMixin(object):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # create API call should never be invoked

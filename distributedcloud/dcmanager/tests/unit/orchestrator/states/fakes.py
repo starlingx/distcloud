@@ -6,8 +6,6 @@
 
 import uuid
 
-import mock
-
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 
@@ -93,11 +91,6 @@ class FakeHostFilesystem(object):
         self.uuid = str(uuid.uuid4())
 
 
-class FakeKeystoneClient(object):
-    def __init__(self):
-        self.session = mock.MagicMock()
-
-
 class FakeKubeRootCaUpdate(object):
     def __init__(self, obj_id=1, state="update-started"):
         self.id = obj_id
@@ -163,21 +156,6 @@ class FakeLoad(object):
 
     def to_dict(self):
         return dict(self.__dict__)
-
-
-class FakeSysinvClient(object):
-    def __init__(self):
-        pass
-
-
-class FakeSoftwareClient(object):
-    def __init__(self):
-        pass
-
-
-class FakeFmClient(object):
-    def __init__(self):
-        pass
 
 
 class FakeSystem(object):

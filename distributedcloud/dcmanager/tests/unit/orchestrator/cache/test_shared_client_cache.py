@@ -18,19 +18,6 @@ from dcmanager.orchestrator.cache.cache_specifications import (
 from dcmanager.orchestrator.cache.shared_client_cache import SharedClientCache
 from dcmanager.tests import base
 
-SOFTWARE_CLIENT_QUERY_RETURN = {
-    "stx_23.09.0": {
-        "sw_version": "23.09.0",
-        "state": "available",
-        "reboot_required": "N",
-    },
-    "stx_23.09.1": {
-        "sw_version": "23.09.1",
-        "state": "available",
-        "reboot_required": "N",
-    },
-}
-
 
 class TestSharedClientCache(base.DCManagerTestCase):
     def setUp(self):
