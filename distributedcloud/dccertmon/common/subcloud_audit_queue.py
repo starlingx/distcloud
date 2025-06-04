@@ -43,9 +43,9 @@ class SubcloudAuditData(object):
         return hash(self.name)
 
     def __str__(self):
-        return "SubcloudAuditData: {name: %s, audit_count: %s}" % (
-            self.name,
-            self.audit_count,
+        return (
+            f"SubcloudAuditData: {{name: {self.name}, "
+            f"audit_count: {self.audit_count}}}"
         )
 
 
@@ -85,7 +85,7 @@ class SubcloudAuditPriorityQueue(PriorityQueue):
         """
         if sc_audit_item.name in self.enqueued_subcloud_names and not allow_requeue:
             raise SubcloudAuditException(
-                "Subcloud already enqueued: %s" % sc_audit_item.name
+                f"Subcloud already enqueued: {sc_audit_item.name}"
             )
         if timestamp is None:
             timestamp = self.__get_next_audit_timestamp(delay_secs)
@@ -107,7 +107,7 @@ class SubcloudAuditPriorityQueue(PriorityQueue):
         """Modifies PriorityQueue.put() to track audited subcloud names."""
         subcloud_audit = item[1]
         self.enqueued_subcloud_names.append(subcloud_audit.name)
-        LOG.info("Background queue: Enqueued %s" % str(subcloud_audit))
+        LOG.info(f"Background queue: Enqueued {str(subcloud_audit)}")
         PriorityQueue._put(self, item, heappush)
 
 
@@ -122,5 +122,5 @@ class NotificationAuditQueue(SubcloudAuditPriorityQueue):
         """Modifies PriorityQueue.put() to track audited subcloud names."""
         subcloud_audit = item[1]
         self.enqueued_subcloud_names.append(subcloud_audit.name)
-        LOG.info("Notification queue: Enqueued %s" % str(subcloud_audit))
+        LOG.info(f"Notification queue: Enqueued {str(subcloud_audit)}")
         PriorityQueue._put(self, item, heappush)

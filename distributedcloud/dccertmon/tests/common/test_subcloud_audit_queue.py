@@ -41,7 +41,7 @@ class SubcloudAuditQueueTestCase(DCCertMonTestCase):
         self.assertEqual(sc_audit_item1.audit_count, 1)
 
     def test_subcloud_audit_queue_multiple(self):
-        subclouds = [SubcloudAuditData("subcloud%s" % i) for i in range(20)]
+        subclouds = [SubcloudAuditData(f"subcloud{i}") for i in range(20)]
         delay = 0
         for i in range(20):
             self.sc_audit_queue.enqueue(subclouds[i], delay)
@@ -64,7 +64,7 @@ class SubcloudAuditQueueTestCase(DCCertMonTestCase):
         self.assertLess(int(time.time()), timestamp)
 
     def test_subcloud_audit_queue_custom_timestamp(self):
-        subclouds = [SubcloudAuditData("subcloud%s" % i) for i in range(20)]
+        subclouds = [SubcloudAuditData(f"subcloud{i}") for i in range(20)]
         timestamp = 0
         for i in range(20):
             self.sc_audit_queue.enqueue(subclouds[i], timestamp=timestamp)
@@ -96,7 +96,7 @@ class SubcloudAuditQueueTestCase(DCCertMonTestCase):
         self.assertEqual(next_item.name, subclouds[0].name)
 
     def test_subcloud_audit_requeue(self):
-        subclouds = [SubcloudAuditData("subcloud%s" % i, 0) for i in range(20)]
+        subclouds = [SubcloudAuditData(f"subcloud{i}") for i in range(20)]
         timestamp = 0
         for i in range(20):
             self.sc_audit_queue.enqueue(subclouds[i], timestamp=timestamp)

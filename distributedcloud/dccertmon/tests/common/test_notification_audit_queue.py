@@ -107,9 +107,8 @@ class NotificationAuditBehaviorTestCase(DCCertMonTestCase):
         self.mock_is_subcloud_online = self._mock_object(
             cert_mon_manager.utils, "is_subcloud_online"
         )
-        self.mock_get_dc_token = self._mock_object(
-            cert_mon_manager.utils, "get_dc_token"
-        )
+        self.mock_get_token = self._mock_object(self.manager.ks_mgr, "get_token")
+
         self.mock_slow_get_cert = self._mock_object(
             cert_mon_manager.utils, "get_endpoint_certificate"
         )
@@ -120,7 +119,7 @@ class NotificationAuditBehaviorTestCase(DCCertMonTestCase):
             "management-start-ip": "1.2.3.4",
         }
         self.mock_is_subcloud_online.return_value = True
-        self.mock_get_dc_token.return_value = "fake-token"
+        self.mock_get_token.return_value = "fake-token"
 
     def test_subcloud_added_to_notification_queue(self):
         """Ensure subcloud is enqueued when marked online."""

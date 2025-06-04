@@ -61,6 +61,7 @@ config_values = {
         "project_domain_name": "Default",
         "http_connect_timeout": "15",
         "auth_uri": "http://controller.internal:5000/v3",
+        "auth_url": "http://controller.internal:5000/v3",
     },
 }
 
@@ -140,14 +141,15 @@ keystone_opts = [
 
 
 def init_keystone_auth_opts():
+    CONF._groups.pop("keystone_authtoken", None)
     keystone_opt_group = cfg.OptGroup(
-        name="KEYSTONE_AUTHTOKEN", title="Keystone options"
+        name="keystone_authtoken", title="Keystone options"
     )
     CONF.register_opts(keystone_opts, group=keystone_opt_group.name)
 
     endpoint_opts = keystone_opts[:]
     endpoint_opts.append(
-        cfg.StrOpt("http_connect_timeout", default=10, help="HTTP connection timeout")
+        cfg.IntOpt("http_connect_timeout", default=10, help="HTTP connection timeout")
     )
     endpoint_cache_group = cfg.OptGroup(name="endpoint_cache", title="Endpoint cache")
     CONF.register_opts(endpoint_opts, group=endpoint_cache_group.name)
