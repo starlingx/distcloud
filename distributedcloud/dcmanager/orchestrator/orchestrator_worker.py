@@ -65,6 +65,8 @@ class OrchestratorWorker(object):
         self.subcloud_workers = dict()
         # Track the steps that needs to be processed in the worker
         self.steps_to_process = set()
+        self.steps_received = set()
+        self.steps_lock = threading.Lock()
         # Track the strategy type being executed in the worker
         self.strategy_type = None
         self.orchestrator_manager_rpc_client = ManagerOrchestratorClient()
@@ -171,6 +173,7 @@ class OrchestratorWorker(object):
     def orchestrate(self, steps_id, strategy_type):
         if self.strategy_type is None:
             LOG.info(f"({strategy_type}) Orchestration starting with steps: {steps_id}")
+            # If the strategy does not exist, set the steps to process directly
             self.steps_to_process = set(steps_id)
             self.strategy_type = strategy_type
             self.thread_group_manager.start(self.orchestration_thread)
@@ -182,7 +185,10 @@ class OrchestratorWorker(object):
             LOG.info(
                 f"({strategy_type}) New steps were received for processing: {steps_id}"
             )
-            self.steps_to_process.update(steps_id)
+            # When the strategy exists, the steps should not be set directly to avoid
+            # concurrency issues.
+            with self.steps_lock:
+                self.steps_received.update(steps_id)
 
     def orchestration_thread(self):
         # Reset the control flags since a new process started
@@ -190,10 +196,30 @@ class OrchestratorWorker(object):
         self._processing = True
 
         while self._processing:
+            with self.steps_lock:
+                if self.steps_received:
+                    self.steps_to_process.update(self.steps_received)
+                    self.steps_received.clear()
+
+            # When the steps to process is empty, it means that there is no further
+            # processing required and the worker should stop until new steps are
+            # received.
+            if not self.steps_to_process:
+                LOG.info("There are no further steps to process, stopping.")
+                self._processing = False
+
+                # Confirm that there are no pending database requests before stopping
+                # the worker
+                self._bulk_update_subcloud_and_strategy_steps()
+                break
+
             self.reset_updated_at()
 
             try:
-                LOG.debug(f"({self.strategy_type}) Orchestration is running")
+                LOG.debug(
+                    f"({self.strategy_type}) Orchestration is running for"
+                    f"{len(self.steps_to_process)}"
+                )
 
                 strategy = db_api.sw_update_strategy_get(
                     self.context, update_type=self.strategy_type
@@ -241,7 +267,8 @@ class OrchestratorWorker(object):
         # The strategy_type needs to be reset so that a new orchestration request
         # is identified in orchestrate(), starting the orchestration thread again
         self.strategy_type = None
-        self.steps_to_process = list()
+        self.steps_to_process.clear()
+        self.steps_received.clear()
         self._last_update = None
 
     def _adjust_sleep_time(self, number_of_subclouds, strategy_type):
@@ -406,12 +433,7 @@ class OrchestratorWorker(object):
         self._adjust_sleep_time(len(steps), strategy.type)
 
         for step in steps:
-            # Once a step is completed, it will have its stage set to orchestration
-            # processed, in which point it does not need any further processing.
-            # This skip is required to avoid unnecessary database requests.
-            if step.stage == consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED:
-                continue
-            elif step.state == consts.STRATEGY_STATE_COMPLETE:
+            if step.state == consts.STRATEGY_STATE_COMPLETE:
                 subcloud_update = dict()
 
                 # If an exception occurs during the create/apply of the VIM strategy,
@@ -489,15 +511,33 @@ class OrchestratorWorker(object):
                 self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
                 self._processing = False
                 return
-            # Once a step is completed, it will have its stage set to orchestration
-            # processed, in which point it does not need any further processing.
-            # This skip is required to avoid unnecessary database requests caused
-            # by the _delete_subcloud_worker method.
-            if step.stage == consts.STAGE_SUBCLOUD_ORCHESTRATION_PROCESSED:
+            if step.state == consts.STRATEGY_STATE_COMPLETE:
+                subcloud_update = dict()
+
+                # If an exception occurs during the create/apply of the VIM strategy,
+                # the deploy_status will be set to 'apply-strategy-failed'. If we
+                # retry the orchestration and the process completes successfully, we
+                # need to update the deploy_status to 'complete'.
+                if step.subcloud.deploy_status != consts.DEPLOY_STATE_DONE:
+                    # Update deploy state for subclouds to complete
+                    subcloud_update["deploy_status"] = consts.DEPLOY_STATE_DONE
+
+                if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                    subcloud_update["prestage_versions"] = (
+                        prestage.get_prestage_versions(step.subcloud.name)
+                    )
+                    subcloud_update["prestage_status"] = consts.PRESTAGE_STATE_COMPLETE
+
+                if subcloud_update:
+                    self._update_subcloud_data(step.subcloud.id, **subcloud_update)
+
+                # This step is complete
+                self._delete_subcloud_worker(
+                    step.subcloud.region_name, step.subcloud_id, step.id
+                )
                 continue
             elif step.state in [
                 consts.STRATEGY_STATE_FAILED,
-                consts.STRATEGY_STATE_COMPLETE,
                 consts.STRATEGY_STATE_ABORTED,
             ]:
                 LOG.debug(
