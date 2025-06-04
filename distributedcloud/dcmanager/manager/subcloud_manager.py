@@ -2449,9 +2449,17 @@ class SubcloudManager(manager.Manager):
                 auto_restore_mode = None
                 bmc_access_only = False
 
+            # Install wipe_osds parameter is required to determine if
+            # the OSDs should be wiped during restore when --with-install
+            # subcommand is provided.
+            install_wipe_osds = False
+            if payload.get("with_install"):
+                data_install = json.loads(subcloud.data_install)
+                install_wipe_osds = data_install.get("wipe_osds", False)
+
             # Prepare for restore
             overrides_file = self._create_overrides_for_backup_or_restore(
-                "restore", payload, subcloud.name, auto_restore_mode
+                "restore", payload, subcloud.name, auto_restore_mode, install_wipe_osds
             )
             restore_command = self.compose_backup_restore_command(
                 subcloud.name, subcloud_inventory_file, auto_restore_mode
@@ -2482,10 +2490,6 @@ class SubcloudManager(manager.Manager):
             data_install["image"] = matching_iso
             data_install["ansible_ssh_pass"] = payload["sysadmin_password"]
             data_install["ansible_become_pass"] = payload["sysadmin_password"]
-            # Set "wipe_osds" to false to preserve Ceph OSD partition during
-            # a backup restore. By default, the Ceph OSD partition will be wiped
-            # if "wipe_osds" is not explicitly set in the data_install dictionary.
-            data_install["wipe_osds"] = False
 
             # Notify dcorch of the software version update
             if subcloud.software_version != software_version:
@@ -2565,7 +2569,7 @@ class SubcloudManager(manager.Manager):
         return ansible_subcloud_inventory_file
 
     def _create_overrides_for_backup_or_restore(
-        self, op, payload, subcloud_name, auto_restore_mode=None
+        self, op, payload, subcloud_name, auto_restore_mode=None, install_wipe_osds=None
     ):
         # Set override names as expected by the playbook
         if not payload.get("override_values"):
@@ -2583,6 +2587,16 @@ class SubcloudManager(manager.Manager):
                 payload["registry_images"] or False
             )
             suffix = "backup_restore_values"
+
+            # We need to map the install wipe_osds parameter to the restore
+            # wipe_ceph_osds parameter, so that the restore playbook
+            # can use it to determine whether to wipe the OSDs or not.
+            # This is crucial because if the wipe_osds parameter is set to True
+            # in install-values, but not set in restore, by default the restore
+            # wipe_ceph_osds parameter will be False, skipping the wipe
+            # and causing the restore to fail.
+            if install_wipe_osds:
+                payload["override_values"]["wipe_ceph_osds"] = install_wipe_osds
 
         if not payload["local_only"]:
             payload["override_values"]["central_backup_dir"] = CENTRAL_BACKUP_DIR

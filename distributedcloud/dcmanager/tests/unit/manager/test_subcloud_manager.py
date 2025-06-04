@@ -4074,7 +4074,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         # Assert that we called the _create_overrides_for_backup_or_restore and
         # compose_install_command with auto_restore_mode = "factory"
         mock_create_overrides.assert_called_once_with(
-            "restore", values, self.subcloud.name, "factory"
+            "restore", values, self.subcloud.name, "factory", mock.ANY
         )
 
         mock_run_restore_playbook.assert_called_once_with(
@@ -4082,6 +4082,64 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         )
 
         # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
+        )
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_restore_with_install_wipe_osds(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_run_restore_playbook,
+    ):
+        self.mock_run_subcloud_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+        self.mock_run_subcloud_install.return_value = True
+        mock_run_restore_playbook.return_value = True
+
+        # Set the wipe_osds to True in the install data
+        data_install = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        data_install["wipe_osds"] = True
+
+        # Set the values for the restore operation
+        # to include the with_install flag
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
+        values["with_install"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=json.dumps(data_install),
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        mock_create_overrides.assert_called_once_with(
+            "restore", values, self.subcloud.name, None, True
+        )
+
+        mock_run_restore_playbook.assert_called_once_with(
+            mock.ANY, mock.ANY, mock.ANY, mock.ANY, mock.ANY
+        )
+
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
