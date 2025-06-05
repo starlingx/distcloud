@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 from dcmanager.common import consts
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
 

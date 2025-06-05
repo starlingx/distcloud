@@ -9,6 +9,7 @@ import mock
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.base import BaseState
+from dcmanager.orchestrator.states import creating_vim_strategy
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeKubeUpgrade
@@ -48,12 +49,8 @@ KUBE_VERSION_LIST_WITHOUT_ACTIVE = [
 ]
 
 
-@mock.patch(
-    "dcmanager.orchestrator.states.creating_vim_strategy.DEFAULT_MAX_QUERIES", 3
-)
-@mock.patch(
-    "dcmanager.orchestrator.states.creating_vim_strategy.DEFAULT_SLEEP_DURATION", 1
-)
+@mock.patch.object(creating_vim_strategy, "DEFAULT_MAX_QUERIES", 3)
+@mock.patch.object(creating_vim_strategy, "DEFAULT_SLEEP_DURATION", 1)
 class TestCreatingVIMKubeUpgradeStrategyStage(
     CreatingVIMStrategyStageMixin, TestKubeUpgradeState
 ):
@@ -62,8 +59,12 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
     def setUp(self):
         super().setUp()
 
+        self.current_state = (
+            consts.STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
+        )
+
         self.set_state(
-            consts.STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
+            self.current_state,
             consts.STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY,
         )
 
@@ -90,7 +91,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
             ),
         ]
 
-    def mock_and_assert_step_update(
+    def _mock_and_assert_step_update(
         self, is_upgrade=False, kube_version=None, kube_version_list=None
     ):
         """Encapsulates the required arrangements to run the tests"""
@@ -124,10 +125,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         # API calls acts as expected
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
 
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(self.on_success_state)
 
         self.vim_client.create_strategy.assert_called_with(
             "kube-upgrade",
@@ -139,33 +137,30 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
             to_version=kube_version,
         )
 
-        # Successful promotion to next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
-
     def test_strategy_succeeds_with_highest_kube_version(self):
         """Test strategy succeeds when selecting the highest kube version"""
 
-        self.mock_and_assert_step_update(kube_version="v1.2.5")
+        self._mock_and_assert_step_update(kube_version="v1.2.5")
 
     def test_strategy_succeeds_with_lowest_kube_version(self):
         """Test strategy succeeds when selecting the lowest kube version"""
 
-        self.mock_and_assert_step_update(kube_version="v1.2.4")
+        self._mock_and_assert_step_update(kube_version="v1.2.4")
 
     def test_strategy_succeeds_without_kube_version_selected(self):
         """Test strategy succeeds without a selected kube_version"""
 
-        self.mock_and_assert_step_update(kube_version_list=KUBE_VERSION_LIST_SC)
+        self._mock_and_assert_step_update(kube_version_list=KUBE_VERSION_LIST_SC)
 
     def test_strategy_succeeds_when_sc_has_middle_version_active(self):
         """Test strategy succeeds when sc has the middle version active"""
 
-        self.mock_and_assert_step_update(kube_version_list=KUBE_VERSION_LIST_SC_2)
+        self._mock_and_assert_step_update(kube_version_list=KUBE_VERSION_LIST_SC_2)
 
     def test_strategy_succeeds_with_subcloud_kube_upgrade(self):
         """Test strategy succeeds when there are subcloud kube upgrades"""
 
-        self.mock_and_assert_step_update(
+        self._mock_and_assert_step_update(
             is_upgrade=True, kube_version_list=KUBE_UPGRADE_LIST
         )
 
@@ -179,10 +174,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         )
         self.mock_read_from_cache.return_value = KUBE_VERSION_LIST_WITHOUT_ACTIVE
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: System Controller has no active target kube version"
         )

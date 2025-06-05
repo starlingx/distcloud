@@ -35,6 +35,7 @@ class TestSwUpdate(DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
+        self.strategy_step = None
         self.strategy_type = consts.SW_UPDATE_TYPE_SOFTWARE
 
         # Mock the context
@@ -64,12 +65,11 @@ class TestSwUpdate(DCManagerTestCase):
             mock_get_keystone_client.return_value = value
 
         # construct an upgrade orch thread
-        self.worker = self.setup_orch_worker(self.strategy_type)
+        self.worker = self.setup_orch_worker()
 
         self.subcloud = self._setup_subcloud()
 
-    def setup_orch_worker(self, strategy_type):
-        # sw_update_manager.SoftwareOrchThread.stopped = lambda x: False
+    def setup_orch_worker(self):
         # mock the software orch thread
         return orchestrator_worker.OrchestratorWorker()
 
@@ -84,6 +84,19 @@ class TestSwUpdate(DCManagerTestCase):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
         )
+
+    def _setup_and_assert(self, next_state):
+        # invoke the strategy state operation on the orch thread
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
+
+        # Verify the transition to the expected next state
+        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+
+    def _assert_error(self, error_message):
+        strategy_step = db_api.strategy_step_get(self.ctx, self.subcloud.id)
+        self.assertEqual(error_message, strategy_step.details)
 
     def setup_strategy_step(self, subcloud_id, strategy_state):
         fake_strategy.create_fake_strategy_step(

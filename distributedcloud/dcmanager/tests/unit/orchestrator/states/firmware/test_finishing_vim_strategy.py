@@ -20,29 +20,21 @@ VENDOR_ID = "1"
 DEVICE_ID = "2"
 
 
-@mock.patch(
-    "dcmanager.orchestrator.states.firmware."
-    "finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES",
-    3,
-)
-@mock.patch(
-    "dcmanager.orchestrator.states.firmware."
-    "finishing_fw_update.DEFAULT_FAILED_SLEEP",
-    1,
-)
+@mock.patch.object(finishing_fw_update, "DEFAULT_MAX_FAILED_QUERIES", 3)
+@mock.patch.object(finishing_fw_update, "DEFAULT_FAILED_SLEEP", 1)
 class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
-
     def setUp(self):
-        super(TestFwUpdateFinishingFwUpdateStage, self).setUp()
+        super().setUp()
 
         self._mock_object(rpc_client, "SubcloudStateClient")
 
         # set the next state in the chain (when this state is successful)
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
+        self.current_state = consts.STRATEGY_STATE_FINISHING_FW_UPDATE
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, consts.STRATEGY_STATE_FINISHING_FW_UPDATE
+            self.subcloud.id, self.current_state
         )
 
         # Create fake variables to be used in sysinv_client methods
@@ -71,13 +63,7 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
             vim.STATE_APPLIED
         )
 
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
-
-        # Successful promotion to next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
+        self._setup_and_assert(self.on_success_state)
 
     def test_finishing_vim_strategy_success_no_strategy(self):
         """Test finishing the firmware update.
@@ -90,16 +76,10 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         # - no device image states on the subcloud are 'failed'
         self.vim_client.get_strategy.return_value = None
 
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(self.on_success_state)
 
         # ensure that the delete was not called
         self.vim_client.delete_strategy.assert_not_called()
-
-        # Successful promotion to next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_finishing_vim_strategy_failure_get_hosts(self):
         """Test finishing firmware update with communication error to subcloud"""
@@ -107,9 +87,9 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         # mock the get_host query fails and raises an exception
         self.sysinv_client.get_hosts.side_effect = Exception("HTTP CommunicationError")
 
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Timeout waiting to query subcloud hosts"
         )
 
         # verify the query was actually attempted
@@ -124,11 +104,6 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         # verify the subsequent sysinv command was never attempted
         self.sysinv_client.get_host_device_list.assert_not_called()
 
-        # verify that the state moves to the next state
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
-        )
-
     @mock.patch.object(BaseState, "stopped", return_value=True)
     def test_finishing_fw_update_fails_when_strategy_stops(self, _):
         """Test finishing fw update fails when strategy stops before acquiring
@@ -136,13 +111,8 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         host device
         """
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
-        )
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(f"{self.current_state}: Strategy has been stopped")
 
     def test_finishing_fw_update_succeeds_with_enabled_host_device(self):
         """Test finishing fw update succeeds with an enabled host device"""
@@ -154,16 +124,12 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
             self.fake_device_image_state
         ]
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(self.on_success_state)
 
         self.sysinv_client.get_hosts.assert_called_once()
         self.sysinv_client.get_host_device_list.assert_called_once()
         self.sysinv_client.get_device_images.assert_called_once()
         self.sysinv_client.get_device_image_states.assert_called_once()
-
-        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_finishing_fw_update_succeeds_with_host_device_disabled(self):
         """Test finishing fw update succeeds with a device disabled"""
@@ -172,16 +138,12 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_hosts.return_value = [self.fake_host]
         self.sysinv_client.get_host_device_list.return_value = [self.fake_device]
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(self.on_success_state)
 
         self.sysinv_client.get_hosts.assert_called_once()
         self.sysinv_client.get_host_device_list.assert_called_once()
         self.sysinv_client.get_device_images.assert_not_called()
         self.sysinv_client.get_device_image_states.assert_not_called()
-
-        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     @mock.patch.object(BaseState, "stopped")
     def test_finishing_fw_update_fails_when_strategy_stops_with_enabled_host_device(
@@ -197,18 +159,13 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_hosts.return_value = [self.fake_host]
         self.sysinv_client.get_host_device_list.return_value = [self.fake_device]
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(f"{self.current_state}: Strategy has been stopped")
 
         self.sysinv_client.get_hosts.assert_called_once()
         self.sysinv_client.get_host_device_list.assert_called_once()
         self.sysinv_client.get_device_images.assert_not_called()
         self.sysinv_client.get_device_image_states.assert_not_called()
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
-        )
 
     def test_finishing_fw_update_fails_with_get_device_image_states_exception(self):
         """Test finishing fw update fails when get_device_image_states raises
@@ -221,8 +178,9 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_device_images.return_value = [self.fake_device_image]
         self.sysinv_client.get_device_image_states.side_effect = Exception()
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Timeout waiting to query subcloud device image info"
         )
 
         self.sysinv_client.get_hosts.assert_called_once()
@@ -236,10 +194,6 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.assertEqual(
             self.sysinv_client.get_device_image_states.call_count,
             finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
-        )
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
         )
 
     def test_finishing_fw_update_fails_with_pending_image_state(self):
@@ -270,15 +224,10 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
             fake_device_image_state_with_device_none,
         ]
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(f"{self.current_state}: Not all images applied successfully")
 
         self.sysinv_client.get_hosts.assert_called_once()
         self.sysinv_client.get_host_device_list.assert_called_once()
         self.sysinv_client.get_device_images.assert_called_once()
         self.sysinv_client.get_device_image_states.assert_called_once()
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
-        )

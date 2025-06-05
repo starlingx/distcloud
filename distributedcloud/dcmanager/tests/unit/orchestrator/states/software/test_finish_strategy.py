@@ -16,54 +16,22 @@ from dcorch.rpc import client as rpc_client
 
 
 REGION_ONE_RELEASES = [
-    {
-        "release_id": "starlingx-9.0.0",
-        "state": "deployed",
-        "sw_version": "9.0.0",
-    },
-    {
-        "release_id": "starlingx-9.0.1",
-        "state": "deployed",
-        "sw_version": "9.0.1",
-    },
-    {
-        "release_id": "starlingx-9.0.2",
-        "state": "deployed",
-        "sw_version": "9.0.2",
-    },
-    {
-        "release_id": "starlingx-9.0.3",
-        "state": "deployed",
-        "sw_version": "9.0.3",
-    },
+    {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
+    {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
+    {"release_id": "starlingx-9.0.2", "state": "deployed", "sw_version": "9.0.2"},
+    {"release_id": "starlingx-9.0.3", "state": "deployed", "sw_version": "9.0.3"},
 ]
 
 SUBCLOUD_RELEASES = [
-    {
-        "release_id": "starlingx-9.0.0",
-        "state": "deployed",
-        "sw_version": "9.0.0",
-    },
-    {
-        "release_id": "starlingx-9.0.1",
-        "state": "deployed",
-        "sw_version": "9.0.1",
-    },
-    {
-        "release_id": "starlingx-9.0.2",
-        "state": "deployed",
-        "sw_version": "9.0.2",
-    },
-    {
-        "release_id": "starlingx-9.0.2",
-        "state": "deploying",
-        "sw_version": "9.0.3",
-    },
-    {
-        "release_id": "starlingx-9.0.4",
-        "state": "available",
-        "sw_version": "9.0.4",
-    },
+    {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
+    {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
+    {"release_id": "starlingx-9.0.2", "state": "deployed", "sw_version": "9.0.2"},
+    {"release_id": "starlingx-9.0.2", "state": "deploying", "sw_version": "9.0.3"},
+    {"release_id": "starlingx-9.0.4", "state": "available", "sw_version": "9.0.4"},
+]
+
+SUBCLOUD_WITHOUT_DEPLOYED_RELEASES = [
+    {"release_id": "starlingx-9.0.0", "state": "available", "sw_version": "9.0.0"},
 ]
 
 
@@ -77,10 +45,11 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self._mock_object(rpc_client, "EngineWorkerClient")
 
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
+        self.current_state = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, consts.STRATEGY_STATE_SW_FINISH_STRATEGY
+            self.subcloud.id, self.current_state
         )
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
 
@@ -89,47 +58,43 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(self.on_success_state)
 
         call_args, _ = self.software_client.delete.call_args_list[0]
         self.assertItemsEqual(["starlingx-9.0.4"], call_args[0])
 
         self.software_client.commit_patch.assert_not_called()
 
-        # On success, the state should transition to the next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
+    def test_finish_strategy_success_without_subcloud_deployed_releases(self):
+        """Test finish strategy success without subcloud deployed releases"""
+
+        self.software_client.list.side_effect = [SUBCLOUD_WITHOUT_DEPLOYED_RELEASES]
+
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Failed for subcloud subcloud1: Unable to find a "
+            "deployed release after deployment"
+        )
 
     def test_finish_strategy_no_operation_required(self):
         """Test software finish strategy when no operation is required."""
 
         self.software_client.list.side_effect = [REGION_ONE_RELEASES]
 
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(self.on_success_state)
 
         self.software_client.delete.assert_not_called()
-
         self.software_client.commit_patch.assert_not_called()
-
-        # On success, the state should transition to the next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
 
     def test_finish_strategy_fails_when_query_exception(self):
         """Test finish strategy fails when software client query raises exception"""
 
         self.software_client.list.side_effect = Exception()
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Failed for subcloud {self.subcloud.name}: Failed "
+            "to retrieve necessary release information."
         )
 
     def test_finish_strategy_fails_when_delete_exception(self):
@@ -138,12 +103,10 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
         self.software_client.delete.side_effect = Exception()
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Failed for subcloud {self.subcloud.name}: Cannot "
+            "delete releases from subcloud."
         )
 
     @mock.patch.object(BaseState, "stopped")
@@ -154,10 +117,21 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         mock_base_stopped.return_value = True
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(f"{self.current_state}: Strategy has been stopped")
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
+    def test_handle_deploy_commit_is_not_implemented(self):
+        """Test handle deploy commit is not implemented
+
+        Because the releases to commit logic is not implemented, there is also no code
+        execution for the _handle_deploy_commit method, which is unreacheable.
+        """
+
+        self.assertRaises(
+            NotImplementedError,
+            FinishStrategyState._handle_deploy_commit,
+            None,
+            None,
+            None,
+            None,
         )
