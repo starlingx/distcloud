@@ -1833,6 +1833,41 @@ class Connection(object):
             ).all()
 
     @require_context()
+    def strategy_step_get_all_to_delete(
+        self, delete_start_at, last_update_threshold, max_parallel_subclouds
+    ):
+        # When the strategy is in deleting state, the steps that are in the database
+        # are in either complete or failed state.
+        with read_session() as session:
+            # Acquire all steps up to max_parallel_subclouds
+            subquery = (
+                model_query(self.context, models.StrategyStep.id, session=session)
+                .filter_by(deleted=0)
+                .order_by(models.StrategyStep.id)
+                .limit(max_parallel_subclouds)
+            )
+
+            # For the strategy deletion, it is necessary to validate both the
+            # delete_start_at and last_update_threshold since there are no specific
+            # states to identify when a step is being deleted
+            return (
+                model_query(self.context, models.StrategyStep, session=session)
+                .filter(models.StrategyStep.id.in_(subquery))
+                .filter(
+                    or_(
+                        # All steps sent for processing have their updated_at field
+                        # reset, in which case they will only be retrieved if they
+                        # are not updated for longer than the last_update_threshold.
+                        # Otherwise, the delete_start_at is used to retrieve the
+                        # steps that were not processed yet.
+                        models.StrategyStep.updated_at < last_update_threshold,
+                        models.StrategyStep.updated_at < delete_start_at,
+                    )
+                )
+                .all()
+            )
+
+    @require_context()
     def strategy_step_count_all_states(self):
         with read_session() as session:
             return (

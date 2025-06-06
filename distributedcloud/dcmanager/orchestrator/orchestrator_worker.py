@@ -42,6 +42,7 @@ from dcmanager.orchestrator.strategies.software import SoftwareStrategy
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 DEFAULT_SLEEP_TIME_IN_SECONDS = 10
+DELETE_COUNTER = 18
 MANAGER_SLEEP_TIME_IN_SECONDS = 30
 
 
@@ -174,7 +175,8 @@ class OrchestratorWorker(object):
         if self.strategy_type is None:
             LOG.info(f"({strategy_type}) Orchestration starting with steps: {steps_id}")
             # If the strategy does not exist, set the steps to process directly
-            self.steps_to_process = set(steps_id)
+            with self.steps_lock:
+                self.steps_received = set(steps_id)
             self.strategy_type = strategy_type
             self.thread_group_manager.start(self.orchestration_thread)
             self._last_update = timeutils.utcnow()
@@ -217,7 +219,7 @@ class OrchestratorWorker(object):
 
             try:
                 LOG.debug(
-                    f"({self.strategy_type}) Orchestration is running for"
+                    f"({self.strategy_type}) Orchestration is running for "
                     f"{len(self.steps_to_process)}"
                 )
 
@@ -266,10 +268,13 @@ class OrchestratorWorker(object):
 
         # The strategy_type needs to be reset so that a new orchestration request
         # is identified in orchestrate(), starting the orchestration thread again
-        self.strategy_type = None
-        self.steps_to_process.clear()
-        self.steps_received.clear()
+        with self.steps_lock:
+            self.strategy_type = None
+            self.steps_to_process.clear()
+            self.steps_received.clear()
+
         self._last_update = None
+        self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
 
     def _adjust_sleep_time(self, number_of_subclouds, strategy_type):
         prev_sleep_time = self._sleep_time
@@ -712,21 +717,21 @@ class OrchestratorWorker(object):
         # Wait for 180 seconds so that last 100 workers can complete their execution
         counter = 0
         while len(self.subcloud_workers) > 0:
-            time.sleep(10)
+            time.sleep(DEFAULT_SLEEP_TIME_IN_SECONDS)
             counter = counter + 1
-            if counter > 18:
+            if counter > DELETE_COUNTER:
                 break
 
         # Remove the strategy from the database if all workers have completed their
         # execution
         try:
             db_api.strategy_step_destroy_all(self.context, steps_id)
+
+            # Because the execution is synchronous in this case, the steps_to_process
+            # is not updated as the loop did not finish yet.
+            self.steps_to_process.clear()
         except Exception as e:
             LOG.exception(f"({strategy.type}) exception during delete")
             raise e
-        finally:
-            # The orchestration is complete, halt the processing
-            self._processing = False
-            self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
 
-        LOG.info(f"({strategy.type}) Finished deleting strategy")
+        LOG.info(f"({strategy.type}) Finished deleting strategy steps")
