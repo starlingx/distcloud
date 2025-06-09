@@ -217,35 +217,42 @@ class SysinvSyncThread(SyncThread):
         """
         certificate = None
         metadata = {}
-        content_disposition = "Content-Disposition"
         try:
             content_type = certificate_dict.get("content_type")
             payload = certificate_dict.get("payload")
-            multipart_data = MultipartDecoder(payload, content_type)
+            # Encode the payload to bytes, as MultipartDecoder expects bytes input
+            multipart_data = MultipartDecoder(payload.encode("utf-8"), content_type)
             for part in multipart_data.parts:
-                if 'name="passphrase"' in part.headers.get(content_disposition):
-                    metadata.update({"passphrase": part.content})
-                elif 'name="mode"' in part.headers.get(content_disposition):
-                    metadata.update({"mode": part.content})
-                elif 'name="file"' in part.headers.get(content_disposition):
-                    certificate = part.content
+                cd = part.headers.get(b"Content-Disposition", b"").decode()
+                if 'name="passphrase"' in cd:
+                    metadata["passphrase"] = part.content.decode("utf-8")
+                elif 'name="mode"' in cd:
+                    metadata["mode"] = part.content.decode("utf-8")
+                elif 'name="file"' in cd:
+                    certificate = part.content.decode("utf-8")
         except Exception as e:
-            LOG.warn("No certificate decode e={}".format(e))
+            LOG.warning(f"No certificate decode e={e}")
 
-        LOG.info("_decode_certificate_payload metadata={}".format(metadata))
+        LOG.info(f"_decode_certificate_payload metadata={metadata}")
         return certificate, metadata
 
     def create_certificate(self, sysinv_client, request, rsrc):
         LOG.info(
-            "create_certificate resource_info={}".format(
-                request.orch_job.resource_info
-            ),
+            f"create_certificate resource_info={request.orch_job.resource_info}",
             extra=self.log_extra,
         )
         certificate_dict = jsonutils.loads(request.orch_job.resource_info)
         payload = certificate_dict.get("payload")
 
-        if payload and "expiry_date" in payload:
+        if not payload:
+            LOG.info(
+                "create_certificate No payload found in resource_info"
+                f" {request.orch_job.resource_info}",
+                extra=self.log_extra,
+            )
+            return
+
+        elif "expiry_date" in payload:
             expiry_datetime = timeutils.normalize_time(
                 timeutils.parse_isotime(payload["expiry_date"])
             )
@@ -256,13 +263,6 @@ class SysinvSyncThread(SyncThread):
                     % (payload["signature"], str(expiry_datetime))
                 )
                 raise exceptions.CertificateExpiredException
-        else:
-            LOG.info(
-                "create_certificate No payload found in resource_info"
-                "{}".format(request.orch_job.resource_info),
-                extra=self.log_extra,
-            )
-            return
 
         certificate, metadata = self._decode_certificate_payload(certificate_dict)
 

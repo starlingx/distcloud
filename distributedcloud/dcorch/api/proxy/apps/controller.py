@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -650,7 +650,8 @@ class SysinvAPIController(APIController):
                 resource_id = json.loads(response.body)["signature"]
                 resource_ids = [resource_id]
             else:
-                resource_info["payload"] = request_body
+                # Decode the request body so it can be stored as a JSON formatted str
+                resource_info["payload"] = request_body.decode("utf-8")
                 resource_info["content_type"] = environ.get("CONTENT_TYPE")
                 resource = json.loads(response.body)[resource_type]
                 # For ssl_ca cert, the resource in response is a list
