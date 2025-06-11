@@ -22,13 +22,12 @@ class DeviceImageState(object):
 
 
 class TestFwUpdateState(TestSwUpdate):
-
-    # Setting DEFAULT_STRATEGY_TYPE to firmware will setup the firmware
-    # orchestration worker, and will mock away the other orch threads
-    DEFAULT_STRATEGY_TYPE = consts.SW_UPDATE_TYPE_FIRMWARE
-
     def setUp(self):
         super().setUp()
+
+        # Setting strategy_type to firmware will setup the firmware
+        # orchestration worker, and will mock away the other orch threads
+        self.strategy_type = consts.SW_UPDATE_TYPE_FIRMWARE
 
     def _create_fake_strategy(self, state):
         return FakeVimStrategy(state=state)

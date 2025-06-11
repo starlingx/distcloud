@@ -7,6 +7,7 @@
 Kube root-ca strategy validation tests
 """
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.validators.kube_root_ca_validator import (
@@ -48,3 +49,19 @@ class TestKubeRootCaValidator(
             consts.EXTRA_ARGS_SUBJECT: None,
             consts.EXTRA_ARGS_CERT_FILE: None,
         }
+
+    def test_build_sync_status_without_force(self):
+        response = self.validator.build_sync_status_filter(False)
+
+        self.assertEqual(response, [dccommon_consts.SYNC_STATUS_OUT_OF_SYNC])
+
+    def test_build_sync_status_with_force(self):
+        response = self.validator.build_sync_status_filter(True)
+
+        self.assertTrue(
+            response,
+            [
+                dccommon_consts.SYNC_STATUS_IN_SYNC,
+                dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
+            ],
+        )

@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import mock
 
 from dcmanager.common.consts import (
     STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
@@ -28,16 +27,10 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
     def setUp(self):
         super(TestStartUpdateStage, self).setUp()
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START
         )
-
-        self.sysinv_client.kube_rootca_update_start = mock.MagicMock()
-        self.sysinv_client.get_kube_rootca_updates = mock.MagicMock()
 
     def test_no_existing_update(self):
         """Test start update when there is no existing update object
@@ -50,7 +43,7 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
         )
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Verify the expected next state happened (upload cert)
@@ -69,7 +62,7 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
         ]
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Verify the expected next state happened (upload cert)
@@ -91,7 +84,7 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
         )
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Verify the expected next state happened (upload cert)
@@ -111,7 +104,7 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
         ]
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Verify the expected next state happened (upload cert)

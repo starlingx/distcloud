@@ -68,11 +68,9 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         )
 
         # creating the vim strategy checks if an existing upgrade exists
-        self.sysinv_client.get_kube_upgrades = mock.MagicMock()
         self.sysinv_client.get_kube_upgrades.return_value = []
 
         # when no vim strategy exists, the available version is used
-        self.sysinv_client.get_kube_versions = mock.MagicMock()
         self.sysinv_client.get_kube_versions.return_value = [
             FakeKubeVersion(
                 obj_id=1, version=PREVIOUS_KUBE_VERSION, target=True, state="active"
@@ -91,8 +89,6 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
                 obj_id=2, version=UPGRADED_KUBE_VERSION, target=False, state="available"
             ),
         ]
-        self.vim_client.get_strategy = mock.MagicMock()
-        self.vim_client.create_strategy = mock.MagicMock()
 
     def mock_and_assert_step_update(
         self, is_upgrade=False, kube_version=None, kube_version_list=None
@@ -116,7 +112,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         if kube_version:
             extra_args = {"to-version": kube_version}
             self.strategy = fake_strategy.create_fake_strategy(
-                self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+                self.ctx, self.strategy_type, extra_args=extra_args
             )
         else:
             kube_version = kube_version_list[0].version
@@ -130,7 +126,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.vim_client.create_strategy.assert_called_with(
@@ -176,7 +172,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
     def test_strategy_fails_without_active_version_to_upgrade(self):
         """Test upgrade fails without an active version to upgrade"""
 
-        fake_strategy.create_fake_strategy(self.ctx, self.DEFAULT_STRATEGY_TYPE)
+        fake_strategy.create_fake_strategy(self.ctx, self.strategy_type)
 
         self.sysinv_client.get_kube_versions.return_value = (
             KUBE_VERSION_LIST_WITHOUT_ACTIVE
@@ -184,7 +180,7 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
         self.mock_read_from_cache.return_value = KUBE_VERSION_LIST_WITHOUT_ACTIVE
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(

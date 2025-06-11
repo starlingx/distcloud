@@ -8,11 +8,11 @@ import base64
 import copy
 import threading
 
-
 from dcmanager.common import consts
 from dcmanager.common.consts import STRATEGY_STATE_FAILED
 from dcmanager.common.consts import STRATEGY_STATE_PRESTAGE_PRE_CHECK
 from dcmanager.common import prestage
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.cache import clients
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
@@ -23,18 +23,19 @@ REQUIRED_EXTRA_ARGS = {"sysadmin_password": FAKE_PASSWORD, "force": False}
 
 
 class TestPrestage(TestSwUpdate):
-    # Setting DEFAULT_STRATEGY_TYPE to prestage will setup the prestage upgrade
-    # orchestration worker and will mock away the other orch threads
-    DEFAULT_STRATEGY_TYPE = consts.SW_UPDATE_TYPE_PRESTAGE
-    strategy_step = None
-
     def setUp(self):
         super().setUp()
 
+        # Setting strategy_type to prestage will setup the prestage upgrade
+        # orchestration worker and will mock away the other orch threads
+        self.strategy_type = consts.SW_UPDATE_TYPE_PRESTAGE
         self.strategy_step = None
+
         # Add the subcloud being processed by this unit test
         # The subcloud is online, managed with deploy_state 'installed'
-        self.subcloud = self.setup_subcloud(deploy_status=consts.DEPLOY_STATE_DONE)
+        self.subcloud = db_api.subcloud_update(
+            self.ctx, self.subcloud.id, deploy_status=consts.DEPLOY_STATE_DONE
+        )
 
         # Modify cache helpers to return client mocks
         self._mock_object(clients, "get_software_client")
@@ -49,12 +50,12 @@ class TestPrestage(TestSwUpdate):
 
     def _setup_and_assert(self, next_state, extra_args=None):
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+            self.ctx, self.strategy_type, extra_args=extra_args
         )
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Verify the transition to the expected next state

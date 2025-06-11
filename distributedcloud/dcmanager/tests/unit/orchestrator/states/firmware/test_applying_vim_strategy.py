@@ -30,24 +30,16 @@ from dcmanager.tests.unit.orchestrator.states.firmware.test_base import (
     "dcmanager.orchestrator.states.firmware.applying_vim_strategy.WAIT_INTERVAL", 1
 )
 class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
-
     def setUp(self):
         super().setUp()
 
         # set the next state in the chain (when this state is successful)
         self.on_success_state = consts.STRATEGY_STATE_FINISHING_FW_UPDATE
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, consts.STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY
         )
-
-        # Add mock API endpoints for client calls invcked by this state
-        self.vim_client.get_strategy = mock.MagicMock()
-        self.vim_client.apply_strategy = mock.MagicMock()
 
     def test_applying_vim_strategy_success(self):
         """Test applying a VIM strategy that succeeds"""
@@ -67,7 +59,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Successful promotion to next state
@@ -88,7 +80,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -111,7 +103,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -136,7 +128,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Failure case
@@ -163,7 +155,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # verify the max number of queries was attempted (plus 1 before loop)
@@ -189,7 +181,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # apply_strategy API call should never be invoked
@@ -209,7 +201,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
 
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # apply API call should never be invoked
@@ -226,7 +218,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
         self.vim_client.get_strategy.return_value = None
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.vim_client.apply_strategy.assert_not_called()
@@ -248,7 +240,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
         )
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(
@@ -275,7 +267,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
         )
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(
@@ -295,7 +287,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
         )
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(
@@ -315,7 +307,7 @@ class TestFwUpdateApplyingVIMStrategyStage(TestFwUpdateState):
         )
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         self.assert_step_updated(

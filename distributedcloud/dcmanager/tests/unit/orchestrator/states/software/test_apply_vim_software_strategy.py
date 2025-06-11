@@ -31,23 +31,16 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
 
         self.on_success_state = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Create default strategy with release parameter
         extra_args = {"release_id": RELEASE_ID}
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+            self.ctx, self.strategy_type, extra_args=extra_args
         )
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, consts.STRATEGY_STATE_SW_APPLY_VIM_STRATEGY
         )
-
-        # Mock the API calls made by the state
-        self.vim_client.get_strategy = mock.MagicMock()
-        self.vim_client.apply_strategy = mock.MagicMock()
 
     @mock.patch(
         "dcmanager.orchestrator.states.applying_vim_strategy."
@@ -80,7 +73,7 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         self.vim_client.apply_strategy.return_value = STRATEGY_APPLYING
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Assert apply_strategy is called with the correct strategy name
@@ -119,7 +112,7 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         self.vim_client.apply_strategy.return_value = STRATEGY_APPLYING
 
         self.worker._perform_state_action(
-            self.DEFAULT_STRATEGY_TYPE, self.subcloud.region_name, self.strategy_step
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
 
         # Assert ApplyVIMStrategyFailedException is called with the correct parameters
