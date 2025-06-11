@@ -1029,14 +1029,6 @@ def check_deploy_files_in_alternate_location(payload):
     else:
         return False
 
-    for f in os.listdir(consts.ALTERNATE_HELM_CHART_OVERRIDES_DIR):
-        if f.endswith(consts.HELM_CHART_OVERRIDES_POSTFIX):
-            filename = os.path.join(consts.ALTERNATE_HELM_CHART_OVERRIDES_DIR, f)
-            payload.update({consts.DEPLOY_OVERRIDES: filename})
-            break
-    else:
-        return False
-
     for f in os.listdir(consts.ALTERNATE_HELM_CHART_DIR):
         if consts.HELM_CHART_POSTFIX in str(f):
             filename = os.path.join(consts.ALTERNATE_HELM_CHART_DIR, f)
@@ -1052,6 +1044,8 @@ def get_common_deploy_files(payload, software_version):
     for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
         # Skip the prestage_images option as it is not relevant in this context
         if f == consts.DEPLOY_PRESTAGE:
+            continue
+        if f == consts.DEPLOY_OVERRIDES:
             continue
         filename = None
         dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, software_version)

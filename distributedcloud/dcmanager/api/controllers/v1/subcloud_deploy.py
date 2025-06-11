@@ -82,28 +82,22 @@ class SubcloudDeployController(object):
             {},
             restcomm.extract_credentials_for_policy(),
         )
+
+        user_options = set(consts.DEPLOY_COMMON_FILE_OPTIONS).intersection(request.POST)
+        missing_options = set(consts.REQUIRED_DEPLOY_FILE_OPTIONS).difference(
+            user_options
+        )
+
+        if consts.DEPLOY_PRESTAGE in user_options and len(user_options) == 1:
+            pass
+        elif not missing_options:
+            pass
+        else:
+            missing_str = "".join([f"--{m}" for m in missing_options])
+            error_msg = f"error: argument {missing_str.rstrip()} is required"
+            pecan.abort(httpclient.BAD_REQUEST, error_msg)
+
         deploy_dicts = dict()
-        missing_options = set()
-        for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
-            if f not in request.POST:
-                missing_options.add(f)
-
-        # The API will only accept three types of input scenarios:
-        # 1. DEPLOY_PLAYBOOK, DEPLOY_OVERRIDES, and DEPLOY_CHART
-        # 2. DEPLOY_PLAYBOOK, DEPLOY_OVERRIDES, DEPLOY_CHART, and DEPLOY_PRESTAGE
-        # 3. DEPLOY_PRESTAGE
-        size = len(missing_options)
-        if len(missing_options) > 0:
-            if (consts.DEPLOY_PRESTAGE in missing_options and size != 1) or (
-                consts.DEPLOY_PRESTAGE not in missing_options and size != 3
-            ):
-                missing_str = str()
-                for missing in missing_options:
-                    if missing is not consts.DEPLOY_PRESTAGE:
-                        missing_str += "--%s " % missing
-                error_msg = "error: argument %s is required" % missing_str.rstrip()
-                pecan.abort(httpclient.BAD_REQUEST, error_msg)
-
         deploy_dicts["software_version"] = utils.get_sw_version(
             request.POST.get("release")
         )

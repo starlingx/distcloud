@@ -3201,9 +3201,10 @@ class SubcloudManager(manager.Manager):
         payload["deploy_values"]["deployment_manager_chart"] = payload[
             consts.DEPLOY_CHART
         ]
-        payload["deploy_values"]["deployment_manager_overrides"] = payload[
-            consts.DEPLOY_OVERRIDES
-        ]
+        if consts.DEPLOY_OVERRIDES in payload:
+            payload["deploy_values"]["deployment_manager_overrides"] = payload[
+                consts.DEPLOY_OVERRIDES
+            ]
         payload["deploy_values"]["user_uploaded_artifacts"] = payload[
             "user_uploaded_artifacts"
         ]
