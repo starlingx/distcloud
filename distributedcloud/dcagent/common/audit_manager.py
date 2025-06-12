@@ -77,9 +77,7 @@ class PeriodicAudit(utils.BaseAuditManager):
                         "Getting new keystone token and retrying "
                         f"call to {func.__name__}"
                     )
-                    self.initialize_clients(
-                        use_cache=False, restart_keystone_cache=True
-                    )
+                    self.initialize_clients(use_cache=False)
 
                     return func(*arg_getter(), **kwargs)
                 except Exception:
