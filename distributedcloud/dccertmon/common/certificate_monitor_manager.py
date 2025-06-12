@@ -15,7 +15,6 @@ from oslo_log import log
 from oslo_serialization import base64
 from oslo_service import periodic_task
 
-from dccertmon.common.keystone_objects import KeystoneSessionManager
 from dccertmon.common import subcloud_audit_queue
 from dccertmon.common import utils
 from dccertmon.common import watcher
@@ -30,7 +29,6 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
         super(CertificateMonitorManager, self).__init__(CONF)
         self.mon_thread = None
         self.worker_thread = None
-        self.ks_mgr = KeystoneSessionManager("endpoint_cache")
         self.reattempt_monitor_tasks = []
         self.sc_audit_queue = subcloud_audit_queue.SubcloudAuditPriorityQueue()
         self.sc_notify_audit_queue = subcloud_audit_queue.NotificationAuditQueue()
@@ -133,7 +131,7 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
             return
 
         all_subclouds = utils.get_subclouds_from_dcmanager(
-            self.ks_mgr, constants.INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES
+            constants.INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES
         )
 
         # Update sysinv endpoint cache
@@ -187,7 +185,7 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
             )
 
             # Abort audit if subcloud is not in a valid deploy status
-            subcloud = utils.get_subcloud(self.ks_mgr, subcloud_name)
+            subcloud = utils.get_subcloud(subcloud_name)
             if (
                 subcloud["deploy-status"]
                 in constants.INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES
@@ -213,7 +211,7 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                 )
 
             except Exception:
-                if not utils.is_subcloud_online(subcloud_name, self.ks_mgr):
+                if not utils.is_subcloud_online(subcloud_name):
                     LOG.warning(
                         f"Subcloud is not online, aborting audit: {subcloud_name}"
                     )
@@ -236,7 +234,7 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                         f"[{max_attempts}], giving up"
                     )
                     utils.update_subcloud_status(
-                        self.ks_mgr, subcloud_name, constants.SYNC_STATUS_OUT_OF_SYNC
+                        subcloud_name, constants.SYNC_STATUS_OUT_OF_SYNC
                     )
                 return
             try:
@@ -253,7 +251,7 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                 txt_ca_cert = base64.decode_as_text(secret.data["ca.crt"])
             except Exception:
                 # Handle certificate-level issues
-                if not utils.is_subcloud_online(subcloud_name, self.ks_mgr):
+                if not utils.is_subcloud_online(subcloud_name):
                     LOG.exception(
                         "Error getting subcloud intermediate cert. "
                         f"Subcloud is not online, aborting audit: {subcloud_name}"
@@ -277,7 +275,6 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                 self.requeue_audit_subcloud(queue, sc_audit_item)
                 try:
                     utils.update_subcloud_ca_cert(
-                        self.ks_mgr,
                         subcloud_name,
                         subcloud_sysinv_url,
                         txt_ca_cert,
@@ -289,12 +286,12 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                         f"Failed to update intermediate CA on {subcloud_name}"
                     )
                     utils.update_subcloud_status(
-                        self.ks_mgr, subcloud_name, constants.SYNC_STATUS_OUT_OF_SYNC
+                        subcloud_name, constants.SYNC_STATUS_OUT_OF_SYNC
                     )
             else:
                 LOG.info(f"{subcloud_name} intermediate CA cert is in-sync")
                 utils.update_subcloud_status(
-                    self.ks_mgr, subcloud_name, constants.SYNC_STATUS_IN_SYNC
+                    subcloud_name, constants.SYNC_STATUS_IN_SYNC
                 )
 
     def requeue_audit_subcloud(self, queue, sc_audit_item, delay_secs=60):
@@ -329,7 +326,7 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
         """
         # auditing subcloud certificate
         all_subclouds = utils.get_subclouds_from_dcmanager(
-            self.ks_mgr, constants.INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES
+            constants.INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES
         )
 
         # Update sysinv endpoint cache

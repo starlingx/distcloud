@@ -20,8 +20,8 @@ from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log
 
-from dccertmon.common.keystone_objects import KeystoneSessionManager
 from dccommon import consts as constants
+from dccommon import endpoint_cache
 from dccommon import kubeoperator as sys_kube
 
 LOG = log.getLogger(__name__)
@@ -53,32 +53,9 @@ def verify_intermediate_ca_cert(ca_crt, tls_crt):
             return False
 
 
-def update_admin_ep_cert(ks_session_mgr, ca_crt, tls_crt, tls_key):
-    """Update admin endpoint certificate using the sysinv API."""
-
-    service_type = constants.ENDPOINT_TYPE_PLATFORM
-    service_name = constants.ENDPOINT_NAME_SYSINV
-
-    sysinv_url = ks_session_mgr.get_endpoint_url(
-        service_type=service_type,
-        service_name=service_name,
-        interface=constants.KS_ENDPOINT_INTERNAL,
-    )
-
-    api_cmd = sysinv_url + "/certificate/certificate_renew"
-    api_cmd_payload = {"certtype": constants.CERTIFICATE_TYPE_ADMIN_ENDPOINT}
-
-    resp = rest_api_request(ks_session_mgr, "POST", api_cmd, api_cmd_payload)
-
-    if "result" in resp and resp["result"] == "OK":
-        LOG.info("Update admin endpoint certificate request succeeded")
-    else:
-        LOG.error(f"Request response {resp}")
-        raise Exception("Update admin endpoint certificate failed")
-
-
-def update_subcloud_ca_cert(ks_mgr, sc_name, sysinv_url, ca_crt, tls_crt, tls_key):
-    token = ks_mgr.get_token()
+def update_subcloud_ca_cert(sc_name, sysinv_url, ca_crt, tls_crt, tls_key):
+    admin_session = endpoint_cache.EndpointCache.get_admin_session()
+    token = admin_session.get_token()
 
     api_url = f"{sysinv_url}/certificate/certificate_renew"
     payload = {
@@ -115,11 +92,14 @@ def update_subcloud_ca_cert(ks_mgr, sc_name, sysinv_url, ca_crt, tls_crt, tls_ke
         raise
 
 
-def get_subcloud(ks_mgr, subcloud_name):
-    token = ks_mgr.get_token()
+def get_subcloud(subcloud_name):
+    admin_session = endpoint_cache.EndpointCache.get_admin_session()
+    token = admin_session.get_token()
 
-    endpoint_url = ks_mgr.get_endpoint_url(
-        "dcmanager", region_name=constants.SYSTEM_CONTROLLER_NAME
+    endpoint_url = admin_session.get_endpoint(
+        service_type=constants.ENDPOINT_NAME_DCMANAGER,
+        region_name=constants.SYSTEM_CONTROLLER_NAME,
+        interface=constants.KS_ENDPOINT_ADMIN,
     )
     api_url = f"{endpoint_url}/subclouds/{subcloud_name}"
 
@@ -141,7 +121,7 @@ def get_subcloud(ks_mgr, subcloud_name):
         raise
 
 
-def load_subclouds(resp, invalid_deploy_states=None):
+def _load_subclouds(resp, invalid_deploy_states=None):
     sc_list = []
     for obj in resp["subclouds"]:
         if invalid_deploy_states and obj["deploy-status"] in invalid_deploy_states:
@@ -160,39 +140,34 @@ def load_subclouds(resp, invalid_deploy_states=None):
     return sc_list
 
 
-def get_subclouds_from_dcmanager(ks_mgr, invalid_deploy_states=None):
+def get_subclouds_from_dcmanager(invalid_deploy_states=None):
     """Retrieve the list of subclouds from dcmanager."""
-    api_url = ks_mgr.get_endpoint_url(
-        "dcmanager", region_name=constants.SYSTEM_CONTROLLER_NAME
+    admin_session = endpoint_cache.EndpointCache.get_admin_session()
+    api_url = admin_session.get_endpoint(
+        service_type=constants.ENDPOINT_NAME_DCMANAGER,
+        region_name=constants.SYSTEM_CONTROLLER_NAME,
+        interface=constants.KS_ENDPOINT_ADMIN,
     )
     api_cmd = f"{api_url}/subclouds"
     LOG.debug(f"api_cmd {api_cmd}")
 
-    resp = rest_api_request(ks_mgr, "GET", api_cmd)
+    resp = _rest_api_request(admin_session, "GET", api_cmd)
 
-    return load_subclouds(resp, invalid_deploy_states)
+    return _load_subclouds(resp, invalid_deploy_states)
 
 
-def is_subcloud_online(subcloud_name, ks_mgr=None):
+def is_subcloud_online(subcloud_name):
     """Check if subcloud is online."""
-    if ks_mgr is None:
-        ks_mgr = KeystoneSessionManager("endpoint_cache")
-
-    subcloud_info = get_subcloud(ks_mgr, subcloud_name)
+    subcloud_info = get_subcloud(subcloud_name)
     if not subcloud_info:
         LOG.error(f"Cannot find subcloud {subcloud_name}")
         return False
     return subcloud_info["availability-status"] == constants.AVAILABILITY_ONLINE
 
 
-def query_subcloud_online_with_deploy_state(
-    subcloud_name, invalid_deploy_states=None, ks_mgr=None
-):
+def query_subcloud_online_with_deploy_state(subcloud_name, invalid_deploy_states=None):
     """Check if subcloud is online and not in an invalid deploy state."""
-    if ks_mgr is None:
-        ks_mgr = KeystoneSessionManager("endpoint_cache")
-
-    subcloud_info = get_subcloud(ks_mgr, subcloud_name)
+    subcloud_info = get_subcloud(subcloud_name)
     if not subcloud_info:
         LOG.error(f"Cannot find subcloud {subcloud_name}")
         return False, None, None
@@ -216,11 +191,12 @@ def query_subcloud_online_with_deploy_state(
     )
 
 
-def update_subcloud_status(session_mgr, subcloud_name, status):
-    api_url = session_mgr.get_endpoint_url(
-        service_type="dcmanager",
-        interface=constants.KS_ENDPOINT_INTERNAL,
+def update_subcloud_status(subcloud_name, status):
+    admin_session = endpoint_cache.EndpointCache.get_admin_session()
+    api_url = admin_session.get_endpoint(
+        service_type=constants.ENDPOINT_NAME_DCMANAGER,
         region_name=constants.SYSTEM_CONTROLLER_NAME,
+        interface=constants.KS_ENDPOINT_INTERNAL,
     )
     api_cmd = f"{api_url}/subclouds/{subcloud_name}/update_status"
     api_cmd_payload = {
@@ -228,8 +204,8 @@ def update_subcloud_status(session_mgr, subcloud_name, status):
         "status": status,
     }
 
-    resp = rest_api_request(
-        session_mgr,
+    resp = _rest_api_request(
+        admin_session,
         "PATCH",
         api_cmd,
         api_cmd_payload,
@@ -243,7 +219,7 @@ def update_subcloud_status(session_mgr, subcloud_name, status):
         raise Exception(f"Update subcloud status failed for {subcloud_name}")
 
 
-def rest_api_request(session_mgr, method, api_cmd, api_cmd_payload=None, timeout=45):
+def _rest_api_request(admin_session, method, api_cmd, api_cmd_payload=None, timeout=45):
     """Make a REST API request using KeystoneSessionManager.
 
     Returns: response as a dictionary.
@@ -252,7 +228,7 @@ def rest_api_request(session_mgr, method, api_cmd, api_cmd_payload=None, timeout
         "Content-type": "application/json",
         "User-Agent": "cert-mon/1.0",
         "Accept": "application/json",
-        "X-Auth-Token": session_mgr.get_token(),
+        "X-Auth-Token": admin_session.get_token(),
     }
 
     try:
@@ -347,10 +323,6 @@ def get_endpoint_certificate(endpoint, timeout_secs=10):
         raise
 
 
-def get_internal_keystone_session():
-    return KeystoneSessionManager(auth_section="keystone_authtoken")
-
-
 class SubcloudSysinvEndpointCache(object):
 
     # Maps subcloud name to sysinv endpoint
@@ -358,7 +330,7 @@ class SubcloudSysinvEndpointCache(object):
 
     @classmethod
     @lockutils.synchronized(constants.ENDPOINT_LOCK_NAME)
-    def get_endpoint(cls, region_name: str, dc_token=None):
+    def get_endpoint(cls, region_name: str):
         """Retrieve the sysinv endpoint for the given region.
 
         :param region_name: The subcloud region name.
@@ -368,15 +340,11 @@ class SubcloudSysinvEndpointCache(object):
         """
         endpoint = cls.cached_endpoints.get(region_name)
         if endpoint is None:
-            if dc_token is None:
-                LOG.error(f"Cannot find sysinv endpoint for {region_name}")
-                raise Exception(f"Cannot find sysinv endpoint for {region_name}")
-
             # Try to get it from dcmanager, this should rarely happen as the
             # cache is already populated during dccert-mon audit during service
             # startup
             LOG.info("Unable to find cached sysinv endpoint, querying dcmanager")
-            subcloud = get_subcloud(dc_token, region_name)
+            subcloud = get_subcloud(region_name)
             endpoint = cls.build_endpoint(subcloud["management-start-ip"])
             cls.cached_endpoints[region_name] = endpoint
 

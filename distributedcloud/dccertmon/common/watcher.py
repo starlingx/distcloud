@@ -21,7 +21,6 @@ from oslo_log import log
 from oslo_serialization import base64
 from oslo_utils import encodeutils
 
-from dccertmon.common.keystone_objects import KeystoneSessionManager
 from dccertmon.common import utils
 from dccommon import consts as constants
 from dccommon import exceptions
@@ -45,7 +44,6 @@ class MonitorContext(object):
 
     def __init__(self):
         self.kubernetes_namespace = None
-        self.ks_dc = KeystoneSessionManager("endpoint_cache")
 
 
 class CertUpdateEventData(object):
@@ -265,7 +263,6 @@ class DCIntermediateCertRenew(CertificateRenew):
                 ) = utils.query_subcloud_online_with_deploy_state(
                     subcloud_name,
                     invalid_deploy_states=self.invalid_deploy_states,
-                    ks_mgr=self.context.ks_dc,
                 )
                 if not subcloud_valid_state:
                     LOG.info(
@@ -289,12 +286,10 @@ class DCIntermediateCertRenew(CertificateRenew):
         subcloud_name = self._get_subcloud_name(event_data)
         LOG.info(f"update_certificate: subcloud {subcloud_name} {event_data}")
 
-        ks_mgr = self.context.ks_dc
         subcloud_sysinv_url = utils.SubcloudSysinvEndpointCache.get_endpoint(
-            subcloud_name, ks_mgr
+            subcloud_name
         )
         utils.update_subcloud_ca_cert(
-            ks_mgr,
             subcloud_name,
             subcloud_sysinv_url,
             event_data.ca_crt,
@@ -309,8 +304,7 @@ class DCIntermediateCertRenew(CertificateRenew):
         LOG.info(f"Attempt to update intermediate CA cert for {sc_name} has failed")
 
         # verify subcloud is under managed and online
-        ks_mgr = self.context.ks_dc
-        sc = utils.get_subcloud(ks_mgr, sc_name)
+        sc = utils.get_subcloud(sc_name)
         if not sc:
             LOG.error(f"Cannot find subcloud {sc_name}" % sc_name)
         else:
@@ -334,7 +328,6 @@ class DCIntermediateCertRenew(CertificateRenew):
                         # CA cert was not updated successfully
                         # an audit (default within 24 hours) will pick up and reattempt
                         utils.update_subcloud_status(
-                            self.context.ks_dc,
                             sc_name,
                             constants.SYNC_STATUS_OUT_OF_SYNC,
                         )

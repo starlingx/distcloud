@@ -9,6 +9,9 @@ import eventlet
 eventlet.monkey_patch(os=False)
 
 # pylint: disable=wrong-import-position
+from keystoneauth1 import session  # noqa: E402
+
+from dccommon.endpoint_cache import EndpointCache  # noqa: E402
 from dccertmon.common import (  # noqa: E402
     certificate_monitor_manager as cert_mon_manager,
 )
@@ -107,7 +110,8 @@ class NotificationAuditBehaviorTestCase(DCCertMonTestCase):
         self.mock_is_subcloud_online = self._mock_object(
             cert_mon_manager.utils, "is_subcloud_online"
         )
-        self.mock_get_token = self._mock_object(self.manager.ks_mgr, "get_token")
+        self._mock_object(EndpointCache, "get_admin_session")
+        self.mock_get_token = self._mock_object(session.Session, "get_token")
 
         self.mock_slow_get_cert = self._mock_object(
             cert_mon_manager.utils, "get_endpoint_certificate"

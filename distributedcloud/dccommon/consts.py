@@ -89,6 +89,7 @@ NEUTRON_QUOTA_FIELDS = (
 # Endpoint services names
 ENDPOINT_NAME_DCAGENT = "dcagent"
 ENDPOINT_NAME_DCDBSYNC = "dcdbsync"
+ENDPOINT_NAME_DCMANAGER = "dcmanager"
 ENDPOINT_NAME_FM = "fm"
 ENDPOINT_NAME_KEYSTONE = "keystone"
 ENDPOINT_NAME_SYSINV = "sysinv"

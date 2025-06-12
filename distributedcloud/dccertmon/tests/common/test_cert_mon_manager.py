@@ -9,15 +9,17 @@ import time
 import base64 as pybase64
 import eventlet
 import greenlet
-
+from keystoneauth1 import session
 import mock
 from oslo_config import cfg
 from oslo_config import fixture as config_fixture
+
 
 from dccertmon.common import certificate_monitor_manager as cert_mon_manager
 from dccertmon.common import subcloud_audit_queue
 import dccertmon.common.watcher
 from dccertmon.tests.base import DCCertMonTestCase
+from dccommon.endpoint_cache import EndpointCache
 
 OPT_GROUP_NAME = "dccertmon"
 if not cfg.CONF._get_group(OPT_GROUP_NAME)._opts:
@@ -55,7 +57,8 @@ class CertMonManagerBase(DCCertMonTestCase):
         self.mock_update_ca_cert = self._mock_object(
             cert_mon_manager.utils, "update_subcloud_ca_cert"
         )
-        self.mock_get_token = self._mock_object(self.manager.ks_mgr, "get_token")
+        self._mock_object(EndpointCache, "get_admin_session")
+        self.mock_get_token = self._mock_object(session.Session, "get_token")
 
         # Default return values
         self.mock_get_token.return_value = "fake-token"
@@ -344,7 +347,6 @@ class TestSubcloudAuditFlow(CertMonManagerBase):
         )
         self.mock_verify_ca.assert_called_once()
         self.mock_update_subcloud_status.assert_called_once_with(
-            self.manager.ks_mgr,
             "subcloud1",
             mock.ANY,
         )

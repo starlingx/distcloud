@@ -371,6 +371,8 @@ class EndpointCache(object):
             project_name = CONF.endpoint_cache.project_name
         if not project_domain_name:
             project_domain_name = CONF.endpoint_cache.project_domain_name
+        if not timeout:
+            timeout = CONF.endpoint_cache.http_connect_timeout
 
         user_auth = CachedV3Password(
             auth_url=auth_url,
