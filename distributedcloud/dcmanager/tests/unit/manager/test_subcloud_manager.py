@@ -472,16 +472,6 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
 
-    def create_simplified_subcloud(self, subcloud):
-        return {
-            "id": subcloud.id,
-            "name": subcloud.name,
-            "availability_status": subcloud.availability_status,
-            "management_state": subcloud.management_state,
-            "deploy_status": subcloud.deploy_status,
-            "region_name": subcloud.region_name,
-        }
-
     @staticmethod
     def create_subcloud_peer_group_static(ctxt, **kwargs):
         values = {
@@ -2377,7 +2367,10 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             self.assertEqual(status.sync_status, dccommon_consts.SYNC_STATUS_UNKNOWN)
 
         ssm.update_subcloud_availability(
-            self.ctx, self.subcloud.region_name, dccommon_consts.AVAILABILITY_ONLINE
+            self.ctx,
+            self.subcloud.name,
+            self.subcloud.region_name,
+            dccommon_consts.AVAILABILITY_ONLINE,
         )
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, "subcloud1")
@@ -2423,7 +2416,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         ssm = subcloud_state_manager.SubcloudStateManager()
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             availability_data,
             endpoint_data,
         )
@@ -2457,7 +2451,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
 
         When the endpoint's status in the database is the same as the one it'll be
         updated to, ensure that, instead of validating, bulk_update_endpoint_status
-        sets the same value in the database
+        just skip it
         """
 
         db_api.subcloud_update(
@@ -2475,23 +2469,25 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         ssm = subcloud_state_manager.SubcloudStateManager()
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             None,
             endpoint_data,
         )
 
         self.assertEqual(mock_db.call_count, 1)
 
-        # Re-executing the method should result in the same amount of call counts
+        # Re-executing the method should result in no extra calls
         # for the database query since there are no updates
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             None,
             endpoint_data,
         )
 
-        self.assertEqual(mock_db.call_count, 2)
+        self.assertEqual(mock_db.call_count, 1)
 
     @mock.patch.object(
         subcloud_state_manager.SubcloudStateManager,
@@ -2513,6 +2509,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         with mock.patch.object(db_api, "subcloud_update") as subcloud_update_mock:
             ssm.update_subcloud_availability(
                 self.ctx,
+                self.subcloud.name,
                 self.subcloud.region_name,
                 availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                 update_state_only=True,
@@ -2557,7 +2554,10 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             self.assertEqual(status.sync_status, dccommon_consts.SYNC_STATUS_UNKNOWN)
 
         ssm.update_subcloud_availability(
-            self.ctx, self.subcloud.region_name, dccommon_consts.AVAILABILITY_ONLINE
+            self.ctx,
+            self.subcloud.name,
+            self.subcloud.region_name,
+            dccommon_consts.AVAILABILITY_ONLINE,
         )
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, "subcloud1")
@@ -2614,6 +2614,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         audit_fail_count = 1
         ssm.update_subcloud_availability(
             self.ctx,
+            self.subcloud.name,
             self.subcloud.region_name,
             availability_status=None,
             audit_fail_count=audit_fail_count,
@@ -2633,6 +2634,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         audit_fail_count = audit_fail_count + 1
         ssm.update_subcloud_availability(
             self.ctx,
+            self.subcloud.name,
             self.subcloud.region_name,
             dccommon_consts.AVAILABILITY_OFFLINE,
             audit_fail_count=audit_fail_count,
