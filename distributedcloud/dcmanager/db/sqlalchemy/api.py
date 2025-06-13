@@ -449,8 +449,8 @@ class Connection(object):
         return result
 
     @require_context()
-    def subcloud_get_with_status(self, subcloud_id, endpoint_type=None):
-        query = (
+    def subcloud_get_with_status(self, subcloud_id):
+        result = (
             model_query(self.context, models.Subcloud, models.SubcloudStatus)
             .outerjoin(
                 models.SubcloudStatus,
@@ -459,12 +459,9 @@ class Connection(object):
             )
             .filter(models.Subcloud.id == subcloud_id)
             .filter(models.Subcloud.deleted == 0)
+            .order_by(models.SubcloudStatus.endpoint_type)
+            .all()
         )
-        if endpoint_type:
-            query = query.filter(
-                models.SubcloudStatus.endpoint_type == endpoint_type,
-            )
-        result = query.order_by(models.SubcloudStatus.endpoint_type).all()
 
         if not result:
             raise exception.SubcloudNotFound(subcloud_id=subcloud_id)
