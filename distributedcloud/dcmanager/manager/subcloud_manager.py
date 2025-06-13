@@ -19,16 +19,20 @@ from __future__ import division
 
 import base64
 import collections
+from contextlib import nullcontext
 import copy
 import datetime
 import filecmp
 import functools
 import json
 import os
+from pathlib import Path
 import random
 import shutil
+import tempfile
 import threading
 import time
+from typing import Optional
 
 from eventlet import greenpool
 from fm_api import constants as fm_const
@@ -164,7 +168,6 @@ TRANSITORY_PRESTAGE_STATES = {
 MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
-CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
 
 # Values for the exponential backoff retry to get subcloud's
 # certificate secret.
@@ -2394,6 +2397,65 @@ class SubcloudManager(manager.Manager):
 
         return subcloud, success
 
+    @staticmethod
+    def _stage_auto_restore_files(
+        stage_dir: Path, overrides_file: Path, payload: dict, subcloud: Subcloud
+    ) -> str:
+        """Stage auto-restore files in a directory for subcloud auto-restore.
+
+        Creates an 'auto-restore' directory and hard links the required files into it.
+        Hard links are used instead of symlinks because gen-bootloader-iso.sh uses
+        rsync -a, which will properly copy the actual file content during the
+        update_iso phase into the miniboot ISO.
+        """
+        target_path = Path(stage_dir) / "auto-restore"
+        target_path.mkdir()
+
+        LOG.info(
+            f"Staging auto-restore files for subcloud {subcloud.name} into: "
+            f"{target_path}"
+        )
+
+        # Stage the restore overrides file
+        destination_file = target_path / "backup_restore_values.yml"
+        os.link(overrides_file, destination_file)
+        os.chmod(destination_file, 0o600)
+
+        # Stage the subcloud backup file
+        if not payload["local_only"] and not payload.get("factory"):
+            central_backup = utils.find_central_subcloud_backup(
+                subcloud.name, payload.get("software_version")
+            )
+            destination_file = target_path / central_backup.name
+            os.link(central_backup, destination_file)
+
+        return os.fspath(target_path)
+
+    @staticmethod
+    def _get_auto_restore_temp_dir_location(
+        subcloud: Subcloud, payload: dict
+    ) -> Optional[Path]:
+        """Get the directory where temp folder should be created"""
+        if payload.get("local_only") or payload.get("factory"):
+            # For local-only or factory auto-retores, we only need to
+            # copy the restore overrides file, so we create a temp dir
+            # inside ANSIBLE_OVERRIDES_PATH as that will always exist
+            return Path(dccommon_consts.ANSIBLE_OVERRIDES_PATH)
+        try:
+            # For remote auto-restore, we need to copy the backup file
+            # and the restore overrides, so we use the following dir:
+            # CENTRAL_BACKUP_DIR / subcloud_name / software_version
+            central_backup = utils.find_central_subcloud_backup(
+                subcloud.name, payload.get("software_version")
+            )
+            return central_backup.parent
+        except FileNotFoundError:
+            LOG.exception(
+                "Unable to find subcloud backup for remote auto-restore, make "
+                "sure a subcloud backup was created without --local-only"
+            )
+            raise
+
     def _restore_subcloud_backup(self, context, payload, subcloud):
         log_file = (
             os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
@@ -2456,6 +2518,7 @@ class SubcloudManager(manager.Manager):
             restore_command = self.compose_backup_restore_command(
                 subcloud.name, subcloud_inventory_file, auto_restore_mode
             )
+
         except Exception:
             db_api.subcloud_update(
                 context,
@@ -2492,14 +2555,36 @@ class SubcloudManager(manager.Manager):
                 self.dcorch_rpc_client.update_subcloud_version(
                     context, subcloud.region_name, software_version
                 )
-            install_success = self._run_subcloud_install(
-                context,
-                subcloud,
-                install_command,
-                log_file,
-                data_install,
-                overrides_file if auto_restore_mode else None,
+
+            auto_restore_context = (
+                tempfile.TemporaryDirectory(
+                    prefix=f".{subcloud.name}",
+                    dir=self._get_auto_restore_temp_dir_location(subcloud, payload),
+                )
+                if auto_restore_mode
+                else nullcontext()
             )
+
+            with auto_restore_context as temp_dir:
+                # Stage the auto-restore files so they can be copied to the
+                # miniboot ISO during subcloud installation. These files will
+                # end up in /opt/platform-backup/auto-restore on the subcloud
+                include_paths = None
+                if temp_dir:
+                    include_paths = [
+                        self._stage_auto_restore_files(
+                            temp_dir, Path(overrides_file), payload, subcloud
+                        )
+                    ]
+
+                install_success = self._run_subcloud_install(
+                    context,
+                    subcloud,
+                    install_command,
+                    log_file,
+                    data_install,
+                    include_paths,
+                )
 
             if not install_success:
                 return subcloud, False
@@ -2564,6 +2649,19 @@ class SubcloudManager(manager.Manager):
         )
         return ansible_subcloud_inventory_file
 
+    @staticmethod
+    def _get_auto_restore_backup_dir(payload: dict, auto_restore_mode: str) -> str:
+        sw_version = payload.get("software_version")
+        if auto_restore_mode == "factory":
+            return os.path.join(consts.SUBCLOUD_FACTORY_BACKUP_DIR, sw_version)
+        elif auto_restore_mode == "auto":
+            if payload["local_only"]:
+                return os.path.join(consts.SUBCLOUD_LOCAL_BACKUP_DIR, sw_version)
+            else:
+                return consts.SUBCLOUD_AUTO_RESTORE_DIR
+        else:
+            raise Exception(f"Invalid auto restore mode: {auto_restore_mode}")
+
     def _create_overrides_for_backup_or_restore(
         self, op, payload, subcloud_name, auto_restore_mode=None
     ):
@@ -2585,7 +2683,7 @@ class SubcloudManager(manager.Manager):
             suffix = "backup_restore_values"
 
         if not payload["local_only"]:
-            payload["override_values"]["central_backup_dir"] = CENTRAL_BACKUP_DIR
+            payload["override_values"]["central_backup_dir"] = consts.CENTRAL_BACKUP_DIR
 
         payload["override_values"]["ansible_ssh_pass"] = payload["sysadmin_password"]
         payload["override_values"]["ansible_become_pass"] = payload["sysadmin_password"]
@@ -2612,6 +2710,27 @@ class SubcloudManager(manager.Manager):
         if op == "restore" and auto_restore_mode:
             payload["override_values"]["auto_restore_mode"] = auto_restore_mode
 
+            # For standard restore, the following values would be defined by
+            # the playbook running on the system controller. For auto restore
+            # the playbook is not executed so we define the values here
+            payload["override_values"]["initial_backup_dir"] = (
+                self._get_auto_restore_backup_dir(payload, auto_restore_mode)
+            )
+
+            # auto-restore only supports simplex subclouds, so we use optimized
+            # restore
+            payload["override_values"]["restore_mode"] = "optimized"
+            payload["override_values"]["skip_patches_restore"] = True
+            payload["override_values"]["exclude_sw_deployments"] = True
+
+            if auto_restore_mode == "factory":
+                # For factory restore, the prestaged registry images file must
+                # be inside SUBCLOUD_FACTORY_BACKUP_DIR/<sw_version>, so we
+                # override the images_archive_dir variable
+                payload["override_values"]["images_archive_dir"] = payload[
+                    "override_values"
+                ]["initial_backup_dir"]
+
         return self._create_backup_overrides_file(payload, subcloud_name, suffix)
 
     def _create_overrides_for_backup_delete(
@@ -2626,7 +2745,7 @@ class SubcloudManager(manager.Manager):
         payload["override_values"]["local"] = payload["local_only"] or False
 
         if not payload["local_only"]:
-            payload["override_values"]["central_backup_dir"] = CENTRAL_BACKUP_DIR
+            payload["override_values"]["central_backup_dir"] = consts.CENTRAL_BACKUP_DIR
         else:
             payload["override_values"]["ansible_ssh_pass"] = payload[
                 "sysadmin_password"
@@ -2917,7 +3036,7 @@ class SubcloudManager(manager.Manager):
 
     @staticmethod
     def _run_subcloud_install(
-        context, subcloud, install_command, log_file, payload, overrides_file=None
+        context, subcloud, install_command, log_file, payload, include_paths=None
     ):
         software_version = str(payload["software_version"])
         LOG.info(
@@ -2944,7 +3063,7 @@ class SubcloudManager(manager.Manager):
                 dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                 payload,
                 subcloud_primary_oam_ip_family,
-                overrides_file,
+                include_paths,
             )
         except Exception as e:
             LOG.exception(e)
@@ -3401,7 +3520,7 @@ class SubcloudManager(manager.Manager):
     @staticmethod
     def _delete_subcloud_backup_data(subcloud_name):
         try:
-            backup_path = os.path.join(CENTRAL_BACKUP_DIR, subcloud_name)
+            backup_path = os.path.join(consts.CENTRAL_BACKUP_DIR, subcloud_name)
             if os.path.exists(backup_path):
                 shutil.rmtree(backup_path)
         except Exception as e:
