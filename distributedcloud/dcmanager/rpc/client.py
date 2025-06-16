@@ -70,14 +70,15 @@ class SubcloudStateClient(RPCClient):
         )
 
     def bulk_update_subcloud_availability_and_endpoint_status(
-        self, ctxt, simplified_subcloud, availability_data, endpoint_data
+        self, ctxt, subcloud_id, subcloud_name, availability_data, endpoint_data
     ):
         # Note: This is an asynchronous operation.
         return self.cast(
             ctxt,
             self.make_msg(
                 "bulk_update_subcloud_availability_and_endpoint_status",
-                simplified_subcloud=simplified_subcloud,
+                subcloud_id=subcloud_id,
+                subcloud_name=subcloud_name,
                 availability_data=availability_data,
                 endpoint_data=endpoint_data,
             ),

@@ -384,16 +384,6 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
 
-    def create_simplified_subcloud(self, subcloud):
-        return {
-            "id": subcloud.id,
-            "name": subcloud.name,
-            "availability_status": subcloud.availability_status,
-            "management_state": subcloud.management_state,
-            "deploy_status": subcloud.deploy_status,
-            "region_name": subcloud.region_name,
-        }
-
     def test_init(self):
         am = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
         self.assertIsNotNone(am)
@@ -465,7 +455,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self._set_all_audits_in_sync()
         self.update_subcloud_availability_and_endpoint_status.assert_called_once_with(
             mock.ANY,
-            self.create_simplified_subcloud(subcloud),
+            subcloud.id,
+            subcloud.name,
             self.availability_data,
             self.endpoint_data,
         )
@@ -535,7 +526,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self._update_availability(dccommon_consts.AVAILABILITY_ONLINE, False, 0)
         self.update_subcloud_availability_and_endpoint_status.assert_called_with(
             mock.ANY,
-            self.create_simplified_subcloud(subcloud),
+            subcloud.id,
+            subcloud.name,
             self.availability_data,
             self.endpoint_data,
         )
@@ -600,7 +592,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self._update_availability(dccommon_consts.AVAILABILITY_ONLINE, False, 0)
         self.update_subcloud_availability_and_endpoint_status.assert_called_with(
             mock.ANY,
-            self.create_simplified_subcloud(subcloud),
+            subcloud.id,
+            subcloud.name,
             self.availability_data,
             self.endpoint_data,
         )
@@ -693,7 +686,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self._update_availability(dccommon_consts.AVAILABILITY_ONLINE, True, None)
         self.update_subcloud_availability_and_endpoint_status.assert_called_with(
             mock.ANY,
-            self.create_simplified_subcloud(subcloud),
+            subcloud.id,
+            subcloud.name,
             self.availability_data,
             self.endpoint_data,
         )
@@ -781,7 +775,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self._set_all_audits_in_sync()
         self.update_subcloud_availability_and_endpoint_status.assert_called_once_with(
             mock.ANY,
-            self.create_simplified_subcloud(subcloud),
+            subcloud.id,
+            subcloud.name,
             self.availability_data,
             self.endpoint_data,
         )
@@ -976,7 +971,8 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self._update_availability(dccommon_consts.AVAILABILITY_OFFLINE, False, 2)
         self.update_subcloud_availability_and_endpoint_status.assert_called_with(
             mock.ANY,
-            self.create_simplified_subcloud(subcloud),
+            subcloud.id,
+            subcloud.name,
             self.availability_data,
             self.endpoint_data,
         )
