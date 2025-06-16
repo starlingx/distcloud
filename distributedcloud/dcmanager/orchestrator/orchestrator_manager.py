@@ -37,6 +37,10 @@ from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import rpcapi as orchestrator_rpc_api
+from dcmanager.orchestrator.orchestrator_worker import (
+    DEFAULT_SLEEP_TIME_IN_SECONDS,
+    DELETE_COUNTER,
+)
 from dcmanager.orchestrator.validators.firmware_validator import (
     FirmwareStrategyValidator,
 )
@@ -99,6 +103,9 @@ class OrchestratorManager(manager.Manager):
         }
         self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=1)
 
+        # Stores the time in which the strategy deletion started
+        self.delete_start_at = None
+
         # When starting the manager service, it is necessary to confirm if there
         # are any strategies in a state different from initial, because that means
         # the service was unexpectedly restarted and the periodic strategy monitoring
@@ -116,6 +123,11 @@ class OrchestratorManager(manager.Manager):
                     f"({strategy.type}) An active strategy was found, restarting "
                     "its monitoring"
                 )
+
+                # Set the delete start time when the strategy is deleting
+                if strategy.state == consts.SW_UPDATE_STATE_DELETING:
+                    self.delete_start_at = timeutils.utcnow()
+
                 # The steps will only start processing after the orchestration interval
                 # This is done to avoid sending the steps to the workers in cases
                 # where only the manager service was restarted
@@ -183,25 +195,25 @@ class OrchestratorManager(manager.Manager):
             steps_to_orchestrate.append(step.id)
 
             if len(steps_to_orchestrate) == chunksize:
+                LOG.info(
+                    f"({strategy_type}) Sending {len(steps_to_orchestrate)} steps "
+                    "to orchestrate"
+                )
                 self.orchestrator_worker_rpc_client.orchestrate(
                     self.context, steps_to_orchestrate, strategy_type
                 )
 
-                LOG.info(
-                    f"({strategy_type}) Sent {len(steps_to_orchestrate)} steps "
-                    "to orchestrate"
-                )
                 if update:
                     steps_to_update.extend(steps_to_orchestrate)
                 steps_to_orchestrate = []
 
         if steps_to_orchestrate:
+            LOG.info(
+                f"({strategy_type}) Sending final {len(steps_to_orchestrate)} steps "
+                "to orchestrate"
+            )
             self.orchestrator_worker_rpc_client.orchestrate(
                 self.context, steps_to_orchestrate, strategy_type
-            )
-            LOG.info(
-                f"({strategy_type}) Sent final {len(steps_to_orchestrate)} steps "
-                "to orchestrate"
             )
 
             if update:
@@ -329,19 +341,40 @@ class OrchestratorManager(manager.Manager):
                 self.sleep_time = ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
         elif strategy.state == consts.SW_UPDATE_STATE_DELETING:
             if total_steps != 0:
-                # If there are steps that were not deleted yet, send them to the
-                # workers for deletion
-                if strategy.state == consts.SW_UPDATE_STATE_DELETING:
-                    steps = db_api.strategy_step_get_all(
-                        self.context, limit=strategy.max_parallel_subclouds
+                # In the worker process, the deletion step has a wait of up to 180
+                # seconds, which is greater than the orchestration interval. Because
+                # of that, the threshold needs to be higher to ensure a step that is
+                # still being process is not identified as idle.
+                last_update_threshold = timeutils.utcnow() - datetime.timedelta(
+                    seconds=(DEFAULT_SLEEP_TIME_IN_SECONDS * (DELETE_COUNTER + 1))
+                )
+
+                # If there are steps that were not deleted yet, verify if there is
+                # any that needs to be sent to the workers.
+                steps = db_api.strategy_step_get_all_to_delete(
+                    self.context,
+                    self.delete_start_at,
+                    last_update_threshold,
+                    strategy.max_parallel_subclouds,
+                )
+
+                if steps:
+                    LOG.info(
+                        f"({strategy_type}) {len(steps)} pending steps were found, "
+                        "start processing"
                     )
                     self._create_and_send_step_batches(strategy_type, steps, True)
-            else:
-                # If all steps were deleted, delete the strategy
-                with self.strategy_lock:
-                    db_api.sw_update_strategy_destroy(self.context, strategy_type)
-                self._monitor_strategy = False
-                self.sleep_time = ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
+
+                return
+
+            # If all steps were deleted, delete the strategy
+            with self.strategy_lock:
+                db_api.sw_update_strategy_destroy(self.context, strategy_type)
+
+            LOG.info(f"({strategy_type}) Subcloud strategy deleted")
+            self._monitor_strategy = False
+            self.delete_start_at = None
+            self.sleep_time = ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
 
     def stop(self):
         self.thread_group_manager.stop()
@@ -675,8 +708,11 @@ class OrchestratorManager(manager.Manager):
             LOG.info(f"({sw_update_strategy.type}) Subcloud orchestration deleted")
             return strategy_dict
 
+        # Set the start time for delete
+        self.delete_start_at = timeutils.utcnow()
+
         # Reduce the sleep time since the deletion is faster than apply
-        self.sleep_time = self.sleep_time / 3
+        self.sleep_time = self.sleep_time / 6
 
         # Send steps to be processed and start monitoring
         self._create_and_send_step_batches(sw_update_strategy.type, steps, True)

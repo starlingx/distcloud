@@ -932,6 +932,17 @@ def strategy_step_get_all_to_process(
     )
 
 
+def strategy_step_get_all_to_delete(
+    context, delete_start_at, last_update_threshold, max_parallel_subclouds
+):
+    """Retrieve all strategy steps that needs to be deleted in orchestration"""
+    return IMPL.Connection(context).strategy_step_get_all_to_delete(
+        delete_start_at=delete_start_at,
+        last_update_threshold=last_update_threshold,
+        max_parallel_subclouds=max_parallel_subclouds,
+    )
+
+
 def strategy_step_count_all_states(context):
     """Retrieve the count of steps in each possible state"""
     return IMPL.Connection(context).strategy_step_count_all_states()
