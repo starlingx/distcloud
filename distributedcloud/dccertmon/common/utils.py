@@ -19,7 +19,6 @@ from eventlet.green import subprocess
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log
-from oslo_serialization import base64
 
 from dccertmon.common.keystone_objects import KeystoneSessionManager
 from dccommon import consts as constants
@@ -76,87 +75,6 @@ def update_admin_ep_cert(ks_session_mgr, ca_crt, tls_crt, tls_key):
     else:
         LOG.error(f"Request response {resp}")
         raise Exception("Update admin endpoint certificate failed")
-
-
-def verify_adminep_cert_chain():
-    """Verify admin endpoint certificate chain & delete if invalid
-
-    :param context: an admin context.
-    :return: True/False if chain is valid
-
-    * Retrieve ICA & AdminEP cert secrets from k8s
-    * base64 decode ICA cert (tls.crt from SC_INTERMEDIATE_CA_SECRET_NAME)
-    *   & adminep (tls.crt from SC_ADMIN_ENDPOINT_SECRET_NAME)
-    *   & store the crts in tempfiles
-    * Run openssl verify against RootCA to verify the chain
-    """
-    kube_op = sys_kube.KubeOperator()
-
-    secret_ica = kube_op.kube_get_secret(
-        constants.SC_INTERMEDIATE_CA_SECRET_NAME,
-        constants.CERT_NAMESPACE_SUBCLOUD_CONTROLLER,
-    )
-    if "tls.crt" not in secret_ica.data:
-        raise Exception(
-            f"{constants.SC_INTERMEDIATE_CA_SECRET_NAME} tls.crt (ICA) data missing"
-        )
-
-    secret_adminep = kube_op.kube_get_secret(
-        constants.SC_ADMIN_ENDPOINT_SECRET_NAME,
-        constants.CERT_NAMESPACE_SUBCLOUD_CONTROLLER,
-    )
-    if "tls.crt" not in secret_adminep.data:
-        raise Exception(
-            f"{(constants.SC_ADMIN_ENDPOINT_SECRET_NAME)} tls.crt data missing"
-        )
-
-    txt_ca_crt = base64.decode_as_text(secret_ica.data["tls.crt"])
-    txt_tls_crt = base64.decode_as_text(secret_adminep.data["tls.crt"])
-
-    with tempfile.NamedTemporaryFile() as ca_tmpfile:
-        ca_tmpfile.write(txt_ca_crt.encode("utf8"))
-        ca_tmpfile.flush()
-        with tempfile.NamedTemporaryFile() as adminep_tmpfile:
-            adminep_tmpfile.write(txt_tls_crt.encode("utf8"))
-            adminep_tmpfile.flush()
-
-            cmd = [
-                "openssl",
-                "verify",
-                "-CAfile",
-                constants.DC_ROOT_CA_CERT_PATH,
-                "-untrusted",
-                ca_tmpfile.name,
-                adminep_tmpfile.name,
-            ]
-            proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-            )
-            stdout, stderr = proc.communicate()
-            proc.wait()
-            if 0 == proc.returncode:
-                LOG.info("verify_adminep_cert_chain passed. Valid chain")
-                return True
-            else:
-                LOG.info(
-                    "verify_adminep_cert_chain: Chain is invalid\n"
-                    f"{stdout}\n{stderr}"
-                )
-
-                kube_op.kube_delete_secret(
-                    constants.SC_ADMIN_ENDPOINT_SECRET_NAME,
-                    constants.CERT_NAMESPACE_SUBCLOUD_CONTROLLER,
-                )
-                LOG.info(
-                    "Deleting AdminEP secret due to invalid chain. "
-                    f"{constants.CERT_NAMESPACE_SUBCLOUD_CONTROLLER}:"
-                    f"{constants.SC_ADMIN_ENDPOINT_SECRET_NAME}"
-                )
-                return False
 
 
 def update_subcloud_ca_cert(ks_mgr, sc_name, sysinv_url, ca_crt, tls_crt, tls_key):

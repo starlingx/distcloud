@@ -244,27 +244,6 @@ class CertificateRenew(object):
         LOG.warning(f"Operation {event_data} has failed")
 
 
-class AdminEndpointRenew(CertificateRenew):
-    def __init__(self, context):
-        super(AdminEndpointRenew, self).__init__(context)
-        self.secret_name = constants.DC_ADMIN_ENDPOINT_SECRET_NAME
-
-    def check_filter(self, event_data):
-        if self.secret_name == event_data.secret_name:
-            return self.certificate_is_ready(event_data)
-        else:
-            return False
-
-    def update_certificate(self, event_data):
-
-        utils.update_admin_ep_cert(
-            self.context.ks_dc,
-            event_data.ca_crt,
-            event_data.tls_crt,
-            event_data.tls_key,
-        )
-
-
 class DCIntermediateCertRenew(CertificateRenew):
     def __init__(self, context, audit_subcloud, invalid_deploy_states):
         super(DCIntermediateCertRenew, self).__init__(context)
@@ -639,7 +618,6 @@ class DC_CertWatcher(object):
 
         self.namespace = constants.CERT_NAMESPACE_SYS_CONTROLLER
         self.context.kubernetes_namespace = constants.CERT_NAMESPACE_SYS_CONTROLLER
-        self.register_listener(AdminEndpointRenew(self.context))
         self.register_listener(
             DCIntermediateCertRenew(self.context, audit_subcloud, invalid_deploy_states)
         )
