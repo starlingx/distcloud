@@ -4,3 +4,5 @@ usr/lib/python3/dist-packages/dccommon/*
 usr/lib/python3/dist-packages/distributedcloud-*.egg-info
 usr/local/bin/rvmc_install.py
 usr/local/bin/ipmi_sel_event_monitor.py
+usr/local/bin/execute-restore.sh
+usr/lib/systemd/system/dc-auto-restore.service

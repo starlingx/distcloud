@@ -414,6 +414,12 @@ CERT_NAMESPACE_PLATFORM_CA_CERTS = "cert-manager"
 ANSIBLE_CURRENT_VERSION_BASE_PATH = "/usr/share/ansible/stx-ansible/playbooks"
 ANSIBLE_PREVIOUS_VERSION_BASE_PATH = "/opt/dc-vault/playbooks"
 
+# Subcloud backup locations
+CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
+SUBCLOUD_LOCAL_BACKUP_DIR = "/opt/platform-backup/backups"
+SUBCLOUD_AUTO_RESTORE_DIR = "/opt/platform-backup/auto-restore"
+SUBCLOUD_FACTORY_BACKUP_DIR = "/opt/platform-backup/factory"
+
 # The deployment manager artifacts usr directories
 ALTERNATE_DEPLOY_FILES_DIR = "/usr/local/share/applications"
 

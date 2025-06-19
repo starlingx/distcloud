@@ -471,12 +471,6 @@ class SubcloudBackupController(object):
                 payload["with_install"] = True
                 payload["registry_images"] = True
 
-                # TODO(gherzmann): Remove this after auto-restore is implemented
-                pecan.abort(
-                    400,
-                    _("Auto or factory restore is currently unsupported"),
-                )
-
             try:
                 # local update to deploy_status - this is just for CLI response
                 # pylint: disable-next=consider-using-enumerate
