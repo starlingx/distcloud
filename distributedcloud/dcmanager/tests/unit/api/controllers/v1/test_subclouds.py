@@ -31,6 +31,7 @@ import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import vim
+from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import OAMAddressesNotFound
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd
 from dcmanager.api.controllers.v1 import subclouds
@@ -256,11 +257,8 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
         )
         self.mock_sysinv_client_cutils = self._mock_object(cutils, "SysinvClient")
         self.mock_sysinv_client_prestage = self._mock_object(prestage, "SysinvClient")
-        self._mock_object(subclouds, "OpenStackDriver")
-        self._mock_object(cutils, "OpenStackDriver")
-        self._mock_object(prestage, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
 
-        self._mock_object(psd_common, "get_ks_client")
         self.mock_is_system_controller_deploying = self._mock_object(
             cutils, "is_system_controller_deploying"
         )
@@ -2926,7 +2924,7 @@ class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         )
         self._setup_mock_get_current_supported_upgrade_versions()
         self.mock_get_system_controller_software_list = self._mock_object(
-            cutils, "get_system_controller_software_list"
+            cutils, "_get_system_controller_software_list"
         )
         self._setup_mock_get_system_controller_software_list()
 

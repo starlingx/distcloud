@@ -20,7 +20,6 @@ from oslo_utils import importutils
 from dccommon.drivers import base
 from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions
-from dccommon import utils
 
 # Ensure keystonemiddleware options are imported
 importutils.import_module("keystonemiddleware.auth_token")
@@ -42,10 +41,6 @@ class KeystoneClient(base.DriverBase):
         self.session = self.endpoint_cache.admin_session
         self.keystone_client = self.endpoint_cache.keystone_client
         self.region_name = region_name
-        if region_name in utils.get_system_controller_region_names():
-            self.services_list = EndpointCache.master_services_list
-        else:
-            self.services_list = self.keystone_client.services.list()
 
     def get_enabled_projects(self, id_only=True):
         project_list = self.keystone_client.projects.list()
@@ -96,12 +91,6 @@ class KeystoneClient(base.DriverBase):
         for user in user_list:
             if user.name == username:
                 return user
-
-    def is_service_enabled(self, service):
-        for current_service in self.services_list:
-            if service in current_service.type:
-                return True
-        return False
 
     # Returns list of regions if endpoint filter is applied for the project
     def get_filtered_region(self, project_id):

@@ -160,11 +160,6 @@ class SyncThread(object):
             config = cfg.CONF.endpoint_cache
             self.admin_session = EndpointCache.get_admin_session(
                 config.auth_uri,
-                config.username,
-                config.user_domain_name,
-                config.password,
-                config.project_name,
-                config.project_domain_name,
                 timeout=60,
             )
         elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
@@ -200,7 +195,7 @@ class SyncThread(object):
             # Subclouds will use token from the Subcloud specific Keystone,
             # so define a session against that subcloud's keystone endpoint
             self.sc_auth_url = cutils.build_subcloud_endpoint(
-                self.management_ip, "keystone"
+                self.management_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
             )
             LOG.debug(
                 f"Built sc_auth_url {self.sc_auth_url} for subcloud "
@@ -208,14 +203,8 @@ class SyncThread(object):
             )
 
             if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
-                config = cfg.CONF.endpoint_cache
                 self.sc_admin_session = EndpointCache.get_admin_session(
                     self.sc_auth_url,
-                    config.username,
-                    config.user_domain_name,
-                    config.password,
-                    config.project_name,
-                    config.project_domain_name,
                     timeout=60,
                 )
             elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:

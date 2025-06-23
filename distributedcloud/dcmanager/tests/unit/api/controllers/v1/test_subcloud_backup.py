@@ -12,6 +12,7 @@ import mock
 from oslo_messaging import RemoteError
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.common import consts
 import dcmanager.common.utils
 from dcmanager.db import api as db_api
@@ -92,7 +93,7 @@ class BaseTestSubcloudBackupController(DCManagerApiTest):
 
         self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
         self._mock_object(rpc_client, "SubcloudStateClient")
-        self._mock_object(dcmanager.common.utils, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_sysinv_client = self._mock_object(
             dcmanager.common.utils, "SysinvClient"
         )

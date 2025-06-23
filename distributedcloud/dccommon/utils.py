@@ -18,7 +18,6 @@ from datetime import datetime
 import functools
 import os
 import random
-import re
 import threading
 import time
 from typing import Callable
@@ -295,22 +294,6 @@ def is_token_expiring_soon(
     if timeutils.is_soon(expiry_time, duration):
         return True
     return False
-
-
-def _get_key_from_file(file_contents, key):
-    """Extract value from KEY=VALUE entries.
-
-    Ignore newline, ignore apostrophe, ignore quotation mark.
-    :param file_contents: contents of file
-    :param key: key to search
-    :return: found value or ''
-    """
-    r = re.compile("^{}\=['\"]*([^'\"\n]*)".format(key), re.MULTILINE)
-    match = r.search(file_contents)
-    if match:
-        return match.group(1)
-    else:
-        return ""
 
 
 def get_ssl_cert_ca_file():

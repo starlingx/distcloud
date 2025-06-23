@@ -14,6 +14,7 @@ from oslo_messaging import RemoteError
 from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd_api
 from dcmanager.api.controllers.v1.subclouds import SubcloudsController
 from dcmanager.common import consts
@@ -39,7 +40,7 @@ class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
         self.url = FAKE_URL
 
         self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
-        self._mock_object(psd_common, "get_ks_client")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_is_system_controller_deploying = self._mock_object(
             dutils, "is_system_controller_deploying"
         )

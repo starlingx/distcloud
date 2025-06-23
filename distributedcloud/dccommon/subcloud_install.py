@@ -30,12 +30,11 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import endpoint_cache
 from dccommon import exceptions
 from dccommon import ostree_mount
-from dccommon import utils as dccommon_utils
-
+from dccommon import utils as cutils
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import utils
 
@@ -116,15 +115,9 @@ class SubcloudInstall(object):
 
     @staticmethod
     def get_sysinv_client():
-        region_name = dccommon_utils.get_region_one_name()
-        ks_client = OpenStackDriver(
-            region_name=region_name,
-            region_clients=None,
-            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-        ).keystone_client
-        session = ks_client.session
-        endpoint = ks_client.endpoint_cache.get_endpoint("sysinv")
-        return SysinvClient(region_name, session, endpoint=endpoint)
+        admin_session = endpoint_cache.EndpointCache.get_admin_session()
+        region_name = cutils.get_region_one_name()
+        return SysinvClient(region_name, admin_session)
 
     @staticmethod
     def format_address(ip_address):
@@ -571,7 +564,7 @@ class SubcloudInstall(object):
         try:
             # Since this is a long-running task we want to register
             # for cleanup on process restart/SWACT.
-            ansible = dccommon_utils.AnsiblePlaybook(self.name)
+            ansible = cutils.AnsiblePlaybook(self.name)
             aborted = ansible.run_playbook(playbook_log_file, install_command)
             # Returns True if the playbook was aborted and False otherwise
             return aborted

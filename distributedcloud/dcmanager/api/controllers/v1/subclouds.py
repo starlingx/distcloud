@@ -34,9 +34,10 @@ import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack import vim
+from dccommon.endpoint_cache import EndpointCache
+from dccommon import utils as cutils
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subclouds as subclouds_policy
 from dcmanager.api import policy
@@ -196,13 +197,16 @@ class SubcloudsController(object):
 
         # Then check the system config update strategy
         try:
-            keystone_client = OpenStackDriver(
-                region_name=subcloud.region_name,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-                subcloud_management_ip=subcloud.management_start_ip,
-            ).keystone_client
-            vim_client = vim.VimClient(subcloud.region_name, keystone_client.session)
+            keystone_endpoint = cutils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
+            )
+            admin_session = EndpointCache.get_admin_session(auth_url=keystone_endpoint)
+            vim_client = vim.VimClient(
+                admin_session,
+                endpoint=cutils.build_subcloud_endpoint(
+                    subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_VIM
+                ),
+            )
             strategy = vim_client.get_strategy(
                 strategy_name=vim.STRATEGY_NAME_SYS_CONFIG_UPDATE,
                 raise_error_if_missing=False,
@@ -287,14 +291,16 @@ class SubcloudsController(object):
             existing_subclouds=subclouds,
         )
 
-    def _get_deploy_config_sync_status(self, context, subcloud_name, keystone_client):
+    def _get_deploy_config_sync_status(self, subcloud, admin_session):
         """Get the deploy configuration insync status of the subcloud"""
         detected_alarms = None
         try:
             fm_client = FmClient(
-                subcloud_name,
-                keystone_client.session,
-                endpoint=keystone_client.endpoint_cache.get_endpoint("fm"),
+                subcloud.name,
+                admin_session,
+                endpoint=cutils.build_subcloud_endpoint(
+                    subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_FM
+                ),
             )
             detected_alarms = fm_client.get_alarms_by_id(
                 FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
@@ -482,22 +488,23 @@ class SubcloudsController(object):
                 oam_floating_ip = "unavailable"
                 deploy_config_sync_status = "unknown"
                 if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
-
-                    # Get the keystone client that will be used
-                    # for _get_deploy_config_sync_status and
-                    # utils.get_oam_floating_ip_primary
-                    sc_ks_client = psd_common.get_ks_client(
-                        subcloud_region, subcloud.management_start_ip
+                    keystone_endpoint = cutils.build_subcloud_endpoint(
+                        subcloud.management_start_ip,
+                        dccommon_consts.ENDPOINT_NAME_KEYSTONE,
                     )
+                    admin_session = EndpointCache.get_admin_session(
+                        auth_url=keystone_endpoint
+                    )
+
                     # Only interested in subcloud's primary OAM pool's address
                     oam_floating_ip_primary = utils.get_oam_floating_ip_primary(
-                        subcloud, sc_ks_client
+                        subcloud, admin_session
                     )
                     if oam_floating_ip_primary is not None:
                         oam_floating_ip = oam_floating_ip_primary
 
                     deploy_config_state = self._get_deploy_config_sync_status(
-                        context, subcloud_region, sc_ks_client
+                        subcloud, admin_session
                     )
                     if deploy_config_state is not None:
                         deploy_config_sync_status = deploy_config_state
@@ -516,13 +523,10 @@ class SubcloudsController(object):
     @staticmethod
     def is_valid_software_deploy_state():
         try:
-            m_os_ks_client = OpenStackDriver(region_clients=None).keystone_client
-            software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
-                dccommon_consts.ENDPOINT_NAME_USM
-            )
+            admin_session = EndpointCache.get_admin_session()
             software_client = software_v1.SoftwareClient(
-                m_os_ks_client.session,
-                endpoint=software_endpoint,
+                admin_session,
+                region=cutils.get_region_one_name(),
             )
             software_list = software_client.list()
             for release in software_list:
@@ -570,16 +574,6 @@ class SubcloudsController(object):
         )
 
         self.validate_software_deploy_state()
-
-        if not SubcloudsController.is_valid_software_deploy_state():
-            pecan.abort(
-                400,
-                _(
-                    "A local software deployment operation is in progress. "
-                    "Please finish the software deployment operation before "
-                    "(re)installing/updating the subcloud."
-                ),
-            )
 
         bootstrap_sc_name = psd_common.get_bootstrap_subcloud_name(request)
 

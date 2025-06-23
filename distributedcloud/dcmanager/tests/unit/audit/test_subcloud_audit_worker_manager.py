@@ -18,10 +18,10 @@ import copy
 import random
 import sys
 
-from keystoneauth1 import exceptions as keystone_exceptions
 import mock
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
@@ -251,6 +251,9 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.mock_dcmanager_api = self._mock_object(rpc_client, "ManagerClient")
         self.mock_dcmanager_api().return_value = FakeDCManagerAPI()
 
+        # Mock the admin session
+        self._mock_object(EndpointCache, "get_admin_session")
+
         # Mock the DCManager subcloud state API
         self.mock_dcmanager_state_api = self._mock_object(
             rpc_client, "SubcloudStateClient"
@@ -320,9 +323,6 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             self.temporary_mock = self._mock_object(subcloud_audit_manager, key)
             getattr(self.temporary_mock, value["class"]).return_value = value["value"]
 
-        self.mock_openstack_driver = self._mock_object(
-            subcloud_audit_worker_manager, "OpenStackDriver"
-        )
         self.mock_dcagent_client = self._mock_object(
             subcloud_audit_worker_manager, "DcagentClient"
         )
@@ -932,9 +932,6 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
             deploy_status=consts.DEPLOY_STATE_INSTALLING,
             audit_fail_count=1,
         )
-
-        # Simulate a connection timeout
-        self.mock_openstack_driver.side_effect = keystone_exceptions.ConnectTimeout()
 
         # Audit the subcloud
         do_firmware_audit = True

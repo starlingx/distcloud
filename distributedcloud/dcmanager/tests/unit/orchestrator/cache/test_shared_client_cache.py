@@ -7,6 +7,7 @@ import socket
 
 import mock
 
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.orchestrator.cache.cache_specifications import CacheSpecification
 from dcmanager.orchestrator.cache import clients
 from dcmanager.orchestrator.cache.cache_specifications import (
@@ -24,8 +25,7 @@ class TestSharedClientCache(base.DCManagerTestCase):
         """Initializes the shared client cache"""
 
         super().setUp()
-
-        self._mock_object(clients, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_sysinv_client = self._mock_object(clients, "SysinvClient")
 
     def test_read_succeeds_when_cache_data_is_stored(self):

@@ -29,6 +29,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import utils as dccommon_utils
 from dcorch.common import consts
@@ -37,7 +38,6 @@ from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_EXTRA
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_MISSING
-from dcorch.engine.sync_thread import get_master_os_client
 from dcorch.engine.sync_thread import SyncThread
 
 LOG = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ class SysinvSyncThread(SyncThread):
         super().initialize_sc_clients()
 
         sc_sysinv_url = dccommon_utils.build_subcloud_endpoint(
-            self.management_ip, "sysinv"
+            self.management_ip, dccommon_consts.ENDPOINT_NAME_SYSINV
         )
         LOG.debug(
             f"Built sc_sysinv_url {sc_sysinv_url} for subcloud {self.subcloud_name}"
@@ -118,7 +118,7 @@ class SysinvSyncThread(SyncThread):
                 self.region_name,
                 self.sc_admin_session,
                 endpoint=dccommon_utils.build_subcloud_endpoint(
-                    self.management_ip, "dcagent"
+                    self.management_ip, dccommon_consts.ENDPOINT_NAME_DCAGENT
                 ),
             )
         self.sc_sysinv_client = SysinvClient(
@@ -126,9 +126,6 @@ class SysinvSyncThread(SyncThread):
             session=self.sc_admin_session,
             endpoint=sc_sysinv_url,
         )
-
-    def get_master_sysinv_client(self):
-        return get_master_os_client(["sysinv"]).sysinv_client
 
     def get_sc_sysinv_client(self):
         if self.sc_sysinv_client is None:
@@ -393,6 +390,8 @@ class SysinvSyncThread(SyncThread):
         payload = user_dict.get("payload")
 
         passwd_hash = None
+        root_sig = None
+        passwd_expiry_days = None
         if isinstance(payload, list):
             for ipayload in payload:
                 if ipayload.get("path") == "/passwd_hash":
@@ -523,12 +522,16 @@ class SysinvSyncThread(SyncThread):
             extra=self.log_extra,
         )
         try:
+            admin_session = EndpointCache.get_admin_session()
+            sysinv_client = SysinvClient(
+                region=dccommon_utils.get_region_one_name(), session=admin_session
+            )
             if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-                return self.get_certificates_resources(self.get_master_sysinv_client())
+                return self.get_certificates_resources(sysinv_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
-                return [self.get_user_resource(self.get_master_sysinv_client())]
+                return [self.get_user_resource(sysinv_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-                return [self.get_fernet_resources(self.get_master_sysinv_client())]
+                return [self.get_fernet_resources(sysinv_client)]
             else:
                 LOG.error(
                     "Wrong resource type {}".format(resource_type), extra=self.log_extra

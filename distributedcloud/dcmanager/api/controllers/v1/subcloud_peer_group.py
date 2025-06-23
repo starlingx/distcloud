@@ -17,8 +17,9 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import endpoint_cache
+from dccommon import utils as cutils
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_peer_group as subcloud_peer_group_policy
 from dcmanager.api import policy
@@ -72,16 +73,9 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
 
     def _get_local_system(self):
         try:
-            ks_client = OpenStackDriver(
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            )
             sysinv_client = SysinvClient(
-                ks_client.region_name,
-                ks_client.keystone_client.session,
-                endpoint=ks_client.keystone_client.endpoint_cache.get_endpoint(
-                    "sysinv"
-                ),
+                region=cutils.get_region_one_name(),
+                session=endpoint_cache.EndpointCache.get_admin_session(),
             )
             system = sysinv_client.get_system()
             return system

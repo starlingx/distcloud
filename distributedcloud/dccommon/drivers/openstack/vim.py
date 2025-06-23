@@ -111,19 +111,24 @@ class VimClient(base.DriverBase):
         # The property is used to guarantee we always get the most recent token
         return self.session.get_token()
 
-    def __init__(self, region: str, session: ks_session.Session, endpoint: str = None):
+    def __init__(
+        self, session: ks_session.Session, region: str = None, endpoint: str = None
+    ):
+        if not (endpoint or region):
+            error = "Either endpoint or region must be provided"
+            raise exceptions.ClientException(client="VIM", error=error)
+
         self.session = session
+        self.endpoint = endpoint
 
         # The nfv_client doesn't support a session, so we need to
         # get an endpoint and token.
-        if endpoint is None:
+        if not self.endpoint:
             self.endpoint = session.get_endpoint(
                 service_type="nfv",
                 region_name=region,
                 interface=consts.KS_ENDPOINT_ADMIN,
             )
-        else:
-            self.endpoint = endpoint
 
         # session.get_user_id() returns a UUID
         # that always corresponds to 'dcmanager'

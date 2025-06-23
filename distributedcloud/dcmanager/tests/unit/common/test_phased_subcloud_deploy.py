@@ -12,6 +12,7 @@ import os
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.tests.base import DCManagerTestCase
@@ -49,6 +50,7 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
         super().setUp()
         self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
         self.mock_os_listdir = self._mock_object(os, "listdir")
+        self._mock_object(EndpointCache, "get_admin_session")
 
     def test_check_deploy_files_alternate_location_with_all_file_exists(self):
         payload = {}

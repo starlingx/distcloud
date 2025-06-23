@@ -130,7 +130,7 @@ endpoint_cache_opts = [
     ),
     cfg.IntOpt(
         "token_cache_size",
-        default=5000,
+        default=10000,
         help="Maximum number of entries in the in-memory token cache",
     ),
 ]

@@ -96,7 +96,7 @@ class BaseStrategy(object):
             region_name = cutils.get_region_one_name()
 
         ks_client = BaseStrategy.get_ks_client(region_name)
-        return vim.VimClient(region_name, ks_client.session)
+        return vim.VimClient(ks_client.session, region=region_name)
 
     @staticmethod
     def get_sysinv_client(region_name: str = None) -> SysinvClient:
