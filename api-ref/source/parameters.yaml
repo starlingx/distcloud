@@ -212,6 +212,13 @@ bootstrap_values_for_rehome:
   in: body
   required: false
   type: string
+cloud_init_config:
+  description: |
+    The content of a tarball containing cloud-init config files for the
+    subcloud.
+  in: body
+  required: false
+  type: string
 cloud_status:
   description: |
     The overall alarm status of the subcloud.

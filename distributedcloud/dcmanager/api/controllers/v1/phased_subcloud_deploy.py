@@ -10,6 +10,7 @@ from oslo_log import log as logging
 from oslo_messaging import RemoteError
 import pecan
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.controllers.v1.subclouds import SubcloudsController
 from dcmanager.api.policies import (
@@ -609,6 +610,7 @@ class PhasedSubcloudDeployController(object):
 
         has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
         has_install_values = consts.INSTALL_VALUES in request.POST
+        has_cloud_init_config = dccommon_consts.CLOUD_INIT_CONFIG in request.POST
 
         payload = psd_common.get_request_data(
             request, subcloud, SUBCLOUD_ENROLL_GET_FILE_CONTENTS
@@ -632,6 +634,9 @@ class PhasedSubcloudDeployController(object):
             psd_common.populate_payload_with_pre_existing_data(
                 payload, subcloud, [consts.INSTALL_VALUES]
             )
+
+        if has_cloud_init_config:
+            psd_common.upload_cloud_init_config(request, payload)
 
         psd_common.validate_enroll_parameter(payload)
 

@@ -581,12 +581,13 @@ class SubcloudsController(object):
             request, None, SUBCLOUD_ADD_GET_FILE_CONTENTS
         )
 
-        psd_common.validate_migrate_parameter(payload, request)
+        psd_common.validate_migrate_parameter(payload)
 
         psd_common.validate_secondary_parameter(payload, request)
 
         if payload.get("enroll"):
             psd_common.validate_enroll_parameter(payload)
+            psd_common.upload_cloud_init_config(request, payload)
 
         # Compares to match both supplied and bootstrap name param
         # of the subcloud if migrate is on

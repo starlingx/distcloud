@@ -129,6 +129,7 @@ serviceUnavailable (503)
   - bmc_password: bmc_password
   - bootstrap-address: bootstrap_address
   - bootstrap_values: bootstrap_values
+  - cloud_init_config: cloud_init_config
   - deploy_config: deploy_config
   - description: subcloud_description
   - external_oam_floating_address: external_oam_floating_address
@@ -2291,6 +2292,83 @@ Response Example
 ----------------
 
 .. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-resume-response.json
+      :language: json
+
+
+**********************************
+Enroll a subcloud
+**********************************
+
+.. rest_method:: PATCH /v1.0/phased-subcloud-deploy/{subcloud}/enroll
+
+Enrolls a subcloud that was created but not yet enrolled. This operation
+registers the subcloud with the system controller and prepares it for
+management. The subcloud must be in a valid state for enrollment.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud: subcloud_uri
+  - bootstrap-address: bootstrap_address
+  - bootstrap_values: bootstrap_values
+  - cloud_init_config: cloud_init_config
+  - install_values: install_values
+  - sysadmin_password: sysadmin_password
+  - bmc_password: bmc_password
+
+Accepts Content-Type multipart/form-data
+
+Request Example
+----------------
+
+.. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-enroll-request.json
+      :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - error-description: error_description
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
+  - region-name: region_name
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+
+Response Example
+----------------
+
+.. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-enroll-response.json
       :language: json
 
 ------------

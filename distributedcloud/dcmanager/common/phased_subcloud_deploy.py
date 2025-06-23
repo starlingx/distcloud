@@ -7,6 +7,8 @@
 import base64
 import json
 import os
+import tarfile
+import tempfile
 import typing
 
 import ipaddress
@@ -153,27 +155,68 @@ def validate_system_controller_deploy_status(operation: str):
         pecan.abort(422, _(message))
 
 
-def validate_migrate_parameter(payload, request):
-    migrate_str = payload.get("migrate")
-    if migrate_str is not None:
-        if migrate_str not in ["true", "false"]:
-            pecan.abort(
-                400,
-                _("The migrate option is invalid, valid options are true and false."),
-            )
+def verify_boolean_str(value):
+    if isinstance(value, str) and value in ["true", "false"]:
+        return
 
-        if consts.DEPLOY_CONFIG in request.POST:
-            pecan.abort(400, _("migrate with deploy-config is not allowed"))
+    pecan.abort(
+        400,
+        _("Invalid boolean string: %s. Valid options are true and false.") % value,
+    )
+
+
+def validate_migrate_parameter(payload):
+    migrate_str = payload.get("migrate")
+    if migrate_str is None:
+        return
+
+    verify_boolean_str(migrate_str)
+
+    if migrate_str == "false":
+        return
+
+    enroll_str = payload.get("enroll")
+    if enroll_str is not None:
+        verify_boolean_str(enroll_str)
+        if enroll_str == "true":
+            pecan.abort(400, _("migrate with enroll is not allowed"))
+
+    if consts.DEPLOY_CONFIG in payload:
+        pecan.abort(400, _("migrate with deploy-config is not allowed"))
 
 
 def validate_enroll_parameter(payload):
-    install_values = payload.get("install_values")
+    enroll_str = payload.get("enroll")
+
+    if enroll_str is None:
+        return
+
+    verify_boolean_str(enroll_str)
+
+    if enroll_str == "false":
+        if dccommon_consts.CLOUD_INIT_CONFIG in payload:
+            pecan.abort(400, _("cloud_init_config is not allowed with enroll=false"))
+        else:
+            return
+
+    install_values = payload.get(consts.INSTALL_VALUES)
     if not install_values:
         pecan.abort(400, _("Install values is necessary for subcloud enrollment"))
-
     # Update the install values in payload
     if not payload.get("bmc_password"):
         payload.update({"bmc_password": install_values.get("bmc_password")})
+
+
+def validate_tarball(contents, file_name):
+    try:
+        with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
+            tmp_file.write(contents)
+            tmp_file.flush()
+            if not tarfile.is_tarfile(tmp_file.name):
+                pecan.abort(400, _("%s is not a valid tar archive.") % file_name)
+
+    except (base64.binascii.Error, tarfile.TarError, OSError) as e:
+        pecan.abort(400, _("Failed to validate %s: %s") % (file_name, str(e)))
 
 
 def validate_secondary_parameter(payload, request):
@@ -976,10 +1019,29 @@ def upload_deploy_config_file(request, payload):
     get_common_deploy_files(payload, payload["software_version"])
 
 
+def upload_cloud_init_config(request, payload):
+    file_item = request.POST.get(dccommon_consts.CLOUD_INIT_CONFIG)
+    if file_item is None:
+        return
+
+    filename = getattr(file_item, "filename", "")
+    if not filename:
+        pecan.abort(400, _("No cloud-init-config file uploaded"))
+
+    file_item.file.seek(0, os.SEEK_SET)
+    contents = file_item.file.read()
+    validate_tarball(contents, filename)
+    fn = get_config_file_path(payload["name"], dccommon_consts.CLOUD_INIT_CONFIG)
+    upload_binary_file(contents, fn, filename)
+    payload[dccommon_consts.CLOUD_INIT_CONFIG] = fn
+
+
 def get_config_file_path(subcloud_name, config_file_type=None):
     basepath = dccommon_consts.ANSIBLE_OVERRIDES_PATH
     if config_file_type == consts.DEPLOY_CONFIG:
         filename = f"{subcloud_name}_{config_file_type}.yml"
+    elif config_file_type == dccommon_consts.CLOUD_INIT_CONFIG:
+        filename = f"{subcloud_name}_{config_file_type}.tar"
     elif config_file_type == consts.INSTALL_VALUES:
         basepath = os.path.join(basepath, subcloud_name)
         filename = f"{config_file_type}.yml"
@@ -987,6 +1049,17 @@ def get_config_file_path(subcloud_name, config_file_type=None):
         filename = f"{subcloud_name}.yml"
     file_path = os.path.join(basepath, filename)
     return file_path
+
+
+def upload_binary_file(contents, file_path, filename):
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "wb") as f:
+            f.write(contents)
+    except Exception:
+        msg = _("Failed to upload %s to %s" % (filename, file_path))
+        LOG.exception(msg)
+        pecan.abort(400, msg)
 
 
 def upload_config_file(file_item, config_file, config_type):

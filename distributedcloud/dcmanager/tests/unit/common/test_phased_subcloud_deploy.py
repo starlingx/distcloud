@@ -5,9 +5,13 @@
 #
 
 import base64
+import builtins
 import copy
+import io
 import json
 import os
+import tarfile
+import tempfile
 
 from oslo_utils import timeutils
 
@@ -94,6 +98,9 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
         deploy_config = psd_common.get_config_file_path(
             "subcloud1", consts.DEPLOY_CONFIG
         )
+        cloud_init_config = psd_common.get_config_file_path(
+            "subcloud1", dccommon_consts.CLOUD_INIT_CONFIG
+        )
 
         self.assertEqual(
             bootstrap_file, f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1.yml"
@@ -105,6 +112,10 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
         self.assertEqual(
             deploy_config,
             f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_deploy_config.yml",
+        )
+        self.assertEqual(
+            cloud_init_config,
+            f"{dccommon_consts.ANSIBLE_OVERRIDES_PATH}/subcloud1_cloud_init_config.tar",
         )
 
     def test_format_ip_address(self):
@@ -282,6 +293,97 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
                 admin_end_address,
                 admin_gateway_address,
             )
+
+    def test_verify_boolean_str(self):
+        with self.assertRaisesRegex(Exception, "Invalid boolean string"):
+            psd_common.verify_boolean_str("1")
+        with self.assertRaisesRegex(Exception, "Invalid boolean string"):
+            psd_common.verify_boolean_str("0")
+        with self.assertRaisesRegex(Exception, "Invalid boolean string"):
+            psd_common.verify_boolean_str("True")
+        with self.assertRaisesRegex(Exception, "Invalid boolean string"):
+            psd_common.verify_boolean_str("False")
+        with self.assertRaisesRegex(Exception, "Invalid boolean string"):
+            psd_common.verify_boolean_str("yes")
+        with self.assertRaisesRegex(Exception, "Invalid boolean string"):
+            psd_common.verify_boolean_str(True)
+        psd_common.verify_boolean_str("true")
+        psd_common.verify_boolean_str("false")
+
+    def test_validate_migrate_parameter_valid(self):
+        psd_common.validate_migrate_parameter({"migrate": "false"})
+
+    def test_validate_migrate_parameter_with_deploy_config(self):
+        payload = {"migrate": "true", consts.DEPLOY_CONFIG: "some_config"}
+        with self.assertRaisesRegex(
+            Exception, "migrate with deploy-config is not allowed"
+        ):
+            psd_common.validate_migrate_parameter(payload)
+
+    def test_validate_migrate_parameter_enroll_true(self):
+        payload = {"migrate": "true", "enroll": "true"}
+        with self.assertRaisesRegex(Exception, "migrate with enroll is not allowed"):
+            psd_common.validate_migrate_parameter(payload)
+
+    def test_validate_enroll_parameter_enroll_false_with_cloud_init(self):
+        payload = {"enroll": "false", "cloud_init_config": "dummy"}
+        with self.assertRaisesRegex(
+            Exception,
+            "cloud_init_config is not allowed with enroll=false",
+        ):
+            psd_common.validate_enroll_parameter(payload)
+
+    def test_validate_enroll_parameter_missing_install_values(self):
+        payload = {"enroll": "true"}
+        with self.assertRaisesRegex(
+            Exception, "Install values is necessary for subcloud enrollment"
+        ):
+            psd_common.validate_enroll_parameter(payload)
+
+    def test_validate_enroll_parameter_update_bmc_password(self):
+        payload = {"enroll": "true", "install_values": {"bmc_password": "abc"}}
+        psd_common.validate_enroll_parameter(payload)
+        self.assertEqual(payload["bmc_password"], "abc")
+
+    def test_validate_tarball_not_tar(self):
+        bad_data = b"not a tarfile"
+        with self.assertRaisesRegex(Exception, "not a valid tar archive."):
+            psd_common.validate_tarball(bad_data, "testfile")
+
+    def test_validate_tarball_valid(self):
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            with tarfile.open(tmp.name, "w") as tar:
+                info = tarfile.TarInfo(name="file.txt")
+                content = b"test"
+                info.size = len(content)
+                content_file = io.BytesIO(content)
+                tar.addfile(info, fileobj=content_file)
+            tmp.seek(0)
+            data = tmp.read()
+
+        psd_common.validate_tarball(data, "testfile")
+
+    def test_upload_binary_file(self):
+        mock_open = self._mock_object(builtins, "open")
+        mock_file = mock_open.return_value.__enter__.return_value
+        test_content = b"binary content"
+        test_path = "/test/path/file.bin"
+        test_type = "test_file"
+        psd_common.upload_binary_file(test_content, test_path, test_type)
+        mock_open.assert_called_once_with(test_path, "wb")
+        mock_file.write.assert_called_once_with(test_content)
+
+    def test_upload_binary_file_exception(self):
+        mock_open = self._mock_object(builtins, "open")
+        mock_open.side_effect = Exception("Test exception")
+        test_content = b"binary content"
+        test_path = "/test/path/file.bin"
+        test_name = "test_file"
+        with self.assertRaisesRegex(
+            Exception,
+            f"Failed to upload {test_name} to {test_path}",
+        ):
+            psd_common.upload_binary_file(test_content, test_path, test_name)
 
 
 class BaseTestValidateBootstrapValuesErrors(DCManagerTestCase):

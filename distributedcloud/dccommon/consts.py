@@ -338,3 +338,5 @@ SYSINV_CLIENT_REST_DEFAULT_TIMEOUT = 600
 
 SUBCLOUD_ISO_PATH = "/opt/platform/iso"
 SUBCLOUD_FEED_PATH = "/var/www/pages/feed"
+
+CLOUD_INIT_CONFIG = "cloud_init_config"
