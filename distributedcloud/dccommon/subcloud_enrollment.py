@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -6,6 +6,7 @@
 import crypt
 import json
 import os
+import tarfile
 import tempfile
 import yaml
 
@@ -152,6 +153,11 @@ class SubcloudEnrollmentInit(object):
             msg = f"No directory exists: {path}"
             raise exceptions.EnrollInitExecutionFailed(reason=msg)
 
+        # Generate /cloud-init-config/scripts directory
+        scripts_dir = os.path.join(path, "cloud-init-config", "scripts")
+        os.makedirs(scripts_dir, exist_ok=True)
+
+        # Create 10-platform-reconfig script for enroll-init-reconfigure
         hashed_password = crypt.crypt(
             iso_values["sysadmin_password"], crypt.mksalt(crypt.METHOD_SHA512)
         )
@@ -176,29 +182,34 @@ class SubcloudEnrollmentInit(object):
                 f"{iso_values['external_oam_node_1_address'].split(',')[0]}"
             )
 
-        runcmd = [reconfig_command]
+        platform_script = os.path.join(
+            scripts_dir,
+            consts.PLATFORM_RECONFIGURE_FILE_NAME,
+        )
+        with open(platform_script, "w") as f:
+            f.write("#!/bin/bash\n")
+            f.write(f"{reconfig_command}\n")
+        os.chmod(platform_script, 0o755)
 
+        # Write user-data with runcmd
         user_data_file = os.path.join(path, "user-data")
-        with open(user_data_file, "w") as f_out_user_data_file:
-            # Cloud-init module frequency for runcmd and scripts-user
-            # must be set to 'always'. This ensures that the
-            # cloud config is applied on an enroll-init retry, since the
-            # default frequency for these modules is 'per-instance'.
-            # It's necessary to specify both modules, runcmd
-            # generates the script, while scripts-user executes it.
-            contents = {
-                "cloud_config_modules": [["runcmd", "always"]],
-                "cloud_final_modules": [["scripts-user", "always"]],
-                "runcmd": runcmd,
-            }
-            f_out_user_data_file.writelines("#cloud-config\n")
-            f_out_user_data_file.write(
-                yaml.dump(
-                    contents,
-                    default_flow_style=False,
-                    sort_keys=False,
-                    width=float("inf"),
-                )
+        runcmd = [
+            ["/bin/bash", "-c", "echo $(date): Initiating enroll-init sequence"],
+            "mkdir -p /opt/nocloud",
+            "mount LABEL=CIDATA /opt/nocloud",
+            "run-parts --verbose --exit-on-error "
+            "/opt/nocloud/cloud-init-config/scripts",
+            "eject /opt/nocloud",
+        ]
+
+        with open(user_data_file, "w") as f:
+            f.write("#cloud-config\n\n")
+            yaml.dump(
+                {"runcmd": runcmd},
+                f,
+                default_flow_style=None,
+                sort_keys=False,
+                width=float("inf"),
             )
 
         return True
@@ -210,10 +221,28 @@ class SubcloudEnrollmentInit(object):
             # TODO(srana): After integration, extract required bootstrap and install
             # into iso_values. For now, pass in payload.
             try:
-                # Generate seed cloud-config files
+                # Untar cloud_init_config if present
+                cloud_init_tarball_name = f"{self.name}_{consts.CLOUD_INIT_CONFIG}.tar"
+                cloud_init_tarball = os.path.join(
+                    consts.ANSIBLE_OVERRIDES_PATH, cloud_init_tarball_name
+                )
+                if os.path.isfile(cloud_init_tarball):
+                    LOG.info(f"Detected {cloud_init_tarball} tarball")
+                    with tarfile.open(cloud_init_tarball, "r") as tar:
+                        tar.extractall(path=temp_seed_data_dir)
+                    LOG.info(
+                        f"Extracted cloud-init-data for {self.name} "
+                        f"to {temp_seed_data_dir}"
+                    )
+                else:
+                    LOG.debug(
+                        f"No valid cloud-init-data tarball provided for {self.name}"
+                    )
+
                 self._build_seed_network_config(temp_seed_data_dir, payload)
                 self._build_seed_meta_data(temp_seed_data_dir, payload)
                 self._build_seed_user_config(temp_seed_data_dir, payload)
+
             except Exception as e:
                 LOG.exception(
                     f"Unable to generate seed config files for {self.name}: {e}"
