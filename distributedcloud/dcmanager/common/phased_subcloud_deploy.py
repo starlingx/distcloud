@@ -116,7 +116,7 @@ def validate_bootstrap_values(payload: dict):
             pecan.abort(400, _("admin_subnet required"))
         if not admin_start_ip:
             pecan.abort(400, _("admin_start_address required"))
-        if system_mode != consts.SYSTEM_MODE_SIMPLEX and not admin_end_ip:
+        if not admin_end_ip:
             pecan.abort(400, _("admin_end_address required"))
         if not admin_gateway_ip:
             pecan.abort(400, _("admin_gateway_address required"))

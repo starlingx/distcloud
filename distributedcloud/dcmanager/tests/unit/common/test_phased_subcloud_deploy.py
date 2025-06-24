@@ -280,3 +280,129 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
                 admin_end_address,
                 admin_gateway_address,
             )
+
+
+class BaseTestValidateBootstrapValuesErrors(DCManagerTestCase):
+    def setUp(self):
+        super().setUp()
+        self.payload = self.get_payload()
+
+    def get_payload(self):
+        raise NotImplementedError("Subclasses must implement get_payload()")
+
+    def check_abort(self, key_to_remove, expected_error):
+        if key_to_remove in self.payload:
+            del self.payload[key_to_remove]
+        with self.assertRaisesRegex(Exception, expected_error):
+            psd_common.validate_bootstrap_values(self.payload)
+
+
+class TestValidateBootstrapValuesIPv4(BaseTestValidateBootstrapValuesErrors):
+    def get_payload(self):
+        test_subcloud = copy.copy(fake_subcloud.FAKE_SUBCLOUD_DATA)
+        additional_fields = {
+            "system_mode": "simplex",
+            "admin_subnet": "192.168.101.0/24",
+            "admin_start_address": "192.168.101.2",
+            "admin_end_address": "192.168.101.50",
+            "admin_gateway_address": "192.168.101.1",
+            "admin_floating_address": "192.168.101.2",
+        }
+        test_subcloud.update(additional_fields)
+        test_subcloud.pop("management_gateway_address", None)
+        return test_subcloud
+
+    def test_validate_bootstrap_values(self):
+        psd_common.validate_bootstrap_values(self.payload)
+
+    def test_missing_name(self):
+        self.check_abort("name", "name required")
+
+    def test_missing_system_mode(self):
+        self.check_abort("system_mode", "system_mode required")
+
+    def test_missing_admin_subnet(self):
+        self.check_abort("admin_subnet", "admin_subnet required")
+
+    def test_missing_admin_start_address(self):
+        self.check_abort(
+            "admin_start_address",
+            "admin_floating_address does not match admin_start_address",
+        )
+
+    def test_missing_admin_end_address(self):
+        self.check_abort("admin_end_address", "admin_end_address required")
+
+    def test_missing_admin_gateway_address(self):
+        self.check_abort("admin_gateway_address", "admin_gateway_address required")
+
+    def test_missing_management_subnet(self):
+        self.check_abort("management_subnet", "management_subnet required")
+
+    def test_missing_management_start_address(self):
+        self.check_abort(
+            "management_start_address", "management_start_address required"
+        )
+
+    def test_missing_management_end_address(self):
+        self.check_abort("management_end_address", "management_end_address required")
+
+    def test_both_gateways_defined(self):
+        if ":" in self.payload["admin_gateway_address"]:
+            self.payload["admin_gateway_address"] = "fd00::1"
+            self.payload["management_gateway_address"] = "fd02::1"
+        else:
+            self.payload["admin_gateway_address"] = "192.168.101.1"
+            self.payload["management_gateway_address"] = "192.168.102.1"
+
+        with self.assertRaisesRegex(
+            Exception,
+            "admin_gateway_address and management_gateway_address "
+            "cannot be specified",
+        ):
+            psd_common.validate_bootstrap_values(self.payload)
+
+    def test_missing_systemcontroller_gateway_address(self):
+        self.check_abort(
+            "systemcontroller_gateway_address",
+            "systemcontroller_gateway_address required",
+        )
+
+    def test_missing_external_oam_subnet(self):
+        self.check_abort("external_oam_subnet", "external_oam_subnet required")
+
+    def test_missing_external_oam_gateway_address(self):
+        self.check_abort(
+            "external_oam_gateway_address", "external_oam_gateway_address required"
+        )
+
+    def test_missing_external_oam_floating_address(self):
+        self.check_abort(
+            "external_oam_floating_address", "external_oam_floating_address required"
+        )
+
+    def test_floating_differs_from_start(self):
+        original_start = self.payload["admin_start_address"]
+        if ":" in original_start:
+            self.payload["admin_floating_address"] = "fd00::9"
+        else:
+            self.payload["admin_floating_address"] = "192.168.101.9"
+        with self.assertRaisesRegex(
+            Exception, "admin_floating_address does not match admin_start_address"
+        ):
+            psd_common.validate_bootstrap_values(self.payload)
+
+
+class TestValidateBootstrapValuesIPv6(TestValidateBootstrapValuesIPv4):
+    def get_payload(self):
+        test_subcloud = copy.copy(fake_subcloud.FAKE_SUBCLOUD_DATA)
+        additional_fields = {
+            "admin_subnet": "fd00::/64",
+            "admin_start_address": "fd00::2",
+            "admin_end_address": "fd00::50",
+            "admin_gateway_address": "fd00::1",
+            "admin_floating_address": "fd00::2",
+        }
+        test_subcloud.update(additional_fields)
+        test_subcloud.pop("management_gateway_address", None)
+        return test_subcloud
