@@ -48,6 +48,27 @@ FAKE_SUBCLOUD_DATA = {
     "availability-status": "disabled",
 }
 
+FAKE_SUBCLOUD_DATA_IPV6 = {
+    "id": FAKE_ID,
+    "name": "subcloud2",
+    "description": "subcloud2 description",
+    "location": "subcloud2 location",
+    "system_mode": "duplex",
+    "management_subnet": "fd02::/64",
+    "management_start_address": "fd00::2",
+    "management_end_address": "fd00::50",
+    "management_gateway_address": "fd00::1",
+    "systemcontroller_gateway_address": "fd00:3::1",
+    "external_oam_subnet_ip_family": "6",
+    "deploy_status": consts.DEPLOY_STATE_DONE,
+    "error_description": consts.ERROR_DESC_EMPTY,
+    "region_name": base.SUBCLOUD_2["region_name"],
+    "external_oam_subnet": "fd04::/64",
+    "external_oam_gateway_address": "fd04::1",
+    "external_oam_floating_address": "fd04::10",
+    "availability-status": "disabled",
+}
+
 FAKE_BOOTSTRAP_VALUE = {
     "bootstrap-address": "10.10.10.12",
     "sysadmin_password": base64.b64encode("testpass".encode("utf-8")),
