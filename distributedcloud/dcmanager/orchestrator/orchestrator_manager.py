@@ -594,8 +594,8 @@ class OrchestratorManager(manager.Manager):
                     consts.EXTRA_ARGS_SYSADMIN_PASSWORD
                 ),
                 consts.EXTRA_ARGS_FORCE: force,
-                consts.PRESTAGE_SOFTWARE_VERSION: (
-                    payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+                consts.PRESTAGE_SOFTWARE_VERSION: payload.get(
+                    consts.PRESTAGE_REQUEST_RELEASE
                 ),
                 consts.PRESTAGE_FOR_SW_DEPLOY: for_sw_deploy,
             }
