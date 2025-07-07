@@ -706,7 +706,7 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             if index == 1:
                 error_msg = (
-                    f"{error_msg} Subnet too small - must have at least 7 addresses"
+                    f"{error_msg} Subnet too small - must have at least 4 addresses"
                 )
             elif index == 5:
                 error_msg = (
@@ -729,7 +729,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         Scenarios:
             - Address in another the subnet
             - Management start address greater than subnet's end address
-            - Management start address too close to subnet's end address
             - Invalid value for IP address
             - Address with letters in it
             - Incomplete IP address
@@ -738,7 +737,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         invalid_values = [
             "192.168.100.2",
             "192.168.101.51",
-            "192.168.101.48",
             "192.168.276.0",
             "192.168.206.wut",
             "192.168.204",
@@ -751,14 +749,12 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             error_msg = "management_start_address invalid:"
 
-            if index == 1 or index == 6:
+            if index == 1 or index == 5:
                 error_msg = f"{error_msg} Address must be in subnet 192.168.101.0/24"
             elif index == 2:
                 error_msg = (
                     "management_start_address greater than management_end_address"
                 )
-            elif index == 3:
-                error_msg = "management address range must contain at least 4 addresses"
             else:
                 error_msg = f"{error_msg} Invalid address - not a valid IP address"
 
@@ -775,7 +771,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         Scenarios:
             - Address in another the subnet
             - Management end address is less that the start address
-            - Management end address too close to subnet's start address
             - Invalid value for IP address
             - Address with letters in it
             - Incomplete IP address
@@ -784,7 +779,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         invalid_values = [
             "192.168.100.50",
             "192.168.101.1",
-            "192.168.101.4",
             "192.168.276.50",
             "192.168.206.wut",
             "192.168.204",
@@ -797,14 +791,12 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             error_msg = "management_end_address invalid:"
 
-            if index == 1 or index == 6:
+            if index == 1 or index == 5:
                 error_msg = f"{error_msg} Address must be in subnet 192.168.101.0/24"
             elif index == 2:
                 error_msg = (
                     "management_start_address greater than management_end_address"
                 )
-            elif index == 3:
-                error_msg = "management address range must contain at least 4 addresses"
             else:
                 error_msg = f"{error_msg} Invalid address - not a valid IP address"
 

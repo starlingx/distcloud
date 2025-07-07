@@ -107,6 +107,9 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
 
 def validate_address_str(ip_address_str, networks):
     """Determine whether an dual-stack address is valid."""
+    if not ip_address_str:
+        raise exceptions.ValidateFail("Invalid address - IP address not specified")
+
     address_values = ip_address_str.split(",")
 
     if len(address_values) > 2:

@@ -30,6 +30,13 @@ from dcmanager.tests.unit.manager.test_system_peer_manager import TestSystemPeer
 FAKE_URL = "/v1.0/phased-subcloud-deploy"
 FAKE_SOFTWARE_VERSION = "21.12"
 
+MGMT_NETWORK_CONFIG_NON_OVERLAPPING = {
+    "management_subnet": "192.168.101.0/24",
+    "management_start_ip": "192.168.101.151",
+    "management_end_ip": "192.168.101.160",
+    "management_gateway_ip": "192.168.101.1",
+}
+
 
 class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
     """Base class for testing the PhasedSubcloudDeployController"""
@@ -338,14 +345,283 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
         self._assert_payload()
         self.mock_rpc_client().subcloud_deploy_bootstrap.assert_called_once()
 
+    def test_patch_bootstrap_succeeds_with_management_floating_only(self):
+        """Test patch bootstrap succeeds with management floating address only"""
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        # move mgmt start to floating and delete the end address
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["management_floating_address"] = (
+            modified_bootstrap_data.pop("management_start_address")
+        )
+        del modified_bootstrap_data["management_end_address"]
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_called_once()
+
+    def test_patch_bootstrap_fails_with_management_floating_different_than_start(self):
+        """Test patch bootstrap fails with management floating address
+
+        Floating address differs from start address
+        """
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["management_floating_address"] = "192.168.101.254"
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "management_floating_address does not match management_start_address",
+        )
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
+
+    def test_patch_bootstrap_fails_with_management_missing_end_address(self):
+        """Test patch bootstrap fails with management missing end address"""
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["system_mode"] = "duplex"
+        del modified_bootstrap_data["management_end_address"]
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "management_end_address required",
+        )
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
+
+    def test_patch_bootstrap_fails_with_two_gateways_addresses(self):
+        """Test patch bootstrap fails with two gateway addresses"""
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["admin_subnet"] = "192.168.104.0/24"
+        modified_bootstrap_data["admin_start_address"] = "192.168.104.2"
+        modified_bootstrap_data["admin_end_address"] = "192.168.104.50"
+        modified_bootstrap_data["admin_gateway_address"] = "192.168.104.254"
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "admin_gateway_address and management_gateway_address cannot be specified "
+            "at the same time",
+        )
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
+
+    def test_patch_bootstrap_fails_with_missing_admin_gateway_addresses(self):
+        """Test patch bootstrap fails with missing admin gateway addresses"""
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["admin_subnet"] = "192.168.104.0/24"
+        modified_bootstrap_data["admin_floating_address"] = "192.168.104.2"
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "admin_gateway_address required"
+        )
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
+
+    def test_patch_bootstrap_fails_with_admin_floating_different_than_start(self):
+        """Test patch bootstrap fails with admin floating different than start"""
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["admin_subnet"] = "192.168.104.0/24"
+        modified_bootstrap_data["admin_floating_address"] = "192.168.104.2"
+        modified_bootstrap_data["admin_start_address"] = "192.168.104.3"
+        modified_bootstrap_data["admin_end_address"] = "192.168.104.50"
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "admin_floating_address does not match admin_start_address",
+        )
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
+
+    def test_patch_bootstrap_fails_with_admin_missing_subnet_address(self):
+        """Test patch bootstrap fails with admin missing subnet address"""
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["admin_start_address"] = "192.168.104.2"
+        modified_bootstrap_data["admin_end_address"] = "192.168.104.50"
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "admin_subnet required"
+        )
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
+
+    def test_patch_bootstrap_fails_with_admin_missing_start_address(self):
+        """Test patch bootstrap fails with admin missing start address"""
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["admin_subnet"] = "192.168.104.0/24"
+        modified_bootstrap_data["admin_end_address"] = "192.168.104.50"
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "admin_start_address required"
+        )
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
+
+    def test_patch_bootstrap_fails_with_admin_missing_end_address(self):
+        """Test patch bootstrap fails with admin missing end address"""
+
+        # create non-overlapping subcloud
+        fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="existing_subcloud",
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            **MGMT_NETWORK_CONFIG_NON_OVERLAPPING,
+        )
+
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["system_mode"] = "duplex"
+        modified_bootstrap_data["admin_subnet"] = "192.168.104.0/24"
+        modified_bootstrap_data["admin_start_address"] = "192.168.104.2"
+        modified_bootstrap_data.update(MGMT_NETWORK_CONFIG_NON_OVERLAPPING)
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content)
+        ]
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "admin_end_address required"
+        )
+        self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
+
     def test_patch_bootstrap_fails_with_management_subnet_conflict(self):
         """Test patch bootstrap fails with management subnet conflict"""
 
         conflicting_subnet = {
-            "management_subnet": "192.168.102.0/24",
-            "management_start_ip": "192.168.102.2",
-            "management_end_ip": "192.168.102.50",
-            "management_gateway_ip": "192.168.102.1",
+            "management_subnet": "192.168.101.0/24",
+            "management_start_ip": "192.168.101.150",
+            "management_end_ip": "192.168.101.160",
+            "management_gateway_ip": "192.168.101.1",
         }
 
         fake_subcloud.create_fake_subcloud(
@@ -368,7 +644,7 @@ class TestPhasedSubcloudDeployPatchBootstrap(BaseTestPhasedSubcloudDeployPatch):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "management_subnet invalid: Subnet overlaps with another configured subnet",
+            "Management address range overlaps with that of subcloud existing_subcloud",
         )
         self.mock_rpc_client().subcloud_deploy_bootstrap.assert_not_called()
 

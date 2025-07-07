@@ -3090,9 +3090,14 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
 
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_CREATED
         self.fake_install_values["software_version"] = SW_VERSION
+        # Change management start and end addresses to be the same as in self.subcloud
+        # to avoid network reconfiguration.
+        bootstrap_file_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_file_data["management_start_address"] = "192.168.101.2"
+        bootstrap_file_data["management_end_address"] = "192.168.101.50"
         fake_payload_bootstrap = {
             **fake_subcloud.FAKE_BOOTSTRAP_VALUE,
-            **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
+            **bootstrap_file_data,
         }
         fake_payload_bootstrap["sysadmin_password"] = "testpass"
         fake_payload = {
@@ -3127,9 +3132,14 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_CREATED
         self.fake_install_values["software_version"] = SW_VERSION
 
+        # Change management start and end addresses to be the same as in self.subcloud
+        # to avoid network reconfiguration.
+        bootstrap_file_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_file_data["management_start_address"] = "192.168.101.2"
+        bootstrap_file_data["management_end_address"] = "192.168.101.50"
         fake_payload_bootstrap = {
             **fake_subcloud.FAKE_BOOTSTRAP_VALUE,
-            **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
+            **bootstrap_file_data,
         }
         fake_payload_bootstrap["sysadmin_password"] = "testpass"
         fake_payload = {**self.fake_payload_install, **fake_payload_bootstrap}
