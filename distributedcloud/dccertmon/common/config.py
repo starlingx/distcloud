@@ -148,8 +148,26 @@ def init_keystone_auth_opts():
     CONF.register_opts(keystone_opts, group=keystone_opt_group.name)
 
     endpoint_opts = keystone_opts[:]
-    endpoint_opts.append(
-        cfg.IntOpt("http_connect_timeout", default=10, help="HTTP connection timeout")
+    endpoint_opts.extend(
+        [
+            cfg.IntOpt(
+                "http_connect_timeout", default=10, help="HTTP connection timeout"
+            ),
+            cfg.IntOpt(
+                "http_discovery_timeout",
+                default=15,
+                help=(
+                    "Discovery timeout value for communicating with "
+                    "Identity API server."
+                ),
+            ),
+            cfg.StrOpt("auth_plugin", help="Name of the plugin to load"),
+            cfg.IntOpt(
+                "token_cache_size",
+                default=10000,
+                help="Maximum number of entries in the in-memory token cache",
+            ),
+        ]
     )
     endpoint_cache_group = cfg.OptGroup(name="endpoint_cache", title="Endpoint cache")
     CONF.register_opts(endpoint_opts, group=endpoint_cache_group.name)
