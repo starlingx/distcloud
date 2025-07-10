@@ -340,3 +340,4 @@ SUBCLOUD_ISO_PATH = "/opt/platform/iso"
 SUBCLOUD_FEED_PATH = "/var/www/pages/feed"
 
 CLOUD_INIT_CONFIG = "cloud_init_config"
+PLATFORM_RECONFIGURE_FILE_NAME = "10-platform-reconfig"

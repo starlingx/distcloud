@@ -4946,15 +4946,26 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             f"{self.seed_data_dir}/meta-data", "w"
         )
 
-    def test_build_seed_user_config(self):
+    @mock.patch("os.chmod")
+    def test_build_seed_user_config(self, mock_chmod):
+        scripts_dir = os.path.join(self.seed_data_dir, "cloud-init-config", "scripts")
+
         result = self.enroll_init._build_seed_user_config(
             self.seed_data_dir, self.iso_values
         )
 
         self.assertTrue(result)
-        self.mock_builtins_open.assert_called_once_with(
-            f"{self.seed_data_dir}/user-data", "w"
+        self.mock_os_makedirs.assert_any_call(scripts_dir, exist_ok=True)
+
+        # The user-data file must be created
+        self.mock_builtins_open.assert_any_call(f"{self.seed_data_dir}/user-data", "w")
+
+        # The platform script must be created
+        platform_script = os.path.join(
+            scripts_dir,
+            dccommon_consts.PLATFORM_RECONFIGURE_FILE_NAME,
         )
+        self.mock_builtins_open.assert_any_call(platform_script, "w")
 
         # Test with incomplete iso_values, expect KeyError
         copied_dict = self.iso_values.copy()
@@ -4990,7 +5001,8 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             copied_dict,
         )
 
-    def test_generate_seed_iso(self):
+    @mock.patch("os.chmod")
+    def test_generate_seed_iso(self, mock_chmod):
         with mock.patch("os.path.isdir", side_effect=self.patched_isdir):
             self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values))
 
@@ -5012,6 +5024,19 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.mock_builtins_open.assert_any_call(
                 f"{self.seed_data_dir}/network-config", "w"
             )
+            # The scripts directory must be created
+            scripts_dir = os.path.join(
+                self.seed_data_dir,
+                "cloud-init-config",
+                "scripts",
+            )
+            self.mock_os_makedirs.assert_any_call(scripts_dir, exist_ok=True)
+            # The platform script must be created
+            platform_script = os.path.join(
+                scripts_dir,
+                dccommon_consts.PLATFORM_RECONFIGURE_FILE_NAME,
+            )
+            self.mock_builtins_open.assert_any_call(platform_script, "w")
 
     @mock.patch.object(
         subcloud_install.SubcloudInstall,
@@ -5073,7 +5098,8 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         "get_image_base_url",
         return_value="https://10.10.10.12:8080",
     )
-    def test_enroll_prep_iso_cleanup(self, mock_validate):
+    @mock.patch("os.chmod")
+    def test_enroll_prep_iso_cleanup(self, mock_chmod, mock_validate):
         result = self.enroll_init.prep(ANS_PATH, self.iso_values, 4)
         self.assertTrue(result)
         self.mock_log_subcloud_enrollment.info.assert_any_call(
@@ -5083,8 +5109,9 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         # Previous iso file must be cleaned up
         self.mock_os_remove.assert_called_once_with(self.iso_file)
 
-        # Makedirs shouldn't be invoked, given that prev iso existed
-        self.mock_os_makedirs.assert_not_called()
+        # Now makedirs *should* be called for the scripts dir at least once
+        scripts_dir = os.path.join(self.seed_data_dir, "cloud-init-config", "scripts")
+        self.mock_os_makedirs.assert_called_once_with(scripts_dir, exist_ok=True)
 
         self.mock_log_subcloud_enrollment.info.assert_any_call(
             f"Found preexisting seed iso for subcloud {self.subcloud_name}, cleaning up"
