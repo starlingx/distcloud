@@ -203,9 +203,21 @@ class SubcloudEnrollmentInit(object):
         ]
 
         with open(user_data_file, "w") as f:
-            f.write("#cloud-config\n\n")
+            # Cloud-init module frequency for runcmd and scripts-user
+            # must be set to 'always'. This ensures that the
+            # cloud config is applied on an enroll-init retry, since the
+            # default frequency for these modules is 'per-instance'.
+            # It's necessary to specify both modules, runcmd
+            # generates the script, while scripts-user executes it.
+            contents = {
+                "cloud_config_modules": [["runcmd", "always"]],
+                "cloud_final_modules": [["scripts-user", "always"]],
+                "runcmd": runcmd,
+            }
+
+            f.writelines("#cloud-config\n")
             yaml.dump(
-                {"runcmd": runcmd},
+                contents,
                 f,
                 default_flow_style=None,
                 sort_keys=False,
