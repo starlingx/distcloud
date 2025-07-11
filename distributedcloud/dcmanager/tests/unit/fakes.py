@@ -14,8 +14,6 @@
 
 import uuid
 
-from oslo_utils import timeutils
-
 # VIM constants for Strategy
 APPLY_TYPE_SERIAL = "serial"
 INSTANCE_ACTION_STOP_START = "stop-start"
@@ -71,42 +69,3 @@ class FakeVimStrategyPhase(object):
     def __init__(self, response=None, reason=None):
         self.response = response
         self.reason = reason
-
-
-class SwUpdateStrategy(object):
-    def __init__(self, id, data):
-        self.id = id
-        self.type = data["type"]
-        self.subcloud_apply_type = data["subcloud-apply-type"]
-        self.max_parallel_subclouds = int(data["max-parallel-subclouds"])
-        if data["stop-on-failure"] == "true":
-            self.stop_on_failure = True
-        else:
-            self.stop_on_failure = False
-        self.state = data["state"]
-        self.created_at = timeutils.utcnow()
-        self.updated_at = timeutils.utcnow()
-
-
-class FakeService(object):
-    def __init__(self, name, type):
-        self.name = name
-        self.type = type
-
-
-class FakeServices(object):
-    def __init__(self, services=None):
-        self.services = services
-
-    def list(self):
-        return self.services
-
-
-class FakeKeystone(object):
-    def __init__(self):
-        self.keystone_client = FakeKeystoneClient()
-
-
-class FakeKeystoneClient(object):
-    def __init__(self):
-        self.services = FakeServices()
