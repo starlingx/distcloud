@@ -195,7 +195,7 @@ common_opts = [
     ),
     cfg.IntOpt(
         "orchestrator_worker_rlimit_nofile",
-        default=12288,
+        default=4096,
         help="Maximum number of open files per dcmanager_orchestrator worker process.",
     ),
     cfg.IntOpt(
