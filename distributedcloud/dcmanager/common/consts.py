@@ -420,6 +420,9 @@ SUBCLOUD_LOCAL_BACKUP_DIR = "/opt/platform-backup/backups"
 SUBCLOUD_AUTO_RESTORE_DIR = "/opt/platform-backup/auto-restore"
 SUBCLOUD_FACTORY_BACKUP_DIR = "/opt/platform-backup/factory"
 
+# Maximum allowed size of subcloud home directory for central backups
+DEFAULT_SUBCLOUD_CENTRAL_BACKUP_MAX_HOME_DIR_SIZE_MB = 100
+
 # The deployment manager artifacts usr directories
 ALTERNATE_DEPLOY_FILES_DIR = "/usr/local/share/applications"
 

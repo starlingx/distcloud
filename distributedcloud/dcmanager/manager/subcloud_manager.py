@@ -2722,6 +2722,18 @@ class SubcloudManager(manager.Manager):
             for key, value in payload.get("restore_values").items():
                 payload["override_values"][key] = value
 
+        if op == "create" and not (
+            payload["override_values"].get("max_home_dir_usage")
+            or payload["local_only"]
+        ):
+            # For central backups, if not specified otherwise in the received
+            # overrides provided by the user, we must limit the allowed size of the
+            # subcloud user's home directory smaller than the default (2000),
+            # since it is included in the backup.
+            payload["override_values"][
+                "max_home_dir_usage"
+            ] = consts.DEFAULT_SUBCLOUD_CENTRAL_BACKUP_MAX_HOME_DIR_SIZE_MB
+
         # auto_restore_mode allows the auto restore script running inside the
         # subcloud to determine which type of restore to run
         if op == "restore" and auto_restore_mode:
