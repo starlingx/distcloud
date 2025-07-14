@@ -1,0 +1,7 @@
+# Base rule.
+#"admin_or_configurator": "(role:admin or role:configurator and
+# (project_name:admin or project_name:services)"
+
+# Base rule.
+#"reader_or_operator_or_configurator": "(role:reader or role:operator or
+# role:configurator) and (project_name:admin or project_name:services)"

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -210,11 +210,11 @@ class SystemPeerManager(manager.Manager):
         p_ks_client = SystemPeerManager.get_peer_ks_client(peer)
         sysinv_endpoint = p_ks_client.session.get_endpoint(
             service_type="platform",
-            region_name=dccommon_consts.DEFAULT_REGION_NAME,
+            region_name=p_ks_client.region_name,
             interface=dccommon_consts.KS_ENDPOINT_PUBLIC,
         )
         return SysinvClient(
-            dccommon_consts.DEFAULT_REGION_NAME,
+            p_ks_client.region_name,
             p_ks_client.session,
             endpoint_type=dccommon_consts.KS_ENDPOINT_PUBLIC,
             endpoint=sysinv_endpoint,

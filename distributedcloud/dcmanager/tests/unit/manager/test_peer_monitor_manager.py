@@ -1,36 +1,32 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import threading
-import uuid
 
 from fm_api import constants as fm_const
 import mock
 
 from dcmanager.common import consts
 from dcmanager.common import utils as dutils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.manager import peer_group_audit_manager
 from dcmanager.manager import peer_monitor_manager
 from dcmanager.manager import subcloud_manager
 from dcmanager.tests import base
+from dcmanager.tests.unit.common import fake_subcloud
 from dcmanager.tests.unit.manager import test_system_peer_manager
-
-# FAKE SYSINV DATA
-FAKE_SITE0_SYSTEM_UUID = str(uuid.uuid4())
-FAKE_SITE1_SYSTEM_UUID = str(uuid.uuid4())
 
 # FAKE SYSTEM PEER DATA
 FAKE_SYSTEM_PEER_ID = 1
-FAKE_SYSTEM_PEER_UUID = FAKE_SITE1_SYSTEM_UUID
-FAKE_SYSTEM_PEER_NAME = "PeerSite1"
-FAKE_MANAGER_ENDPOINT = "http://128.128.128.128:5000/v3"
-FAKE_MANAGER_USERNAME = "admin"
-FAKE_MANAGER_PASSWORD = "cGFzc3dvcmQ="
-FAKE_PEER_CONTROLLER_GATEWAY_IP = "128.128.1.1"
+FAKE_SYSTEM_PEER_UUID = fake_subcloud.FAKE_SITE1_SYSTEM_UUID
+FAKE_SYSTEM_PEER_NAME = fake_subcloud.SAMPLE_SYSTEM_PEER_NAME
+FAKE_MANAGER_ENDPOINT = fake_subcloud.SAMPLE_MANAGER_ENDPOINT
+FAKE_MANAGER_USERNAME = fake_subcloud.SAMPLE_MANAGER_USERNAME
+FAKE_MANAGER_PASSWORD = fake_subcloud.SAMPLE_MANAGER_PASSWORD
+FAKE_PEER_CONTROLLER_GATEWAY_IP = fake_subcloud.SAMPLE_PEER_CONTROLLER_GATEWAY_IP
 
 # FAKE SYSTEM PEER DATA (SITE1)
 FAKE_SITE1_SYSTEM_PEER_ID = 10
@@ -78,16 +74,9 @@ class TestPeerMonitor(base.DCManagerTestCase):
 
     @staticmethod
     def create_system_peer_static(ctxt, **kwargs):
-        values = {
-            "peer_uuid": FAKE_SYSTEM_PEER_UUID,
-            "peer_name": FAKE_SYSTEM_PEER_NAME,
-            "endpoint": FAKE_MANAGER_ENDPOINT,
-            "username": FAKE_MANAGER_USERNAME,
-            "password": FAKE_MANAGER_PASSWORD,
-            "gateway_ip": FAKE_PEER_CONTROLLER_GATEWAY_IP,
-        }
-        values.update(kwargs)
-        return db_api.system_peer_create(ctxt, **values)
+        system_peer_fields = fake_subcloud.get_test_system_peer_dict("db")
+        system_peer_fields.update(kwargs)
+        return db_api.system_peer_create(ctxt, **system_peer_fields)
 
     def test_initialize_peer_monitor_manager(self):
         self.assertIsNotNone(self.peer_monitor)
@@ -152,7 +141,7 @@ class TestPeerMonitor(base.DCManagerTestCase):
 
     def test_update_sync_status_secondary_site_becomes_reachable(self):
         self.mock_get_local_system.return_value = test_system_peer_manager.FakeSystem(
-            FAKE_SITE0_SYSTEM_UUID
+            fake_subcloud.FAKE_SITE0_SYSTEM_UUID
         )
         db_api.peer_group_association_update(
             self.ctx,
@@ -175,7 +164,7 @@ class TestPeerMonitor(base.DCManagerTestCase):
         self.peer_monitor._update_sync_status_secondary_site_becomes_reachable()
         self.mock_get_peer_dc_client().get_subcloud_peer_group.assert_called_once()
         self.mock_get_peer_dc_client().get_system_peer.assert_called_once_with(
-            FAKE_SITE0_SYSTEM_UUID
+            fake_subcloud.FAKE_SITE0_SYSTEM_UUID
         )
         peer_group_assoc.assert_called_once_with(
             FAKE_SITE1_SYSTEM_PEER_ID, FAKE_SITE1_PEER_GROUP_ID
@@ -342,7 +331,7 @@ class TestPeerMonitor(base.DCManagerTestCase):
         mock_event.side_effect = [False, False, True]
         self.peer_monitor._do_monitor_peer()
         self.mock_log.exception.assert_called_with(
-            "Unexpected error monitoring peer 'PeerSite1': boom"
+            f"Unexpected error monitoring peer '{FAKE_SYSTEM_PEER_NAME}': boom"
         )
 
     def test_heartbeat_check_via_get_peer_group_list_pg_not_found(self):
@@ -350,8 +339,8 @@ class TestPeerMonitor(base.DCManagerTestCase):
         ret = self.peer_monitor._heartbeat_check_via_get_peer_group_list()
         self.mock_get_peer_dc_client.assert_called()
         self.mock_log.warning.assert_called_once_with(
-            "No subcloud peer groups found for DC peer: PeerSite1 "
-            "(endpoint: http://128.128.128.128:5000/v3)"
+            f"No subcloud peer groups found for DC peer: {FAKE_SYSTEM_PEER_NAME} "
+            f"(endpoint: {FAKE_MANAGER_ENDPOINT})"
         )
         self.assertEqual((False, []), ret)
 

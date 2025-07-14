@@ -190,36 +190,25 @@ class PreCheckState(BaseState):
     def _process_releases_state(
         self, strategy_step, subcloud_releases, release, release_id
     ):
-        # Filter out releases with state 'unavailable' and sort by 'sw_version'
-        filtered_and_sorted_releases = sorted(
-            (
-                release
-                for release in subcloud_releases
-                if release["state"] != "unavailable"
-            ),
-            key=lambda x: x["sw_version"],
+        highest_release = max(
+            (r for r in subcloud_releases if r["state"] != software_v1.UNAVAILABLE),
+            key=lambda r: r["sw_version"],
+        )
+        highest_deployed_release = max(
+            (r for r in subcloud_releases if r["state"] == software_v1.DEPLOYED),
+            key=lambda r: r["sw_version"],
         )
 
         # If the software audit did not run due to an invalid deploy_status,
         # leaving the subcloud out-of-sync, but the highest release in the list is the
         # same as the user specified release and the release state is in 'deployed'
         # state, we can just mark it as complete.
-        highest_release = filtered_and_sorted_releases[-1]
-        if (
-            highest_release["release_id"] == release["release_id"]
-            and highest_release["state"] == software_v1.DEPLOYED
-        ):
+        if highest_deployed_release["release_id"] == release["release_id"]:
             details = f"Release {release_id} is already deployed in subcloud."
             self.warn_log(strategy_step, details)
-            self.override_next_state(consts.STRATEGY_STATE_COMPLETE)
-        # If the release is not the highest release in the list, but the latest is in
-        # the 'available' state and the current release is in 'deployed,' we should
-        # delete the 'available' release in the STRATEGY_STATE_SW_FINISH_STRATEGY
-        elif (
-            highest_release["release_id"] != release["release_id"]
-            and highest_release["state"] == software_v1.AVAILABLE
-            and release["state"] == software_v1.DEPLOYED
-        ):
-            details = f"Release {release_id} is already deployed in subcloud."
-            self.warn_log(strategy_step, details)
-            self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
+            # If the highest release is in the 'available' state we should delete
+            # in the STRATEGY_STATE_SW_FINISH_STRATEGY
+            if highest_release["state"] == software_v1.AVAILABLE:
+                self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
+            else:
+                self.override_next_state(consts.STRATEGY_STATE_COMPLETE)

@@ -1,0 +1,192 @@
+# Base rule.
+#"admin_or_configurator": "(role:admin or role:configurator) and
+# (project_name:admin or project_name:services)"
+
+# admin or operator or configurator role base rule
+#"admin_or_operator_or_configurator": "(role:admin or role:operator or
+# role:configurator) and (project_name:admin or project_name:services)"
+
+# reader or operator or configurator role base rule
+#"reader_or_operator_or_configurator": "(role:reader or role:operator
+# or role:configurator) and (project_name:admin or project_name:services)"
+
+# Create a subcloud.
+# POST  /v1.0/subclouds
+#"dc_api:subclouds:create": "rule:admin_or_configurator"
+
+# Delete a subcloud.
+# DELETE  /v1.0/subclouds/{alarm_uuid}
+#"dc_api:subclouds:delete": "rule:admin_or_configurator"
+
+# Get subclouds data.
+# GET  /v1.0/subclouds
+# GET  /v1.0/subclouds/{subcloud}
+# GET  /v1.0/subclouds/{subcloud}/detail
+#"dc_api:subclouds:get": "rule:reader_or_operator_or_configurator"
+
+# manage/unmanage subcloud
+# PATCH  /v1.0/subclouds/{subcloud}
+#"dc_api:subclouds:manage_unmanage": "rule:admin_or_operator_or_configurator"
+
+# Modify a subcloud.
+# PATCH  /v1.0/subclouds/{subcloud}/prestage
+# PATCH  /v1.0/subclouds/{subcloud}/reconfigure
+# PATCH  /v1.0/subclouds/{subcloud}/reinstall
+# PATCH  /v1.0/subclouds/{subcloud}/redeploy
+# PATCH  /v1.0/subclouds/{subcloud}/restore
+# PATCH  /v1.0/subclouds/{subcloud}/update_status
+#"dc_api:subclouds:modify": "rule:admin_or_configurator"
+
+# Upload subcloud deploy files.
+# POST  /v1.0/subcloud-deploy
+#"dc_api:subcloud_deploy:upload": "rule:admin_or_configurator"
+
+# Show subcloud deploy files.
+# GET  /v1.0/subcloud-deploy
+# GET  /v1.0/subcloud-deploy/{release}
+#"dc_api:subcloud_deploy:get": "rule:reader_or_operator_or_configurator"
+
+# Delete subcloud deploy files.
+# DELETE  /v1.0/subcloud-deploy
+# DELETE  /v1.0/subcloud-deploy/{release}
+#"dc_api:subcloud_deploy:delete": "rule:admin_or_configurator"
+
+# Get alarms from subclouds.
+# GET  /v1.0/alarms
+#"dc_api:alarm_manager:get": "rule:reader_or_operator_or_configurator"
+
+# Abort update strategy execution.
+# POST  /v1.0/sw-update-strategy/actions
+#"dc_api:sw_update_strategy:abort": "rule:admin_or_configurator"
+
+# Apply update strategy.
+# POST  /v1.0/sw-update-strategy/actions
+#"dc_api:sw_update_strategy:apply": "rule:admin_or_configurator"
+
+# Create update strategy.
+# POST  /v1.0/sw-update-strategy
+#"dc_api:sw_update_strategy:create": "rule:admin_or_configurator"
+
+# Delete update strategy.
+# DELETE  /v1.0/sw-update-strategy
+#"dc_api:sw_update_strategy:delete": "rule:admin_or_configurator"
+
+# Get update strategy.
+# GET  /v1.0/sw-update-strategy
+# GET  /v1.0/sw-update-strategy/steps
+# GET  /v1.0/sw-update-strategy/steps/{cloud_name}
+#"dc_api:sw_update_strategy:get": "rule:reader_or_operator_or_configurator"
+
+# Delete per subcloud sw-update options.
+# DELETE  /v1.0/sw-update-options/{subcloud}
+#"dc_api:sw_update_options:delete": "rule:admin_or_configurator"
+
+# Get sw-update options.
+# GET  /v1.0/sw-update-options
+# GET  /v1.0/sw-update-options/{subcloud}
+#"dc_api:sw_update_options:get": "rule:reader_or_operator_or_configurator"
+
+# Update sw-update options (defaults or per subcloud).
+# POST  /v1.0/sw-update-options/{subcloud}
+#"dc_api:sw_update_options:update": "rule:admin_or_configurator"
+
+# Create subcloud group.
+# POST  /v1.0/subcloud-groups
+#"dc_api:subcloud_groups:create": "rule:admin_or_configurator"
+
+# Delete subcloud group.
+# DELETE  /v1.0/subcloud-groups/{subcloud_group}
+#"dc_api:subcloud_groups:delete": "rule:admin_or_configurator"
+
+# Get subcloud groups.
+# GET  /v1.0/subcloud-groups
+# GET  /v1.0/subcloud-groups/{subcloud_group}
+# GET  /v1.0/subcloud-groups/{subcloud_group}/subclouds
+#"dc_api:subcloud_groups:get": "rule:reader_or_operator_or_configurator"
+
+# Modify subcloud group.
+# PATCH  /v1.0/subcloud-groups/{subcloud_group}
+#"dc_api:subcloud_groups:modify": "rule:admin_or_configurator"
+
+# Create new subcloud backup.
+# POST  /v1.0/subcloud-backup
+#"dc_api:subcloud_backup:create": "rule:admin_or_operator_or_configurator"
+
+# Delete a subcloud backup.
+# PATCH  /v1.0/subcloud-backup/delete/{release_version}
+#"dc_api:subcloud_backup:delete": "rule:admin_or_operator_or_configurator"
+
+# Restore a subcloud backup.
+# PATCH  /v1.0/subcloud-backup/restore
+#"dc_api:subcloud_backup:restore": "rule:admin_or_configurator"
+
+# Create a subcloud
+# POST  /v1.0/phased-subcloud-deploy
+#"dc_api:phased_subcloud_deploy:create": "rule:admin_or_configurator"
+
+# Modify the subcloud deployment.
+# PATCH  /v1.0/phased-subcloud-deploy/{subcloud}/abort
+# PATCH  /v1.0/phased-subcloud-deploy/{subcloud}/resume
+# PATCH  /v1.0/phased-subcloud-deploy/{subcloud}/install
+# PATCH  /v1.0/phased-subcloud-deploy/{subcloud}/bootstrap
+# PATCH  /v1.0/phased-subcloud-deploy/{subcloud}/configure
+# PATCH  /v1.0/phased-subcloud-deploy/{subcloud}/complete
+#"dc_api:phased_subcloud_deploy:modify": "rule:admin_or_configurator"
+
+# Create subcloud peer group.
+# POST  /v1.0/subcloud-peer-groups
+#"dc_api:subcloud_peer_groups:create": "rule:admin_or_configurator"
+
+# Delete subcloud peer group.
+# DELETE  /v1.0/subcloud-peer-groups/{subcloud_peer_group}
+#"dc_api:subcloud_peer_groups:delete": "rule:admin_or_configurator"
+
+# Get Subcloud Peer Group data
+# GET  /v1.0/subcloud-peer-groups/
+# GET  /v1.0/subcloud-peer-groups/{subcloud_peer_group}
+# GET  /v1.0/subcloud-peer-groups/{subcloud_peer_group}/status
+# GET  /v1.0/subcloud-peer-groups/{subcloud_peer_group}/subclouds
+#"dc_api:subcloud_peer_groups:get": "rule:admin_or_configurator"
+
+# Update a Subcloud Peer Group with specified configuration
+# PATCH  /v1.0/subcloud-peer-groups/{subcloud_peer_group}
+# PATCH  /v1.0/subcloud-peer-groups/{subcloud_peer_group}/migrate
+# PATCH  /v1.0/subcloud-peer-groups/{subcloud_peer_group}/audit
+#"dc_api:subcloud_peer_groups:modify": "rule:admin_or_configurator"
+
+# Create peer group association.
+# POST  /v1.0/peer-group-associations
+#"dc_api:peer_group_associations:create": "rule:admin_or_configurator"
+
+# Delete peer group association.
+# DELETE  /v1.0/peer-group-associations/{associate_id}
+#"dc_api:peer_group_associations:delete": "rule:admin_or_configurator"
+
+# Get peer group associations.
+# GET  /v1.0/peer-group-associations
+# GET  /v1.0/peer-group-associations/{associate_id}
+#"dc_api:peer_group_associations:get":
+# "rule:reader_or_operator_or_configurator"
+
+# Modify peer group association.
+# PATCH  /v1.0/peer-group-associations/{associate_id}
+# PATCH  /v1.0/peer-group-associations/{associate_id}/sync
+#"dc_api:peer_group_associations:modify": "rule:admin_or_configurator"
+
+# Create system peer.
+# POST  /v1.0/system-peers
+#"dc_api:system_peers:create": "rule:admin_or_configurator"
+
+# Delete system peer.
+# DELETE  /v1.0/system-peers/{system_peer}
+#"dc_api:system_peers:delete": "rule:admin_or_configurator"
+
+# Get system peers.
+# GET  /v1.0/system-peers
+# GET  /v1.0/system-peers/{system_peer}
+# GET  /v1.0/system-peers/{system_peer}/subcloud-peer-groups
+#"dc_api:system_peers:get": "rule:reader_or_operator_or_configurator"
+
+# Modify system peer.
+# PATCH  /v1.0/system-peers/{system_peer}
+#"dc_api:system_peers:modify": "rule:admin_or_configurator"

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -28,20 +28,15 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
     def setUp(self):
         super().setUp()
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
         )
 
-        self.sysinv_client.kube_rootca_update_upload_cert = mock.MagicMock()
-
         # Mock the strategy with a reference to a cert-file in extra_args
         extra_args = {"cert-file": FAKE_CERT_FILE}
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+            self.ctx, self.strategy_type, extra_args=extra_args
         )
 
     def test_upload_cert_fails(self):
@@ -57,7 +52,11 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         mock_open = mock.mock_open(read_data="test")
         with mock.patch("builtins.open", mock_open):
             # invoke the strategy state operation on the orch thread
-            self.worker.perform_state_action(self.strategy_step)
+            self.worker._perform_state_action(
+                self.strategy_type,
+                self.subcloud.region_name,
+                self.strategy_step,
+            )
 
         # verify we attempted to call the mocked upload method
         self.sysinv_client.kube_rootca_update_upload_cert.assert_called()
@@ -78,7 +77,11 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         mock_open = mock.mock_open(read_data="test")
         with mock.patch("builtins.open", mock_open):
             # invoke the strategy state operation on the orch thread
-            self.worker.perform_state_action(self.strategy_step)
+            self.worker._perform_state_action(
+                self.strategy_type,
+                self.subcloud.region_name,
+                self.strategy_step,
+            )
 
         # verify we attempted to call the mocked upload method
         self.sysinv_client.kube_rootca_update_upload_cert.assert_called()
@@ -96,15 +99,15 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
         """
 
         db_api.sw_update_strategy_destroy(self.ctx)
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE
-        )
+        self.strategy = fake_strategy.create_fake_strategy(self.ctx, self.strategy_type)
 
         self.sysinv_client.kube_rootca_update_upload_cert.return_value = (
             SUCCESS_UPLOADING_CERT
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.kube_rootca_update_upload_cert.assert_not_called()
 

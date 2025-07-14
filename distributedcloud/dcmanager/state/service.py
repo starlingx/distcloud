@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -25,6 +25,7 @@ import oslo_messaging
 from oslo_service import service
 
 from dccommon import consts as dccommon_consts
+from dccommon import utils as cutils
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -77,7 +78,7 @@ class DCManagerStateService(service.Service):
         self.subcloud_state_manager = SubcloudStateManager()
 
     def start(self):
-        LOG.info("Starting %s", self.__class__.__name__)
+        LOG.info(f"Starting {self.__class__.__name__}")
         utils.set_open_file_limit(cfg.CONF.state_worker_rlimit_nofile)
         self._init_managers()
         target = oslo_messaging.Target(
@@ -99,10 +100,10 @@ class DCManagerStateService(service.Service):
             self._rpc_server.wait()
             LOG.info("Engine service stopped successfully")
         except Exception as ex:
-            LOG.error("Failed to stop engine service: %s", str(ex))
+            LOG.error(f"Failed to stop engine service: {str(ex)}")
 
     def stop(self):
-        LOG.info("Stopping %s", self.__class__.__name__)
+        LOG.info(f"Stopping {self.__class__.__name__}")
         self._stop_rpc_server()
         # Terminate the engine process
         LOG.info("All threads were gone, terminating engine")
@@ -111,20 +112,21 @@ class DCManagerStateService(service.Service):
     @request_context
     def update_subcloud_endpoint_status(
         self,
-        context,
-        subcloud_name=None,
-        subcloud_region=None,
-        endpoint_type=None,
-        sync_status=dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
-        alarmable=True,
-        ignore_endpoints=None,
-    ):
+        context: context.RequestContext,
+        subcloud_name: str = None,
+        subcloud_region: str = None,
+        endpoint_type: str = None,
+        sync_status: str = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
+        alarmable: bool = True,
+        ignore_endpoints: list[str] = None,
+    ) -> None:
         # Updates subcloud endpoint sync status
-        LOG.info(
-            "Handling update_subcloud_endpoint_status request for subcloud: "
-            f"({subcloud_name if subcloud_name is not None else subcloud_region}) "
+        name = subcloud_name if subcloud_name is not None else subcloud_region
+        msg = (
+            "Handling update_subcloud_endpoint_status request. "
             f"endpoint: ({endpoint_type}) status: ({sync_status})"
         )
+        cutils.log_subcloud_msg(LOG.info, msg, name)
 
         self.subcloud_state_manager.update_subcloud_endpoint_status(
             context,
@@ -134,14 +136,6 @@ class DCManagerStateService(service.Service):
             alarmable,
             ignore_endpoints,
         )
-
-        # If the patching sync status is being set to unknown, trigger the
-        # patching audit so it can update the sync status ASAP.
-        if (
-            endpoint_type == dccommon_consts.ENDPOINT_TYPE_PATCHING
-            and sync_status == dccommon_consts.SYNC_STATUS_UNKNOWN
-        ):
-            self.audit_rpc_client.trigger_patch_audit(context)
 
         # If the software sync status is being set to unknown, trigger the
         # software audit so it can update the sync status ASAP.
@@ -172,17 +166,16 @@ class DCManagerStateService(service.Service):
     @request_context
     def update_subcloud_availability(
         self,
-        context,
-        subcloud_name,
-        subcloud_region,
-        availability_status,
-        update_state_only=False,
-        audit_fail_count=None,
-    ):
+        context: context.RequestContext,
+        subcloud_name: str,
+        subcloud_region: str,
+        availability_status: str,
+        update_state_only: bool = False,
+        audit_fail_count: int = None,
+    ) -> None:
         # Updates subcloud availability
-        LOG.info(
-            "Handling update_subcloud_availability request for: %s" % subcloud_name
-        )
+        msg = "Handling update_subcloud_availability request"
+        cutils.log_subcloud_msg(LOG.info, msg, subcloud_name)
         self.subcloud_state_manager.update_subcloud_availability(
             context,
             subcloud_region,
@@ -192,14 +185,17 @@ class DCManagerStateService(service.Service):
         )
 
     def bulk_update_subcloud_availability_and_endpoint_status(
-        self, context, simplified_subcloud, availability_data, endpoint_data
-    ):
-        LOG.debug(
-            "Handling bulk_update_subcloud_availability_and_endpoint_status request "
-            f"for subcloud: {simplified_subcloud['name']}"
-        )
+        self,
+        context: context.RequestContext,
+        subcloud_id: int,
+        subcloud_name: str,
+        availability_data: dict,
+        endpoint_data: dict[str, str],
+    ) -> None:
+        msg = "Handling bulk_update_subcloud_availability_and_endpoint_status request"
+        cutils.log_subcloud_msg(LOG.info, msg, subcloud_name)
 
         manager = self.subcloud_state_manager
         manager.bulk_update_subcloud_availability_and_endpoint_status(
-            context, simplified_subcloud, availability_data, endpoint_data
+            context, subcloud_id, subcloud_name, availability_data, endpoint_data
         )

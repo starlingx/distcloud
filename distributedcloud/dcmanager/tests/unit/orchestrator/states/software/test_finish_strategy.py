@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -78,20 +78,11 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.on_success_state = consts.STRATEGY_STATE_COMPLETE
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, consts.STRATEGY_STATE_SW_FINISH_STRATEGY
         )
         self.mock_read_from_cache.return_value = REGION_ONE_RELEASES
-
-        # Add mock API endpoints for software client calls
-        # invoked by this state
-        self.software_client.list = mock.MagicMock()
-        self.software_client.delete = mock.MagicMock()
-        self.software_client.commit_patch = mock.MagicMock()
 
     def test_finish_strategy_success(self):
         """Test software finish strategy when the API call succeeds."""
@@ -99,7 +90,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         call_args, _ = self.software_client.delete.call_args_list[0]
         self.assertItemsEqual(["starlingx-9.0.4"], call_args[0])
@@ -115,7 +108,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = [REGION_ONE_RELEASES]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.software_client.delete.assert_not_called()
 
@@ -129,7 +124,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         self.software_client.list.side_effect = Exception()
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
@@ -141,7 +138,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
         self.software_client.delete.side_effect = Exception()
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
@@ -155,7 +154,9 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
 
         mock_base_stopped.return_value = True
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED

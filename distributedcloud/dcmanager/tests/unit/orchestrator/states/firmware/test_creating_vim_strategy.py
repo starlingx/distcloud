@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -34,18 +34,10 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         # set the next state in the chain (when this state is successful)
         self.on_success_state = consts.STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY
         )
-
-        # Add mock API endpoints for sysinv client calls invcked by this state
-        self.vim_client.create_strategy = mock.MagicMock()
-        self.vim_client.delete_strategy = mock.MagicMock()
-        self.vim_client.get_strategy = mock.MagicMock()
 
     def test_creating_vim_strategy_success(self):
         """Test creating a VIM strategy"""
@@ -64,7 +56,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Successful promotion to next state
         self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
@@ -81,7 +75,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -100,7 +96,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -123,7 +121,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -147,7 +147,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the max number of queries was attempted (plus 1)
         self.assertEqual(
@@ -181,7 +183,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # delete API should have been invoked
         self.assertEqual(1, self.vim_client.delete_strategy.call_count)
@@ -201,7 +205,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # create API call should never be invoked
         self.vim_client.create_strategy.assert_not_called()
@@ -221,7 +227,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
             vim.STATE_BUILDING
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
@@ -240,7 +248,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
             vim.STATE_BUILDING
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED
@@ -259,7 +269,9 @@ class TestFwUpdateCreatingVIMStrategyStage(TestFwUpdateState):
             vim.STATE_BUILDING
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assert_step_updated(
             self.strategy_step.subcloud_id, consts.STRATEGY_STATE_FAILED

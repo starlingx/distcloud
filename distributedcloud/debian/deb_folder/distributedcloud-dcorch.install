@@ -1,3 +1,4 @@
+etc/dcorch/policy.yaml etc/dcorch
 etc/dcorch/dcorch.conf
 usr/bin/clean-dcorch
 usr/bin/dcorch-api

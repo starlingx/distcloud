@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,24 +18,24 @@ from datetime import datetime
 import functools
 import os
 import random
-import re
 import threading
 import time
 from typing import Callable
 
 from eventlet.green import subprocess
 import netaddr
+from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import timeutils
 
 from dccommon import consts
-from dccommon import exceptions
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon import rvmc
 from dccommon.subprocess_cleanup import kill_subprocess_group
 from dccommon.subprocess_cleanup import SubprocessCleanup
-from dcorch.common.i18n import _
+
+CONF = cfg.CONF
 
 LOG = logging.getLogger(__name__)
 ANSIBLE_PASSWD_PARMS = ["ansible_ssh_pass", "ansible_become_pass"]
@@ -51,8 +51,6 @@ STALE_TOKEN_DURATION_STEP = 20
 
 # Exitcode from 'timeout' command on timeout:
 TIMEOUT_EXITCODE = 124
-
-LAST_SW_VERSION_IN_CENTOS = "22.06"
 
 
 class memoized(object):
@@ -298,96 +296,8 @@ def is_token_expiring_soon(
     return False
 
 
-def _get_key_from_file(file_contents, key):
-    """Extract value from KEY=VALUE entries.
-
-    Ignore newline, ignore apostrophe, ignore quotation mark.
-    :param file_contents: contents of file
-    :param key: key to search
-    :return: found value or ''
-    """
-    r = re.compile("^{}\=['\"]*([^'\"\n]*)".format(key), re.MULTILINE)
-    match = r.search(file_contents)
-    if match:
-        return match.group(1)
-    else:
-        return ""
-
-
-@memoized
-def get_os_release(release_file=consts.OS_RELEASE_FILE):
-    """Function to read release information.
-
-    Ignore newline, ignore apostrophe, ignore quotation mark.
-    :param release_file: file to read from
-    :return: a tuple of (ID, VERSION)
-    """
-    linux_distro = ("", "")
-
-    try:
-        with open(release_file, "r") as f:
-            data = f.read()
-            linux_distro = (
-                _get_key_from_file(data, "ID"),
-                _get_key_from_file(data, "VERSION"),
-            )
-    except Exception as e:
-        raise exceptions.DCCommonException(
-            msg=_("Failed to open %s : %s" % (release_file, str(e)))
-        )
-
-    if linux_distro[0] == "":
-        raise exceptions.DCCommonException(
-            msg=_("Could not determine os type from %s" % release_file)
-        )
-
-    # Hint: This code is added here to aid future unit test.
-    # Probably running unit tests on a non-supported OS (example at
-    # time of writing: ubuntu), which is perfect, because code reaching
-    # here will fail, and we just identified a place that would split
-    # logic between OSs. The failing tests should mock this function
-    # (get_os_release) for each supported OS.
-    if linux_distro[0] not in consts.SUPPORTED_OS_TYPES:
-        raise exceptions.DCCommonException(
-            msg=_("Unsupported OS detected %s" % linux_distro[0])
-        )
-
-    return linux_distro
-
-
-def get_os_type(release_file=consts.OS_RELEASE_FILE):
-    return get_os_release(release_file)[0]
-
-
-def is_debian(software_version=None):
-    """Check target version or underlying OS type.
-
-    Check either the given software_version (e.g. for checking a subcloud,
-    or prestaging operation), or the underlying OS type (for this running
-    instance)
-    """
-    if software_version:
-        return not is_centos(software_version)
-    return get_os_type() == consts.OS_DEBIAN
-
-
-def is_centos(software_version=None):
-    """Check target version or underlying OS type.
-
-    Check either the given software_version (e.g. for checking a subcloud,
-    or prestaging operation), or the underlying OS type (for this running
-    instance)
-    """
-    if software_version:
-        return software_version <= LAST_SW_VERSION_IN_CENTOS
-    return get_os_type() == consts.OS_CENTOS
-
-
 def get_ssl_cert_ca_file():
-    return os.path.join(
-        consts.SSL_CERT_CA_DIR,
-        consts.CERT_CA_FILE_DEBIAN if is_debian() else consts.CERT_CA_FILE_CENTOS,
-    )
+    return os.path.join(consts.SSL_CERT_CA_DIR, consts.CERT_CA_FILE_DEBIAN)
 
 
 def send_subcloud_shutdown_signal(subcloud_name):
@@ -484,3 +394,21 @@ def build_subcloud_endpoint(ip: str, service: str) -> str:
         formatted_ip = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
         endpoint = endpoint.format(formatted_ip)
     return endpoint
+
+
+@functools.lru_cache(maxsize=1)
+def get_region_one_name() -> str:
+    return CONF.keystone_authtoken.region_name
+
+
+@functools.lru_cache(maxsize=1)
+def get_system_controller_region_names() -> tuple[str]:
+    return (consts.SYSTEM_CONTROLLER_NAME, CONF.keystone_authtoken.region_name)
+
+
+def is_region_one(region_name: str) -> bool:
+    return region_name == get_region_one_name()
+
+
+def is_system_controller_region(region_name: str) -> bool:
+    return region_name in get_system_controller_region_names()

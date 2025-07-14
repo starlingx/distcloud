@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,11 +11,9 @@ from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.utils import log_subcloud_msg
-from dcmanager.common import utils
-from dcmanager.db.sqlalchemy import models
+from dccommon.endpoint_cache import EndpointCache
+from dccommon import utils as cutils
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -49,19 +47,12 @@ class KubeRootcaUpdateAudit(object):
         :return: A string of the root CA cert ID
         """
         try:
-            m_os_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
-            endpoint = m_os_ks_client.endpoint_cache.get_endpoint("sysinv")
+            admin_session = EndpointCache.get_admin_session()
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
-                m_os_ks_client.session,
-                endpoint=endpoint,
+                region=cutils.get_region_one_name(), session=admin_session
             )
         except Exception:
-            LOG.exception("Failed init OS Client, skip Kubernetes root CA audit.")
+            LOG.exception("Failed init Sysinv Client, skip Kubernetes root CA audit.")
             return None
 
         try:
@@ -98,7 +89,7 @@ class KubeRootcaUpdateAudit(object):
                 msg = (
                     f"Failed to get Kubernetes root CA status, skip {AUDIT_TYPE} audit."
                 )
-                log_subcloud_msg(LOG.exception, msg, subcloud_name)
+                cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
                 return skip_audit
 
             if success:
@@ -108,7 +99,7 @@ class KubeRootcaUpdateAudit(object):
             detected_alarms = fm_client.get_alarms_by_ids(KUBE_ROOTCA_ALARM_LIST)
         except Exception:
             msg = f"Failed to get alarms by id, skip {AUDIT_TYPE} audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
             return skip_audit
         return ALARM_BASED, detected_alarms
 
@@ -140,51 +131,6 @@ class KubeRootcaUpdateAudit(object):
                 subcloud_audit_data, regionone_rootca_certid, subcloud_name
             )
         return sync_status
-
-    def subcloud_kube_rootca_audit(
-        self,
-        sysinv_client: SysinvClient,
-        fm_client: FmClient,
-        subcloud: models.Subcloud,
-        regionone_rootca_certid: str,
-    ):
-        """Perform an audit of kube root CA update info in a subcloud.
-
-        The audit logic is as follow:
-            No region one cert ID -> skip audit
-            Failure to get alarms or subcloud cert ID -> skip audit
-            Subcloud was not rehomed -> alarm based
-            Subcloud was rehomed and doesn't have the API to get cert ID -> alarm based
-            Subcloud was rehomed and has the API to get cert ID -> cert based
-
-        :param sysinv_client: the sysinv client object
-        :param fm_client: the fm client object
-        :param subcloud: subcloud object
-        :param regionone_rootca_certid: the cert id of region one
-        """
-
-        LOG.info(f"Triggered {AUDIT_TYPE} audit for: {subcloud.name}")
-
-        # Skip the audit if cannot get the region one cert ID.
-        if not regionone_rootca_certid:
-            msg = f"No region one audit data, exiting {AUDIT_TYPE} audit"
-            log_subcloud_msg(LOG.debug, msg, subcloud.name)
-            return dccommon_consts.SYNC_STATUS_IN_SYNC
-
-        sync_status = self.get_subcloud_sync_status(
-            sysinv_client,
-            fm_client,
-            regionone_rootca_certid,
-            subcloud.rehomed,
-            subcloud.name,
-        )
-
-        if sync_status:
-            LOG.info(
-                f"{AUDIT_TYPE} audit completed for: {subcloud.name}, requesting "
-                f"sync_status update to {sync_status}"
-            )
-            return sync_status
 
     @staticmethod
     def subcloud_rootca_audit_alarm_based(detected_alarms):
@@ -220,7 +166,7 @@ class KubeRootcaUpdateAudit(object):
                 "Failed to get Kubernetes root CA cert id, error: "
                 f"{subcloud_cert_data.error}, skip {AUDIT_TYPE} audit."
             )
-            log_subcloud_msg(LOG.error, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.error, msg, subcloud_name)
             return None
 
         out_of_sync = subcloud_cert_data.cert_id != regionone_rootca_certid

@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -34,6 +34,10 @@ from dcmanager.rpc import client as rpc_client
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+
+# TODO(gherzmann): remove the "RegionOne", it's being kept for
+# now to maintain backwards compatibility with older clients
+REGION_ONE = "RegionOne"
 
 
 class SwUpdateOptionsController(object):
@@ -83,7 +87,7 @@ class SwUpdateOptionsController(object):
 
             return result
 
-        elif subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:
+        elif subcloud_ref in (dccommon_consts.SYSTEM_CONTROLLER_NAME, REGION_ONE):
             # Default options requested, guaranteed to succeed
 
             return utils.get_sw_update_opts(context)
@@ -119,18 +123,18 @@ class SwUpdateOptionsController(object):
         # Note creating or updating subcloud specific options require
         # setting all options.
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             sw_update_options_policy.POLICY_ROOT % "update",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         payload = eval(request.body)
         if not payload:
             pecan.abort(400, _("Body required"))
 
-        if subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:
+        if subcloud_ref in (dccommon_consts.SYSTEM_CONTROLLER_NAME, REGION_ONE):
 
             # update default options
             subcloud_name = dccommon_consts.SW_UPDATE_DEFAULT_TITLE
@@ -217,14 +221,14 @@ class SwUpdateOptionsController(object):
     def delete(self, subcloud_ref):
         """Delete the software update options."""
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             sw_update_options_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
-        if subcloud_ref == dccommon_consts.DEFAULT_REGION_NAME:
+        if subcloud_ref in (dccommon_consts.SYSTEM_CONTROLLER_NAME, REGION_ONE):
             # Delete defaults.
             # Note by deleting these, the next get will repopulate with
             # the global constants.

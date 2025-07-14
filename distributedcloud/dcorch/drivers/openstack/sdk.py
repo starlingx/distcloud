@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -26,6 +26,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import utils as cutils
 
 # Gap, in seconds, to determine whether the given token is about to expire
 STALE_TOKEN_DURATION = 60
@@ -39,10 +40,12 @@ class OpenStackDriver(object):
     _identity_tokens = {}
 
     @lockutils.synchronized("dcorch-openstackdriver")
-    def __init__(self, region_name=dccommon_consts.VIRTUAL_MASTER_CLOUD, auth_url=None):
-        # Check if objects are cached and try to use those
+    def __init__(
+        self, region_name: str = dccommon_consts.SYSTEM_CONTROLLER_NAME, auth_url=None
+    ):
         self.region_name = region_name
 
+        # Check if objects are cached and try to use those
         if (
             region_name in OpenStackDriver._identity_tokens
             and (region_name in OpenStackDriver.os_clients_dict)
@@ -256,9 +259,9 @@ class OpenStackDriver(object):
                 # If endpoint filter is not used for the project, then
                 # return all regions
                 region_lists = KeystoneClient().endpoint_cache.get_all_regions()
-            # nova, cinder, and neutron have no endpoints in consts.CLOUD_0
-            if dccommon_consts.CLOUD_0 in region_lists:
-                region_lists.remove(dccommon_consts.CLOUD_0)
+            # nova, cinder, and neutron have no endpoints in the local region
+            if cutils.get_region_one_name() in region_lists:
+                region_lists.remove(cutils.get_region_one_name())
             return region_lists
         except Exception as exception:
             LOG.error("Error Occurred: %s", str(exception))

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,8 +14,9 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
+from dccommon import utils
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import (
     peer_group_association as peer_group_association_policy,
@@ -24,7 +25,6 @@ from dcmanager.api import policy
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
 from dcmanager.common.i18n import _
-from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 
@@ -83,11 +83,10 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         return payload
 
     def _validate_peer_group_leader_id(self, system_leader_id):
-        ks_client = psd_common.get_ks_client()
+        admin_session = EndpointCache.get_admin_session()
         sysinv_client = SysinvClient(
-            dccommon_consts.DEFAULT_REGION_NAME,
-            ks_client.session,
-            endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
+            utils.get_region_one_name(),
+            admin_session,
         )
         system = sysinv_client.get_system()
         return True if system.uuid == system_leader_id else False
@@ -178,12 +177,13 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
     @index.when(method="POST", template="json")
     def post(self):
         """Create a new peer group association."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             peer_group_association_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         payload = self._get_payload(request)
         if not payload:
@@ -422,12 +422,13 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         :param sync: sync action that sync the peer group
         """
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             peer_group_association_policy.POLICY_ROOT % "modify",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
+
         if association_id is None:
             pecan.abort(httpclient.BAD_REQUEST, _("Peer Group Association ID required"))
         elif not association_id.isdigit():
@@ -456,12 +457,13 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
 
         :param association_id: ID of peer group association to delete
         """
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             peer_group_association_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         if association_id is None:
             pecan.abort(httpclient.BAD_REQUEST, _("Peer Group Association ID required"))

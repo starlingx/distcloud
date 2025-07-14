@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -109,7 +109,7 @@ endpoint_cache_opts = [
     ),
     cfg.IntOpt(
         "token_cache_size",
-        default=5000,
+        default=10000,
         help="Maximum number of entries in the in-memory token cache",
     ),
 ]

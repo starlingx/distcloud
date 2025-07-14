@@ -4,10 +4,8 @@
 #
 
 import copy
-import mock
 
-from keystoneauth1 import exceptions as keystone_exceptions
-
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.common import consts
 from dcmanager.common.exceptions import InvalidParameterValue
 from dcmanager.orchestrator.cache import clients
@@ -18,7 +16,7 @@ from dcmanager.orchestrator.cache.cache_specifications import (
     REGION_ONE_RELEASE_USM_CACHE_TYPE,
 )
 from dcmanager.orchestrator.cache.shared_cache_repository import SharedCacheRepository
-from dcmanager.tests import base
+from dcmanager.tests.base import DCManagerTestCase
 
 SOFTWARE_CLIENT_QUERY_RETURN = [
     {
@@ -42,27 +40,21 @@ SOFTWARE_CLIENT_QUERY_RETURN = [
 ]
 
 
-class TestSharedCacheRepository(base.DCManagerTestCase):
+class TestSharedCacheRepository(DCManagerTestCase):
     def setUp(self):
         """Initializes the shared cache repository"""
 
         super().setUp()
 
-        self.mock_openstack_driver = self._mock_object(clients, "OpenStackDriver")
         self.mock_sysinv_client = self._mock_object(clients, "SysinvClient")
-        self._mock_software_client()
+        self.mock_software_client = self._mock_object(clients, "SoftwareClient")
+        self.mock_software_client().list.return_value = SOFTWARE_CLIENT_QUERY_RETURN
+        self._mock_object(EndpointCache, "get_admin_session")
 
         self.shared_cache_repository = SharedCacheRepository(
             operation_type=consts.SW_UPDATE_TYPE_SOFTWARE
         )
         self.shared_cache_repository.initialize_caches()
-
-        self.software_client().list.return_value = SOFTWARE_CLIENT_QUERY_RETURN
-
-    def _mock_software_client(self):
-        mock_patch = mock.patch.object(clients, "SoftwareClient")
-        self.software_client = mock_patch.start()
-        self.addCleanup(mock_patch.stop)
 
     def test_read_succeeds_with_license_cache_type(self):
         """Test read cache succeeds when using the REGION_ONE_LICENSE_CACHE_TYPE"""
@@ -85,17 +77,6 @@ class TestSharedCacheRepository(base.DCManagerTestCase):
 
         self.assertRaises(
             InvalidParameterValue, self.shared_cache_repository.read, "fake parameter"
-        )
-
-    def test_read_fails_when_openstack_driver_raises_exception(self):
-        """Test read cache fails when the OpenStackDriver raises an Exception"""
-
-        self.mock_openstack_driver.side_effect = keystone_exceptions.ConnectFailure()
-
-        self.assertRaises(
-            keystone_exceptions.ConnectFailure,
-            self.shared_cache_repository.read,
-            REGION_ONE_RELEASE_USM_CACHE_TYPE,
         )
 
     def test_read_succeeds_with_filter_params(self):

@@ -7,8 +7,11 @@
 import base64
 import json
 import os
+import tarfile
+import tempfile
 import typing
 
+import ipaddress
 import netaddr
 from oslo_log import log as logging
 from oslo_utils import uuidutils
@@ -16,10 +19,9 @@ import pecan
 import tsconfig.tsconfig as tsc
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack import patching_v1
-from dccommon.drivers.openstack.patching_v1 import PatchingClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
+from dccommon import utils as cutils
 from dcmanager.common import consts
 from dcmanager.common.context import RequestContext
 from dcmanager.common import exceptions
@@ -53,27 +55,11 @@ BOOTSTRAP_VALUES_ADDRESSES = [
     "systemcontroller_gateway_address",
     "external_oam_gateway_address",
     "external_oam_floating_address",
+    "admin_floating_address",
     "admin_start_address",
     "admin_end_address",
     "admin_gateway_address",
 ]
-
-
-def get_ks_client(
-    region_name=dccommon_consts.DEFAULT_REGION_NAME, management_ip: str = None
-):
-    """This will get a new keystone client (and new token)"""
-    try:
-        os_client = OpenStackDriver(
-            region_name=region_name,
-            region_clients=None,
-            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            subcloud_management_ip=management_ip,
-        )
-        return os_client.keystone_client
-    except Exception:
-        LOG.warn("Failure initializing KeystoneClient for region %s" % region_name)
-        raise
 
 
 def validate_bootstrap_values(payload: dict):
@@ -88,10 +74,25 @@ def validate_bootstrap_values(payload: dict):
     # The admin network is optional, but takes precedence over the
     # management network for communication between the subcloud and
     # system controller if it is defined.
-    admin_subnet = payload.get("admin_subnet", None)
-    admin_start_ip = payload.get("admin_start_address", None)
-    admin_end_ip = payload.get("admin_end_address", None)
-    admin_gateway_ip = payload.get("admin_gateway_address", None)
+    admin_subnet = payload.get("admin_subnet")
+    admin_start_ip = payload.get("admin_start_address")
+    admin_end_ip = payload.get("admin_end_address")
+    admin_gateway_ip = payload.get("admin_gateway_address")
+    admin_floating_ip = payload.get("admin_floating_address")
+
+    if (
+        admin_floating_ip
+        and not any([admin_start_ip, admin_end_ip])
+        and system_mode == consts.SYSTEM_MODE_SIMPLEX
+    ):
+        admin_start_ip = admin_floating_ip
+        admin_end_ip = admin_floating_ip
+        payload["admin_start_address"] = admin_floating_ip
+        payload["admin_end_address"] = admin_floating_ip
+
+    if admin_floating_ip and admin_floating_ip != admin_start_ip:
+        pecan.abort(400, _("admin_floating_address does not match admin_start_address"))
+
     if any([admin_subnet, admin_start_ip, admin_end_ip, admin_gateway_ip]):
         # If any admin parameter is defined, all admin parameters
         # should be defined.
@@ -105,28 +106,51 @@ def validate_bootstrap_values(payload: dict):
             pecan.abort(400, _("admin_gateway_address required"))
 
     management_subnet = payload.get("management_subnet")
-    if not management_subnet:
-        pecan.abort(400, _("management_subnet required"))
-
     management_start_ip = payload.get("management_start_address")
-    if not management_start_ip:
-        pecan.abort(400, _("management_start_address required"))
-
     management_end_ip = payload.get("management_end_address")
-    if not management_end_ip:
-        pecan.abort(400, _("management_end_address required"))
-
     management_gateway_ip = payload.get("management_gateway_address")
-    if admin_gateway_ip and management_gateway_ip:
+    management_floating_ip = payload.get("management_floating_address")
+
+    if (
+        management_floating_ip
+        and not any([management_start_ip, management_end_ip])
+        and system_mode == consts.SYSTEM_MODE_SIMPLEX
+    ):
+        management_start_ip = management_floating_ip
+        management_end_ip = management_floating_ip
+        payload["management_start_address"] = management_floating_ip
+        payload["management_end_address"] = management_floating_ip
+
+    if management_floating_ip and management_floating_ip != management_start_ip:
         pecan.abort(
             400,
-            _(
-                "admin_gateway_address and management_gateway_address cannot be "
-                "specified at the same time"
-            ),
+            _("management_floating_address does not match management_start_address"),
         )
-    elif not admin_gateway_ip and not management_gateway_ip:
-        pecan.abort(400, _("management_gateway_address required"))
+
+    if any(
+        [
+            management_subnet,
+            management_start_ip,
+            management_end_ip,
+            management_gateway_ip,
+        ]
+    ):
+        if not management_subnet:
+            pecan.abort(400, _("management_subnet required"))
+        if not management_start_ip:
+            pecan.abort(400, _("management_start_address required"))
+        if not management_end_ip:
+            pecan.abort(400, _("management_end_address required"))
+        if admin_gateway_ip and management_gateway_ip:
+            pecan.abort(
+                400,
+                _(
+                    "admin_gateway_address and management_gateway_address cannot be "
+                    "specified at the same time"
+                ),
+            )
+        elif not admin_gateway_ip and not management_gateway_ip:
+            pecan.abort(400, _("management_gateway_address required"))
 
     systemcontroller_gateway_ip = payload.get("systemcontroller_gateway_address")
     if not systemcontroller_gateway_ip:
@@ -145,53 +169,77 @@ def validate_bootstrap_values(payload: dict):
         pecan.abort(400, _("external_oam_floating_address required"))
 
 
-# TODO(nicodemos): Change to verify the releases instead of patching
-def validate_system_controller_patch_status(operation: str):
-    ks_client = get_ks_client()
-    patching_client = PatchingClient(
-        dccommon_consts.DEFAULT_REGION_NAME,
-        ks_client.session,
-        endpoint=ks_client.endpoint_cache.get_endpoint("patching"),
+def validate_system_controller_deploy_status(operation: str):
+    if utils.is_system_controller_deploying():
+        message = (
+            f"Subcloud {operation} is not allowed while the system controller is "
+            "still undergoing software update."
+        )
+        pecan.abort(422, _(message))
+
+
+def verify_boolean_str(value):
+    if isinstance(value, str) and value in ["true", "false"]:
+        return
+
+    pecan.abort(
+        400,
+        _("Invalid boolean string: %s. Valid options are true and false.") % value,
     )
-    patches = patching_client.query()
-    patch_ids = list(patches.keys())
-    for patch_id in patch_ids:
-        valid_states = [
-            patching_v1.PATCH_STATE_PARTIAL_APPLY,
-            patching_v1.PATCH_STATE_PARTIAL_REMOVE,
-        ]
-        if patches[patch_id]["patchstate"] in valid_states:
-            pecan.abort(
-                422,
-                _(
-                    "Subcloud %s is not allowed while system "
-                    "controller patching is still in progress."
-                )
-                % operation,
-            )
 
 
-def validate_migrate_parameter(payload, request):
+def validate_migrate_parameter(payload):
     migrate_str = payload.get("migrate")
-    if migrate_str is not None:
-        if migrate_str not in ["true", "false"]:
-            pecan.abort(
-                400,
-                _("The migrate option is invalid, valid options are true and false."),
-            )
+    if migrate_str is None:
+        return
 
-        if consts.DEPLOY_CONFIG in request.POST:
-            pecan.abort(400, _("migrate with deploy-config is not allowed"))
+    verify_boolean_str(migrate_str)
+
+    if migrate_str == "false":
+        return
+
+    enroll_str = payload.get("enroll")
+    if enroll_str is not None:
+        verify_boolean_str(enroll_str)
+        if enroll_str == "true":
+            pecan.abort(400, _("migrate with enroll is not allowed"))
+
+    if consts.DEPLOY_CONFIG in payload:
+        pecan.abort(400, _("migrate with deploy-config is not allowed"))
 
 
 def validate_enroll_parameter(payload):
-    install_values = payload.get("install_values")
+    enroll_str = payload.get("enroll")
+
+    if enroll_str is None:
+        return
+
+    verify_boolean_str(enroll_str)
+
+    if enroll_str == "false":
+        if dccommon_consts.CLOUD_INIT_CONFIG in payload:
+            pecan.abort(400, _("cloud_init_config is not allowed with enroll=false"))
+        else:
+            return
+
+    install_values = payload.get(consts.INSTALL_VALUES)
     if not install_values:
         pecan.abort(400, _("Install values is necessary for subcloud enrollment"))
-
     # Update the install values in payload
     if not payload.get("bmc_password"):
         payload.update({"bmc_password": install_values.get("bmc_password")})
+
+
+def validate_tarball(contents, file_name):
+    try:
+        with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
+            tmp_file.write(contents)
+            tmp_file.flush()
+            if not tarfile.is_tarfile(tmp_file.name):
+                pecan.abort(400, _("%s is not a valid tar archive.") % file_name)
+
+    except (base64.binascii.Error, tarfile.TarError, OSError) as e:
+        pecan.abort(400, _("Failed to validate %s: %s") % (file_name, str(e)))
 
 
 def validate_secondary_parameter(payload, request):
@@ -319,15 +367,12 @@ def validate_subcloud_config(
     # If a subcloud group is not passed, use the default
     group_id = payload.get("group_id", consts.DEFAULT_SUBCLOUD_GROUP_ID)
 
-    if payload.get("name") in [
-        dccommon_consts.DEFAULT_REGION_NAME,
-        dccommon_consts.SYSTEM_CONTROLLER_NAME,
-    ]:
+    if cutils.is_system_controller_region(payload.get("name")):
         pecan.abort(
             400,
             _("name cannot be %(bad_name1)s or %(bad_name2)s")
             % {
-                "bad_name1": dccommon_consts.DEFAULT_REGION_NAME,
+                "bad_name1": cutils.get_region_one_name,
                 "bad_name2": dccommon_consts.SYSTEM_CONTROLLER_NAME,
             },
         )
@@ -347,16 +392,22 @@ def validate_subcloud_config(
             continue
         subcloud_subnets.append(netaddr.IPNetwork(subcloud.management_subnet))
 
-    MIN_MANAGEMENT_SUBNET_SIZE = 7
-    # subtract 3 for network, gateway and broadcast addresses.
-    MIN_MANAGEMENT_ADDRESSES = MIN_MANAGEMENT_SUBNET_SIZE - 3
+    system_mode = payload.get("system_mode")
+    if not system_mode:
+        pecan.abort(400, _("system_mode required"))
+
+    min_management_subnet_size = 4 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 8
 
     management_subnets = []
     try:
+        # Use None as 'existing_networks' so the overlapping subnet
+        # validation is not executed. For the mgmt network, we
+        # perform a validation below to ensure the ranges of
+        # the management start <-> end are unique per subcloud,
+        # rather than the uniqueness of the entire subnet.
         management_subnets = utils.validate_network_str(
             payload.get("management_subnet"),
-            minimum_size=MIN_MANAGEMENT_SUBNET_SIZE,
-            existing_networks=subcloud_subnets,
+            minimum_size=min_management_subnet_size,
             operation=operation,
         )
     except exceptions.ValidateFail as e:
@@ -382,17 +433,27 @@ def validate_subcloud_config(
         LOG.exception(e)
         pecan.abort(400, _("management_end_address invalid: %s") % e)
 
+    min_management_valid_hosts = 1 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 4
+
     for start_ip, end_ip in zip(management_start_ips, management_end_ips):
         if start_ip > end_ip:
             pecan.abort(
                 400, _("management_start_address greater than management_end_address")
             )
 
-        if netaddr.IPRange(start_ip, end_ip).size < MIN_MANAGEMENT_ADDRESSES:
+        if netaddr.IPRange(start_ip, end_ip).size < min_management_valid_hosts:
             pecan.abort(
                 400,
                 _("management address range must contain at least %d addresses")
-                % MIN_MANAGEMENT_ADDRESSES,
+                % min_management_valid_hosts,
+            )
+
+        overlap, sc_name = check_range_overlaps(start_ip, end_ip, subclouds)
+        if overlap:
+            pecan.abort(
+                400,
+                _("Management address range overlaps with that of subcloud %s")
+                % sc_name,
             )
 
     # Parse/validate the gateway
@@ -412,8 +473,9 @@ def validate_subcloud_config(
         admin_start_ip,
         admin_end_ip,
         admin_gateway_ip,
-        subcloud_subnets,
-        operation,
+        existing_subclouds=subclouds,
+        operation=operation,
+        system_mode=system_mode,
     )
 
     # Ensure subcloud management gateway is not within the actual subcloud
@@ -471,13 +533,34 @@ def validate_subcloud_config(
     validate_group_id(context, group_id)
 
 
+def check_range_overlaps(start_ip, end_ip, subclouds):
+    s0_nets = list(
+        ipaddress.summarize_address_range(
+            ipaddress.ip_address(start_ip), ipaddress.ip_address(end_ip)
+        )
+    )
+    for subcloud in subclouds:
+        s1_nets = list(
+            ipaddress.summarize_address_range(
+                ipaddress.ip_address(subcloud.management_start_ip),
+                ipaddress.ip_address(subcloud.management_end_ip),
+            )
+        )
+        for n1 in s0_nets:
+            for n2 in s1_nets:
+                if n1.overlaps(n2):
+                    return True, subcloud.name
+    return False, ""
+
+
 def validate_admin_network_config(
     admin_subnet_str,
     admin_start_address_str,
     admin_end_address_str,
     admin_gateway_address_str,
-    existing_networks,
-    operation,
+    existing_subclouds=None,
+    operation=None,
+    system_mode=None,
 ):
     """validate whether admin network configuration is valid"""
 
@@ -489,16 +572,21 @@ def validate_admin_network_config(
     ):
         return
 
-    MIN_ADMIN_SUBNET_SIZE = 5
-    # subtract 3 for network, gateway and broadcast addresses.
-    MIN_ADMIN_ADDRESSES = MIN_ADMIN_SUBNET_SIZE - 3
+    if not existing_subclouds:
+        existing_subclouds = []
+
+    min_admin_subnet_size = 4 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 8
 
     admin_subnets = []
     try:
+        # Use None as 'existing_networks' so the overlapping subnet
+        # validation is not executed. For the admin network, we
+        # perform a validation below to ensure the ranges of
+        # the management start <-> end are unique per subcloud,
+        # rather than the uniqueness of the entire subnet.
         admin_subnets = utils.validate_network_str(
             admin_subnet_str,
-            minimum_size=MIN_ADMIN_SUBNET_SIZE,
-            existing_networks=existing_networks,
+            minimum_size=min_admin_subnet_size,
             operation=operation,
         )
     except exceptions.ValidateFail as e:
@@ -522,17 +610,24 @@ def validate_admin_network_config(
         LOG.exception(e)
         pecan.abort(400, _("admin_end_address invalid: %s") % e)
 
-    for start_ip, end_ip in zip(admin_start_ips, admin_end_ips):
-        if start_ip >= end_ip:
-            pecan.abort(
-                400, _("admin_start_address greater than or equal to admin_end_address")
-            )
+    min_admin_valid_hosts = 1 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 4
 
-        if netaddr.IPRange(start_ip, end_ip).size < MIN_ADMIN_ADDRESSES:
+    for start_ip, end_ip in zip(admin_start_ips, admin_end_ips):
+        if start_ip > end_ip:
+            pecan.abort(400, _("admin_start_address greater than admin_end_address"))
+
+        if netaddr.IPRange(start_ip, end_ip).size < min_admin_valid_hosts:
             pecan.abort(
                 400,
                 _("admin address range must contain at least %d addresses")
-                % MIN_ADMIN_ADDRESSES,
+                % min_admin_valid_hosts,
+            )
+
+        overlap, sc_name = check_range_overlaps(start_ip, end_ip, existing_subclouds)
+        if overlap:
+            pecan.abort(
+                400,
+                _("Admin address range overlaps with that of subcloud %s") % sc_name,
             )
 
     # Parse/validate the gateway
@@ -607,17 +702,15 @@ def validate_group_id(context, group_id):
         pecan.abort(400, _("Invalid group_id"))
 
 
-def get_sysinv_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
-    ks_client = get_ks_client(region_name)
-    endpoint = ks_client.endpoint_cache.get_endpoint("sysinv")
-    return SysinvClient(region_name, ks_client.session, endpoint=endpoint)
+def get_sysinv_client() -> SysinvClient:
+    region_name = cutils.get_region_one_name()
+    admin_session = EndpointCache.get_admin_session()
+    return SysinvClient(region_name, admin_session)
 
 
-def get_network_address_pools(
-    network="management", region_name=dccommon_consts.DEFAULT_REGION_NAME
-):
+def get_network_address_pools(network="management"):
     """Get the region network address pools"""
-    sysinv_client = get_sysinv_client(region_name)
+    sysinv_client = get_sysinv_client()
     if network == "admin":
         return sysinv_client.get_admin_address_pools()
     return sysinv_client.get_management_address_pools()
@@ -961,10 +1054,29 @@ def upload_deploy_config_file(request, payload):
     get_common_deploy_files(payload, payload["software_version"])
 
 
+def upload_cloud_init_config(request, payload):
+    file_item = request.POST.get(dccommon_consts.CLOUD_INIT_CONFIG)
+    if file_item is None:
+        return
+
+    filename = getattr(file_item, "filename", "")
+    if not filename:
+        pecan.abort(400, _("No cloud-init-config file uploaded"))
+
+    file_item.file.seek(0, os.SEEK_SET)
+    contents = file_item.file.read()
+    validate_tarball(contents, filename)
+    fn = get_config_file_path(payload["name"], dccommon_consts.CLOUD_INIT_CONFIG)
+    upload_binary_file(contents, fn, filename)
+    payload[dccommon_consts.CLOUD_INIT_CONFIG] = fn
+
+
 def get_config_file_path(subcloud_name, config_file_type=None):
     basepath = dccommon_consts.ANSIBLE_OVERRIDES_PATH
     if config_file_type == consts.DEPLOY_CONFIG:
         filename = f"{subcloud_name}_{config_file_type}.yml"
+    elif config_file_type == dccommon_consts.CLOUD_INIT_CONFIG:
+        filename = f"{subcloud_name}_{config_file_type}.tar"
     elif config_file_type == consts.INSTALL_VALUES:
         basepath = os.path.join(basepath, subcloud_name)
         filename = f"{config_file_type}.yml"
@@ -972,6 +1084,17 @@ def get_config_file_path(subcloud_name, config_file_type=None):
         filename = f"{subcloud_name}.yml"
     file_path = os.path.join(basepath, filename)
     return file_path
+
+
+def upload_binary_file(contents, file_path, filename):
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "wb") as f:
+            f.write(contents)
+    except Exception:
+        msg = _("Failed to upload %s to %s" % (filename, file_path))
+        LOG.exception(msg)
+        pecan.abort(400, msg)
 
 
 def upload_config_file(file_item, config_file, config_type):
@@ -993,14 +1116,6 @@ def check_deploy_files_in_alternate_location(payload):
     else:
         return False
 
-    for f in os.listdir(consts.ALTERNATE_HELM_CHART_OVERRIDES_DIR):
-        if f.endswith(consts.HELM_CHART_OVERRIDES_POSTFIX):
-            filename = os.path.join(consts.ALTERNATE_HELM_CHART_OVERRIDES_DIR, f)
-            payload.update({consts.DEPLOY_OVERRIDES: filename})
-            break
-    else:
-        return False
-
     for f in os.listdir(consts.ALTERNATE_HELM_CHART_DIR):
         if consts.HELM_CHART_POSTFIX in str(f):
             filename = os.path.join(consts.ALTERNATE_HELM_CHART_DIR, f)
@@ -1016,6 +1131,8 @@ def get_common_deploy_files(payload, software_version):
     for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
         # Skip the prestage_images option as it is not relevant in this context
         if f == consts.DEPLOY_PRESTAGE:
+            continue
+        if f == consts.DEPLOY_OVERRIDES:
             continue
         filename = None
         dir_path = os.path.join(dccommon_consts.DEPLOY_DIR, software_version)
@@ -1227,7 +1344,7 @@ def pre_deploy_create(payload: dict, context: RequestContext, request: pecan.Req
 
     validate_subcloud_name_availability(context, payload["name"])
 
-    validate_system_controller_patch_status("create")
+    validate_system_controller_deploy_status("create")
 
     validate_subcloud_config(context, payload)
 
@@ -1318,7 +1435,7 @@ def pre_deploy_bootstrap(
     # Patch status and fresh_install_k8s_version may have been changed
     # between deploy create and deploy bootstrap commands. Validate them
     # again:
-    validate_system_controller_patch_status("bootstrap")
+    validate_system_controller_deploy_status("bootstrap")
     validate_k8s_version(payload)
 
 

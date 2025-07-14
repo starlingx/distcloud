@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -25,9 +25,8 @@ FAKE_ALL_LABEL = [{}]
 
 
 class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
-
     def setUp(self):
-        super(TestFwUpdateImportingFirmwareStage, self).setUp()
+        super().setUp()
 
         # Sets up the necessary variables for mocking
         self.fake_device = self._create_fake_device(VENDOR_1, VENDOR_DEVICE_1)
@@ -57,31 +56,18 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         # set the next state in the chain (when this state is successful)
         self.on_success_state = consts.STRATEGY_STATE_CREATING_FW_UPDATE_STRATEGY
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, consts.STRATEGY_STATE_IMPORTING_FIRMWARE
         )
 
-        # Add mock API endpoints for sysinv client calls invcked by this state
-        self.sysinv_client.get_device_images = mock.MagicMock()
-        self.sysinv_client.get_device_image_states = mock.MagicMock()
-        self.sysinv_client.apply_device_image = mock.MagicMock()
-        self.sysinv_client.remove_device_image = mock.MagicMock()
-        self.sysinv_client.upload_device_image = mock.MagicMock()
-
         # get_hosts is only called on subcloud
-        self.sysinv_client.get_hosts = mock.MagicMock()
         self.sysinv_client.get_hosts.return_value = [FAKE_SUBCLOUD_CONTROLLER]
 
         # get_host_device_list is only called on subcloud
-        self.sysinv_client.get_host_device_list = mock.MagicMock()
         self.sysinv_client.get_host_device_list.return_value = [self.fake_device]
 
         # the labels for the device on the subcloud
-        self.sysinv_client.get_device_label_list = mock.MagicMock()
         self.sysinv_client.get_device_label_list.return_value = [fake_device_label]
 
     def test_importing_firmware_empty_system_controller(self):
@@ -95,7 +81,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Any applied images on subcloud should be removed
         self.assertEqual(3, self.sysinv_client.remove_device_image.call_count)
@@ -121,7 +109,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # There are no images applied on subcloud, so no calls to remove
         self.sysinv_client.remove_device_image.assert_not_called()
@@ -149,7 +139,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # There should be no calls to upload or remove
         self.sysinv_client.remove_device_image.assert_not_called()
@@ -170,7 +162,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.fake_device_image_list,
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.get_device_image_states.assert_not_called()
         self.sysinv_client.upload_device_image.assert_not_called()
@@ -190,7 +184,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.empty_fake_device_image_list,
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.remove_device_image.assert_not_called()
         self.sysinv_client.upload_device_image.assert_not_called()
@@ -213,7 +209,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.fake_device_image
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.remove_device_image.assert_not_called()
         self.sysinv_client.apply_device_image.assert_not_called()
@@ -236,7 +234,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.fake_device_image
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.remove_device_image.assert_not_called()
         self.sysinv_client.apply_device_image.assert_not_called()
@@ -259,7 +259,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.fake_device_image_list,
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.assertEqual(
             self.sysinv_client.remove_device_image.call_count,
@@ -289,7 +291,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.empty_fake_device_image_list,
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.remove_device_image.assert_not_called()
         self.sysinv_client.apply_device_image.assert_called_once()
@@ -317,7 +321,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.empty_fake_device_image_list,
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.remove_device_image.assert_not_called()
         self.sysinv_client.upload_device_image.assert_not_called()
@@ -341,7 +347,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.empty_fake_device_image_list,
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.remove_device_image.assert_not_called()
         self.sysinv_client.upload_device_image.assert_not_called()
@@ -360,7 +368,9 @@ class TestFwUpdateImportingFirmwareStage(TestFwUpdateState):
             self.empty_fake_device_image_list,
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         self.sysinv_client.remove_device_image.assert_not_called()
         self.sysinv_client.upload_device_image.assert_not_called()

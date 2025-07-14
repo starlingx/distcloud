@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,11 +8,10 @@ import socket
 from keystoneauth1 import exceptions as keystone_exceptions
 from oslo_log import log as logging
 
-from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dcmanager.common import utils
+from dccommon.endpoint_cache import EndpointCache
+from dccommon import utils as cutils
 
 LOG = logging.getLogger(__name__)
 
@@ -25,33 +24,19 @@ CLIENT_READ_MAX_ATTEMPTS = 2
 
 
 def get_sysinv_client():
-    ks_client = get_keystone_client()
+    admin_session = EndpointCache.get_admin_session()
+    region_name = cutils.get_region_one_name()
     return SysinvClient(
-        dccommon_consts.DEFAULT_REGION_NAME,
-        ks_client.session,
-        endpoint=ks_client.endpoint_cache.get_endpoint("sysinv"),
+        region_name,
+        admin_session,
         timeout=CLIENT_READ_TIMEOUT_SECONDS,
     )
 
 
 def get_software_client():
-    ks_client = get_keystone_client()
+    admin_session = EndpointCache.get_admin_session()
+    region_name = cutils.get_region_one_name()
     return SoftwareClient(
-        ks_client.session,
-        endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
+        admin_session,
+        region=region_name,
     )
-
-
-def get_keystone_client(region_name=dccommon_consts.DEFAULT_REGION_NAME):
-    """Construct a (cached) keystone client (and token)"""
-
-    try:
-        os_client = OpenStackDriver(
-            region_name=region_name,
-            region_clients=None,
-            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-        )
-        return os_client.keystone_client
-    except Exception:
-        LOG.warning("Failure initializing KeystoneClient for region: %s" % region_name)
-        raise

@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -135,16 +135,17 @@ class SysinvClient(base.DriverBase):
 
         kwargs = {}
 
+        if not endpoint:
+            endpoint = session.get_endpoint(
+                service_type=consts.ENDPOINT_TYPE_PLATFORM,
+                region_name=region,
+                interface=endpoint_type,
+            )
+
         # If the token is specified, use it instead of using the session
         if token:
             kwargs["token"] = token
             kwargs["timeout"] = timeout
-            if not endpoint:
-                endpoint = session.get_endpoint(
-                    service_type=consts.ENDPOINT_TYPE_PLATFORM,
-                    region_name=region,
-                    interface=endpoint_type,
-                )
         else:
             session.timeout = timeout
             kwargs["session"] = session
@@ -619,11 +620,7 @@ class SysinvClient(base.DriverBase):
         # [{"id": 0, "key": "GgDAOfmyr19u0hXdm5r_zMgaMLjglVFpp5qn_N4GBJQ="},
         # {"id": 1, "key": "7WfL_z54p67gWAkOmQhLA9P0ZygsbbJcKgff0uh28O8="},
         # {"id": 2, "key": ""5gsUQeOZ2FzZP58DN32u8pRKRgAludrjmrZFJSOHOw0="}]
-        LOG.info(
-            "post_fernet_repo driver region={} fernet_repo_list={}".format(
-                self.region_name, key_list
-            )
-        )
+        LOG.info(f"Add fernet keys to region {self.region_name}")
         try:
             self.sysinv_client.fernet.create(key_list)
         except Exception as e:
@@ -636,11 +633,7 @@ class SysinvClient(base.DriverBase):
         :param: key list payload
         :return: Nothing
         """
-        LOG.info(
-            "put_fernet_repo driver region={} fernet_repo_list={}".format(
-                self.region_name, key_list
-            )
-        )
+        LOG.info(f"Update fernet keys of region {self.region_name}")
         try:
             self.sysinv_client.fernet.put(key_list)
         except Exception as e:

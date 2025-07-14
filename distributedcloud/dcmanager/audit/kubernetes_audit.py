@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,11 +18,9 @@
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
-from dccommon.utils import log_subcloud_msg
-from dcmanager.common import utils
-
+from dccommon.endpoint_cache import EndpointCache
+from dccommon import utils as cutils
 
 LOG = logging.getLogger(__name__)
 
@@ -32,19 +30,6 @@ class KubernetesAuditData(object):
         self.target = target
         self.version = version
         self.state = state
-
-    def to_dict(self):
-        return {
-            "target": self.target,
-            "version": self.version,
-            "state": self.state,
-        }
-
-    @classmethod
-    def from_dict(cls, values):
-        if values is None:
-            return None
-        return cls(**values)
 
 
 class KubernetesAudit(object):
@@ -61,19 +46,12 @@ class KubernetesAudit(object):
 
         """
         try:
-            m_os_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
-            endpoint = m_os_ks_client.endpoint_cache.get_endpoint("sysinv")
+            admin_session = EndpointCache.get_admin_session()
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
-                m_os_ks_client.session,
-                endpoint=endpoint,
+                region=cutils.get_region_one_name(), session=admin_session
             )
         except Exception:
-            LOG.exception("Failed init OS Client, skip kubernetes audit.")
+            LOG.exception("Failed init Sysinv Client, skip kubernetes audit.")
             return None
 
         regionone_data = []
@@ -100,7 +78,7 @@ class KubernetesAudit(object):
             subcloud_kube_upgrades = sysinv_client.get_kube_upgrades()
         except Exception:
             msg = "Failed to get kubernetes upgrades, skip kubernetes audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
             return skip_audit
 
         # If there is a kubernetes upgrade operation in the subcloud,
@@ -112,7 +90,7 @@ class KubernetesAudit(object):
             subcloud_kubernetes_versions = sysinv_client.get_kube_versions()
         except Exception:
             msg = "Failed to get kubernetes versions, skip kubernetes audit."
-            log_subcloud_msg(LOG.exception, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.exception, msg, subcloud_name)
             return skip_audit
         return None, subcloud_kubernetes_versions
 
@@ -140,7 +118,7 @@ class KubernetesAudit(object):
             # If there is a kubernetes upgrade operation in the subcloud,
             # the subcloud can immediately be flagged as out of sync
             msg = "Kubernetes upgrade exists"
-            log_subcloud_msg(LOG.debug, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
             return dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         # We will consider it out of sync even for 'partial' state
@@ -153,29 +131,3 @@ class KubernetesAudit(object):
                 return dccommon_consts.SYNC_STATUS_IN_SYNC
 
         return dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-
-    def subcloud_kubernetes_audit(
-        self,
-        sysinv_client: SysinvClient,
-        subcloud_name: str,
-        regionone_audit_data: dict,
-    ):
-        LOG.info(f"Triggered kubernetes audit for: {subcloud_name}")
-
-        if not regionone_audit_data:
-            LOG.debug(
-                "No active target version found in region one audit data, "
-                "exiting kubernetes audit"
-            )
-            return dccommon_consts.SYNC_STATUS_IN_SYNC
-
-        sync_status = self.get_subcloud_sync_status(
-            sysinv_client, regionone_audit_data, subcloud_name
-        )
-
-        if sync_status:
-            LOG.info(
-                f"Kubernetes audit completed for: {subcloud_name}, requesting "
-                f"sync_status update to {sync_status}"
-            )
-            return sync_status

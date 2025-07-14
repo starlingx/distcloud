@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2022,2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,13 +14,13 @@ POLICY_ROOT = "dc_api:subcloud_backup:%s"
 subcloud_backup_rules = [
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "create",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_OPERATOR_OR_CONFIGURATOR,
         description="Create new subcloud backup.",
         operations=[{"method": "POST", "path": "/v1.0/subcloud-backup"}],
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "delete",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_OPERATOR_OR_CONFIGURATOR,
         description="Delete a subcloud backup.",
         operations=[
             {
@@ -31,7 +31,7 @@ subcloud_backup_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "restore",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Restore a subcloud backup.",
         operations=[{"method": "PATCH", "path": "/v1.0/subcloud-backup/restore"}],
     ),

@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,9 +17,9 @@ import pecan
 from pecan import expose
 from pecan import request
 
-from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import endpoint_cache
+from dccommon import utils as cutils
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_peer_group as subcloud_peer_group_policy
 from dcmanager.api import policy
@@ -73,17 +73,9 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
 
     def _get_local_system(self):
         try:
-            ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            )
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
-                ks_client.keystone_client.session,
-                endpoint=ks_client.keystone_client.endpoint_cache.get_endpoint(
-                    "sysinv"
-                ),
+                region=cutils.get_region_one_name(),
+                session=endpoint_cache.EndpointCache.get_admin_session(),
             )
             system = sysinv_client.get_system()
             return system
@@ -158,12 +150,13 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
     @index.when(method="POST", template="json")
     def post(self):
         """Create a new subcloud peer group."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_peer_group_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         payload = json.loads(request.body)
         if not payload:
@@ -253,12 +246,13 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         :param group_ref: ID or name of subcloud group to update
         """
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_peer_group_policy.POLICY_ROOT % "modify",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
+
         if group_ref is None:
             pecan.abort(
                 httpclient.BAD_REQUEST, _("Subcloud Peer Group Name or ID required")
@@ -633,12 +627,13 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
     @index.when(method="delete", template="json")
     def delete(self, group_ref):
         """Delete the subcloud peer group."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subcloud_peer_group_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         if group_ref is None:
             pecan.abort(

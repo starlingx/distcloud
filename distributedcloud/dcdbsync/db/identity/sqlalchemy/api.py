@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,6 +23,7 @@ Implementation of SQLAlchemy backend.
 """
 
 import sys
+import threading
 
 from oslo_db.sqlalchemy import enginefacade
 from oslo_log import log as logging
@@ -35,6 +36,7 @@ from dcdbsync.common.i18n import _
 LOG = logging.getLogger(__name__)
 
 _main_context_manager = None
+DB_TABLE_LOCK = threading.Lock()
 
 
 def _get_main_context_manager():
@@ -52,8 +54,6 @@ _CONTEXT = None
 def _get_context():
     global _CONTEXT
     if _CONTEXT is None:
-        import threading
-
         _CONTEXT = threading.local()
     return _CONTEXT
 
@@ -63,11 +63,20 @@ class TableRegistry(object):
         self.metadata = MetaData()
 
     def get(self, connection, tablename):
-        try:
-            table = self.metadata.tables[tablename]
-        except KeyError:
-            table = Table(tablename, self.metadata, autoload_with=connection)
-        return table
+        # Use a lock to prevent concurrent SQLAlchemy reflection races on metadata
+        # Accessing a value needs to be inside the lock as well to prevent loading
+        # an empty schema as the reflection call is not entirely synchronous
+        with DB_TABLE_LOCK:
+            try:
+                table = self.metadata.tables[tablename]
+            except KeyError:
+                table = Table(
+                    tablename,
+                    self.metadata,
+                    autoload_with=connection,
+                    extend_existing=True,
+                )
+            return table
 
 
 registry = TableRegistry()
@@ -86,7 +95,7 @@ def get_write_connection():
 def row2dict(table, row):
     d = {}
     for c in table.columns:
-        c_value = getattr(row, c.name)
+        c_value = row[c.name]
         d[c.name] = c_value
 
     return d

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,27 +11,16 @@ import uuid
 import mock
 from oslo_messaging import RemoteError
 
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.api.controllers.v1 import peer_group_association
 from dcmanager.common import consts
-from dcmanager.common import phased_subcloud_deploy as psd_common
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import GetMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
+from dcmanager.tests.unit.common import fake_subcloud
 
-# SAMPLE SYSTEM PEER DATA
-SAMPLE_SYSTEM_PEER_UUID = str(uuid.uuid4())
-SAMPLE_SYSTEM_PEER_NAME = "SystemPeer1"
-SAMPLE_MANAGER_ENDPOINT = "http://127.0.0.1:5000"
-SAMPLE_MANAGER_USERNAME = "admin"
-SAMPLE_MANAGER_PASSWORD = "password"
-SAMPLE_PEER_CONTROLLER_GATEWAY_IP = "128.128.128.1"
-SAMPLE_ADMINISTRATIVE_STATE = "enabled"
-SAMPLE_HEARTBEAT_INTERVAL = 10
-SAMPLE_HEARTBEAT_FAILURE_THRESHOLD = 3
-SAMPLE_HEARTBEAT_FAILURES_POLICY = "alarm"
-SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT = 600
 SAMPLE_AVAILABILITY_STATE_AVAILABLE = "available"
 
 # SAMPLE SUBCLOUD PEER GROUP DATA
@@ -66,35 +55,6 @@ class PeerGroupAssociationAPIMixin(APIMixin):
 
     def setUp(self):
         super().setUp()
-
-    def _get_test_system_peer_dict(self, **kw):
-        # id should not be part of the structure
-        system_peer = {
-            "peer_uuid": kw.get("peer_uuid", SAMPLE_SYSTEM_PEER_UUID),
-            "peer_name": kw.get("peer_name", SAMPLE_SYSTEM_PEER_NAME),
-            "endpoint": kw.get("manager_endpoint", SAMPLE_MANAGER_ENDPOINT),
-            "username": kw.get("manager_username", SAMPLE_MANAGER_USERNAME),
-            "password": kw.get("manager_password", SAMPLE_MANAGER_PASSWORD),
-            "gateway_ip": kw.get(
-                "peer_controller_gateway_ip", SAMPLE_PEER_CONTROLLER_GATEWAY_IP
-            ),
-            "administrative_state": kw.get(
-                "administrative_state", SAMPLE_ADMINISTRATIVE_STATE
-            ),
-            "heartbeat_interval": kw.get(
-                "heartbeat_interval", SAMPLE_HEARTBEAT_INTERVAL
-            ),
-            "heartbeat_failure_threshold": kw.get(
-                "heartbeat_failure_threshold", SAMPLE_HEARTBEAT_FAILURE_THRESHOLD
-            ),
-            "heartbeat_failure_policy": kw.get(
-                "heartbeat_failure_policy", SAMPLE_HEARTBEAT_FAILURES_POLICY
-            ),
-            "heartbeat_maintenance_timeout": kw.get(
-                "heartbeat_maintenance_timeout", SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT
-            ),
-        }
-        return system_peer
 
     def _get_test_subcloud_peer_group_dict(self, **kw):
         # id should not be part of the structure
@@ -148,7 +108,7 @@ class PeerGroupAssociationAPIMixin(APIMixin):
         return []
 
     def _create_db_related_objects(self, context):
-        system_peer_fields = self._get_test_system_peer_dict()
+        system_peer_fields = fake_subcloud.get_test_system_peer_dict("db")
         peer = db_api.system_peer_create(context, **system_peer_fields)
 
         peer_group_fields = self._get_test_subcloud_peer_group_dict()
@@ -194,6 +154,7 @@ class BaseTestPeerGroupAssociationController(
 
         self.url = self.API_PREFIX
         self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
+        self._mock_object(EndpointCache, "get_admin_session")
 
         self.single_obj = None
         self.peer_id, self.peer_group_id = self._create_db_related_objects(self.ctx)
@@ -512,7 +473,6 @@ class BaseTestPeerGroupAssociationPatch(BaseTestPeerGroupAssociationController):
         self.method = self.app.patch_json
         self.params = self.get_update_object()
 
-        self._mock_object(psd_common, "OpenStackDriver")
         self.mock_sysinv_client = self._mock_object(
             peer_group_association, "SysinvClient"
         )

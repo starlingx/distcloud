@@ -129,6 +129,7 @@ serviceUnavailable (503)
   - bmc_password: bmc_password
   - bootstrap-address: bootstrap_address
   - bootstrap_values: bootstrap_values
+  - cloud_init_config: cloud_init_config
   - deploy_config: deploy_config
   - description: subcloud_description
   - external_oam_floating_address: external_oam_floating_address
@@ -1084,6 +1085,8 @@ serviceUnavailable (503)
   - subcloud: backup_subcloud_name_or_id
   - group: backup_subcloud_group_name_or_id
   - restore_values: backup_restore_values
+  - auto: auto_restore
+  - factory: factory_restore
 
 Request Example
 ----------------
@@ -1258,7 +1261,6 @@ serviceUnavailable (503)
   - stop-on-failure: stop_on_failure
   - subcloud-apply-type: subcloud_apply_type
   - type: sw_update_strategy_type
-  - upload-only: patch_strategy_upload_only
   - force: force_sync_status
 
 Request Example
@@ -1336,10 +1338,10 @@ Response Example
 Subcloud Update Strategy Actions
 --------------------------------
 
-Subcloud patch strategy can be actioned.
+Subcloud strategy can be actioned.
 
 ****************************************
-Executes an action on a patch strategy
+Executes an action on a strategy
 ****************************************
 
 .. rest_method:: POST /v1.0/sw-update-strategy/actions
@@ -1391,7 +1393,7 @@ Response Example
 Subcloud Software Update Strategy Steps
 ---------------------------------------
 
-Subcloud patch strategy steps can be retrieved.
+Subcloud strategy steps can be retrieved.
 
 *******************************************************
 Lists all software update strategy steps for all clouds
@@ -1434,7 +1436,7 @@ Response Example
             :language: json
 
 ******************************************************************
-Shows the details of patch strategy steps for a particular cloud
+Shows the details of strategy steps for a particular cloud
 ******************************************************************
 
 .. rest_method:: GET /v1.0/sw-update-strategy/steps/​{cloud_name}​
@@ -1524,9 +1526,9 @@ Response Example
             :language: json
 
 
-******************************************************************************************************************************
-Shows sw-update options (defaults or per subcloud). Use ``RegionOne`` as subcloud for default options which are pre-configured
-******************************************************************************************************************************
+*************************************************************************************************************************************
+Shows sw-update options (defaults or per subcloud). Use ``SystemController`` as subcloud for default options which are pre-configured
+*************************************************************************************************************************************
 
 .. rest_method:: GET /v1.0/sw-update-options/​{subcloud}​
 
@@ -1570,9 +1572,9 @@ Response Example
             :language: json
 
 
-******************************************************************************************************
-Updates sw-update options, defaults or per subcloud. Use ``RegionOne`` as subcloud for default options
-******************************************************************************************************
+*************************************************************************************************************
+Updates sw-update options, defaults or per subcloud. Use ``SystemController`` as subcloud for default options
+*************************************************************************************************************
 
 .. rest_method:: POST /v1.0/sw-update-options/​{subcloud}​
 
@@ -2290,6 +2292,83 @@ Response Example
 ----------------
 
 .. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-resume-response.json
+      :language: json
+
+
+**********************************
+Enroll a subcloud
+**********************************
+
+.. rest_method:: PATCH /v1.0/phased-subcloud-deploy/{subcloud}/enroll
+
+Enrolls a subcloud that was created but not yet enrolled. This operation
+registers the subcloud with the system controller and prepares it for
+management. The subcloud must be in a valid state for enrollment.
+
+**Normal response codes**
+
+200
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
+HTTPUnprocessableEntity (422), internalServerError (500),
+serviceUnavailable (503)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud: subcloud_uri
+  - bootstrap-address: bootstrap_address
+  - bootstrap_values: bootstrap_values
+  - cloud_init_config: cloud_init_config
+  - install_values: install_values
+  - sysadmin_password: sysadmin_password
+  - bmc_password: bmc_password
+
+Accepts Content-Type multipart/form-data
+
+Request Example
+----------------
+
+.. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-enroll-request.json
+      :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - id: subcloud_id
+  - group_id: group_id
+  - name: subcloud_name
+  - description: subcloud_description
+  - location: subcloud_location
+  - software-version: software_version
+  - availability-status: availability_status
+  - error-description: error_description
+  - deploy-status: deploy_status
+  - backup-status: backup_status
+  - backup-datetime: backup_datetime
+  - prestage-status: prestage_status
+  - prestage-versions: prestage_versions
+  - region-name: region_name
+  - openstack-installed: openstack_installed
+  - management-state: management_state
+  - systemcontroller-gateway-ip: systemcontroller_gateway_ip
+  - management-start-ip: management_start_ip
+  - management-end-ip: management_end_ip
+  - management-subnet: management_subnet
+  - management-gateway-ip: management_gateway_ip
+  - created-at: created_at
+  - updated-at: updated_at
+  - data_install: data_install
+  - data_upgrade: data_upgrade
+
+Response Example
+----------------
+
+.. literalinclude:: samples/phased-subcloud-deploy/phased-subcloud-deploy-patch-enroll-response.json
       :language: json
 
 ------------

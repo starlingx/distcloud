@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -23,7 +23,6 @@ import os
 import re
 
 from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
-from netaddr import IPNetwork
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -35,9 +34,10 @@ import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.fm import FmClient
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack import vim
+from dccommon.endpoint_cache import EndpointCache
+from dccommon import utils as cutils
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subclouds as subclouds_policy
 from dcmanager.api import policy
@@ -197,13 +197,16 @@ class SubcloudsController(object):
 
         # Then check the system config update strategy
         try:
-            keystone_client = OpenStackDriver(
-                region_name=subcloud.region_name,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-                subcloud_management_ip=subcloud.management_start_ip,
-            ).keystone_client
-            vim_client = vim.VimClient(subcloud.region_name, keystone_client.session)
+            keystone_endpoint = cutils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
+            )
+            admin_session = EndpointCache.get_admin_session(auth_url=keystone_endpoint)
+            vim_client = vim.VimClient(
+                admin_session,
+                endpoint=cutils.build_subcloud_endpoint(
+                    subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_VIM
+                ),
+            )
             strategy = vim_client.get_strategy(
                 strategy_name=vim.STRATEGY_NAME_SYS_CONFIG_UPDATE,
                 raise_error_if_missing=False,
@@ -278,28 +281,26 @@ class SubcloudsController(object):
             LOG.exception(msg)
             pecan.abort(400, msg)
 
-        subcloud_subnets = []
         subclouds = db_api.subcloud_get_all(context)
-        for subcloud in subclouds:
-            subcloud_subnets.append(IPNetwork(subcloud.management_subnet))
 
         psd_common.validate_admin_network_config(
             payload.get("management_subnet"),
             payload.get("management_start_ip"),
             payload.get("management_end_ip"),
             payload.get("management_gateway_ip"),
-            subcloud_subnets,
-            None,
+            existing_subclouds=subclouds,
         )
 
-    def _get_deploy_config_sync_status(self, context, subcloud_name, keystone_client):
+    def _get_deploy_config_sync_status(self, subcloud, admin_session):
         """Get the deploy configuration insync status of the subcloud"""
         detected_alarms = None
         try:
             fm_client = FmClient(
-                subcloud_name,
-                keystone_client.session,
-                endpoint=keystone_client.endpoint_cache.get_endpoint("fm"),
+                subcloud.name,
+                admin_session,
+                endpoint=cutils.build_subcloud_endpoint(
+                    subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_FM
+                ),
             )
             detected_alarms = fm_client.get_alarms_by_id(
                 FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
@@ -403,16 +404,7 @@ class SubcloudsController(object):
                     )
                     self._append_static_err_content(subcloud_dict[subcloud_id])
 
-                    # NOTE Until all patch/load audits are fully removed,
-                    # we need to set the sync status as 'in-sync'
-                    if sync_status == dccommon_consts.SYNC_STATUS_NOT_AVAILABLE:
-                        subcloud_dict[subcloud_id].update(
-                            {consts.SYNC_STATUS: dccommon_consts.SYNC_STATUS_IN_SYNC}
-                        )
-                    else:
-                        subcloud_dict[subcloud_id].update(
-                            {consts.SYNC_STATUS: sync_status}
-                        )
+                    subcloud_dict[subcloud_id].update({consts.SYNC_STATUS: sync_status})
                     subcloud_dict[subcloud_id][consts.ENDPOINT_SYNC_STATUS] = []
 
                 subcloud_dict[subcloud_id][consts.ENDPOINT_SYNC_STATUS].append(
@@ -424,11 +416,7 @@ class SubcloudsController(object):
 
                 # If any of the endpoint sync status is out of sync, then
                 # the subcloud sync status is out of sync
-                # NOTE(nicodemos): Until all patch/load audits are fully removed,
-                # we need to skip this step if the sync status is 'not-available'.
-                if sync_status == dccommon_consts.SYNC_STATUS_NOT_AVAILABLE:
-                    continue
-                elif sync_status != subcloud_dict[subcloud_id][consts.SYNC_STATUS]:
+                if sync_status != subcloud_dict[subcloud_id][consts.SYNC_STATUS]:
                     subcloud_dict[subcloud_id][
                         consts.SYNC_STATUS
                     ] = dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
@@ -500,22 +488,23 @@ class SubcloudsController(object):
                 oam_floating_ip = "unavailable"
                 deploy_config_sync_status = "unknown"
                 if subcloud.availability_status == dccommon_consts.AVAILABILITY_ONLINE:
-
-                    # Get the keystone client that will be used
-                    # for _get_deploy_config_sync_status and
-                    # utils.get_oam_floating_ip_primary
-                    sc_ks_client = psd_common.get_ks_client(
-                        subcloud_region, subcloud.management_start_ip
+                    keystone_endpoint = cutils.build_subcloud_endpoint(
+                        subcloud.management_start_ip,
+                        dccommon_consts.ENDPOINT_NAME_KEYSTONE,
                     )
+                    admin_session = EndpointCache.get_admin_session(
+                        auth_url=keystone_endpoint
+                    )
+
                     # Only interested in subcloud's primary OAM pool's address
                     oam_floating_ip_primary = utils.get_oam_floating_ip_primary(
-                        subcloud, sc_ks_client
+                        subcloud, admin_session
                     )
                     if oam_floating_ip_primary is not None:
                         oam_floating_ip = oam_floating_ip_primary
 
                     deploy_config_state = self._get_deploy_config_sync_status(
-                        context, subcloud_region, sc_ks_client
+                        subcloud, admin_session
                     )
                     if deploy_config_state is not None:
                         deploy_config_sync_status = deploy_config_state
@@ -534,15 +523,10 @@ class SubcloudsController(object):
     @staticmethod
     def is_valid_software_deploy_state():
         try:
-            m_os_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME, region_clients=None
-            ).keystone_client
-            software_endpoint = m_os_ks_client.endpoint_cache.get_endpoint(
-                dccommon_consts.ENDPOINT_NAME_USM
-            )
+            admin_session = EndpointCache.get_admin_session()
             software_client = software_v1.SoftwareClient(
-                m_os_ks_client.session,
-                endpoint=software_endpoint,
+                admin_session,
+                region=cutils.get_region_one_name(),
             )
             software_list = software_client.list()
             for release in software_list:
@@ -582,24 +566,14 @@ class SubcloudsController(object):
     def post(self):
         """Create and deploy a new subcloud."""
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subclouds_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         self.validate_software_deploy_state()
-
-        if not SubcloudsController.is_valid_software_deploy_state():
-            pecan.abort(
-                400,
-                _(
-                    "A local software deployment operation is in progress. "
-                    "Please finish the software deployment operation before "
-                    "(re)installing/updating the subcloud."
-                ),
-            )
 
         bootstrap_sc_name = psd_common.get_bootstrap_subcloud_name(request)
 
@@ -607,12 +581,13 @@ class SubcloudsController(object):
             request, None, SUBCLOUD_ADD_GET_FILE_CONTENTS
         )
 
-        psd_common.validate_migrate_parameter(payload, request)
+        psd_common.validate_migrate_parameter(payload)
 
         psd_common.validate_secondary_parameter(payload, request)
 
         if payload.get("enroll"):
             psd_common.validate_enroll_parameter(payload)
+            psd_common.upload_cloud_init_config(request, payload)
 
         # Compares to match both supplied and bootstrap name param
         # of the subcloud if migrate is on
@@ -627,14 +602,10 @@ class SubcloudsController(object):
                 )
 
         # No need sysadmin_password when add a secondary subcloud
+        # If the subcloud is not secondary, a unique UUID
+        # for the subcloud region will be generated.
         if "secondary" not in payload:
             psd_common.validate_sysadmin_password(payload)
-
-        # Use the region_name if it has been provided in the payload.
-        # The typical scenario is adding a secondary subcloud from
-        # peer site where subcloud region_name is known and can be
-        # put into the payload of the subcloud add request.
-        if "region_name" not in payload:
             psd_common.subcloud_region_create(payload, context)
 
         psd_common.pre_deploy_create(payload, context, request)
@@ -671,13 +642,8 @@ class SubcloudsController(object):
         :param verb: Specifies the patch action to be taken
         or subcloud update operation
         """
-
-        policy.authorize(
-            subclouds_policy.POLICY_ROOT % "modify",
-            {},
-            restcomm.extract_credentials_for_policy(),
-        )
         context = restcomm.extract_context_from_environ()
+        context.is_admin = self.authorize_user(verb)
         subcloud = None
 
         if subcloud_ref is None:
@@ -1339,7 +1305,7 @@ class SubcloudsController(object):
             try:
                 self.dcmanager_rpc_client.prestage_subcloud(context, payload)
                 # local update to prestage_status - this is just for CLI response:
-                subcloud.prestage_status = consts.PRESTAGE_STATE_PACKAGES
+                subcloud.prestage_status = consts.PRESTAGE_STATE_PRESTAGING
 
                 subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
                 subcloud_dict.update(
@@ -1363,12 +1329,13 @@ class SubcloudsController(object):
 
         :param subcloud_ref: ID or name of subcloud to delete.
         """
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             subclouds_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
         subcloud = None
 
         if subcloud_ref.isdigit():
@@ -1454,3 +1421,20 @@ class SubcloudsController(object):
 
         result = {"result": "OK"}
         return result
+
+    def authorize_user(self, verb):
+        """check the user has access to the API call
+
+        :param verb: None,redeploy,prestage,reconfigure,restore
+        """
+        rule = subclouds_policy.POLICY_ROOT % "modify"
+        if verb is None:
+            payload = self._get_patch_data(request)
+            if not payload:
+                pecan.abort(400, _("Body required"))
+            if payload.get("management-state"):
+                rule = subclouds_policy.POLICY_ROOT % "manage_unmanage"
+        has_api_access = policy.authorize(
+            rule, {}, restcomm.extract_credentials_for_policy()
+        )
+        return has_api_access

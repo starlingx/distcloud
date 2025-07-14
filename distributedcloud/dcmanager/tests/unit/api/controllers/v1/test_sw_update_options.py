@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,7 +23,7 @@ class SwUpdateOptionsMixin(object):
     def test_method_succeeds_with_subcloud_ref_as_default_region_name(self):
         """Test method succeeds with subcloud ref as default region name"""
 
-        self.url = f"{self.url}/{dccommon_consts.DEFAULT_REGION_NAME}"
+        self.url = f"{self.url}/{dccommon_consts.SYSTEM_CONTROLLER_NAME}"
 
         response = self._send_request()
 
@@ -250,7 +250,7 @@ class TestSwUpdateOptionsPostUpdate(BaseTestSwUpdateOptionsPost, SwUpdateOptions
     ):
         """Test post update fails in default region with db api generic exception"""
 
-        self.url = f"{self.url}/{dccommon_consts.DEFAULT_REGION_NAME}"
+        self.url = f"{self.url}/{dccommon_consts.SYSTEM_CONTROLLER_NAME}"
 
         mock_db_api.side_effect = FakeException()
 
@@ -293,7 +293,7 @@ class TestSwUpdateOptionsPostCreate(BaseTestSwUpdateOptionsPost, SwUpdateOptions
         if db_api.sw_update_opts_default_get(self.ctx) is not None:
             db_api.sw_update_opts_default_destroy(self.ctx)
 
-        self.url = f"{self.url}/{dccommon_consts.DEFAULT_REGION_NAME}"
+        self.url = f"{self.url}/{dccommon_consts.SYSTEM_CONTROLLER_NAME}"
 
         mock_db_api.side_effect = FakeException()
 
@@ -334,13 +334,13 @@ class TestSwUpdateOptionsDelete(
         """Test delete succeeds with generic exception for default region name
 
         When a delete request is made for the default region name and there isn't a
-        sw_update_opts_default object in the database, a generic exception is catched
-        and the execution returnns
+        sw_update_opts_default object in the database, a generic exception is caught
+        and the execution returns
         """
 
         db_api.sw_update_opts_default_destroy(self.ctx)
 
-        self.url = f"{self.url}/{dccommon_consts.DEFAULT_REGION_NAME}"
+        self.url = f"{self.url}/{dccommon_consts.SYSTEM_CONTROLLER_NAME}"
 
         response = self._send_request()
 

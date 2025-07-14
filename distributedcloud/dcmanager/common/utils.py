@@ -20,6 +20,7 @@ import grp
 import itertools
 import json
 import os
+from pathlib import Path
 import pwd
 import re
 import resource as sys_resource
@@ -31,7 +32,6 @@ import uuid
 import xml.etree.ElementTree as ElementTree
 
 from keystoneauth1 import exceptions as keystone_exceptions
-from keystoneclient.v3.client import Client as KeystoneClient
 import netaddr
 from oslo_concurrency import lockutils
 from oslo_config import cfg
@@ -44,12 +44,13 @@ import tsconfig.tsconfig as tsc
 import yaml
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import kubeoperator
+from dccommon import utils as cutils
 from dcmanager.audit import alarm_aggregation
 from dcmanager.common import consts
 from dcmanager.common import context
@@ -106,6 +107,9 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
 
 def validate_address_str(ip_address_str, networks):
     """Determine whether an dual-stack address is valid."""
+    if not ip_address_str:
+        raise exceptions.ValidateFail("Invalid address - IP address not specified")
+
     address_values = ip_address_str.split(",")
 
     if len(address_values) > 2:
@@ -665,14 +669,17 @@ def subcloud_db_list_to_dict(subclouds):
     }
 
 
-def get_oam_floating_ip_primary(subcloud, sc_ks_client):
+def get_oam_floating_ip_primary(subcloud, admin_session):
     """Get the subcloud's oam primary floating ip"""
 
     # First need to retrieve the Subcloud's Keystone session
     try:
-        endpoint = sc_ks_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
-            subcloud.region_name, sc_ks_client.session, endpoint=endpoint
+            region=subcloud.region_name,
+            session=admin_session,
+            endpoint=cutils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_SYSINV
+            ),
         )
         # We don't want to call sysinv_client.get_oam_address_pools()
         # here, as the subcloud's software version could be < 24.09.
@@ -812,13 +819,8 @@ def get_region_from_subcloud_address(payload):
         err_cause = "exception %s occurred" % type(e).__name__
         subcloud_region = None
 
-    system_regions = [
-        dccommon_consts.DEFAULT_REGION_NAME,
-        dccommon_consts.SYSTEM_CONTROLLER_NAME,
-    ]
-
-    if subcloud_region in system_regions:
-        err_cause = "region %s is not valid for a subcloud" % subcloud_region
+    if subcloud_region in cutils.get_system_controller_region_names():
+        err_cause = f"region {subcloud_region} is not valid for a subcloud"
         subcloud_region = None
 
     if err_cause:
@@ -1113,6 +1115,26 @@ def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
     return True
 
 
+def find_central_subcloud_backup(subcloud_name: str, software_version: str) -> Path:
+    """Find the central backup file for a subcloud, to be used by auto-restore.
+
+    Raises:
+        FileNotFoundError: If backup directory or files don't exist.
+    """
+    search_dir = Path(consts.CENTRAL_BACKUP_DIR) / subcloud_name / software_version
+
+    if not search_dir.exists():
+        raise FileNotFoundError(f"Backup directory does not exist: {search_dir}")
+
+    pattern = f"{re.escape(subcloud_name)}_platform_backup_*.tgz"
+    backup_files = list(search_dir.glob(pattern))
+
+    if not backup_files:
+        raise FileNotFoundError(f"No backup files found in {search_dir}")
+
+    return backup_files[0]
+
+
 def get_matching_iso(software_version=None):
     try:
         if not software_version:
@@ -1131,21 +1153,15 @@ def get_matching_iso(software_version=None):
         return None, str(e)
 
 
-def is_subcloud_healthy(subcloud_region, management_ip: str = None):
+def is_subcloud_healthy(subcloud_region, subcloud_ip: str = None):
 
     system_health = ""
     try:
-        os_client = OpenStackDriver(
-            region_name=subcloud_region,
-            region_clients=None,
-            fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-            subcloud_management_ip=management_ip,
+        subcloud_ks_endpoint = cutils.build_subcloud_endpoint(
+            subcloud_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
         )
-        keystone_client = os_client.keystone_client
-        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
-        sysinv_client = SysinvClient(
-            subcloud_region, keystone_client.session, endpoint=endpoint
-        )
+        admin_session = EndpointCache.get_admin_session(subcloud_ks_endpoint)
+        sysinv_client = SysinvClient(subcloud_region, admin_session)
         system_health = sysinv_client.get_system_health()
     except Exception as e:
         LOG.exception(e)
@@ -1169,9 +1185,7 @@ def is_subcloud_healthy(subcloud_region, management_ip: str = None):
     return False
 
 
-def get_system_controller_software_list(
-    region_name=dccommon_consts.DEFAULT_REGION_NAME,
-):
+def _get_system_controller_software_list() -> list[dict]:
     """Get software list from USM API
 
     This function is responsible for querying the USM API for the list of releases
@@ -1180,24 +1194,17 @@ def get_system_controller_software_list(
     The node is determined from the parameter region_name, whose default value
     represents the region one.
 
-    Args:
-        region_name (str): The name of the region to be consulted. Default is
-        RegionOne.
-
     Returns:
         list of dict: each dict item contains the parameters that identify
         the release from API response
     """
+    region_name = cutils.get_region_one_name()
+
     try:
-        os_client = OpenStackDriver(
-            region_name=region_name,
-            region_clients=None,
-            fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-        )
-        ks_client = os_client.keystone_client
+        admin_session = EndpointCache.get_admin_session()
         software_client = software_v1.SoftwareClient(
-            ks_client.session,
-            endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
+            admin_session,
+            region=region_name,
         )
         return software_client.list()
 
@@ -1238,7 +1245,7 @@ def get_systemcontroller_deployed_releases(
 
 
 def get_systemcontroller_installed_releases_ids() -> List[str]:
-    software_list = get_system_controller_software_list()
+    software_list = _get_system_controller_software_list()
     return get_systemcontroller_deployed_releases(software_list, key="release_id")
 
 
@@ -1354,7 +1361,7 @@ def get_validated_sw_version_for_prestage(
 
     # Query to the USM API to get the software list
     if system_controller_sw_list is None:
-        system_controller_sw_list = get_system_controller_software_list()
+        system_controller_sw_list = _get_system_controller_software_list()
 
     # Gets only the list of deployed major releases.
     deployed_releases = get_major_releases(
@@ -1925,6 +1932,31 @@ def get_major_release(version):
     return ".".join(split_version[0:2])
 
 
+def get_minor_release(release_id: str) -> str:
+    """Returns the YY.MM.pp portion of the given release_id string"""
+    # Pattern for stx-YY.MM.pp like formats
+    match = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{1,3})", release_id)
+    if match:
+        return f"{match.group(1)}-{match.group(2)}.{match.group(3)}"
+
+    # Pattern for stx_YY.MM_PATCH_pp like formats
+    match = re.search(r"(\d{1,2})\.(\d{1,2}).*?(\d{1,4})", release_id)
+    if match:
+        return f"{match.group(1)}.{match.group(2)}.{match.group(3)}"
+
+    return None
+
+
+def get_latest_minor_release(releases: list[str]) -> str:
+    """Returns the maximum YY.MM.pp portion from the given release list"""
+    minor_releases = []
+    for release in releases:
+        minor_release = get_minor_release(release)
+        if minor_release:
+            minor_releases.append(minor_release)
+    return max(minor_releases, default=None)
+
+
 def get_software_version(releases):
     """Returns the maximum YY.MM portion from the given release list"""
     versions = []
@@ -2083,15 +2115,9 @@ def validate_name(
 
 
 def get_local_system():
-    m_ks_client = OpenStackDriver(
-        region_name=dccommon_consts.DEFAULT_REGION_NAME,
-        region_clients=None,
-        fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-    ).keystone_client
-    endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
-    sysinv_client = SysinvClient(
-        dccommon_consts.DEFAULT_REGION_NAME, m_ks_client.session, endpoint=endpoint
-    )
+    admin_session = EndpointCache.get_admin_session()
+    region_name = cutils.get_region_one_name()
+    sysinv_client = SysinvClient(region_name, admin_session)
     system = sysinv_client.get_system()
     return system
 
@@ -2196,30 +2222,6 @@ def format_address(ip_address: str) -> str:
         raise
 
 
-def validate_patch_strategy(payload: dict):
-    patch_id = payload.get("patch_id")
-    if not patch_id:
-        message = (
-            "patch_id parameter is required for "
-            f"{consts.SW_UPDATE_TYPE_PATCH} strategy."
-        )
-        pecan.abort(400, _(message))
-
-    patch_file = (
-        f"{consts.PATCH_VAULT_DIR}/{consts.PATCHING_SW_VERSION}/{patch_id}.patch"
-    )
-    if not os.path.isfile(patch_file):
-        message = f"Patch file {patch_file} is missing in DC Vault patches."
-        pecan.abort(400, _(message))
-
-    remove = payload.get("remove", "").lower() == "true"
-    upload_only = payload.get("upload-only", "").lower() == "true"
-
-    if remove and upload_only:
-        message = "Both remove and upload-only parameters cannot be used together."
-        pecan.abort(400, _(message))
-
-
 def validate_software_strategy(release_id: str):
     if not release_id:
         message = (
@@ -2232,53 +2234,10 @@ def validate_software_strategy(release_id: str):
         pecan.abort(400, _(message))
 
 
-def has_usm_service(
-    subcloud_region: str, keystone_client: KeystoneClient = None
-) -> bool:
-
-    # Lookup keystone client session if not specified
-    if not keystone_client:
-        try:
-            keystone_client = OpenStackDriver(
-                region_name=subcloud_region,
-                region_clients=None,
-                fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-            ).keystone_client.keystone_client
-        except Exception as e:
-            LOG.exception(
-                f"Failed to get keystone client for subcloud_region: {subcloud_region}"
-            )
-            raise exceptions.InternalError() from e
-    try:
-        # Try to get the USM service for the subcloud.
-        keystone_client.services.find(name=dccommon_consts.ENDPOINT_NAME_USM)
-        return True
-    except keystone_exceptions.NotFound:
-        LOG.warning("USM service not found for subcloud_region: %s", subcloud_region)
-        return False
-
-
 def get_system_controller_deploy() -> Optional[dict]:
-    # get a cached keystone client (and token)
-    try:
-        os_client = OpenStackDriver(
-            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME, region_clients=None
-        )
-    except Exception:
-        LOG.exception(
-            "Failed to get keystone client for %s",
-            dccommon_consts.SYSTEM_CONTROLLER_NAME,
-        )
-        raise
-
-    ks_client = os_client.keystone_client
-    software_client = software_v1.SoftwareClient(
-        ks_client.session,
-        dccommon_consts.SYSTEM_CONTROLLER_NAME,
-        endpoint=ks_client.endpoint_cache.get_endpoint(
-            dccommon_consts.ENDPOINT_NAME_USM
-        ),
-    )
+    admin_session = EndpointCache.get_admin_session()
+    region_name = cutils.get_region_one_name()
+    software_client = software_v1.SoftwareClient(admin_session, region=region_name)
     # Show deploy always returns either an empty list when there's no deploy
     # or a list with a single element when there's a deploy
     deploy_list = software_client.show_deploy()

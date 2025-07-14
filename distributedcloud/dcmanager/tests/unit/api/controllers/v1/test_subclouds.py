@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -31,6 +31,7 @@ import yaml
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import vim
+from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import OAMAddressesNotFound
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd
 from dcmanager.api.controllers.v1 import subclouds
@@ -40,7 +41,6 @@ from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db import api as db_api
-from dcmanager.db.sqlalchemy import api as sql_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import PostMixin
@@ -211,7 +211,7 @@ class SubcloudAPIMixin(APIMixin):
 
     def _create_db_object(self, context, **kw):
         creation_fields = self._get_test_subcloud_dict(**kw)
-        return sql_api.subcloud_create(context, **creation_fields)
+        return db_api.subcloud_create(context, **creation_fields)
 
     def get_post_params(self):
         return copy.copy(fake_subcloud.FAKE_BOOTSTRAP_VALUE)
@@ -257,19 +257,19 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
         )
         self.mock_sysinv_client_cutils = self._mock_object(cutils, "SysinvClient")
         self.mock_sysinv_client_prestage = self._mock_object(prestage, "SysinvClient")
-        self._mock_object(subclouds, "OpenStackDriver")
-        self._mock_object(cutils, "OpenStackDriver")
-        self._mock_object(prestage, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
 
-        self._mock_object(psd_common, "get_ks_client")
-        self.mock_query = self._mock_object(psd_common.PatchingClient, "query")
+        self.mock_is_system_controller_deploying = self._mock_object(
+            cutils, "is_system_controller_deploying"
+        )
+        self.mock_is_system_controller_deploying.return_value = False
         self.mock_is_valid_software_deploy_state = self._mock_object(
             SubcloudsController, "is_valid_software_deploy_state"
         )
         self.mock_is_valid_software_deploy_state.return_value = True
 
     def _update_subcloud(self, **kwargs):
-        self.subcloud = sql_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
+        self.subcloud = db_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
 
 
 class TestSubcloudsController(BaseTestSubcloudsController):
@@ -387,10 +387,8 @@ class TestSubcloudsGet(BaseTestSubcloudsGet):
         """
 
         mock_db_api.return_value = [
-            (self.subcloud, "patching", "not-available"),
             (self.subcloud, "platform", "in-sync"),
             (self.subcloud, "identity", "in-sync"),
-            (self.subcloud, "load", "not-available"),
             (self.subcloud, "dc-cert", "in-sync"),
             (self.subcloud, "firmware", "in-sync"),
             (self.subcloud, "kubernetes", "in-sync"),
@@ -708,7 +706,7 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             if index == 1:
                 error_msg = (
-                    f"{error_msg} Subnet too small - must have at least 7 addresses"
+                    f"{error_msg} Subnet too small - must have at least 4 addresses"
                 )
             elif index == 5:
                 error_msg = (
@@ -731,7 +729,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         Scenarios:
             - Address in another the subnet
             - Management start address greater than subnet's end address
-            - Management start address too close to subnet's end address
             - Invalid value for IP address
             - Address with letters in it
             - Incomplete IP address
@@ -740,7 +737,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         invalid_values = [
             "192.168.100.2",
             "192.168.101.51",
-            "192.168.101.48",
             "192.168.276.0",
             "192.168.206.wut",
             "192.168.204",
@@ -753,14 +749,12 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             error_msg = "management_start_address invalid:"
 
-            if index == 1 or index == 6:
+            if index == 1 or index == 5:
                 error_msg = f"{error_msg} Address must be in subnet 192.168.101.0/24"
             elif index == 2:
                 error_msg = (
                     "management_start_address greater than management_end_address"
                 )
-            elif index == 3:
-                error_msg = "management address range must contain at least 4 addresses"
             else:
                 error_msg = f"{error_msg} Invalid address - not a valid IP address"
 
@@ -777,7 +771,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         Scenarios:
             - Address in another the subnet
             - Management end address is less that the start address
-            - Management end address too close to subnet's start address
             - Invalid value for IP address
             - Address with letters in it
             - Incomplete IP address
@@ -786,7 +779,6 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         invalid_values = [
             "192.168.100.50",
             "192.168.101.1",
-            "192.168.101.4",
             "192.168.276.50",
             "192.168.206.wut",
             "192.168.204",
@@ -799,34 +791,18 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             error_msg = "management_end_address invalid:"
 
-            if index == 1 or index == 6:
+            if index == 1 or index == 5:
                 error_msg = f"{error_msg} Address must be in subnet 192.168.101.0/24"
             elif index == 2:
                 error_msg = (
                     "management_start_address greater than management_end_address"
                 )
-            elif index == 3:
-                error_msg = "management address range must contain at least 4 addresses"
             else:
                 error_msg = f"{error_msg} Invalid address - not a valid IP address"
 
             self._assert_pecan_and_response(
                 response, http.client.BAD_REQUEST, error_msg, index
             )
-
-    def test_post_fails_with_partial_apply_patch(self):
-        """Test post fails with partial-apply patch"""
-
-        self.mock_query.return_value = {"value": {"patchstate": "Partial-Apply"}}
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
-            response,
-            http.client.UNPROCESSABLE_ENTITY,
-            "Subcloud create is not allowed while system controller "
-            "patching is still in progress.",
-        )
 
     def test_post_fails_with_migrate_and_not_matching_subcloud_name(self):
         """Test post fails with migrate and not matching subcloud name"""
@@ -846,6 +822,7 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         """Test post succeeds with secondary in payload"""
 
         self.params["secondary"] = "true"
+        self.params.update({"region_name": "test_region"})
 
         response = self._send_request()
 
@@ -1597,7 +1574,7 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
     def _assert_response_payload(self, response, key, value):
         """Asserts the response's payload"""
 
-        updated_subcloud = sql_api.subcloud_get(self.ctx, self.subcloud.id)
+        updated_subcloud = db_api.subcloud_get(self.ctx, self.subcloud.id)
         self.assertEqual(updated_subcloud[key], value)
 
     def test_patch_fails_without_subcloud_ref(self):
@@ -1897,11 +1874,11 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
         update_subcloud_with_network_reconfig.assert_called_once()
         self.mock_vim_client().get_strategy.assert_called_once()
 
-    @mock.patch.object(sql_api, "strategy_step_get")
-    def test_patch_fails_with_db_api_get_vim_strategy_exception(self, mock_sql_api):
+    @mock.patch.object(db_api, "strategy_step_get")
+    def test_patch_fails_with_db_api_get_vim_strategy_exception(self, mock_db_api):
         """Test patch fails with db api's get vim strategy exception"""
 
-        mock_sql_api.side_effect = Exception()
+        mock_db_api.side_effect = Exception()
 
         self._test_patch_fails_with_vim_strategy()
 
@@ -2265,10 +2242,15 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
     def _setup_system_peer_for_subcloud(self, availability_state):
         system_peer = (
             test_system_peer_manager.TestSystemPeerManager.create_system_peer_static(
-                self.ctx, availability_state=availability_state
+                self.ctx
             )
         )
-        self.peer_group = sql_api.subcloud_peer_group_update(
+        db_api.system_peer_update(
+            self.ctx,
+            system_peer.id,
+            availability_state=availability_state,
+        )
+        self.peer_group = db_api.subcloud_peer_group_update(
             self.ctx, self.peer_group.id, group_priority=1
         )
         system_peer_manager = test_system_peer_manager.TestSystemPeerManager
@@ -2367,7 +2349,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
     def test_patch_with_peer_group_fails_on_non_primary_site(self):
         """Test patch with peer group fails on non primary site"""
 
-        self.peer_group = sql_api.subcloud_peer_group_update(
+        self.peer_group = db_api.subcloud_peer_group_update(
             self.ctx, self.peer_group.id, group_priority=1
         )
         self._update_subcloud(rehome_data="", peer_group_id=self.peer_group.id)
@@ -2442,7 +2424,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         self.mock_rpc_client().update_association_sync_status.assert_not_called()
         self.assertEqual(
             consts.ASSOCIATION_SYNC_STATUS_IN_SYNC,
-            sql_api.peer_group_association_get(
+            db_api.peer_group_association_get(
                 self.ctx, self.peer_group_association.id
             ).sync_status,
         )
@@ -2488,7 +2470,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         )
         self.assertEqual(
             consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
-            sql_api.peer_group_association_get(
+            db_api.peer_group_association_get(
                 self.ctx, self.peer_group_association.id
             ).sync_status,
         )
@@ -2934,7 +2916,7 @@ class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         )
         self._setup_mock_get_current_supported_upgrade_versions()
         self.mock_get_system_controller_software_list = self._mock_object(
-            cutils, "get_system_controller_software_list"
+            cutils, "_get_system_controller_software_list"
         )
         self._setup_mock_get_system_controller_software_list()
 
@@ -3043,9 +3025,7 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
     def test_patch_prestage_fails_with_system_controller_software_deploy(self):
         """Test patch prestage fails when system controller has a deploy in-progress"""
 
-        self.mock_software_client().show_deploy.return_value = [
-            {"to_release": "24.09.0"}
-        ]
+        self.mock_is_system_controller_deploying.return_value = True
 
         response = self._send_request()
 

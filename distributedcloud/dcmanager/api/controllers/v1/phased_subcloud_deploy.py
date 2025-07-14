@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,6 +10,7 @@ from oslo_log import log as logging
 from oslo_messaging import RemoteError
 import pecan
 
+from dccommon import consts as dccommon_consts
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.controllers.v1.subclouds import SubcloudsController
 from dcmanager.api.policies import (
@@ -155,7 +156,7 @@ class PhasedSubcloudDeployController(object):
         self.dcmanager_rpc_client = rpc_client.ManagerClient()
 
     def _deploy_create(self, context: RequestContext, request: pecan.Request):
-        policy.authorize(
+        context.is_admin = policy.authorize(
             phased_subcloud_deploy_policy.POLICY_ROOT % "create",
             {},
             restcomm.extract_credentials_for_policy(),
@@ -609,6 +610,7 @@ class PhasedSubcloudDeployController(object):
 
         has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
         has_install_values = consts.INSTALL_VALUES in request.POST
+        has_cloud_init_config = dccommon_consts.CLOUD_INIT_CONFIG in request.POST
 
         payload = psd_common.get_request_data(
             request, subcloud, SUBCLOUD_ENROLL_GET_FILE_CONTENTS
@@ -632,6 +634,9 @@ class PhasedSubcloudDeployController(object):
             psd_common.populate_payload_with_pre_existing_data(
                 payload, subcloud, [consts.INSTALL_VALUES]
             )
+
+        if has_cloud_init_config:
+            psd_common.upload_cloud_init_config(request, payload)
 
         psd_common.validate_enroll_parameter(payload)
 
@@ -669,12 +674,12 @@ class PhasedSubcloudDeployController(object):
         or subcloud operation
         """
 
-        policy.authorize(
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             phased_subcloud_deploy_policy.POLICY_ROOT % "modify",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         if not subcloud_ref:
             pecan.abort(400, _("Subcloud ID required"))

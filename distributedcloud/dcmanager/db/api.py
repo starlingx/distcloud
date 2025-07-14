@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -25,6 +25,7 @@ from oslo_config import cfg
 from oslo_db import api
 
 from dccommon import consts as dccommon_consts
+from dcmanager.common import consts
 from dcmanager.db.sqlalchemy import models
 
 CONF = cfg.CONF
@@ -49,58 +50,66 @@ def get_session():
 
 def subcloud_audits_get(context, subcloud_id):
     """Get subcloud_audits info for a subcloud."""
-    return IMPL.subcloud_audits_get(context, subcloud_id)
+    return IMPL.Connection(context).subcloud_audits_get(subcloud_id)
 
 
 def subcloud_audits_get_all(context, subcloud_ids=None):
     """Get subcloud_audits info for  subclouds."""
-    return IMPL.subcloud_audits_get_all(context, subcloud_ids)
+    return IMPL.Connection(context).subcloud_audits_get_all(subcloud_ids)
 
 
 def subcloud_audits_update_all(context, values):
     """Mark sub-audits as needed for all subclouds."""
-    return IMPL.subcloud_audits_update_all(context, values)
+    return IMPL.Connection(context).subcloud_audits_update_all(values)
 
 
 def subcloud_audits_create(context, subcloud_id):
     """Create subcloud_audits info for a subcloud."""
-    return IMPL.subcloud_audits_create(context, subcloud_id)
+    return IMPL.Connection(context).subcloud_audits_create(subcloud_id)
 
 
 def subcloud_audits_update(context, subcloud_id, values):
     """Get all subcloud_audits that need auditing."""
-    return IMPL.subcloud_audits_update(context, subcloud_id, values)
+    return IMPL.Connection(context).subcloud_audits_update(subcloud_id, values)
 
 
 def subcloud_audits_get_all_need_audit(context, last_audit_threshold):
     """Get all subcloud_audits that need auditing."""
-    return IMPL.subcloud_audits_get_all_need_audit(context, last_audit_threshold)
+    return IMPL.Connection(context).subcloud_audits_get_all_need_audit(
+        last_audit_threshold
+    )
 
 
 # In the functions below it would be cleaner if the timestamp were calculated
 # by the DB server.  If server time is in UTC func.now() might work.
 
 
-def subcloud_audits_get_and_start_audit(context, subcloud_id):
-    """Set the 'audit started' timestamp for the main audit."""
-    return IMPL.subcloud_audits_get_and_start_audit(context, subcloud_id)
+def subcloud_audits_subcloud_get_and_start_audit(
+    context, subcloud_id
+) -> tuple[models.Subcloud, models.SubcloudAudits]:
+    """Get the subcloud with endpoints needed and start the audit"""
+    return IMPL.Connection(context).subcloud_audits_subcloud_get_and_start_audit(
+        subcloud_id
+    )
 
 
 def subcloud_audits_bulk_end_audit(context, audits_finished):
     """Update the subcloud's audit end status in a bulk request"""
-    return IMPL.subcloud_audits_bulk_end_audit(context, audits_finished)
+    return IMPL.Connection(context).subcloud_audits_bulk_end_audit(audits_finished)
 
 
 def subcloud_audits_bulk_update_audit_finished_at(context, subcloud_ids):
     """Set the 'audit finished' timestamp for the main audit in bulk."""
-    return IMPL.subcloud_audits_bulk_update_audit_finished_at(context, subcloud_ids)
+    return IMPL.Connection(context).subcloud_audits_bulk_update_audit_finished_at(
+        subcloud_ids
+    )
 
 
 def subcloud_audits_fix_expired_audits(
     context, last_audit_threshold, trigger_audits=False
 ):
-    return IMPL.subcloud_audits_fix_expired_audits(
-        context, last_audit_threshold, trigger_audits
+    return IMPL.Connection(context).subcloud_audits_fix_expired_audits(
+        last_audit_threshold, trigger_audits
     )
 
 
@@ -163,8 +172,7 @@ def subcloud_create(
     data_install=None,
 ):
     """Create a subcloud."""
-    return IMPL.subcloud_create(
-        context,
+    return IMPL.Connection(context).subcloud_create(
         name,
         description,
         location,
@@ -186,47 +194,49 @@ def subcloud_create(
 
 def subcloud_get(context, subcloud_id):
     """Retrieve a subcloud or raise if it does not exist."""
-    return IMPL.subcloud_get(context, subcloud_id)
+    return IMPL.Connection(context).subcloud_get(subcloud_id)
 
 
-def subcloud_get_with_status(context, subcloud_id):
+def subcloud_get_with_status(context, subcloud_id, endpoint_type=None):
     """Retrieve a subcloud and all endpoint sync statuses."""
-    return IMPL.subcloud_get_with_status(context, subcloud_id)
+    return IMPL.Connection(context).subcloud_get_with_status(
+        subcloud_id, endpoint_type=endpoint_type
+    )
 
 
 def subcloud_get_by_name(context, name) -> models.Subcloud:
     """Retrieve a subcloud by name or raise if it does not exist."""
-    return IMPL.subcloud_get_by_name(context, name)
+    return IMPL.Connection(context).subcloud_get_by_name(name)
 
 
 def subcloud_get_by_region_name(context, region_name):
     """Retrieve a subcloud by region name or raise if it does not exist."""
-    return IMPL.subcloud_get_by_region_name(context, region_name)
+    return IMPL.Connection(context).subcloud_get_by_region_name(region_name)
 
 
 def subcloud_get_by_name_or_region_name(context, name):
     """Retrieve a subcloud by name or region name or raise if it does not exist."""
-    return IMPL.subcloud_get_by_name_or_region_name(context, name)
+    return IMPL.Connection(context).subcloud_get_by_name_or_region_name(name)
 
 
 def subcloud_get_all(context):
     """Retrieve all subclouds."""
-    return IMPL.subcloud_get_all(context)
+    return IMPL.Connection(context).subcloud_get_all()
 
 
 def subcloud_get_all_by_group_id(context, group_id):
     """Retrieve all subclouds that belong to the specified group id"""
-    return IMPL.subcloud_get_all_by_group_id(context, group_id)
+    return IMPL.Connection(context).subcloud_get_all_by_group_id(group_id)
 
 
 def subcloud_get_all_ordered_by_id(context):
     """Retrieve all subclouds ordered by id."""
-    return IMPL.subcloud_get_all_ordered_by_id(context)
+    return IMPL.Connection(context).subcloud_get_all_ordered_by_id()
 
 
 def subcloud_get_all_with_status(context):
     """Retrieve all subclouds and sync statuses."""
-    return IMPL.subcloud_get_all_with_status(context)
+    return IMPL.Connection(context).subcloud_get_all_with_status()
 
 
 def subcloud_get_all_valid_for_strategy_step_creation(
@@ -238,8 +248,7 @@ def subcloud_get_all_valid_for_strategy_step_creation(
     sync_status=None,
 ):
     """Queries all the subclouds that are valid for the strategy step to create"""
-    return IMPL.subcloud_get_all_valid_for_strategy_step_creation(
-        context,
+    return IMPL.Connection(context).subcloud_get_all_valid_for_strategy_step_creation(
         endpoint_type,
         group_id,
         subcloud_name,
@@ -252,8 +261,8 @@ def subcloud_count_invalid_for_strategy_type(
     context, endpoint_type, group_id=None, subcloud_name=None
 ):
     """Queries the count of invalid subclouds for a strategy's creation"""
-    return IMPL.subcloud_count_invalid_for_strategy_type(
-        context, endpoint_type, group_id, subcloud_name
+    return IMPL.Connection(context).subcloud_count_invalid_for_strategy_type(
+        endpoint_type, group_id, subcloud_name
     )
 
 
@@ -290,8 +299,7 @@ def subcloud_update(
     region_name=None,
 ):
     """Update a subcloud or raise if it does not exist."""
-    return IMPL.subcloud_update(
-        context,
+    return IMPL.Connection(context).subcloud_update(
         subcloud_id,
         management_state,
         availability_status,
@@ -324,29 +332,36 @@ def subcloud_update(
     )
 
 
+def subcloud_bulk_update(context, entries):
+    """Update subclouds in bulk."""
+    return IMPL.Connection(context).subcloud_bulk_update(entries)
+
+
 def subcloud_bulk_update_by_ids(context, subcloud_ids, update_form):
     """Update subclouds in bulk using a set of subcloud IDs."""
-    return IMPL.subcloud_bulk_update_by_ids(context, subcloud_ids, update_form)
+    return IMPL.Connection(context).subcloud_bulk_update_by_ids(
+        subcloud_ids, update_form
+    )
 
 
 def subcloud_destroy(context, subcloud_id):
     """Destroy the subcloud or raise if it does not exist."""
-    return IMPL.subcloud_destroy(context, subcloud_id)
+    return IMPL.Connection(context).subcloud_destroy(subcloud_id)
 
 
 def subcloud_status_create(context, subcloud_id, endpoint_type):
     """Create a subcloud status for an endpoint_type."""
-    return IMPL.subcloud_status_create(context, subcloud_id, endpoint_type)
+    return IMPL.Connection(context).subcloud_status_create(subcloud_id, endpoint_type)
 
 
 def subcloud_status_create_all(context, subcloud_id):
     """Create a subcloud status for all endpoint_types."""
-    return IMPL.subcloud_status_create_all(context, subcloud_id)
+    return IMPL.Connection(context).subcloud_status_create_all(subcloud_id)
 
 
 def subcloud_status_delete(context, subcloud_id, endpoint_type):
     """Delete a subcloud status for an endpoint_type."""
-    return IMPL.subcloud_status_delete(context, subcloud_id, endpoint_type)
+    return IMPL.Connection(context).subcloud_status_delete(subcloud_id, endpoint_type)
 
 
 def subcloud_status_db_model_to_dict(subcloud_status):
@@ -381,22 +396,24 @@ def subcloud_status_get(context, subcloud_id, endpoint_type):
     Will raise if subcloud does not exist.
     """
 
-    return IMPL.subcloud_status_get(context, subcloud_id, endpoint_type)
+    return IMPL.Connection(context).subcloud_status_get(subcloud_id, endpoint_type)
 
 
 def subcloud_status_get_all(context, subcloud_id):
     """Retrieve all statuses for a subcloud."""
-    return IMPL.subcloud_status_get_all(context, subcloud_id)
+    return IMPL.Connection(context).subcloud_status_get_all(subcloud_id)
 
 
 def subcloud_status_get_all_by_name(context, name):
     """Retrieve all statuses for a subcloud by name."""
-    return IMPL.subcloud_status_get_all_by_name(context, name)
+    return IMPL.Connection(context).subcloud_status_get_all_by_name(name)
 
 
 def subcloud_status_update(context, subcloud_id, endpoint_type, sync_status):
     """Update the status of a subcloud or raise if it does not exist."""
-    return IMPL.subcloud_status_update(context, subcloud_id, endpoint_type, sync_status)
+    return IMPL.Connection(context).subcloud_status_update(
+        subcloud_id, endpoint_type, sync_status
+    )
 
 
 def subcloud_status_update_endpoints(
@@ -404,16 +421,16 @@ def subcloud_status_update_endpoints(
 ):
     """Update all statuses of the endpoints in endpoint_type_list of a subcloud."""
 
-    return IMPL.subcloud_status_update_endpoints(
-        context, subcloud_id, endpoint_type_list, sync_status
+    return IMPL.Connection(context).subcloud_status_update_endpoints(
+        subcloud_id, endpoint_type_list, sync_status
     )
 
 
 def subcloud_status_bulk_update_endpoints(context, subcloud_id, endpoint_list):
     """Update the status of the specified endpoints for a subcloud"""
 
-    return IMPL.subcloud_status_bulk_update_endpoints(
-        context, subcloud_id, endpoint_list
+    return IMPL.Connection(context).subcloud_status_bulk_update_endpoints(
+        subcloud_id, endpoint_list
     )
 
 
@@ -423,7 +440,7 @@ def subcloud_status_destroy_all(context, subcloud_id):
     Will raise if subcloud does not exist.
     """
 
-    return IMPL.subcloud_status_destroy_all(context, subcloud_id)
+    return IMPL.Connection(context).subcloud_status_destroy_all(subcloud_id)
 
 
 ###################
@@ -448,43 +465,43 @@ def subcloud_group_create(
     context, name, description, update_apply_type, max_parallel_subclouds
 ):
     """Create a subcloud_group."""
-    return IMPL.subcloud_group_create(
-        context, name, description, update_apply_type, max_parallel_subclouds
+    return IMPL.Connection(context).subcloud_group_create(
+        name, description, update_apply_type, max_parallel_subclouds
     )
 
 
 def subcloud_group_get(context, group_id):
     """Retrieve a subcloud_group or raise if it does not exist."""
-    return IMPL.subcloud_group_get(context, group_id)
+    return IMPL.Connection(context).subcloud_group_get(group_id)
 
 
 def subcloud_group_get_by_name(context, name):
     """Retrieve a subcloud_group b name or raise if it does not exist."""
-    return IMPL.subcloud_group_get_by_name(context, name)
+    return IMPL.Connection(context).subcloud_group_get_by_name(name)
 
 
 def subcloud_group_get_all(context):
     """Retrieve all subcloud groups."""
-    return IMPL.subcloud_group_get_all(context)
+    return IMPL.Connection(context).subcloud_group_get_all()
 
 
 def subcloud_get_for_group(context, group_id):
     """Retrieve a subcloud_group or raise if it does not exist."""
-    return IMPL.subcloud_get_for_group(context, group_id)
+    return IMPL.Connection(context).subcloud_get_for_group(group_id)
 
 
 def subcloud_group_update(
     context, group_id, name, description, update_apply_type, max_parallel_subclouds
 ):
     """Update the subcloud group or raise if it does not exist."""
-    return IMPL.subcloud_group_update(
-        context, group_id, name, description, update_apply_type, max_parallel_subclouds
+    return IMPL.Connection(context).subcloud_group_update(
+        group_id, name, description, update_apply_type, max_parallel_subclouds
     )
 
 
 def subcloud_group_destroy(context, group_id):
     """Destroy the subcloud group or raise if it does not exist."""
-    return IMPL.subcloud_group_destroy(context, group_id)
+    return IMPL.Connection(context).subcloud_group_destroy(group_id)
 
 
 ###################
@@ -525,8 +542,7 @@ def system_peer_create(
     heartbeat_maintenance_timeout,
 ):
     """Create a system_peer."""
-    return IMPL.system_peer_create(
-        context,
+    return IMPL.Connection(context).system_peer_create(
         peer_uuid,
         peer_name,
         endpoint,
@@ -543,27 +559,27 @@ def system_peer_create(
 
 def system_peer_get(context, peer_id) -> models.SystemPeer:
     """Retrieve a system_peer or raise if it does not exist."""
-    return IMPL.system_peer_get(context, peer_id)
+    return IMPL.Connection(context).system_peer_get(peer_id)
 
 
 def system_peer_get_by_uuid(context, uuid) -> models.SystemPeer:
     """Retrieve a system_peer by uuid or raise if it does not exist."""
-    return IMPL.system_peer_get_by_uuid(context, uuid)
+    return IMPL.Connection(context).system_peer_get_by_uuid(uuid)
 
 
 def system_peer_get_by_name(context, uuid) -> models.SystemPeer:
     """Retrieve a system_peer by name or raise if it does not exist."""
-    return IMPL.system_peer_get_by_name(context, uuid)
+    return IMPL.Connection(context).system_peer_get_by_name(uuid)
 
 
 def system_peer_get_all(context) -> list[models.SystemPeer]:
     """Retrieve all system peers."""
-    return IMPL.system_peer_get_all(context)
+    return IMPL.Connection(context).system_peer_get_all()
 
 
 def peer_group_get_for_system_peer(context, peer_id) -> list[models.SubcloudPeerGroup]:
     """Get subcloud peer groups associated with a system peer."""
-    return IMPL.peer_group_get_for_system_peer(context, peer_id)
+    return IMPL.Connection(context).peer_group_get_for_system_peer(peer_id)
 
 
 def system_peer_update(
@@ -583,8 +599,7 @@ def system_peer_update(
     availability_state=None,
 ):
     """Update the system peer or raise if it does not exist."""
-    return IMPL.system_peer_update(
-        context,
+    return IMPL.Connection(context).system_peer_update(
         peer_id,
         peer_uuid,
         peer_name,
@@ -603,7 +618,7 @@ def system_peer_update(
 
 def system_peer_destroy(context, peer_id):
     """Destroy the system peer or raise if it does not exist."""
-    return IMPL.system_peer_destroy(context, peer_id)
+    return IMPL.Connection(context).system_peer_destroy(peer_id)
 
 
 ###################
@@ -639,8 +654,7 @@ def subcloud_peer_group_create(
     migration_status=None,
 ):
     """Create a subcloud_peer_group."""
-    return IMPL.subcloud_peer_group_create(
-        context,
+    return IMPL.Connection(context).subcloud_peer_group_create(
         peer_group_name,
         group_priority,
         group_state,
@@ -653,24 +667,26 @@ def subcloud_peer_group_create(
 
 def subcloud_peer_group_destroy(context, group_id):
     """Destroy the subcloud peer group or raise if it does not exist."""
-    return IMPL.subcloud_peer_group_destroy(context, group_id)
+    return IMPL.Connection(context).subcloud_peer_group_destroy(group_id)
 
 
 def subcloud_peer_group_get(context, group_id) -> models.SubcloudPeerGroup:
     """Retrieve a subcloud_peer_group or raise if it does not exist."""
-    return IMPL.subcloud_peer_group_get(context, group_id)
+    return IMPL.Connection(context).subcloud_peer_group_get(group_id)
 
 
 def subcloud_peer_group_get_by_name(context, name) -> models.SubcloudPeerGroup:
     """Retrieve a subcloud_peer_group by name or raise if it does not exist."""
-    return IMPL.subcloud_peer_group_get_by_name(context, name)
+    return IMPL.Connection(context).subcloud_peer_group_get_by_name(name)
 
 
 def subcloud_peer_group_get_by_leader_id(
     context, system_leader_id
 ) -> list[models.SubcloudPeerGroup]:
     """Retrieve subcloud peer groups by system_leader_id."""
-    return IMPL.subcloud_peer_group_get_by_leader_id(context, system_leader_id)
+    return IMPL.Connection(context).subcloud_peer_group_get_by_leader_id(
+        system_leader_id
+    )
 
 
 def subcloud_get_for_peer_group(context, group_id) -> list[models.Subcloud]:
@@ -678,12 +694,12 @@ def subcloud_get_for_peer_group(context, group_id) -> list[models.Subcloud]:
 
     or raise if it does not exist.
     """
-    return IMPL.subcloud_get_for_peer_group(context, group_id)
+    return IMPL.Connection(context).subcloud_get_for_peer_group(group_id)
 
 
 def subcloud_peer_group_get_all(context) -> list[models.SubcloudPeerGroup]:
     """Retrieve all subcloud peer groups."""
-    return IMPL.subcloud_peer_group_get_all(context)
+    return IMPL.Connection(context).subcloud_peer_group_get_all()
 
 
 def subcloud_peer_group_update(
@@ -698,8 +714,7 @@ def subcloud_peer_group_update(
     migration_status=None,
 ):
     """Update the subcloud peer group or raise if it does not exist."""
-    return IMPL.subcloud_peer_group_update(
-        context,
+    return IMPL.Connection(context).subcloud_peer_group_update(
         group_id,
         peer_group_name,
         group_priority,
@@ -742,8 +757,7 @@ def peer_group_association_create(
     sync_message=None,
 ):
     """Create a peer_group_association."""
-    return IMPL.peer_group_association_create(
-        context,
+    return IMPL.Connection(context).peer_group_association_create(
         peer_group_id,
         system_peer_id,
         peer_group_priority,
@@ -757,32 +771,34 @@ def peer_group_association_update(
     context, id, peer_group_priority=None, sync_status=None, sync_message=None
 ):
     """Update the system peer or raise if it does not exist."""
-    return IMPL.peer_group_association_update(
-        context, id, peer_group_priority, sync_status, sync_message
+    return IMPL.Connection(context).peer_group_association_update(
+        id, peer_group_priority, sync_status, sync_message
     )
 
 
 def peer_group_association_destroy(context, id):
     """Destroy the peer_group_association or raise if it does not exist."""
-    return IMPL.peer_group_association_destroy(context, id)
+    return IMPL.Connection(context).peer_group_association_destroy(id)
 
 
 def peer_group_association_get(context, id) -> models.PeerGroupAssociation:
     """Retrieve a peer_group_association or raise if it does not exist."""
-    return IMPL.peer_group_association_get(context, id)
+    return IMPL.Connection(context).peer_group_association_get(id)
 
 
 def peer_group_association_get_all(context) -> list[models.PeerGroupAssociation]:
     """Retrieve all peer_group_associations."""
-    return IMPL.peer_group_association_get_all(context)
+    return IMPL.Connection(context).peer_group_association_get_all()
 
 
 def peer_group_association_get_by_peer_group_and_system_peer_id(
     context, peer_group_id, system_peer_id
 ) -> list[models.PeerGroupAssociation]:
     """Get peer group associations by peer_group_id and system_peer_id."""
-    return IMPL.peer_group_association_get_by_peer_group_and_system_peer_id(
-        context, peer_group_id, system_peer_id
+    return IMPL.Connection(
+        context
+    ).peer_group_association_get_by_peer_group_and_system_peer_id(
+        peer_group_id, system_peer_id
     )
 
 
@@ -790,14 +806,18 @@ def peer_group_association_get_by_peer_group_id(
     context, peer_group_id
 ) -> list[models.PeerGroupAssociation]:
     """Get the peer_group_association list by peer_group_id"""
-    return IMPL.peer_group_association_get_by_peer_group_id(context, peer_group_id)
+    return IMPL.Connection(context).peer_group_association_get_by_peer_group_id(
+        peer_group_id
+    )
 
 
 def peer_group_association_get_by_system_peer_id(
     context, system_peer_id
 ) -> list[models.PeerGroupAssociation]:
     """Get the peer_group_association list by system_peer_id"""
-    return IMPL.peer_group_association_get_by_system_peer_id(context, system_peer_id)
+    return IMPL.Connection(context).peer_group_association_get_by_system_peer_id(
+        system_peer_id
+    )
 
 
 ###################
@@ -829,8 +849,7 @@ def sw_update_strategy_create(
     extra_args=None,
 ):
     """Create a sw update."""
-    return IMPL.sw_update_strategy_create(
-        context,
+    return IMPL.Connection(context).sw_update_strategy_create(
         type,
         subcloud_apply_type,
         max_parallel_subclouds,
@@ -842,28 +861,28 @@ def sw_update_strategy_create(
 
 def sw_update_strategy_get(context, update_type=None):
     """Retrieve a sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_get(context, update_type=update_type)
+    return IMPL.Connection(context).sw_update_strategy_get(update_type=update_type)
 
 
 def sw_update_strategy_update(
     context, state=None, update_type=None, additional_args=None
 ):
     """Update a sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_update(
-        context, state, update_type=update_type, additional_args=additional_args
+    return IMPL.Connection(context).sw_update_strategy_update(
+        state, update_type=update_type, additional_args=additional_args
     )
 
 
 def sw_update_strategy_destroy(context, update_type=None):
     """Destroy the sw update or raise if it does not exist."""
-    return IMPL.sw_update_strategy_destroy(context, update_type=update_type)
+    return IMPL.Connection(context).sw_update_strategy_destroy(update_type=update_type)
 
 
 ###################
 
 
 def strategy_step_db_model_to_dict(strategy_step):
-    """Convert patch strategy db model to dictionary."""
+    """Convert a strategy db model to dictionary."""
     if strategy_step.subcloud is not None:
         cloud = strategy_step.subcloud.name
     else:
@@ -883,32 +902,84 @@ def strategy_step_db_model_to_dict(strategy_step):
 
 
 def strategy_step_get(context, subcloud_id):
-    """Retrieve the patch strategy step for a subcloud ID.
+    """Retrieve the strategy step for a subcloud ID.
 
     Will raise if subcloud does not exist.
     """
 
-    return IMPL.strategy_step_get(context, subcloud_id)
+    return IMPL.Connection(context).strategy_step_get(subcloud_id)
 
 
 def strategy_step_get_by_name(context, name):
-    """Retrieve the patch strategy step for a subcloud name."""
-    return IMPL.strategy_step_get_by_name(context, name)
+    """Retrieve the strategy step for a subcloud name."""
+    return IMPL.Connection(context).strategy_step_get_by_name(name)
 
 
-def strategy_step_get_all(context):
-    """Retrieve all patch strategy steps."""
-    return IMPL.strategy_step_get_all(context)
+def strategy_step_get_all(context, steps_id=None, limit=None):
+    """Retrieve all strategy steps."""
+    return IMPL.Connection(context).strategy_step_get_all(
+        steps_id=steps_id, limit=limit
+    )
+
+
+def strategy_step_get_all_to_process(
+    context, last_update_threshold, max_parallel_subclouds
+):
+    """Retrieve all strategy steps that needs to be processed in orchestration"""
+    return IMPL.Connection(context).strategy_step_get_all_to_process(
+        last_update_threshold=last_update_threshold,
+        max_parallel_subclouds=max_parallel_subclouds,
+    )
+
+
+def strategy_step_get_all_to_delete(
+    context, delete_start_at, last_update_threshold, max_parallel_subclouds
+):
+    """Retrieve all strategy steps that needs to be deleted in orchestration"""
+    return IMPL.Connection(context).strategy_step_get_all_to_delete(
+        delete_start_at=delete_start_at,
+        last_update_threshold=last_update_threshold,
+        max_parallel_subclouds=max_parallel_subclouds,
+    )
+
+
+def strategy_step_count_all_states(context):
+    """Retrieve the count of steps in each possible state"""
+    return IMPL.Connection(context).strategy_step_count_all_states()
+
+
+def strategy_step_states_to_dict(states):
+    """Convert a list of strategy step states and their count to a dictionary"""
+
+    # Pre-fill the dict with the required states to avoid key errors
+    content = {
+        consts.STRATEGY_STATE_INITIAL: 0,
+        consts.STRATEGY_STATE_COMPLETE: 0,
+        consts.STRATEGY_STATE_ABORTED: 0,
+        consts.STRATEGY_STATE_FAILED: 0,
+        "total": 0,
+    }
+
+    # The states object is presented as [("initial", 2)]
+    for state in states:
+        content[state[0]] = state[1]
+        content["total"] += state[1]
+
+    return content
 
 
 def strategy_step_bulk_create(context, subcloud_ids, stage, state, details):
     """Creates the strategy step for a list of subclouds"""
-    return IMPL.strategy_step_bulk_create(context, subcloud_ids, stage, state, details)
+    return IMPL.Connection(context).strategy_step_bulk_create(
+        subcloud_ids, stage, state, details
+    )
 
 
 def strategy_step_create(context, subcloud_id, stage, state, details):
-    """Create a patch strategy step."""
-    return IMPL.strategy_step_create(context, subcloud_id, stage, state, details)
+    """Create a strategy step."""
+    return IMPL.Connection(context).strategy_step_create(
+        subcloud_id, stage, state, details
+    )
 
 
 def strategy_step_update(
@@ -919,26 +990,47 @@ def strategy_step_update(
     details=None,
     started_at=None,
     finished_at=None,
+    updated_at=None,
 ):
-    """Update a patch strategy step or raise if it does not exist."""
-    return IMPL.strategy_step_update(
-        context, subcloud_id, stage, state, details, started_at, finished_at
+    """Update a strategy step or raise if it does not exist."""
+    return IMPL.Connection(context).strategy_step_update(
+        subcloud_id, stage, state, details, started_at, finished_at, updated_at
     )
 
 
-def strategy_step_update_all(context, filters, values):
+def strategy_step_update_all(context, filters, values, steps_id=None):
     """Updates all strategy steps
 
     :param context: request context object
     :param filters: filters to be applied in the query
     :param values: values to be set for the specified strategies
+    :param steps_id: list of strategy steps to update
     """
-    return IMPL.strategy_step_update_all(context, filters, values)
+    return IMPL.Connection(context).strategy_step_update_all(filters, values, steps_id)
 
 
-def strategy_step_destroy_all(context):
-    """Destroy all the patch strategy steps."""
-    return IMPL.strategy_step_destroy_all(context)
+def strategy_step_bulk_update(context, entries):
+    """Bulk updates a list of strategy steps"""
+    return IMPL.Connection(context).strategy_step_bulk_update(entries)
+
+
+def strategy_step_update_reset_updated_at(context, steps_id, last_update_threshold):
+    """Bulk updates the updated_at field for processing subclouds"""
+    return IMPL.Connection(context).strategy_step_update_reset_updated_at(
+        steps_id, last_update_threshold
+    )
+
+
+def strategy_step_abort_all_not_processing(context, max_parallel_subclouds):
+    """Aborts all strategies that are not executing"""
+    return IMPL.Connection(context).strategy_step_abort_all_not_processing(
+        max_parallel_subclouds
+    )
+
+
+def strategy_step_destroy_all(context, steps_id=None, states=None):
+    """Destroy all the strategy steps."""
+    return IMPL.Connection(context).strategy_step_destroy_all(steps_id, states)
 
 
 ###################
@@ -971,8 +1063,7 @@ def sw_update_opts_create(
     default_instance_action,
 ):
     """Create sw update options."""
-    return IMPL.sw_update_opts_create(
-        context,
+    return IMPL.Connection(context).sw_update_opts_create(
         subcloud_id,
         storage_apply_type,
         worker_apply_type,
@@ -984,12 +1075,12 @@ def sw_update_opts_create(
 
 def sw_update_opts_get(context, subcloud_id):
     """Retrieve sw update options."""
-    return IMPL.sw_update_opts_get(context, subcloud_id)
+    return IMPL.Connection(context).sw_update_opts_get(subcloud_id)
 
 
 def sw_update_opts_get_all_plus_subcloud_info(context):
     """Retrieve sw update options plus subcloud info."""
-    return IMPL.sw_update_opts_get_all_plus_subcloud_info(context)
+    return IMPL.Connection(context).sw_update_opts_get_all_plus_subcloud_info()
 
 
 def sw_update_opts_update(
@@ -1002,8 +1093,7 @@ def sw_update_opts_update(
     default_instance_action=None,
 ):
     """Update sw update options or raise if it does not exist."""
-    return IMPL.sw_update_opts_update(
-        context,
+    return IMPL.Connection(context).sw_update_opts_update(
         subcloud_id,
         storage_apply_type,
         worker_apply_type,
@@ -1015,7 +1105,7 @@ def sw_update_opts_update(
 
 def sw_update_opts_destroy(context, subcloud_id):
     """Destroy sw update options or raise if it does not exist."""
-    return IMPL.sw_update_opts_destroy(context, subcloud_id)
+    return IMPL.Connection(context).sw_update_opts_destroy(subcloud_id)
 
 
 ###################
@@ -1028,8 +1118,7 @@ def sw_update_opts_default_create(
     default_instance_action,
 ):
     """Create default sw update options."""
-    return IMPL.sw_update_opts_default_create(
-        context,
+    return IMPL.Connection(context).sw_update_opts_default_create(
         storage_apply_type,
         worker_apply_type,
         max_parallel_workers,
@@ -1040,7 +1129,7 @@ def sw_update_opts_default_create(
 
 def sw_update_opts_default_get(context):
     """Retrieve default sw update options."""
-    return IMPL.sw_update_opts_default_get(context)
+    return IMPL.Connection(context).sw_update_opts_default_get()
 
 
 def sw_update_opts_default_update(
@@ -1052,8 +1141,7 @@ def sw_update_opts_default_update(
     default_instance_action=None,
 ):
     """Update default sw update options."""
-    return IMPL.sw_update_opts_default_update(
-        context,
+    return IMPL.Connection(context).sw_update_opts_default_update(
         storage_apply_type,
         worker_apply_type,
         max_parallel_workers,
@@ -1064,7 +1152,7 @@ def sw_update_opts_default_update(
 
 def sw_update_opts_default_destroy(context):
     """Destroy the default sw update options or raise if it does not exist."""
-    return IMPL.sw_update_opts_default_destroy(context)
+    return IMPL.Connection(context).sw_update_opts_default_destroy()
 
 
 ###################
@@ -1072,35 +1160,35 @@ def sw_update_opts_default_destroy(context):
 
 def db_sync(engine, version=None):
     """Migrate the database to `version` or the most recent version."""
-    return IMPL.db_sync(engine, version=version)
+    return IMPL.Connection.db_sync(engine, version=version)
 
 
 def db_version(engine):
     """Display the current database version."""
-    return IMPL.db_version(engine)
+    return IMPL.Connection.db_version(engine)
 
 
 # Alarm Resources
 ###################
 def subcloud_alarms_get(context, name):
-    return IMPL.subcloud_alarms_get(context, name)
+    return IMPL.Connection(context).subcloud_alarms_get(name)
 
 
 def subcloud_alarms_get_all(context, name=None):
-    return IMPL.subcloud_alarms_get_all(context, name=name)
+    return IMPL.Connection(context).subcloud_alarms_get_all(name=name)
 
 
 def subcloud_alarms_create(context, name, values):
-    return IMPL.subcloud_alarms_create(context, name, values)
+    return IMPL.Connection(context).subcloud_alarms_create(name, values)
 
 
 def subcloud_alarms_update(context, name, values):
-    return IMPL.subcloud_alarms_update(context, name, values)
+    return IMPL.Connection(context).subcloud_alarms_update(name, values)
 
 
 def subcloud_alarms_delete(context, name):
-    return IMPL.subcloud_alarms_delete(context, name)
+    return IMPL.Connection(context).subcloud_alarms_delete(name)
 
 
 def subcloud_rename_alarms(context, subcloud_name, new_name):
-    return IMPL.subcloud_rename_alarms(context, subcloud_name, new_name)
+    return IMPL.Connection(context).subcloud_rename_alarms(subcloud_name, new_name)

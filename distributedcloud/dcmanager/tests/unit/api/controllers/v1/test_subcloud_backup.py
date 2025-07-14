@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,9 +12,10 @@ import mock
 from oslo_messaging import RemoteError
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.common import consts
 import dcmanager.common.utils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests import base
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
@@ -92,7 +93,7 @@ class BaseTestSubcloudBackupController(DCManagerApiTest):
 
         self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
         self._mock_object(rpc_client, "SubcloudStateClient")
-        self._mock_object(dcmanager.common.utils, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_sysinv_client = self._mock_object(
             dcmanager.common.utils, "SysinvClient"
         )
@@ -1107,7 +1108,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "Option release cannot be used without with_install option.",
+            "Option release cannot be used without one of the following options: "
+            "with_install, auto or factory.",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_install_values(self):
@@ -1124,8 +1126,9 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "The restore operation was requested with_install, but the following "
-            f"subcloud(s) does not contain install values: {self.subcloud.name}",
+            "The restore operation was requested with with_install, auto or "
+            "factory, but the following subcloud(s) does not contain install "
+            f"values: {self.subcloud.name}",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_matching_iso(self):

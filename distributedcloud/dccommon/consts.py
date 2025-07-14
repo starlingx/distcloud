@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -11,6 +11,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
+import os
 
 SECONDS_IN_HOUR = 3600
 
@@ -27,12 +28,6 @@ ENDPOINT_TYPE_IDENTITY_OS = "identity_openstack"
 
 # openstack endpoint types
 ENDPOINT_TYPES_LIST_OS = [ENDPOINT_TYPE_IDENTITY_OS]
-
-# distributed Cloud constants
-# TODO(gherzmann) Remove the following constants in favor of the
-# SYSTEM_CONTROLLER_NAME and DEFAULT_REGION_NAME constants
-CLOUD_0 = "RegionOne"
-VIRTUAL_MASTER_CLOUD = "SystemController"
 
 SW_UPDATE_DEFAULT_TITLE = "all clouds default"
 ANSIBLE_OVERRIDES_PATH = "/opt/dc-vault/ansible"
@@ -94,6 +89,7 @@ NEUTRON_QUOTA_FIELDS = (
 # Endpoint services names
 ENDPOINT_NAME_DCAGENT = "dcagent"
 ENDPOINT_NAME_DCDBSYNC = "dcdbsync"
+ENDPOINT_NAME_DCMANAGER = "dcmanager"
 ENDPOINT_NAME_FM = "fm"
 ENDPOINT_NAME_KEYSTONE = "keystone"
 ENDPOINT_NAME_SYSINV = "sysinv"
@@ -112,28 +108,20 @@ ENDPOINT_TYPE_USM = "usm"
 ENDPOINT_TYPE_PLATFORM = "platform"
 ENDPOINT_TYPE_FM = "faultmanagement"
 ENDPOINT_TYPE_NFV = "nfv"
-# TODO(nicodemos): Remove patching/load after patching is no longer supported
-ENDPOINT_TYPE_LOAD = "load"
-ENDPOINT_TYPE_PATCHING = "patching"
 
 # TODO(nicodemos): Rename all other audit to use AUDIT_TYPE_
 AUDIT_TYPE_SOFTWARE = "software"
 
 # All endpoint types
-# TODO(nicodemos): Remove patching after is no longer supported
 ENDPOINT_TYPES_LIST = [
     ENDPOINT_TYPE_PLATFORM,
-    ENDPOINT_TYPE_PATCHING,
     ENDPOINT_TYPE_IDENTITY,
     ENDPOINT_TYPE_USM,
 ]
 
-# TODO(nicodemos): Remove patching/load after is no longer supported
 AUDIT_TYPES_LIST = [
     ENDPOINT_TYPE_PLATFORM,
-    ENDPOINT_TYPE_PATCHING,
     ENDPOINT_TYPE_IDENTITY,
-    ENDPOINT_TYPE_LOAD,
     ENDPOINT_TYPE_DC_CERT,
     ENDPOINT_TYPE_FIRMWARE,
     ENDPOINT_TYPE_KUBERNETES,
@@ -143,26 +131,18 @@ AUDIT_TYPES_LIST = [
 
 
 # All endpoint audit requests
-# TODO(nicodemos): Remove patching/load after is no longer supported
-# TODO(nicodemos): The AUDIT_TYPE_SOFTWARE will use the 'spare_audit_requested'
-# temporarily until the USM feature is fully complete. Afterward, the software audit
-# will replace the patch audit.
 ENDPOINT_AUDIT_REQUESTS = {
     ENDPOINT_TYPE_FIRMWARE: "firmware_audit_requested",
     ENDPOINT_TYPE_KUBERNETES: "kubernetes_audit_requested",
     ENDPOINT_TYPE_KUBE_ROOTCA: "kube_rootca_update_audit_requested",
-    ENDPOINT_TYPE_LOAD: "load_audit_requested",
-    ENDPOINT_TYPE_PATCHING: "patch_audit_requested",
-    AUDIT_TYPE_SOFTWARE: "spare_audit_requested",
+    AUDIT_TYPE_SOFTWARE: "software_audit_requested",
 }
 
-# TODO(nicodemos): Remove patching/load after is no longer supported
 ENDPOINT_URLS = {
     ENDPOINT_NAME_DCAGENT: "https://{}:8326",
     ENDPOINT_NAME_DCDBSYNC: "https://{}:8220/v1.0",
     ENDPOINT_NAME_FM: "https://{}:18003",
     ENDPOINT_NAME_KEYSTONE: "https://{}:5001/v3",
-    ENDPOINT_TYPE_PATCHING: "https://{}:5492",
     ENDPOINT_NAME_SYSINV: "https://{}:6386/v1",
     ENDPOINT_NAME_USM: "https://{}:5498",
     ENDPOINT_NAME_VIM: "https://{}:4546",
@@ -196,12 +176,6 @@ MIN_VERSION_FOR_DCAGENT = "24.09"
 
 # Well known region names
 SYSTEM_CONTROLLER_NAME = "SystemController"
-DEFAULT_REGION_NAME = "RegionOne"
-
-SYSTEM_CONTROLLER_REGION_NAMES = {
-    DEFAULT_REGION_NAME,
-    SYSTEM_CONTROLLER_NAME,
-}
 
 # Subcloud management state
 MANAGEMENT_UNMANAGED = "unmanaged"
@@ -215,7 +189,6 @@ AVAILABILITY_ONLINE = "online"
 SYNC_STATUS_UNKNOWN = "unknown"
 SYNC_STATUS_IN_SYNC = "in-sync"
 SYNC_STATUS_OUT_OF_SYNC = "out-of-sync"
-SYNC_STATUS_NOT_AVAILABLE = "not-available"
 
 # Subcloud deploy configuration status
 DEPLOY_CONFIG_UP_TO_DATE = "Deployment: configurations up-to-date"
@@ -224,16 +197,57 @@ MONITORED_ALARM_ENTITIES = [
     "host.starlingx.windriver.com",
 ]
 
-# OS type
-OS_RELEASE_FILE = "/etc/os-release"
-OS_CENTOS = "centos"
-OS_DEBIAN = "debian"
-SUPPORTED_OS_TYPES = [OS_CENTOS, OS_DEBIAN]
-
 # SSL cert
-CERT_CA_FILE_CENTOS = "ca-cert.pem"
 CERT_CA_FILE_DEBIAN = "ca-cert.crt"
 SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+
+# DCCertMon
+# Unique name of certificate
+CERTIFICATE_TYPE_ADMIN_ENDPOINT = "admin-endpoint-cert"
+CERTIFICATE_TYPE_ADMIN_ENDPOINT_INTERMEDIATE_CA = "intermediate-ca-cert"
+CERT_MODE_SSL_CA = "ssl_ca"
+
+DC_ADMIN_ENDPOINT_SECRET_NAME = "dc-adminep-certificate"
+DC_ADMIN_ROOT_CA_SECRET_NAME = "dc-adminep-root-ca-certificate"
+
+SC_INTERMEDIATE_CA_SECRET_NAME = "sc-adminep-ca-certificate"
+SC_ADMIN_ENDPOINT_SECRET_NAME = "sc-adminep-certificate"
+
+DC_ROOT_CA_CERT_FILE = "dc-adminep-root-ca.crt"
+SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+DC_ROOT_CA_CERT_PATH = os.path.join(SSL_CERT_CA_DIR, DC_ROOT_CA_CERT_FILE)
+
+CERT_CA_FILE_DEBIAN = "ca-cert.crt"
+SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+
+CERT_NAMESPACE_SYS_CONTROLLER = "dc-cert"
+CERT_NAMESPACE_SUBCLOUD_CONTROLLER = "sc-cert"
+
+ENDPOINT_LOCK_NAME = "sysinv-endpoints"
+CERT_INSTALL_LOCK_NAME = "sysinv-certs"
+
+# The periodic dccertmon audit runs every 5 seconds to process background audits across
+# all subclouds. Notification-triggered audits run more frequently (every 2
+# seconds) to ensure prompt handling when a subcloud comes online.
+# This separation allows faster responsiveness to events without interfering
+# with the regular audit cadence.
+PERIODIC_AUDIT_INTERVAL_SECS = 5
+NOTIFICATION_QUEUE_AUDIT_INTERVAL_SECS = 2
+
+# TODO(ecandotti): Update this list when the deploy states are migrated from
+# dcmanager/common/consts.py to here.
+INVALID_SUBCLOUD_AUDIT_DEPLOY_STATES = [
+    # Secondary subclouds should not be audited as they are expected
+    # to be managed by a peer system controller (geo-redundancy feat.)
+    "create-complete",
+    "create-failed",
+    "pre-rehome",
+    "rehome-failed",
+    "rehome-pending",
+    "rehoming",
+    "secondary",
+    "secondary-failed",
+]
 
 # RVMC
 RVMC_NAME_PREFIX = "rvmc"
@@ -284,6 +298,7 @@ OPTIONAL_INSTALL_VALUES = [
     "persistent_size",
     "hw_settle",
     "extra_boot_params",
+    "wipe_osds",
 ]
 
 GEN_ISO_OPTIONS = {
@@ -300,6 +315,7 @@ GEN_ISO_OPTIONS = {
     "persistent_size": "--param",
     "hw_settle": "--param",
     "extra_boot_params": "--param",
+    "wipe_osds": "--param",
 }
 
 SUPPORTED_INSTALL_TYPES = 6
@@ -322,3 +338,6 @@ SYSINV_CLIENT_REST_DEFAULT_TIMEOUT = 600
 
 SUBCLOUD_ISO_PATH = "/opt/platform/iso"
 SUBCLOUD_FEED_PATH = "/var/www/pages/feed"
+
+CLOUD_INIT_CONFIG = "cloud_init_config"
+PLATFORM_RECONFIGURE_FILE_NAME = "10-platform-reconfig"

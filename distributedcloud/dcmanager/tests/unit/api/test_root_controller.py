@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -50,6 +50,11 @@ class DCManagerApiTest(DCManagerTestCase):
         config_fixture.set_config_dirs([])
 
         self.CONF.set_override("auth_strategy", "noauth")
+        self.CONF.set_override(
+            "region_name",
+            uuidutils.generate_uuid().replace("-", ""),
+            group="keystone_authtoken",
+        )
 
         self.app = self._make_app()
 

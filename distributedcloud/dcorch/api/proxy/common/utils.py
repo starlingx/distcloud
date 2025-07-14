@@ -1,4 +1,4 @@
-# Copyright 2017-2024 Wind River
+# Copyright 2017-2025 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import psutil
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
+from dccommon import utils as cutils
 from dcorch.common import consts
 
 LOG = logging.getLogger(__name__)
@@ -34,7 +35,6 @@ def is_space_available(partition, size):
     return False if available_space < size else True
 
 
-# TODO(nicodemos): Remove patching when is no longer supported
 def get_host_port_options(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.bind_host, cfg.compute.bind_port
@@ -44,8 +44,6 @@ def get_host_port_options(cfg):
         return cfg.network.bind_host, cfg.network.bind_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_USM:
         return cfg.usm.bind_host, cfg.usm.bind_port
-    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-        return cfg.patching.bind_host, cfg.patching.bind_port
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.bind_host, cfg.volume.bind_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
@@ -55,7 +53,6 @@ def get_host_port_options(cfg):
         return None, None
 
 
-# TODO(nicodemos): Remove patching when is no longer supported
 def get_remote_host_port_options(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.remote_host, cfg.compute.remote_port
@@ -65,8 +62,6 @@ def get_remote_host_port_options(cfg):
         return cfg.network.remote_host, cfg.network.remote_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_USM:
         return cfg.usm.remote_host, cfg.usm.remote_port
-    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-        return cfg.patching.remote_host, cfg.patching.remote_port
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.remote_host, cfg.volume.remote_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
@@ -76,7 +71,6 @@ def get_remote_host_port_options(cfg):
         return None, None
 
 
-# TODO(nicodemos): Remove patching when is no longer supported
 def get_sync_endpoint(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.sync_endpoint
@@ -84,8 +78,6 @@ def get_sync_endpoint(cfg):
         return cfg.platform.sync_endpoint
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.sync_endpoint
-    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-        return cfg.patching.sync_endpoint
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.sync_endpoint
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
@@ -148,10 +140,9 @@ def set_request_forward_environ(req, remote_host, remote_port):
         req.environ["HTTP_X_FORWARDED_FOR"] = req.environ["REMOTE_ADDR"]
 
 
-def _get_fernet_keys():
+def _get_fernet_keys() -> list[str]:
     """Get fernet keys from sysinv."""
     os_client = OpenStackDriver(
-        region_name=dccommon_consts.CLOUD_0,
         region_clients=("sysinv",),
         thread_name="proxy",
     )
@@ -164,14 +155,16 @@ def _get_fernet_keys():
     ) as e:
         LOG.info(
             "get_fernet_keys: cloud {} is not reachable [{}]".format(
-                dccommon_consts.CLOUD_0, str(e)
+                cutils.get_region_one_name(), str(e)
             )
         )
-        OpenStackDriver.delete_region_clients(dccommon_consts.CLOUD_0)
+        OpenStackDriver.delete_region_clients(cutils.get_region_one_name())
         return None
     except (AttributeError, TypeError) as e:
         LOG.info("get_fernet_keys error {}".format(e))
-        OpenStackDriver.delete_region_clients(dccommon_consts.CLOUD_0, clear_token=True)
+        OpenStackDriver.delete_region_clients(
+            cutils.get_region_one_name(), clear_token=True
+        )
         return None
     except Exception as e:
         LOG.exception(e)

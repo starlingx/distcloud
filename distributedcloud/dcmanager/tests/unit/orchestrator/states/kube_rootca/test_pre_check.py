@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -20,9 +20,6 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
     def setUp(self):
         super(TestPreCheckStage, self).setUp()
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
             self.subcloud.id, STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK
@@ -36,11 +33,13 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
         # Create a strategy with no extra_args
         extra_args = None
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+            self.ctx, self.strategy_type, extra_args=extra_args
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the expected next state happened
         self.assert_step_updated(
@@ -58,10 +57,12 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
             "subject": "C=CA ST=ON L=OTT O=WR OU=STX CN=AL_RULES",
         }
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+            self.ctx, self.strategy_type, extra_args=extra_args
         )
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the expected next state happened
         self.assert_step_updated(
@@ -79,10 +80,12 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
 
         extra_args = {"cert-file": "some_fake_cert_file"}
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+            self.ctx, self.strategy_type, extra_args=extra_args
         )
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Verify the expected next state happened
         self.assert_step_updated(

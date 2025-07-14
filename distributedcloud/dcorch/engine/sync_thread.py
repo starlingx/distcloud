@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +26,7 @@ from oslo_utils import timeutils
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
 from dccommon.endpoint_cache import EndpointCache
-from dccommon.utils import build_subcloud_endpoint
+from dccommon import utils as cutils
 from dcdbsync.dbsyncclient import client as dbsyncclient
 from dcmanager.rpc import client as dcmanager_rpc_client
 from dcorch.common import consts
@@ -72,13 +72,11 @@ def get_master_os_client(region_clients=None):
     # cached in the openstack driver, because we don't want to hold the admin
     # sessions for the subclouds.
     try:
-        os_client = sdk.OpenStackDriver(
-            region_name=dccommon_consts.CLOUD_0, region_clients=region_clients
-        )
+        os_client = sdk.OpenStackDriver(region_clients=region_clients)
     except Exception as e:
         LOG.error(
             "Failed to get os_client for "
-            f"{dccommon_consts.CLOUD_0}/{region_clients}: {e}."
+            f"{cutils.get_region_one_name()}/{region_clients}: {e}."
         )
         raise e
     return os_client
@@ -114,7 +112,7 @@ class SyncThread(object):
         self.engine_id = engine_id
         self.ctxt = context.get_admin_context()
         self.sync_handler_map = {}
-        self.master_region_name = dccommon_consts.CLOUD_0
+        self.master_region_name = cutils.get_region_one_name()
         self.audit_resources = []
 
         self.log_extra = {"instance": self.subcloud_name + ": "}
@@ -162,11 +160,6 @@ class SyncThread(object):
             config = cfg.CONF.endpoint_cache
             self.admin_session = EndpointCache.get_admin_session(
                 config.auth_uri,
-                config.username,
-                config.user_domain_name,
-                config.password,
-                config.project_name,
-                config.project_domain_name,
                 timeout=60,
             )
         elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
@@ -185,13 +178,13 @@ class SyncThread(object):
 
         # keystone client
         self.ks_client = keystoneclient.Client(
-            session=self.admin_session, region_name=dccommon_consts.CLOUD_0
+            session=self.admin_session, region_name=cutils.get_region_one_name()
         )
         # dcdbsync client
         self.dbs_client = dbsyncclient.Client(
             endpoint_type=consts.DBS_ENDPOINT_INTERNAL,
             session=self.admin_session,
-            region_name=dccommon_consts.CLOUD_0,
+            region_name=cutils.get_region_one_name(),
         )
 
     def initialize_sc_clients(self):
@@ -201,21 +194,17 @@ class SyncThread(object):
         if not self.sc_admin_session:
             # Subclouds will use token from the Subcloud specific Keystone,
             # so define a session against that subcloud's keystone endpoint
-            self.sc_auth_url = build_subcloud_endpoint(self.management_ip, "keystone")
+            self.sc_auth_url = cutils.build_subcloud_endpoint(
+                self.management_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
+            )
             LOG.debug(
                 f"Built sc_auth_url {self.sc_auth_url} for subcloud "
                 f"{self.subcloud_name}"
             )
 
             if self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST:
-                config = cfg.CONF.endpoint_cache
                 self.sc_admin_session = EndpointCache.get_admin_session(
                     self.sc_auth_url,
-                    config.username,
-                    config.user_domain_name,
-                    config.password,
-                    config.project_name,
-                    config.project_domain_name,
                     timeout=60,
                 )
             elif self.endpoint_type in dccommon_consts.ENDPOINT_TYPES_LIST_OS:
@@ -428,7 +417,9 @@ class SyncThread(object):
         timeout = eventlet.timeout.Timeout(SYNC_TIMEOUT)
         try:
             for request in actual_sync_requests:
-                if not self.is_subcloud_enabled() or self.should_exit():
+                if db_api.should_stop_subcloud_sync(
+                    self.ctxt, self.subcloud_name, self.endpoint_type
+                ):
                     # Oops, someone disabled the endpoint while
                     # we were processing work for it.
                     raise exceptions.EndpointNotReachable()
@@ -671,7 +662,9 @@ class SyncThread(object):
                 return
 
         for resource_type in self.audit_resources:
-            if not self.is_subcloud_enabled() or self.should_exit():
+            if db_api.should_stop_subcloud_sync(
+                self.ctxt, self.subcloud_name, self.endpoint_type
+            ):
                 LOG.info(
                     "{}: aborting sync audit, as subcloud is disabled".format(
                         threading.currentThread().getName()
@@ -1127,13 +1120,7 @@ class SyncThread(object):
         return m_r
 
     def audit_dependants(self, resource_type, m_resource, sc_resource):
-        num_of_audit_jobs = 0
-        if not self.is_subcloud_enabled() or self.should_exit():
-            return num_of_audit_jobs
-        if not sc_resource:
-            # Handle None value for sc_resource
-            pass
-        return num_of_audit_jobs
+        return 0
 
     def audit_discrepancy(self, resource_type, m_resource, sc_resources):
         # Return true to try creating the resource again

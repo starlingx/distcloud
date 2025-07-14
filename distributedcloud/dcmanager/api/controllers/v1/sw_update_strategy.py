@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -40,7 +40,6 @@ SUPPORTED_STRATEGY_TYPES = [
     consts.SW_UPDATE_TYPE_FIRMWARE,
     consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
     consts.SW_UPDATE_TYPE_KUBERNETES,
-    consts.SW_UPDATE_TYPE_PATCH,
     consts.SW_UPDATE_TYPE_PRESTAGE,
     consts.SW_UPDATE_TYPE_SOFTWARE,
 ]
@@ -155,7 +154,7 @@ class SwUpdateStrategyController(object):
             pecan.abort(400, _("Body required"))
 
         if actions is None:
-            policy.authorize(
+            context.is_admin = policy.authorize(
                 sw_update_strat_policy.POLICY_ROOT % "create",
                 {},
                 restcomm.extract_credentials_for_policy(),
@@ -176,10 +175,7 @@ class SwUpdateStrategyController(object):
                 ]:
                     pecan.abort(400, _("subcloud-apply-type invalid"))
 
-            # TODO(nicodemos): Remove once sw-patch is deprecated
-            if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                utils.validate_patch_strategy(payload)
-            elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+            if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
                 utils.validate_software_strategy(payload.get("release_id"))
             elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                 prestaged_sw_version, message = (
@@ -270,7 +266,7 @@ class SwUpdateStrategyController(object):
             if not action:
                 pecan.abort(400, _("action required"))
             if action == consts.SW_UPDATE_ACTION_APPLY:
-                policy.authorize(
+                context.is_admin = policy.authorize(
                     sw_update_strat_policy.POLICY_ROOT % "apply",
                     {},
                     restcomm.extract_credentials_for_policy(),
@@ -291,7 +287,7 @@ class SwUpdateStrategyController(object):
                     LOG.exception(e)
                     pecan.abort(500, _("Unable to apply strategy"))
             elif action == consts.SW_UPDATE_ACTION_ABORT:
-                policy.authorize(
+                context.is_admin = policy.authorize(
                     sw_update_strat_policy.POLICY_ROOT % "abort",
                     {},
                     restcomm.extract_credentials_for_policy(),
@@ -315,12 +311,13 @@ class SwUpdateStrategyController(object):
     @index.when(method="delete", template="json")
     def delete(self):
         """Delete the software update strategy."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             sw_update_strat_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         # If 'type' is in the request params, filter the update_type
         update_type_filter = request.params.get("type", None)

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -36,7 +36,7 @@ class TestCreatingVIMKubeRootCAUpgradeStrategyStage(
             "subject": "C=CA ST=ON L=OTT O=WR OU=STX CN=AL_RULES",
         }
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+            self.ctx, self.strategy_type, extra_args=extra_args
         )
         # Call the 'success' test
         self.test_creating_vim_strategy_success()
@@ -45,7 +45,7 @@ class TestCreatingVIMKubeRootCAUpgradeStrategyStage(
         """Test create strategy succeeds without extra_args"""
 
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=None
+            self.ctx, self.strategy_type, extra_args=None
         )
 
         self.test_creating_vim_strategy_success()

@@ -1,5 +1,5 @@
 # Copyright 2012-2013 OpenStack Foundation
-# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -17,7 +17,6 @@ from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneclient.v3.contrib import endpoint_filter
 from oslo_utils import importutils
 
-from dccommon import consts
 from dccommon.drivers import base
 from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions
@@ -41,10 +40,7 @@ class KeystoneClient(base.DriverBase):
         self.endpoint_cache = EndpointCache(region_name, auth_url, fetch_subcloud_ips)
         self.session = self.endpoint_cache.admin_session
         self.keystone_client = self.endpoint_cache.keystone_client
-        if region_name in [consts.CLOUD_0, consts.VIRTUAL_MASTER_CLOUD]:
-            self.services_list = EndpointCache.master_services_list
-        else:
-            self.services_list = self.keystone_client.services.list()
+        self.region_name = region_name
 
     def get_enabled_projects(self, id_only=True):
         project_list = self.keystone_client.projects.list()
@@ -95,12 +91,6 @@ class KeystoneClient(base.DriverBase):
         for user in user_list:
             if user.name == username:
                 return user
-
-    def is_service_enabled(self, service):
-        for current_service in self.services_list:
-            if service in current_service.type:
-                return True
-        return False
 
     # Returns list of regions if endpoint filter is applied for the project
     def get_filtered_region(self, project_id):

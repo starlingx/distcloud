@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -37,10 +37,12 @@ import mock
 import netaddr
 from oslo_concurrency import lockutils
 from oslo_utils import timeutils
+from oslo_utils import uuidutils
 from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
+from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon import kubeoperator
 from dccommon import ostree_mount
@@ -52,7 +54,7 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.manager import system_peer_manager
 from dcmanager.rpc import client as rpc_client
@@ -124,11 +126,6 @@ FAKE_SERVICES = [
         dccommon_consts.ENDPOINT_TYPE_IDENTITY,
         2,
     ),
-    FakeService(
-        dccommon_consts.ENDPOINT_TYPE_PATCHING,
-        dccommon_consts.ENDPOINT_TYPE_PATCHING,
-        3,
-    ),
     FakeService(dccommon_consts.ENDPOINT_NAME_FM, dccommon_consts.ENDPOINT_TYPE_FM, 4),
     FakeService(
         dccommon_consts.ENDPOINT_NAME_VIM, dccommon_consts.ENDPOINT_TYPE_NFV, 5
@@ -143,10 +140,10 @@ class FakeKeystoneClient(object):
     def __init__(self):
         self.user_list = FAKE_USERS
         self.project_list = FAKE_PROJECTS
-        self.services_list = FAKE_SERVICES
         self.keystone_client = mock.MagicMock()
         self.session = mock.MagicMock()
         self.endpoint_cache = mock.MagicMock()
+        self.region_name = uuidutils.generate_uuid().replace("-", "")
 
     def get_enabled_users(self, id_only):
         if not id_only:
@@ -318,7 +315,6 @@ FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL = {
 SERVICE_ENDPOINTS = [
     dccommon_consts.ENDPOINT_TYPE_PLATFORM,
     dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-    dccommon_consts.ENDPOINT_TYPE_PATCHING,
     dccommon_consts.ENDPOINT_TYPE_FM,
     dccommon_consts.ENDPOINT_TYPE_NFV,
     dccommon_consts.AUDIT_TYPE_SOFTWARE,
@@ -360,7 +356,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
 
         self.mock_audit_rpc_client = self._mock_object(rpcapi, "ManagerAuditClient")
         self._mock_object(rpc_client, "SubcloudStateClient")
-        self._mock_object(subcloud_install, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_subcloud_install_sysinv_client = self._mock_object(
             subcloud_install, "SysinvClient"
         )
@@ -476,16 +472,6 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
 
-    def create_simplified_subcloud(self, subcloud):
-        return {
-            "id": subcloud.id,
-            "name": subcloud.name,
-            "availability_status": subcloud.availability_status,
-            "management_state": subcloud.management_state,
-            "deploy_status": subcloud.deploy_status,
-            "region_name": subcloud.region_name,
-        }
-
     @staticmethod
     def create_subcloud_peer_group_static(ctxt, **kwargs):
         values = {
@@ -561,7 +547,8 @@ class TestSubcloudManager(BaseTestSubcloudManager):
                 f'{base.SUBCLOUD_1["region_name"]}'
             )
         self.assertEqual(
-            self.mock_dcmanager_api().subcloud_sysinv_endpoint_update.call_count, 6
+            self.mock_dcmanager_api().subcloud_sysinv_endpoint_update.call_count,
+            len(FAKE_SERVICES),
         )
 
     @mock.patch.object(kubeoperator, "KubeOperator")
@@ -1520,7 +1507,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
 
     def test_add_subcloud_create_failed(self):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
-        services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
         subcloud = self.create_subcloud_static(
@@ -1528,7 +1514,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         )
 
         self.mock_dcorch_api().add_subcloud.side_effect = Exception("boom")
-        self.mock_openstack_driver().services_list = services
 
         self.sm.add_subcloud(self.ctx, subcloud.id, payload=values)
         self.mock_get_cached_regionone_data.assert_called_once()
@@ -1541,7 +1526,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
     def test_add_subcloud_with_migrate_option_prep_failed(self):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values["migrate"] = "true"
-        services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
         subcloud = self.create_subcloud_static(
@@ -1549,7 +1533,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         )
 
         self.mock_dcorch_api().add_subcloud.side_effect = Exception("boom")
-        self.mock_openstack_driver().services_list = services
         self.mock_keyring.get_password.return_vaue = "testpass"
 
         self.sm.add_subcloud(self.ctx, subcloud.id, payload=values)
@@ -2114,7 +2097,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2128,7 +2110,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2155,7 +2136,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2189,7 +2169,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2215,7 +2194,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
         ]:
@@ -2257,7 +2235,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
         ]:
@@ -2312,7 +2289,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2338,7 +2314,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             for endpoint in [
                 dccommon_consts.ENDPOINT_TYPE_PLATFORM,
                 dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-                dccommon_consts.ENDPOINT_TYPE_PATCHING,
                 dccommon_consts.ENDPOINT_TYPE_FM,
                 dccommon_consts.ENDPOINT_TYPE_NFV,
                 dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2379,7 +2354,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2389,7 +2363,10 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             self.assertEqual(status.sync_status, dccommon_consts.SYNC_STATUS_UNKNOWN)
 
         ssm.update_subcloud_availability(
-            self.ctx, self.subcloud.region_name, dccommon_consts.AVAILABILITY_ONLINE
+            self.ctx,
+            self.subcloud.name,
+            self.subcloud.region_name,
+            dccommon_consts.AVAILABILITY_ONLINE,
         )
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, "subcloud1")
@@ -2419,10 +2396,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             "update_state_only": False,
             "audit_fail_count": 1,
         }
-        LOAD = dccommon_consts.ENDPOINT_TYPE_LOAD
         FIRMWARE = dccommon_consts.ENDPOINT_TYPE_FIRMWARE
         endpoint_data = {
-            LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
             FIRMWARE: dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         }
         endpoints = db_api.subcloud_status_get_all(self.ctx, self.subcloud.id)
@@ -2437,7 +2412,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         ssm = subcloud_state_manager.SubcloudStateManager()
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             availability_data,
             endpoint_data,
         )
@@ -2471,7 +2447,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
 
         When the endpoint's status in the database is the same as the one it'll be
         updated to, ensure that, instead of validating, bulk_update_endpoint_status
-        sets the same value in the database
+        just skip it
         """
 
         db_api.subcloud_update(
@@ -2481,33 +2457,33 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
         )
 
-        LOAD = dccommon_consts.ENDPOINT_TYPE_LOAD
         FIRMWARE = dccommon_consts.ENDPOINT_TYPE_FIRMWARE
         endpoint_data = {
-            LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
             FIRMWARE: dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         }
 
         ssm = subcloud_state_manager.SubcloudStateManager()
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             None,
             endpoint_data,
         )
 
         self.assertEqual(mock_db.call_count, 1)
 
-        # Re-executing the method should result in the same amount of call counts
+        # Re-executing the method should result in no extra calls
         # for the database query since there are no updates
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             None,
             endpoint_data,
         )
 
-        self.assertEqual(mock_db.call_count, 2)
+        self.assertEqual(mock_db.call_count, 1)
 
     @mock.patch.object(
         subcloud_state_manager.SubcloudStateManager,
@@ -2529,6 +2505,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         with mock.patch.object(db_api, "subcloud_update") as subcloud_update_mock:
             ssm.update_subcloud_availability(
                 self.ctx,
+                self.subcloud.name,
                 self.subcloud.region_name,
                 availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                 update_state_only=True,
@@ -2564,7 +2541,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2574,7 +2550,10 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             self.assertEqual(status.sync_status, dccommon_consts.SYNC_STATUS_UNKNOWN)
 
         ssm.update_subcloud_availability(
-            self.ctx, self.subcloud.region_name, dccommon_consts.AVAILABILITY_ONLINE
+            self.ctx,
+            self.subcloud.name,
+            self.subcloud.region_name,
+            dccommon_consts.AVAILABILITY_ONLINE,
         )
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, "subcloud1")
@@ -2631,6 +2610,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         audit_fail_count = 1
         ssm.update_subcloud_availability(
             self.ctx,
+            self.subcloud.name,
             self.subcloud.region_name,
             availability_status=None,
             audit_fail_count=audit_fail_count,
@@ -2650,6 +2630,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         audit_fail_count = audit_fail_count + 1
         ssm.update_subcloud_availability(
             self.ctx,
+            self.subcloud.name,
             self.subcloud.region_name,
             dccommon_consts.AVAILABILITY_OFFLINE,
             audit_fail_count=audit_fail_count,
@@ -2957,6 +2938,15 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
             ],
         )
 
+    def test_compose_install_command_with_bmc_access_only(self):
+        install_command = self.sm.compose_install_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            FAKE_PREVIOUS_SW_VERSION,
+            bmc_access_only=True,
+        )
+        self.assertIn("bmc_access_only=True", install_command)
+
     @mock.patch("os.path.isfile")
     def test_compose_bootstrap_command(self, mock_isfile):
         mock_isfile.return_value = True
@@ -3003,47 +2993,6 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
                 f"{ANS_PATH}/subcloud1_inventory.yml",
                 "--limit",
                 "subcloud1",
-            ],
-        )
-
-    @mock.patch("os.path.isfile")
-    def test_compose_rehome_command_with_previous_sw_version(self, mock_isfile):
-        mock_isfile.return_value = True
-        subcloud_name = base.SUBCLOUD_1["name"]
-        subcloud_region = base.SUBCLOUD_1["region_name"]
-
-        rehome_command = self.sm.compose_rehome_command(
-            subcloud_name,
-            subcloud_region,
-            f"{ANS_PATH}/subcloud1_inventory.yml",
-            FAKE_PREVIOUS_SW_VERSION,
-        )
-
-        extra_vars = "override_files_dir='%s' region_name=%s" % (
-            ANS_PATH,
-            subcloud_region,
-        )
-        extra_vars += (
-            " validate_keystone_passwords_script='%s'"
-            % subcloud_manager.ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT
-        )
-
-        self.assertEqual(
-            rehome_command,
-            [
-                "ansible-playbook",
-                cutils.get_playbook_for_software_version(
-                    subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
-                    FAKE_PREVIOUS_SW_VERSION,
-                ),
-                "-i",
-                f"{ANS_PATH}/subcloud1_inventory.yml",
-                "--limit",
-                subcloud_name,
-                "--timeout",
-                subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
-                "-e",
-                extra_vars,
             ],
         )
 
@@ -3141,9 +3090,14 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
 
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_CREATED
         self.fake_install_values["software_version"] = SW_VERSION
+        # Change management start and end addresses to be the same as in self.subcloud
+        # to avoid network reconfiguration.
+        bootstrap_file_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_file_data["management_start_address"] = "192.168.101.2"
+        bootstrap_file_data["management_end_address"] = "192.168.101.50"
         fake_payload_bootstrap = {
             **fake_subcloud.FAKE_BOOTSTRAP_VALUE,
-            **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
+            **bootstrap_file_data,
         }
         fake_payload_bootstrap["sysadmin_password"] = "testpass"
         fake_payload = {
@@ -3178,9 +3132,14 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_CREATED
         self.fake_install_values["software_version"] = SW_VERSION
 
+        # Change management start and end addresses to be the same as in self.subcloud
+        # to avoid network reconfiguration.
+        bootstrap_file_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_file_data["management_start_address"] = "192.168.101.2"
+        bootstrap_file_data["management_end_address"] = "192.168.101.50"
         fake_payload_bootstrap = {
             **fake_subcloud.FAKE_BOOTSTRAP_VALUE,
-            **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
+            **bootstrap_file_data,
         }
         fake_payload_bootstrap["sysadmin_password"] = "testpass"
         fake_payload = {**self.fake_payload_install, **fake_payload_bootstrap}
@@ -3783,8 +3742,8 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 1)
 
         # Verify the prestage request release was passed to the playbooks
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5]
         )
 
     @mock.patch.object(cutils, "get_filename_by_prefix")
@@ -3816,15 +3775,13 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 2)
         # Verify the "image_list_file" was passed to the prestage image playbook
         # for the local prestage
-        self.assertTrue(
-            "image_list_file" in mock_run_ansible.call_args_list[1].args[1][5]
-        )
+        self.assertIn("image_list_file", mock_run_ansible.call_args_list[1].args[1][5])
         # Verify the prestage request release was passed to the playbooks
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5]
         )
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[1].args[1][5]
         )
 
     @mock.patch.object(cutils, "get_filename_by_prefix")
@@ -3856,8 +3813,8 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 2)
         # Verify the "image_list_file" was not passed to the prestage image playbook
         # for the local prestage
-        self.assertTrue(
-            "image_list_file" not in mock_run_ansible.call_args_list[1].args[1][5]
+        self.assertNotIn(
+            "image_list_file", mock_run_ansible.call_args_list[1].args[1][5]
         )
         # Verify the prestage request release was passed to the playbooks
         self.assertIn(
@@ -4076,6 +4033,125 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         mock_create_overrides.assert_called_once()
 
         # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
+        )
+
+    @mock.patch.object(subcloud_manager.SubcloudManager, "_stage_auto_restore_files")
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_restore_with_auto_and_factory_restore(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_run_restore_playbook,
+        mock_stage_auto_restore_files,
+    ):
+        self.mock_run_subcloud_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+        self.mock_run_subcloud_install.return_value = True
+        mock_run_restore_playbook.return_value = True
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
+        values["factory"] = True
+        values["auto"] = True
+        values["with_install"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=self.data_install,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        # Assert that we called the _create_overrides_for_backup_or_restore and
+        # compose_install_command with auto_restore_mode = "factory"
+        mock_create_overrides.assert_called_once_with(
+            "restore", values, self.subcloud.name, "factory", mock.ANY
+        )
+
+        mock_stage_auto_restore_files.assert_called_once()
+
+        mock_run_restore_playbook.assert_called_once_with(
+            mock.ANY, mock.ANY, mock.ANY, mock.ANY, "factory"
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
+        )
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_restore_with_install_wipe_osds(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_run_restore_playbook,
+    ):
+        self.mock_run_subcloud_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+        self.mock_run_subcloud_install.return_value = True
+        mock_run_restore_playbook.return_value = True
+
+        # Set the wipe_osds to True in the install data
+        data_install = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        data_install["wipe_osds"] = True
+
+        # Set the values for the restore operation
+        # to include the with_install flag
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
+        values["with_install"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=json.dumps(data_install),
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        mock_create_overrides.assert_called_once_with(
+            "restore", values, self.subcloud.name, None, True
+        )
+
+        mock_run_restore_playbook.assert_called_once_with(
+            mock.ANY, mock.ANY, mock.ANY, mock.ANY, mock.ANY
+        )
+
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
@@ -4693,6 +4769,33 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
         ]
         self.mock_log_subcloud_manager.info.assert_has_calls(Calls)
 
+    @mock.patch.object(request, "urlretrieve")
+    def test_subcloud_install_with_include_path(self, mock_request_urlretrieve):
+        mock_request_urlretrieve.return_value = "fake_path", "empty"
+        self.mock_ansible_run_playbook.return_value = False
+
+        self.sm._run_subcloud_install(
+            self.ctx,
+            self.subcloud,
+            self.mock_compose_install_command,
+            self.fake_log_file,
+            self.fake_install_values,
+            include_paths=["/fake/include/path"],
+        )
+
+        # Assert that at least one gen-bootloader-iso.sh call was made
+        script_calls = [
+            call
+            for call in self.mock_subprocess_run.call_args_list
+            if "/usr/local/bin/gen-bootloader-iso.sh" in call[0][0]
+        ]
+        self.assertTrue(script_calls, "No call to gen-bootloader-iso.sh was found")
+
+        # Assert that the --include-path and path are present
+        script_args = [arg for call in script_calls for arg in call[0][0]]
+        self.assertIn("--include-path", script_args)
+        self.assertIn("/fake/include/path", script_args)
+
     def test_subcloud_install_prep_failed(self):
         install_success = self.sm._run_subcloud_install(
             self.ctx,
@@ -4843,15 +4946,26 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             f"{self.seed_data_dir}/meta-data", "w"
         )
 
-    def test_build_seed_user_config(self):
+    @mock.patch("os.chmod")
+    def test_build_seed_user_config(self, mock_chmod):
+        scripts_dir = os.path.join(self.seed_data_dir, "cloud-init-config", "scripts")
+
         result = self.enroll_init._build_seed_user_config(
             self.seed_data_dir, self.iso_values
         )
 
         self.assertTrue(result)
-        self.mock_builtins_open.assert_called_once_with(
-            f"{self.seed_data_dir}/user-data", "w"
+        self.mock_os_makedirs.assert_any_call(scripts_dir, exist_ok=True)
+
+        # The user-data file must be created
+        self.mock_builtins_open.assert_any_call(f"{self.seed_data_dir}/user-data", "w")
+
+        # The platform script must be created
+        platform_script = os.path.join(
+            scripts_dir,
+            dccommon_consts.PLATFORM_RECONFIGURE_FILE_NAME,
         )
+        self.mock_builtins_open.assert_any_call(platform_script, "w")
 
         # Test with incomplete iso_values, expect KeyError
         copied_dict = self.iso_values.copy()
@@ -4887,7 +5001,8 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             copied_dict,
         )
 
-    def test_generate_seed_iso(self):
+    @mock.patch("os.chmod")
+    def test_generate_seed_iso(self, mock_chmod):
         with mock.patch("os.path.isdir", side_effect=self.patched_isdir):
             self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values))
 
@@ -4909,6 +5024,19 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.mock_builtins_open.assert_any_call(
                 f"{self.seed_data_dir}/network-config", "w"
             )
+            # The scripts directory must be created
+            scripts_dir = os.path.join(
+                self.seed_data_dir,
+                "cloud-init-config",
+                "scripts",
+            )
+            self.mock_os_makedirs.assert_any_call(scripts_dir, exist_ok=True)
+            # The platform script must be created
+            platform_script = os.path.join(
+                scripts_dir,
+                dccommon_consts.PLATFORM_RECONFIGURE_FILE_NAME,
+            )
+            self.mock_builtins_open.assert_any_call(platform_script, "w")
 
     @mock.patch.object(
         subcloud_install.SubcloudInstall,
@@ -4970,7 +5098,8 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         "get_image_base_url",
         return_value="https://10.10.10.12:8080",
     )
-    def test_enroll_prep_iso_cleanup(self, mock_validate):
+    @mock.patch("os.chmod")
+    def test_enroll_prep_iso_cleanup(self, mock_chmod, mock_validate):
         result = self.enroll_init.prep(ANS_PATH, self.iso_values, 4)
         self.assertTrue(result)
         self.mock_log_subcloud_enrollment.info.assert_any_call(
@@ -4980,8 +5109,9 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         # Previous iso file must be cleaned up
         self.mock_os_remove.assert_called_once_with(self.iso_file)
 
-        # Makedirs shouldn't be invoked, given that prev iso exisited
-        self.mock_os_makedirs.assert_not_called()
+        # Now makedirs *should* be called for the scripts dir at least once
+        scripts_dir = os.path.join(self.seed_data_dir, "cloud-init-config", "scripts")
+        self.mock_os_makedirs.assert_called_once_with(scripts_dir, exist_ok=True)
 
         self.mock_log_subcloud_enrollment.info.assert_any_call(
             f"Found preexisting seed iso for subcloud {self.subcloud_name}, cleaning up"

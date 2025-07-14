@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,16 +19,20 @@ from __future__ import division
 
 import base64
 import collections
+from contextlib import nullcontext
 import copy
 import datetime
 import filecmp
 import functools
 import json
 import os
+from pathlib import Path
 import random
 import shutil
+import tempfile
 import threading
 import time
+from typing import Optional
 
 from eventlet import greenpool
 from fm_api import constants as fm_const
@@ -45,6 +49,7 @@ from tsconfig.tsconfig import SW_VERSION
 import yaml
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import endpoint_cache
@@ -107,7 +112,6 @@ ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT = (
 
 USERS_TO_REPLICATE = [
     "sysinv",
-    "patching",  # TODO(nicodemos): Remove after patching is removed
     "usm",
     "vim",
     "mtce",
@@ -158,14 +162,12 @@ TRANSITORY_BACKUP_STATES = {
 }
 
 TRANSITORY_PRESTAGE_STATES = {
-    consts.PRESTAGE_STATE_PACKAGES: consts.PRESTAGE_STATE_FAILED,
-    consts.PRESTAGE_STATE_IMAGES: consts.PRESTAGE_STATE_FAILED,
+    consts.PRESTAGE_STATE_PRESTAGING: consts.PRESTAGE_STATE_FAILED,
 }
 
 MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
-CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
 
 # Values for the exponential backoff retry to get subcloud's
 # certificate secret.
@@ -307,7 +309,11 @@ class SubcloudManager(manager.Manager):
         return ansible_filename
 
     def compose_install_command(
-        self, subcloud_name, ansible_subcloud_inventory_file, software_version=None
+        self,
+        subcloud_name,
+        ansible_subcloud_inventory_file,
+        software_version=None,
+        bmc_access_only=None,
     ):
         install_command = [
             "ansible-playbook",
@@ -336,6 +342,10 @@ class SubcloudManager(manager.Manager):
                 dccommon_consts.RVMC_CONFIG_FILE_NAME,
             ),
         ]
+
+        if bmc_access_only:
+            install_command += ["-e", f"bmc_access_only={bmc_access_only}"]
+
         return install_command
 
     # TODO(glyraper): software_version will be used in the future
@@ -491,7 +501,7 @@ class SubcloudManager(manager.Manager):
         return backup_command
 
     def compose_backup_restore_command(
-        self, subcloud_name, ansible_subcloud_inventory_file
+        self, subcloud_name, ansible_subcloud_inventory_file, auto_restore_mode=None
     ):
         backup_command = [
             "ansible-playbook",
@@ -509,6 +519,19 @@ class SubcloudManager(manager.Manager):
                 + "_backup_restore_values.yml"
             ),
         ]
+
+        if auto_restore_mode:
+            backup_command += ["-e", f"auto_restore_mode={auto_restore_mode}"]
+            backup_command += [
+                "-e",
+                "rvmc_config_file=%s"
+                % os.path.join(
+                    dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                    subcloud_name,
+                    dccommon_consts.RVMC_CONFIG_FILE_NAME,
+                ),
+            ]
+
         return backup_command
 
     def compose_update_command(
@@ -551,14 +574,6 @@ class SubcloudManager(manager.Manager):
             dccommon_consts.ANSIBLE_OVERRIDES_PATH,
             subcloud_region,
         )
-
-        # TODO(yuxing) Remove the validate_keystone_passwords_script when end
-        # the support of rehoming a subcloud with a software version below 22.12
-        if software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS:
-            extra_vars += (
-                " validate_keystone_passwords_script='%s'"
-                % ANSIBLE_VALIDATE_KEYSTONE_PASSWORD_SCRIPT
-            )
 
         rehome_command = [
             "ansible-playbook",
@@ -1562,13 +1577,12 @@ class SubcloudManager(manager.Manager):
         try:
             # Write ansible based on rehome_data
             m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
             endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
+                m_ks_client.region_name,
                 m_ks_client.session,
                 endpoint=endpoint,
             )
@@ -1585,13 +1599,6 @@ class SubcloudManager(manager.Manager):
             for user in USERS_TO_REPLICATE:
                 payload["users"][user] = str(
                     keyring.get_password(user, dccommon_consts.SERVICES_USER_NAME)
-                )
-
-            # TODO(Yuxing) remove replicating the smapi user when end the support
-            # of rehoming a subcloud with a software version below 22.12
-            if subcloud.software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS:
-                payload["users"]["smapi"] = str(
-                    keyring.get_password("smapi", dccommon_consts.SERVICES_USER_NAME)
                 )
 
             if "region_name" not in payload:
@@ -1678,7 +1685,6 @@ class SubcloudManager(manager.Manager):
             # Create a new route to this subcloud on the management interface
             # on both controllers.
             m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
@@ -1689,7 +1695,7 @@ class SubcloudManager(manager.Manager):
             )
             endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
             sysinv_client = SysinvClient(
-                dccommon_consts.DEFAULT_REGION_NAME,
+                m_ks_client.region_name,
                 m_ks_client.session,
                 endpoint=endpoint,
             )
@@ -1741,15 +1747,6 @@ class SubcloudManager(manager.Manager):
             for user in USERS_TO_REPLICATE:
                 payload["users"][user] = str(
                     keyring.get_password(user, dccommon_consts.SERVICES_USER_NAME)
-                )
-
-            # TODO(Yuxing) remove replicating the smapi user when end the support
-            # of rehoming a subcloud with a software version below 22.12
-            if rehoming and (
-                subcloud.software_version <= dccommon_utils.LAST_SW_VERSION_IN_CENTOS
-            ):
-                payload["users"]["smapi"] = str(
-                    keyring.get_password("smapi", dccommon_consts.SERVICES_USER_NAME)
                 )
 
             # Ansible inventory filename for the specified subcloud
@@ -2306,7 +2303,9 @@ class SubcloudManager(manager.Manager):
     def _backup_subcloud(self, context, payload, subcloud):
         try:
             # Health check validation
-            if not utils.is_subcloud_healthy(subcloud.region_name):
+            if not utils.is_subcloud_healthy(
+                subcloud.region_name, subcloud_ip=subcloud.management_start_ip
+            ):
                 db_api.subcloud_update(
                     context,
                     subcloud.id,
@@ -2400,6 +2399,65 @@ class SubcloudManager(manager.Manager):
 
         return subcloud, success
 
+    @staticmethod
+    def _stage_auto_restore_files(
+        stage_dir: Path, overrides_file: Path, payload: dict, subcloud: Subcloud
+    ) -> str:
+        """Stage auto-restore files in a directory for subcloud auto-restore.
+
+        Creates an 'auto-restore' directory and hard links the required files into it.
+        Hard links are used instead of symlinks because gen-bootloader-iso.sh uses
+        rsync -a, which will properly copy the actual file content during the
+        update_iso phase into the miniboot ISO.
+        """
+        target_path = Path(stage_dir) / "auto-restore"
+        target_path.mkdir()
+
+        LOG.info(
+            f"Staging auto-restore files for subcloud {subcloud.name} into: "
+            f"{target_path}"
+        )
+
+        # Stage the restore overrides file
+        destination_file = target_path / "backup_restore_values.yml"
+        os.link(overrides_file, destination_file)
+        os.chmod(destination_file, 0o600)
+
+        # Stage the subcloud backup file
+        if not payload["local_only"] and not payload.get("factory"):
+            central_backup = utils.find_central_subcloud_backup(
+                subcloud.name, payload.get("software_version")
+            )
+            destination_file = target_path / central_backup.name
+            os.link(central_backup, destination_file)
+
+        return os.fspath(target_path)
+
+    @staticmethod
+    def _get_auto_restore_temp_dir_location(
+        subcloud: Subcloud, payload: dict
+    ) -> Optional[Path]:
+        """Get the directory where temp folder should be created"""
+        if payload.get("local_only") or payload.get("factory"):
+            # For local-only or factory auto-retores, we only need to
+            # copy the restore overrides file, so we create a temp dir
+            # inside ANSIBLE_OVERRIDES_PATH as that will always exist
+            return Path(dccommon_consts.ANSIBLE_OVERRIDES_PATH)
+        try:
+            # For remote auto-restore, we need to copy the backup file
+            # and the restore overrides, so we use the following dir:
+            # CENTRAL_BACKUP_DIR / subcloud_name / software_version
+            central_backup = utils.find_central_subcloud_backup(
+                subcloud.name, payload.get("software_version")
+            )
+            return central_backup.parent
+        except FileNotFoundError:
+            LOG.exception(
+                "Unable to find subcloud backup for remote auto-restore, make "
+                "sure a subcloud backup was created without --local-only"
+            )
+            raise
+
     def _restore_subcloud_backup(self, context, payload, subcloud):
         log_file = (
             os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
@@ -2445,13 +2503,32 @@ class SubcloudManager(manager.Manager):
             subcloud_inventory_file = self._create_subcloud_inventory_file(
                 subcloud, bootstrap_address=bootstrap_address
             )
+
+            bmc_access_only = True
+            if payload.get("factory"):
+                auto_restore_mode = "factory"
+            elif payload.get("auto"):
+                auto_restore_mode = "auto"
+            else:
+                auto_restore_mode = None
+                bmc_access_only = False
+
+            # Install wipe_osds parameter is required to determine if
+            # the OSDs should be wiped during restore when --with-install
+            # subcommand is provided.
+            install_wipe_osds = False
+            if payload.get("with_install"):
+                data_install = json.loads(subcloud.data_install)
+                install_wipe_osds = data_install.get("wipe_osds", False)
+
             # Prepare for restore
             overrides_file = self._create_overrides_for_backup_or_restore(
-                "restore", payload, subcloud.name
+                "restore", payload, subcloud.name, auto_restore_mode, install_wipe_osds
             )
             restore_command = self.compose_backup_restore_command(
-                subcloud.name, subcloud_inventory_file
+                subcloud.name, subcloud_inventory_file, auto_restore_mode
             )
+
         except Exception:
             db_api.subcloud_update(
                 context,
@@ -2459,7 +2536,7 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
             )
             LOG.exception(
-                "Failed to prepare subcloud %s for backup restore" % subcloud.name
+                f"Failed to prepare subcloud {subcloud.name} for backup restore"
             )
             return subcloud, False
 
@@ -2467,7 +2544,10 @@ class SubcloudManager(manager.Manager):
             data_install = json.loads(subcloud.data_install)
             software_version = payload.get("software_version")
             install_command = self.compose_install_command(
-                subcloud.name, subcloud_inventory_file, software_version
+                subcloud.name,
+                subcloud_inventory_file,
+                software_version,
+                bmc_access_only,
             )
             # Update data_install with missing data
             matching_iso, _ = utils.get_vault_load_files(software_version)
@@ -2481,14 +2561,42 @@ class SubcloudManager(manager.Manager):
                 self.dcorch_rpc_client.update_subcloud_version(
                     context, subcloud.region_name, software_version
                 )
-            install_success = self._run_subcloud_install(
-                context, subcloud, install_command, log_file, data_install
+
+            auto_restore_context = (
+                tempfile.TemporaryDirectory(
+                    prefix=f".{subcloud.name}",
+                    dir=self._get_auto_restore_temp_dir_location(subcloud, payload),
+                )
+                if auto_restore_mode
+                else nullcontext()
             )
+
+            with auto_restore_context as temp_dir:
+                # Stage the auto-restore files so they can be copied to the
+                # miniboot ISO during subcloud installation. These files will
+                # end up in /opt/platform-backup/auto-restore on the subcloud
+                include_paths = None
+                if temp_dir:
+                    include_paths = [
+                        self._stage_auto_restore_files(
+                            temp_dir, Path(overrides_file), payload, subcloud
+                        )
+                    ]
+
+                install_success = self._run_subcloud_install(
+                    context,
+                    subcloud,
+                    install_command,
+                    log_file,
+                    data_install,
+                    include_paths,
+                )
+
             if not install_success:
                 return subcloud, False
 
         success = self._run_subcloud_backup_restore_playbook(
-            subcloud, restore_command, context, log_file
+            subcloud, restore_command, context, log_file, auto_restore_mode
         )
 
         if success:
@@ -2526,14 +2634,15 @@ class SubcloudManager(manager.Manager):
 
         if not bootstrap_address:
             # Use subcloud floating IP for host reachability
-            keystone_client = OpenStackDriver(
-                region_name=subcloud.region_name,
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
+            keystone_endpoint = dccommon_utils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
+            )
+            admin_session = endpoint_cache.EndpointCache.get_admin_session(
+                auth_url=keystone_endpoint
+            )
             # interested in subcloud's primary OAM address only
             bootstrap_address = utils.get_oam_floating_ip_primary(
-                subcloud, keystone_client
+                subcloud, admin_session
             )
 
         # Add parameters used to generate inventory
@@ -2547,7 +2656,22 @@ class SubcloudManager(manager.Manager):
         )
         return ansible_subcloud_inventory_file
 
-    def _create_overrides_for_backup_or_restore(self, op, payload, subcloud_name):
+    @staticmethod
+    def _get_auto_restore_backup_dir(payload: dict, auto_restore_mode: str) -> str:
+        sw_version = payload.get("software_version")
+        if auto_restore_mode == "factory":
+            return os.path.join(consts.SUBCLOUD_FACTORY_BACKUP_DIR, sw_version)
+        elif auto_restore_mode == "auto":
+            if payload["local_only"]:
+                return os.path.join(consts.SUBCLOUD_LOCAL_BACKUP_DIR, sw_version)
+            else:
+                return consts.SUBCLOUD_AUTO_RESTORE_DIR
+        else:
+            raise Exception(f"Invalid auto restore mode: {auto_restore_mode}")
+
+    def _create_overrides_for_backup_or_restore(
+        self, op, payload, subcloud_name, auto_restore_mode=None, install_wipe_osds=None
+    ):
         # Set override names as expected by the playbook
         if not payload.get("override_values"):
             payload["override_values"] = {}
@@ -2565,8 +2689,18 @@ class SubcloudManager(manager.Manager):
             )
             suffix = "backup_restore_values"
 
+            # We need to map the install wipe_osds parameter to the restore
+            # wipe_ceph_osds parameter, so that the restore playbook
+            # can use it to determine whether to wipe the OSDs or not.
+            # This is crucial because if the wipe_osds parameter is set to True
+            # in install-values, but not set in restore, by default the restore
+            # wipe_ceph_osds parameter will be False, skipping the wipe
+            # and causing the restore to fail.
+            if install_wipe_osds:
+                payload["override_values"]["wipe_ceph_osds"] = install_wipe_osds
+
         if not payload["local_only"]:
-            payload["override_values"]["central_backup_dir"] = CENTRAL_BACKUP_DIR
+            payload["override_values"]["central_backup_dir"] = consts.CENTRAL_BACKUP_DIR
 
         payload["override_values"]["ansible_ssh_pass"] = payload["sysadmin_password"]
         payload["override_values"]["ansible_become_pass"] = payload["sysadmin_password"]
@@ -2588,6 +2722,32 @@ class SubcloudManager(manager.Manager):
             for key, value in payload.get("restore_values").items():
                 payload["override_values"][key] = value
 
+        # auto_restore_mode allows the auto restore script running inside the
+        # subcloud to determine which type of restore to run
+        if op == "restore" and auto_restore_mode:
+            payload["override_values"]["auto_restore_mode"] = auto_restore_mode
+
+            # For standard restore, the following values would be defined by
+            # the playbook running on the system controller. For auto restore
+            # the playbook is not executed so we define the values here
+            payload["override_values"]["initial_backup_dir"] = (
+                self._get_auto_restore_backup_dir(payload, auto_restore_mode)
+            )
+
+            # auto-restore only supports simplex subclouds, so we use optimized
+            # restore
+            payload["override_values"]["restore_mode"] = "optimized"
+            payload["override_values"]["skip_patches_restore"] = True
+            payload["override_values"]["exclude_sw_deployments"] = True
+
+            if auto_restore_mode == "factory":
+                # For factory restore, the prestaged registry images file must
+                # be inside SUBCLOUD_FACTORY_BACKUP_DIR/<sw_version>, so we
+                # override the images_archive_dir variable
+                payload["override_values"]["images_archive_dir"] = payload[
+                    "override_values"
+                ]["initial_backup_dir"]
+
         return self._create_backup_overrides_file(payload, subcloud_name, suffix)
 
     def _create_overrides_for_backup_delete(
@@ -2602,7 +2762,7 @@ class SubcloudManager(manager.Manager):
         payload["override_values"]["local"] = payload["local_only"] or False
 
         if not payload["local_only"]:
-            payload["override_values"]["central_backup_dir"] = CENTRAL_BACKUP_DIR
+            payload["override_values"]["central_backup_dir"] = consts.CENTRAL_BACKUP_DIR
         else:
             payload["override_values"]["ansible_ssh_pass"] = payload[
                 "sysadmin_password"
@@ -2713,7 +2873,7 @@ class SubcloudManager(manager.Manager):
             return False
 
     def _run_subcloud_backup_restore_playbook(
-        self, subcloud, restore_command, context, log_file
+        self, subcloud, restore_command, context, log_file, auto_restore_mode=None
     ):
         db_api.subcloud_update(
             context,
@@ -2727,10 +2887,17 @@ class SubcloudManager(manager.Manager):
             ansible.run_playbook(
                 log_file, restore_command, timeout=CONF.playbook_timeout
             )
-            LOG.info("Successfully restore subcloud %s" % subcloud.name)
-            db_api.subcloud_update(
-                context, subcloud.id, deploy_status=consts.DEPLOY_STATE_DONE
+
+            mode_str = f"{auto_restore_mode} " if auto_restore_mode else ""
+            LOG.info(f"Successfully {mode_str}restore subcloud {subcloud.name}")
+
+            complete_state = (
+                consts.DEPLOY_STATE_FACTORY_RESTORE_COMPLETE
+                if auto_restore_mode == "factory"
+                else consts.DEPLOY_STATE_DONE
             )
+
+            db_api.subcloud_update(context, subcloud.id, deploy_status=complete_state)
             return True
         except PlaybookExecutionFailed:
             msg = utils.find_ansible_error_msg(
@@ -2885,7 +3052,9 @@ class SubcloudManager(manager.Manager):
         return True
 
     @staticmethod
-    def _run_subcloud_install(context, subcloud, install_command, log_file, payload):
+    def _run_subcloud_install(
+        context, subcloud, install_command, log_file, payload, include_paths=None
+    ):
         software_version = str(payload["software_version"])
         LOG.info(
             "Preparing remote install of %s, version: %s",
@@ -2911,6 +3080,7 @@ class SubcloudManager(manager.Manager):
                 dccommon_consts.ANSIBLE_OVERRIDES_PATH,
                 payload,
                 subcloud_primary_oam_ip_family,
+                include_paths,
             )
         except Exception as e:
             LOG.exception(e)
@@ -3167,23 +3337,40 @@ class SubcloudManager(manager.Manager):
         payload["deploy_values"]["deployment_manager_chart"] = payload[
             consts.DEPLOY_CHART
         ]
-        payload["deploy_values"]["deployment_manager_overrides"] = payload[
-            consts.DEPLOY_OVERRIDES
-        ]
+        if consts.DEPLOY_OVERRIDES in payload:
+            payload["deploy_values"]["deployment_manager_overrides"] = payload[
+                consts.DEPLOY_OVERRIDES
+            ]
         payload["deploy_values"]["user_uploaded_artifacts"] = payload[
             "user_uploaded_artifacts"
         ]
         self._write_deploy_files(payload, subcloud_name)
 
-    def _delete_subcloud_routes(self, keystone_client, subcloud):
+    def _delete_subcloud_routes(
+        self, keystone_client: KeystoneClient, subcloud: Subcloud
+    ):
         """Delete the routes to this subcloud"""
 
         # Delete the route to this subcloud on the management interface on
         # both controllers.
         management_subnet = netaddr.IPNetwork(subcloud.management_subnet)
+
+        subclouds = db_api.subcloud_get_all(self.context)
+        for s in subclouds:
+            if s.id == subcloud.id:
+                continue
+            s_management_subnet = netaddr.IPNetwork(s.management_subnet)
+            if s_management_subnet == management_subnet:
+                LOG.warning(
+                    "Subcloud %r shares the same subnet as %r, not deleting route",
+                    s.name,
+                    subcloud.name,
+                )
+                return
+
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
-            dccommon_consts.DEFAULT_REGION_NAME,
+            keystone_client.region_name,
             keystone_client.session,
             endpoint=endpoint,
         )
@@ -3236,7 +3423,6 @@ class SubcloudManager(manager.Manager):
         # down so is not accessible. Therefore set up a session with the
         # Central Region Keystone ONLY.
         keystone_client = OpenStackDriver(
-            region_name=dccommon_consts.DEFAULT_REGION_NAME,
             region_clients=None,
             fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
         ).keystone_client
@@ -3351,7 +3537,7 @@ class SubcloudManager(manager.Manager):
     @staticmethod
     def _delete_subcloud_backup_data(subcloud_name):
         try:
-            backup_path = os.path.join(CENTRAL_BACKUP_DIR, subcloud_name)
+            backup_path = os.path.join(consts.CENTRAL_BACKUP_DIR, subcloud_name)
             if os.path.exists(backup_path):
                 shutil.rmtree(backup_path)
         except Exception as e:
@@ -3694,7 +3880,6 @@ class SubcloudManager(manager.Manager):
                 f"{systemcontroller_gateway_ip.split(',')[0]}. Replacing routes..."
             )
             m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
@@ -3922,7 +4107,6 @@ class SubcloudManager(manager.Manager):
 
         try:
             m_ks_client = OpenStackDriver(
-                region_name=dccommon_consts.DEFAULT_REGION_NAME,
                 region_clients=None,
                 fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
             ).keystone_client
@@ -3957,14 +4141,17 @@ class SubcloudManager(manager.Manager):
             self._delete_subcloud_routes(m_ks_client, subcloud)
 
     def _create_subcloud_route(
-        self, payload, keystone_client, systemcontroller_gateway_ip
+        self,
+        payload: dict,
+        keystone_client: KeystoneClient,
+        systemcontroller_gateway_ip: str,
     ):
         subcloud_subnet = netaddr.IPNetwork(
             utils.get_primary_management_subnet(payload)
         )
         endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
-            dccommon_consts.DEFAULT_REGION_NAME,
+            keystone_client.region_name,
             keystone_client.session,
             endpoint=endpoint,
         )
@@ -4150,7 +4337,9 @@ class SubcloudManager(manager.Manager):
 
     @utils.synchronized("regionone-data-cache", external=False)
     def _get_cached_regionone_data(
-        self, regionone_keystone_client, regionone_sysinv_client=None
+        self,
+        regionone_keystone_client: KeystoneClient,
+        regionone_sysinv_client: SysinvClient = None,
     ):
         if (
             not SubcloudManager.regionone_data
@@ -4177,7 +4366,7 @@ class SubcloudManager(manager.Manager):
                     "sysinv"
                 )
                 regionone_sysinv_client = SysinvClient(
-                    dccommon_consts.DEFAULT_REGION_NAME,
+                    regionone_keystone_client.region_name,
                     regionone_keystone_client.session,
                     endpoint=endpoint,
                 )
