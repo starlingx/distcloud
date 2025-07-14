@@ -41,10 +41,19 @@ send_ipmi_event() {
             event_data="0x04 0xF0 0x01 0x6f 0xff 0xff 0xff # \"Install Completed\""
             ;;
         "restore_complete")
-            event_data="0x04 0xF0 0x01 0x6f 0xff 0xff 0xfe # \"Restore Completed\""
+            event_data="0x04 0xF0 0x01 0x6f 0xff 0xff 0xfd # \"Restore Completed\""
             ;;
         "restore_failed")
-            event_data="0x04 0xF0 0x01 0x6f 0xff 0xff 0xfd # \"Restore Failed\""
+            event_data="0x04 0xF0 0x01 0x6f 0xff 0xff 0xfc # \"Restore Failed\""
+            ;;
+        "restore_failed_backup_missing")
+            event_data="0x04 0xF0 0x01 0x6f 0xff 0xff 0xfb # \"Restore Failed: missing backup file\""
+            ;;
+        "restore_failed_images_missing")
+            event_data="0x04 0xF0 0x01 0x6f 0xff 0xff 0xfa # \"Restore Failed: missing container images backup file\""
+            ;;
+        "restore_failed_both_missing")
+            event_data="0x04 0xF0 0x01 0x6f 0xff 0xff 0xf9 # \"Restore Failed: missing backup and container images backup files\""
             ;;
         *)
             log "Unknown IPMI event type: $event_type" "ERROR"
@@ -175,14 +184,27 @@ find_and_set_backup_filename() {
         return 1
     fi
 
+    local auto_restore_mode
+    auto_restore_mode=$(grep "^auto_restore_mode:" "$RESTORE_CONFIG" 2>/dev/null | sed 's/auto_restore_mode: *//' | tr -d '"' | tr -d "'")
+
+    # For factory auto-restore, we need to look for a backup file matching
+    # the *factory_backup*.tgz pattern
+    local backup_pattern
+    if [[ "$auto_restore_mode" == "factory" ]]; then
+        backup_pattern="*factory_backup*.tgz"
+        log "Factory auto-restore mode, searching for pattern: $backup_pattern"
+    else
+        backup_pattern="*_platform_backup_*.tgz"
+        log "Standard auto-restore mode, searching for pattern: $backup_pattern"
+    fi
+
     log "Scanning backup directory: $backup_dir"
 
-    # Find backup files matching the pattern *_platform_backup_*.tgz
     local backup_files
-    mapfile -t backup_files < <(find "$backup_dir" -maxdepth 1 -name "*_platform_backup_*.tgz" -type f)
+    mapfile -t backup_files < <(find "$backup_dir" -maxdepth 1 -name "$backup_pattern" -type f)
 
     if [[ ${#backup_files[@]} -eq 0 ]]; then
-        log "No backup files found matching pattern *_platform_backup_*.tgz in $backup_dir" "ERROR"
+        log "No backup files found matching pattern $backup_pattern in $backup_dir" "ERROR"
         return 1
     elif [[ ${#backup_files[@]} -gt 1 ]]; then
         log "Multiple backup files found in $backup_dir:" "ERROR"
@@ -237,6 +259,12 @@ get_backup_directory() {
     return 0
 }
 
+get_software_version() {
+    local version
+    version=$(grep "^SW_VERSION=" /etc/build.info | cut -d'=' -f2 | tr -d '"')
+    echo "$version"
+}
+
 check_and_set_registry_restore() {
     log "Checking for image registry backup file..."
 
@@ -268,6 +296,108 @@ check_and_set_registry_restore() {
     return 0
 }
 
+check_prestaged_images() {
+    log "Checking for prestaged container images..."
+
+    local auto_restore_mode
+    auto_restore_mode=$(grep "^auto_restore_mode:" "$RESTORE_CONFIG" 2>/dev/null | sed 's/auto_restore_mode: *//' | tr -d '"' | tr -d "'")
+
+    # Factory auto-restore prestaged data is stored in the factory backup directory
+    local prestage_dir
+    if [[ "$auto_restore_mode" == "factory" ]]; then
+        if ! prestage_dir=$(get_backup_directory); then
+            return 1
+        fi
+        log "Factory auto-restore mode: checking for prestaged images in: $prestage_dir"
+    else
+        local software_version
+        software_version=$(get_software_version)
+        prestage_dir="/opt/platform-backup/${software_version}"
+        log "Standard auto-restore mode: checking for prestaged images in: $prestage_dir"
+    fi
+
+    # Check for prestaged registry filesystem file
+    local prestaged_registry_file="${prestage_dir}/local_registry_filesystem.tgz"
+    local registry_found=false
+    if [[ -f "$prestaged_registry_file" ]]; then
+        log "Found prestaged registry file: $prestaged_registry_file"
+        registry_found=true
+    fi
+
+    # Check for container image files
+    local container_images
+    mapfile -t container_images < <(find "$prestage_dir" -maxdepth 1 -name "container-image*.tar.gz" -type f 2>/dev/null)
+    local containers_found=false
+    if [[ ${#container_images[@]} -gt 0 ]]; then
+        log "Found ${#container_images[@]} container image file(s):"
+        for file in "${container_images[@]}"; do
+            log "  - $(basename "$file")"
+        done
+        containers_found=true
+    fi
+
+    if [[ "$registry_found" == true || "$containers_found" == true ]]; then
+        return 0
+    else
+        log "No prestaged images found in: $prestage_dir"
+        return 1
+    fi
+}
+
+validate_restore_prerequisites() {
+    log "Validating restore prerequisites..."
+
+    # Check backup file availability
+    local backup_available=false
+    if find_and_set_backup_filename; then
+        backup_available=true
+        log "Platform backup file validation: PASSED"
+    else
+        log "Platform backup file validation: FAILED" "ERROR"
+    fi
+
+    # Check registry restore options
+    local registry_available=false
+    # First, we check that check_and_set_registry_restore returns 0, indicating
+    # that backup_dir exists and the registry backup was either found or not.
+    if check_and_set_registry_restore; then
+        if grep -q "^restore_registry_filesystem: true" "$RESTORE_CONFIG"; then
+            # check_and_set_registry_restore sets restore_registry_filesystem
+            # to true if it finds the container images backup file
+            registry_available=true
+            log "Registry backup file validation: PASSED"
+        elif check_prestaged_images; then
+            # if the registry backup was not found, we check if the prestaged registry data is available
+            registry_available=true
+            log "Prestaged images validation: PASSED"
+        else
+            log "Registry backup and prestaged images validation: FAILED" "ERROR"
+        fi
+    else
+        # This means check_and_set_registry_restore exited with a return code of 1,
+        # indicating it failed to check if registry backup exists or not.
+        log "Registry restore validation: FAILED" "ERROR"
+    fi
+
+    # Send the correct failure event
+    if [[ "$backup_available" == false && "$registry_available" == false ]]; then
+        log "Both platform backup and container images are missing" "ERROR"
+        send_ipmi_event "restore_failed_both_missing"
+        return 1
+    elif [[ "$backup_available" == false ]]; then
+        log "Platform backup file is missing" "ERROR"
+        send_ipmi_event "restore_failed_backup_missing"
+        return 1
+    elif [[ "$registry_available" == false ]]; then
+        log "Container images (backup file and prestaged) are missing" "ERROR"
+        send_ipmi_event "restore_failed_images_missing"
+        return 1
+    fi
+
+    log "All restore prerequisites validated successfully"
+    return 0
+}
+
 handle_first_boot() {
     send_ipmi_event "install_success"
 
@@ -279,16 +409,7 @@ handle_first_boot() {
     log "Waiting 60 seconds for IPMI monitoring transition..."
     sleep 60
 
-    if ! find_and_set_backup_filename; then
-        log "Failed to find or set backup filename" "ERROR"
-        send_ipmi_event "restore_failed"
-        cleanup
-        exit 1
-    fi
-
-    if ! check_and_set_registry_restore; then
-        log "Failed to check and set registry restore file option" "ERROR"
-        send_ipmi_event "restore_failed"
+    if ! validate_restore_prerequisites; then
         cleanup
         exit 1
     fi
