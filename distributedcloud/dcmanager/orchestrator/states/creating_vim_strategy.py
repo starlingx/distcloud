@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -42,6 +42,8 @@ class CreatingVIMStrategyState(BaseState):
             extra_args = utils.get_sw_update_strategy_extra_args(self.context)
             release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
             opts_dict["release_id"] = release_id
+            # Get snapshot parameter from strategy extra_args
+            opts_dict["snapshot"] = extra_args.get(consts.EXTRA_ARGS_SNAPSHOT)
             # Create rollback = False since DC orchestration do not support rollback
             opts_dict["rollback"] = False
             # Create delete = True to enable VIM Orch to perform `sofware deploy delete`
@@ -49,8 +51,8 @@ class CreatingVIMStrategyState(BaseState):
 
         try:
             # Call the API to build the VIM strategy
-            # release, rollback and delete will be sent as a **kwargs value
-            # for sw-deploy strategy
+            # release, snapshot, rollback and delete will be sent as a
+            # **kwargs value for sw-deploy strategy
             subcloud_strategy = self.get_vim_client(region).create_strategy(
                 self.strategy_name,
                 opts_dict["storage-apply-type"],
@@ -59,6 +61,7 @@ class CreatingVIMStrategyState(BaseState):
                 opts_dict["default-instance-action"],
                 opts_dict["alarm-restriction-type"],
                 release=opts_dict.get("release_id"),
+                snapshot=opts_dict.get("snapshot"),
                 rollback=opts_dict.get("rollback"),
                 delete=opts_dict.get("delete"),
             )

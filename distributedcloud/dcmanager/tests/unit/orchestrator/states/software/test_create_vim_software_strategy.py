@@ -36,8 +36,9 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
         self.current_state = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
 
         # Create default strategy with release parameter
+        extra_args = {"release_id": RELEASE_ID, "snapshot": False}
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args={"release_id": RELEASE_ID}
+            self.ctx, self.strategy_type, extra_args=extra_args
         )
 
         # Add the strategy_step state being processed by this unit test
@@ -59,7 +60,7 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
 
         self._setup_and_assert(self.on_success_state)
 
-        # Assert release parameter is passed to create_strategy
+        # Assert release and snapshot parameters are passed to create_strategy
         self.vim_client.create_strategy.assert_called_with(
             "sw-upgrade",
             "parallel",
@@ -68,6 +69,7 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             "migrate",
             "relaxed",
             release=RELEASE_ID,
+            snapshot=False,
             rollback=False,
             delete=True,
         )

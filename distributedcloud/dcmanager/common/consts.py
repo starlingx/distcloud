@@ -330,6 +330,7 @@ EXTRA_ARGS_FORCE = "force"
 
 # extra_args for software
 EXTRA_ARGS_RELEASE_ID = "release_id"
+EXTRA_ARGS_SNAPSHOT = "snapshot"
 
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = "prestage-software-version"

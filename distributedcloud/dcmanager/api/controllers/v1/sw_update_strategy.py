@@ -15,6 +15,7 @@
 #    under the License.
 #
 
+import json
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -149,7 +150,7 @@ class SwUpdateStrategyController(object):
         """Create a new software update strategy."""
         context = restcomm.extract_context_from_environ()
 
-        payload = eval(request.body)
+        payload = json.loads(request.body.decode("utf-8"))
         if not payload:
             pecan.abort(400, _("Body required"))
 
@@ -177,6 +178,12 @@ class SwUpdateStrategyController(object):
 
             if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
                 utils.validate_software_strategy(payload.get("release_id"))
+
+                # validate the snapshot
+                snapshot = payload.get("snapshot")
+                if snapshot and snapshot not in [True, False]:
+                    pecan.abort(400, _("snapshot invalid"))
+
             elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                 prestaged_sw_version, message = (
                     utils.get_validated_sw_version_for_prestage(payload)

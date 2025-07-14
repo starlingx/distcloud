@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -34,5 +34,9 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
 
         :param payload: strategy request payload
         """
+        ret_dict = {
+            consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID),
+            consts.EXTRA_ARGS_SNAPSHOT: payload.get(consts.EXTRA_ARGS_SNAPSHOT, False),
+        }
 
-        return {consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID)}
+        return ret_dict
