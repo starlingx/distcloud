@@ -4796,7 +4796,10 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
         self.assertIn("--include-path", script_args)
         self.assertIn("/fake/include/path", script_args)
 
-    def test_subcloud_install_prep_failed(self):
+    @mock.patch.object(request, "urlretrieve")
+    def test_subcloud_install_prep_failed(self, mock_request_urlretrieve):
+        mock_request_urlretrieve.side_effect = Exception()
+
         install_success = self.sm._run_subcloud_install(
             self.ctx,
             self.subcloud,

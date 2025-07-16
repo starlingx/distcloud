@@ -1088,8 +1088,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
 
         self._assert_response(response)
 
-    def test_patch_restore_subcloud_succeeds_with_release_without_with_install(self):
-        """Test patch restore subcloud succeeds with release without with install"""
+    def test_patch_restore_subcloud_fails_with_release_without_with_install(self):
+        """Test patch restore subcloud fails with release without with install"""
 
         self.params["release"] = "22.12"
 
@@ -1183,6 +1183,44 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
             http.client.INTERNAL_SERVER_ERROR,
             "Error: unable to validate the release version.",
         )
+
+    @mock.patch("dcmanager.common.utils.get_bootstrap_values")
+    def test_patch_restore_subcloud_auto_restore_fails_with_duplex(
+        self, mock_get_bootstrap_values
+    ):
+        """Test patch restore subcloud auto-restore fails for a duplex subcloud"""
+
+        self.params["auto"] = "True"
+
+        mock_get_bootstrap_values.return_value = {
+            "system_mode": consts.SYSTEM_MODE_DUPLEX
+        }
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"{self.subcloud.name} is a {consts.SYSTEM_MODE_DUPLEX} subcloud. "
+            f"Auto restore is only supported for {consts.SYSTEM_MODE_SIMPLEX} "
+            "subclouds.",
+        )
+
+    @mock.patch("dcmanager.common.utils.get_bootstrap_values")
+    def test_patch_restore_subcloud_auto_restore_succeeds_with_simplex(
+        self, mock_get_bootstrap_values
+    ):
+        """Test patch restore subcloud auto-restore succeeds for a simplex subcloud"""
+
+        self.params["auto"] = "True"
+
+        mock_get_bootstrap_values.return_value = {
+            "system_mode": consts.SYSTEM_MODE_SIMPLEX
+        }
+
+        response = self._send_request()
+
+        self._assert_response(response)
 
 
 class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
