@@ -1,10 +1,29 @@
 ---
-- name: Add STX master repo
-  apt_repository:
-    filename: "{{ stx_master_tag }}"
-    repo: "deb [trusted=yes] {{ stx_master_repo }} /"
+- name: Assert STX master apt repo file exists
+  file:
+    path: "{{ stx_master_repo_file }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    state: "touch"
   become: true
 
+- name: Configure STX master apt repo
+  lineinfile:
+    line: "deb [trusted=yes] {{ stx_master_repo }} /"
+    state: "present"
+    path: "{{ stx_master_repo_file }}"
+  become: true
+
+  # Using this instead of ansible's "apt_repository"
+  # because it provides better logs.
+  # Note it DOES NOT FAIL the playbook, even if some repo can't be reached
+- name: Apt update
+  command: "apt update"
+  become: true
+
+  # This will still fail if one of the required pkgs can't
+  # be found on any reachable apt repo
 - name: Install dependencies from STX master package repo
   package:
     name: "{{ item }}"
