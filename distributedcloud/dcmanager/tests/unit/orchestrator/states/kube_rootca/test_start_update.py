@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-
 from dcmanager.common.consts import (
     STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
 )
@@ -25,7 +24,9 @@ KUBE_ROOTCA_UPDATE_CERT_UPLOADED = FakeKubeRootCaUpdate(
 class TestStartUpdateStage(TestKubeRootCaUpgradeState):
 
     def setUp(self):
-        super(TestStartUpdateStage, self).setUp()
+        super().setUp()
+
+        self.on_success_state = STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
@@ -41,16 +42,8 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
         self.sysinv_client.kube_rootca_update_start.return_value = (
             KUBE_ROOTCA_UPDATE_STARTED
         )
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
 
-        # Verify the expected next state happened (upload cert)
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT,
-        )
+        self._setup_and_assert(self.on_success_state)
 
     def test_existing_update_started(self):
         """Test start update when there is an update in started state
@@ -60,16 +53,8 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
         self.sysinv_client.get_kube_rootca_updates.return_value = [
             KUBE_ROOTCA_UPDATE_STARTED
         ]
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
 
-        # Verify the expected next state happened (upload cert)
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT,
-        )
+        self._setup_and_assert(self.on_success_state)
 
     def test_existing_update_aborted(self):
         """Test start update when there is an update in aborted state
@@ -82,16 +67,8 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
         self.sysinv_client.kube_rootca_update_start.return_value = (
             KUBE_ROOTCA_UPDATE_STARTED
         )
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
 
-        # Verify the expected next state happened (upload cert)
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT,
-        )
+        self._setup_and_assert(self.on_success_state)
 
     def test_existing_update_other_state(self):
         """Test start update if there is an update in an other state.
@@ -102,13 +79,5 @@ class TestStartUpdateStage(TestKubeRootCaUpgradeState):
         self.sysinv_client.get_kube_rootca_updates.return_value = [
             KUBE_ROOTCA_UPDATE_CERT_UPLOADED
         ]
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
 
-        # Verify the expected next state happened (upload cert)
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
-        )
+        self._setup_and_assert(STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY)

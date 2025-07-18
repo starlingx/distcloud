@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+
 from dcmanager.common.consts import (
     STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
 )
@@ -16,9 +17,10 @@ from dcmanager.tests.unit.orchestrator.states.kube_rootca.test_base import (
 
 
 class TestPreCheckStage(TestKubeRootCaUpgradeState):
-
     def setUp(self):
-        super(TestPreCheckStage, self).setUp()
+        super().setUp()
+
+        self.on_success_state = STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
@@ -36,16 +38,7 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
             self.ctx, self.strategy_type, extra_args=extra_args
         )
 
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
-
-        # Verify the expected next state happened
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
-        )
+        self._setup_and_assert(self.on_success_state)
 
     def test_pre_check_extra_args_no_cert_file(self):
         """Test pre check step where extra args exist, but no cert-file entry
@@ -59,16 +52,8 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
         self.strategy = fake_strategy.create_fake_strategy(
             self.ctx, self.strategy_type, extra_args=extra_args
         )
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
 
-        # Verify the expected next state happened
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
-        )
+        self._setup_and_assert(self.on_success_state)
 
     def test_pre_check_cert_file_extra_args_detected(self):
         """Test pre check step where extra args cert-file exists
@@ -82,12 +67,5 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
         self.strategy = fake_strategy.create_fake_strategy(
             self.ctx, self.strategy_type, extra_args=extra_args
         )
-        # invoke the strategy state operation on the orch thread
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
 
-        # Verify the expected next state happened
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id, STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START
-        )
+        self._setup_and_assert(STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START)

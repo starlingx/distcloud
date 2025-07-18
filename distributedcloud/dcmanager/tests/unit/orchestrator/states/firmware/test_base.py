@@ -29,8 +29,10 @@ class TestFwUpdateState(TestSwUpdate):
         # orchestration worker, and will mock away the other orch threads
         self.strategy_type = consts.SW_UPDATE_TYPE_FIRMWARE
 
-    def _create_fake_strategy(self, state):
-        return FakeVimStrategy(state=state)
+    def _create_fake_strategy(self, state, apply_phase=None, build_phase=None):
+        return FakeVimStrategy(
+            state=state, apply_phase=apply_phase, build_phase=build_phase
+        )
 
     def _create_fake_device(self, pvendor_id, pdevice_id, enabled=True):
         return FakeDevice(

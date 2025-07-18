@@ -18,7 +18,7 @@ from dcmanager.tests.unit.orchestrator.states.kube_rootca.test_base import (
 )
 
 # Only the 'error' field is checked on upload_cert
-ERROR_UPLOADING_CERT = {"error": "File not found"}
+ERROR_UPLOADING_CERT = {"error": "fake error"}
 SUCCESS_UPLOADING_CERT = {"success": "Success Upload"}
 
 FAKE_CERT_FILE = "some_fake_cert_file.pem"
@@ -28,9 +28,12 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
     def setUp(self):
         super().setUp()
 
+        self.on_success_state = STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
+        self.current_state = STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
+
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT
+            self.subcloud.id, self.current_state
         )
 
         # Mock the strategy with a reference to a cert-file in extra_args
@@ -51,18 +54,14 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
 
         mock_open = mock.mock_open(read_data="test")
         with mock.patch("builtins.open", mock_open):
-            # invoke the strategy state operation on the orch thread
-            self.worker._perform_state_action(
-                self.strategy_type,
-                self.subcloud.region_name,
-                self.strategy_step,
+            self._setup_and_assert(STRATEGY_STATE_FAILED)
+            self._assert_error(
+                f"{self.current_state}: Error while uploading rootca certificate. "
+                "fake error"
             )
 
         # verify we attempted to call the mocked upload method
         self.sysinv_client.kube_rootca_update_upload_cert.assert_called()
-
-        # Verify the strategy failed
-        self.assert_step_updated(self.strategy_step.subcloud_id, STRATEGY_STATE_FAILED)
 
     def test_upload_cert_pass(self):
         """Test upload cert passes the sysinv operation
@@ -76,21 +75,10 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
 
         mock_open = mock.mock_open(read_data="test")
         with mock.patch("builtins.open", mock_open):
-            # invoke the strategy state operation on the orch thread
-            self.worker._perform_state_action(
-                self.strategy_type,
-                self.subcloud.region_name,
-                self.strategy_step,
-            )
+            self._setup_and_assert(self.on_success_state)
 
         # verify we attempted to call the mocked upload method
         self.sysinv_client.kube_rootca_update_upload_cert.assert_called()
-
-        # Verify the expected next state happened
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
-        )
 
     def test_upload_cert_pass_without_extra_args(self):
         """Test upload cert passes the sysinv operation without extra args
@@ -105,13 +93,6 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
             SUCCESS_UPLOADING_CERT
         )
 
-        self.worker._perform_state_action(
-            self.strategy_type, self.subcloud.region_name, self.strategy_step
-        )
+        self._setup_and_assert(self.on_success_state)
 
         self.sysinv_client.kube_rootca_update_upload_cert.assert_not_called()
-
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
-        )

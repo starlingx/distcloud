@@ -108,7 +108,7 @@ class FakeKubeUpgrade(object):
     ):
         self.id = obj_id
         self.uuid = str(uuid.uuid4())
-        self.from_version = state
+        self.from_version = from_version
         self.to_version = to_version
         self.state = state
 
