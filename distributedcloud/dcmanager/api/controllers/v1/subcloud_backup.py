@@ -182,7 +182,9 @@ class SubcloudBackupController(object):
                 payload[param_name] = default
 
     @staticmethod
-    def _validate_subclouds(request_entity, operation, bootstrap_address_dict=None):
+    def _validate_subclouds(
+        request_entity, operation, bootstrap_address_dict=None, auto_restore_mode=None
+    ):
         """Validate the subcloud according to the operation
 
         Create/Delete: The subcloud is managed, online and in complete state.
@@ -192,6 +194,8 @@ class SubcloudBackupController(object):
         - Restore values with bootstrap_address information
         - Install values
         - Previous inventory
+
+        If it's an auto-restore, the subcloud must be aio-simplex.
 
         If none of the subclouds are valid, the operation will be aborted.
 
@@ -206,7 +210,7 @@ class SubcloudBackupController(object):
         for subcloud in subclouds:
             try:
                 is_valid = utils.is_valid_for_backup_operation(
-                    operation, subcloud, bootstrap_address_dict
+                    operation, subcloud, bootstrap_address_dict, auto_restore_mode
                 )
 
                 if operation == "create":
@@ -425,8 +429,15 @@ class SubcloudBackupController(object):
                     ),
                 )
 
+            if payload.get("factory"):
+                auto_restore_mode = "factory"
+            elif payload.get("auto"):
+                auto_restore_mode = "auto"
+            else:
+                auto_restore_mode = None
+
             restore_subclouds = self._validate_subclouds(
-                request_entity, verb, bootstrap_address_dict
+                request_entity, verb, bootstrap_address_dict, auto_restore_mode
             )
 
             payload[request_entity.type] = request_entity.id

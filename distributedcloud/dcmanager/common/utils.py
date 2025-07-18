@@ -56,7 +56,9 @@ from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
+from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import models
 
 LOG = logging.getLogger(__name__)
 
@@ -1031,14 +1033,18 @@ def summarize_message(error_msg):
     return brief_message
 
 
-def is_valid_for_backup_operation(operation, subcloud, bootstrap_address_dict=None):
+def is_valid_for_backup_operation(
+    operation, subcloud, bootstrap_address_dict=None, auto_restore_mode=None
+):
 
     if operation == "create":
         return _is_valid_for_backup_create(subcloud)
     elif operation == "delete":
         return _is_valid_for_backup_delete(subcloud)
     elif operation == "restore":
-        return _is_valid_for_backup_restore(subcloud, bootstrap_address_dict)
+        return _is_valid_for_backup_restore(
+            subcloud, bootstrap_address_dict, auto_restore_mode
+        )
     else:
         msg = "Invalid operation %s" % operation
         LOG.error(msg)
@@ -1075,7 +1081,15 @@ def _is_valid_for_backup_delete(subcloud):
     return True
 
 
-def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
+def get_bootstrap_values(subcloud: models.Subcloud) -> dict:
+    filename = psd_common.get_config_file_path(subcloud.name)
+    LOG.info(f"Loading bootstrap values from: {filename}")
+    return load_yaml_file(filename)
+
+
+def _is_valid_for_backup_restore(
+    subcloud, bootstrap_address_dict=None, auto_restore_mode=None
+):
 
     msg = None
     ansible_subcloud_inventory_file = get_ansible_filename(
@@ -1109,6 +1123,29 @@ def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
                 f"Subcloud {subcloud.name} must have a valid bootstrap address: "
                 f"{bootstrap_address_dict[subcloud.name]}"
             )
+    elif auto_restore_mode:
+        bootstrap_values = None
+        try:
+            bootstrap_values = get_bootstrap_values(subcloud)
+        except FileNotFoundError:
+            msg = (
+                f"Bootstrap values for subcloud {subcloud.name} was not found, "
+                "unable to determine subcloud system mode."
+            )
+
+        if bootstrap_values is not None:
+            system_mode = bootstrap_values.get("system_mode")
+            if not system_mode:
+                msg = (
+                    f"Unable to determine subcloud {subcloud.name} system mode "
+                    "from the bootstrap values."
+                )
+            elif system_mode != consts.SYSTEM_MODE_SIMPLEX:
+                msg = (
+                    f"{subcloud.name} is a {system_mode} subcloud. "
+                    f"{auto_restore_mode.capitalize()} restore is only supported "
+                    f"for {consts.SYSTEM_MODE_SIMPLEX} subclouds."
+                )
     if msg:
         raise exceptions.ValidateFail(msg)
 
