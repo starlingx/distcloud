@@ -252,12 +252,18 @@ check_and_set_registry_restore() {
     local registry_backup_files
     mapfile -t registry_backup_files < <(find "$backup_dir" -maxdepth 1 -name "*_image_registry_backup_*.tgz" -type f)
 
-    if [[ ${#registry_backup_files[@]} -gt 0 ]]; then
-        log "Found ${#registry_backup_files[@]} image registry backup file(s):"
-        for file in "${registry_backup_files[@]}"; do
-            log "  - $(basename "$file")"
-        done
+    if [[ ${#registry_backup_files[@]} -eq 1 ]]; then
+        local registry_backup_filename
+        registry_backup_filename=$(basename "${registry_backup_files[0]}")
+        log "Found image registry backup file: $registry_backup_filename"
         set_config_value "restore_registry_filesystem" "true" "$RESTORE_CONFIG"
+        set_config_value "registry_backup_filename" "$registry_backup_filename" "$RESTORE_CONFIG"
+    elif [[ ${#registry_backup_files[@]} -gt 1 ]]; then
+        log "Multiple image registry backup files found in $backup_dir:" "ERROR"
+        for file in "${registry_backup_files[@]}"; do
+            log "  - $(basename "$file")" "ERROR"
+        done
+        return 1
     else
         log "No image registry backup files found matching pattern *_image_registry_backup_*.tgz"
         # We set restore_registry_filesystem to false so the restore playbook attempts

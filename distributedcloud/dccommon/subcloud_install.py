@@ -207,7 +207,12 @@ class SubcloudInstall(object):
                 f_out_override_file.write("%s: %s\n" % (k, json.dumps(v)))
 
     def update_iso(
-        self, override_path, values, subcloud_primary_oam_ip_family, include_paths=None
+        self,
+        override_path,
+        values,
+        subcloud_primary_oam_ip_family,
+        include_paths=None,
+        kickstart_uri=None,
     ):
         if not os.path.isdir(self.www_iso_root):
             os.mkdir(self.www_iso_root, 0o755)
@@ -273,6 +278,9 @@ class SubcloudInstall(object):
         if include_paths:
             for path in include_paths:
                 update_iso_cmd += ["--include-path", path]
+
+        if kickstart_uri:
+            update_iso_cmd += ["--kickstart-uri", kickstart_uri]
 
         for key, _ in consts.GEN_ISO_OPTIONS.items():
             if key in values:
@@ -477,6 +485,7 @@ class SubcloudInstall(object):
         payload,
         subcloud_primary_oam_ip_family,
         include_paths=None,
+        kickstart_uri=None,
     ):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
@@ -523,7 +532,11 @@ class SubcloudInstall(object):
         # Update the default iso image based on the install values
         # Runs gen-bootloader-iso.sh
         self.update_iso(
-            override_path, iso_values, subcloud_primary_oam_ip_family, include_paths
+            override_path,
+            iso_values,
+            subcloud_primary_oam_ip_family,
+            include_paths,
+            kickstart_uri,
         )
 
         # remove the iso values from the payload

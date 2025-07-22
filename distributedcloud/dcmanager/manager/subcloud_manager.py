@@ -2571,6 +2571,13 @@ class SubcloudManager(manager.Manager):
                 else nullcontext()
             )
 
+            kickstart_uri = None
+            if auto_restore_mode == "factory":
+                kickstart_uri = (
+                    "partition://platform_backup:factory/"
+                    f"{software_version}/miniboot.cfg"
+                )
+
             with auto_restore_context as temp_dir:
                 # Stage the auto-restore files so they can be copied to the
                 # miniboot ISO during subcloud installation. These files will
@@ -2590,6 +2597,7 @@ class SubcloudManager(manager.Manager):
                     log_file,
                     data_install,
                     include_paths,
+                    kickstart_uri,
                 )
 
             if not install_success:
@@ -3065,7 +3073,13 @@ class SubcloudManager(manager.Manager):
 
     @staticmethod
     def _run_subcloud_install(
-        context, subcloud, install_command, log_file, payload, include_paths=None
+        context,
+        subcloud,
+        install_command,
+        log_file,
+        payload,
+        include_paths=None,
+        kickstart_uri=None,
     ):
         software_version = str(payload["software_version"])
         LOG.info(
@@ -3093,6 +3107,7 @@ class SubcloudManager(manager.Manager):
                 payload,
                 subcloud_primary_oam_ip_family,
                 include_paths,
+                kickstart_uri,
             )
         except Exception as e:
             LOG.exception(e)
