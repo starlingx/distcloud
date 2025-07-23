@@ -1296,9 +1296,8 @@ def is_software_ready_to_be_prestaged_for_install(software_list, software_versio
     To determine if the release is valid for install, it is initially compared
     to the release of the system controller. If matches, it is assumed that the
     release is already deployed and it is not required to check the
-    software list. Otherwise, the query will be made in the list of software
-    for the available status, since those releases that have not yet been
-    deployed must be considered.
+    software list. For all other releases, the state must be queried via software
+    list API, which should be deployed, available, or unavailable.
 
     Args:
         software_list (list[dict]): The software list from USM API
@@ -1317,8 +1316,7 @@ def is_software_ready_to_be_prestaged_for_install(software_list, software_versio
     # whose status must be available, unavailable or deployed to be
     # able to install it
     return any(
-        is_base_release(release["sw_version"])
-        and get_major_release(release["sw_version"]) == software_version
+        get_major_release(release["sw_version"]) == software_version
         and release["state"]
         in (software_v1.AVAILABLE, software_v1.DEPLOYED, software_v1.UNAVAILABLE)
         for release in software_list
@@ -1905,38 +1903,6 @@ def is_minor_release(version):
     mm = int(mm)
     pp = int(pp)
     return 0 <= MM <= 99 and 0 <= mm <= 99 and 1 <= pp <= 99
-
-
-def is_base_release(version):
-    """Check if a given version is a valid base release
-
-    The third value in a release format representation,
-    for example MM.mm.p, is considered a base release.
-
-    Both the MM part and the mm part must have two digits.
-    The p part represents the base release digit, which is always 0.
-
-    Args:
-        version (str): The requested version value
-
-    Returns:
-        bool: `True` if the version value is a valid base release.
-        `False` if the version is a not valid base release.
-
-    """
-
-    if version < consts.SOFTWARE_VERSION_24_09:
-        return is_major_release(version)
-
-    pattern = r"^\d{2}\.\d{2}\.\d{1}$"
-    if not re.match(pattern, version):
-        return False
-
-    MM, mm, p = version.split(".")
-    MM = int(MM)
-    mm = int(mm)
-    p = int(p)
-    return 0 <= MM <= 99 and 0 <= mm <= 99 and 0 == p
 
 
 def extract_version(release_id: str) -> str:
