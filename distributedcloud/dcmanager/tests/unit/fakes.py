@@ -14,7 +14,6 @@
 
 import uuid
 
-import mock
 from oslo_utils import timeutils
 
 # VIM constants for Strategy
@@ -105,8 +104,6 @@ class FakeServices(object):
 
 class FakeKeystone(object):
     def __init__(self):
-        self.session = mock.MagicMock()
-        self.tokens = mock.MagicMock()
         self.keystone_client = FakeKeystoneClient()
 
 
