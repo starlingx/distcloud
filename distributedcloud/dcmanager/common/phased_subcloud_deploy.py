@@ -1059,6 +1059,12 @@ def upload_cloud_init_config(request, payload):
     if file_item is None:
         return
 
+    if payload["software_version"] == consts.SOFTWARE_VERSION_24_09:
+        pecan.abort(
+            400,
+            _("Cloud-init config is not accepted for 24.09 software version"),
+        )
+
     filename = getattr(file_item, "filename", "")
     if not filename:
         pecan.abort(400, _("No cloud-init-config file uploaded"))

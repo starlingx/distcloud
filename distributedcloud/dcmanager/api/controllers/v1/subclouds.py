@@ -585,10 +585,6 @@ class SubcloudsController(object):
 
         psd_common.validate_secondary_parameter(payload, request)
 
-        if payload.get("enroll"):
-            psd_common.validate_enroll_parameter(payload)
-            psd_common.upload_cloud_init_config(request, payload)
-
         # Compares to match both supplied and bootstrap name param
         # of the subcloud if migrate is on
         if payload.get("migrate") == "true" and bootstrap_sc_name is not None:
@@ -609,6 +605,10 @@ class SubcloudsController(object):
             psd_common.subcloud_region_create(payload, context)
 
         psd_common.pre_deploy_create(payload, context, request)
+
+        if payload.get("enroll"):
+            psd_common.validate_enroll_parameter(payload)
+            psd_common.upload_cloud_init_config(request, payload)
 
         try:
             # Add the subcloud details to the database
