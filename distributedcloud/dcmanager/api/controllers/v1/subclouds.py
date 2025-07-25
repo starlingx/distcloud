@@ -18,6 +18,8 @@
 #
 
 import base64
+import collections
+import datetime
 import json
 import os
 import re
@@ -26,6 +28,7 @@ from fm_api.constants import FM_ALARM_ID_UNSYNCHRONIZED_RESOURCE
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
+from oslo_utils import timeutils
 import pecan
 from pecan import expose
 from pecan import request
@@ -84,6 +87,8 @@ class SubcloudsController(object):
     VERSION_ALIASES = {
         "Newton": "1.0",
     }
+
+    software_deploy_state_cache = collections.defaultdict(dict)
 
     def __init__(self):
         super(SubcloudsController, self).__init__()
@@ -521,33 +526,52 @@ class SubcloudsController(object):
             return subcloud_dict
 
     @staticmethod
+    @utils.synchronized("software-deploy-state-cache", external=False)
     def is_valid_software_deploy_state():
         try:
-            admin_session = EndpointCache.get_admin_session()
-            software_client = software_v1.SoftwareClient(
-                admin_session,
-                region=cutils.get_region_one_name(),
-            )
-            software_list = software_client.list()
-            for release in software_list:
-                if release["state"] not in (
-                    software_v1.AVAILABLE,
-                    software_v1.COMMITTED,
-                    software_v1.DEPLOYED,
-                    software_v1.UNAVAILABLE,
-                ):
-                    LOG.info(
-                        "is_valid_software_deploy_state, not valid for: %s",
-                        software_list,
+            if (
+                not SubcloudsController.software_deploy_state_cache
+                or not SubcloudsController.software_deploy_state_cache.get("expiry")
+                or SubcloudsController.software_deploy_state_cache["expiry"]
+                <= timeutils.utcnow()
+            ):
+                SubcloudsController.software_deploy_state_cache["result"] = True
+                admin_session = EndpointCache.get_admin_session()
+                software_client = software_v1.SoftwareClient(
+                    admin_session,
+                    region=cutils.get_region_one_name(),
+                )
+                software_list = software_client.list()
+                for release in software_list:
+                    if release["state"] not in (
+                        software_v1.AVAILABLE,
+                        software_v1.COMMITTED,
+                        software_v1.DEPLOYED,
+                        software_v1.UNAVAILABLE,
+                    ):
+                        LOG.info(
+                            "is_valid_software_deploy_state, not valid for: %s",
+                            software_list,
+                        )
+                        SubcloudsController.software_deploy_state_cache["result"] = (
+                            False
+                        )
+                        break
+
+                if SubcloudsController.software_deploy_state_cache["result"]:
+                    LOG.debug(
+                        "is_valid_software_deploy_state, valid: %s", software_list
                     )
-                    return False
-            LOG.debug("is_valid_software_deploy_state, valid: %s", software_list)
+
+                SubcloudsController.software_deploy_state_cache["expiry"] = (
+                    timeutils.utcnow() + datetime.timedelta(minutes=1)
+                )
 
         except Exception:
             LOG.exception("Failure initializing OS Client, disallowing.")
-            return False
+            SubcloudsController.software_deploy_state_cache["result"] = False
 
-        return True
+        return SubcloudsController.software_deploy_state_cache["result"]
 
     @staticmethod
     def validate_software_deploy_state():
