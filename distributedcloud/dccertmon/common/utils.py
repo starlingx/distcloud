@@ -82,7 +82,7 @@ def update_subcloud_ca_cert(sc_name, sysinv_url, ca_crt, tls_crt, tls_key):
         resp_data = response.json()
 
         if resp_data.get("result") == "OK":
-            LOG.info(f"Update f{sc_name} intermediate CA cert request succeeded")
+            LOG.info(f"Update {sc_name} intermediate CA cert request succeeded")
         else:
             LOG.error(f"Request failed for {sc_name}: {resp_data}")
             raise Exception(f"Update {sc_name} intermediate CA cert failed")
