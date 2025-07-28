@@ -151,7 +151,7 @@ class TestSwUpdateStrategyGetSteps(BaseTestSwUpdateStrategyGet):
 
         self.subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         self.strategy = fake_strategy.create_fake_strategy_step(
-            self.ctx, consts.STRATEGY_STATE_INITIAL
+            self.ctx, state=consts.STRATEGY_STATE_INITIAL
         )
 
     def test_get_steps_succeeds(self):

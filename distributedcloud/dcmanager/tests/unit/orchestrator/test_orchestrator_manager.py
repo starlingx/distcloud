@@ -19,7 +19,6 @@ import mock
 
 import eventlet
 from oslo_utils import timeutils
-from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
 from dccommon import ostree_mount
@@ -32,6 +31,8 @@ from dcmanager.db import api as db_api
 from dcmanager.orchestrator import orchestrator_manager
 from dcmanager.orchestrator import rpcapi as orchestrator_rpc_api
 from dcmanager.tests.base import DCManagerTestCase
+from dcmanager.tests.unit.common import fake_strategy
+from dcmanager.tests.unit.common import fake_subcloud
 
 
 class BaseTestOrchestratorManager(DCManagerTestCase):
@@ -54,15 +55,22 @@ class BaseTestOrchestratorManager(DCManagerTestCase):
         # Fake subcloud groups
         # Group 1 exists by default in database with max_parallel 2 and
         # apply_type parallel
-        self.sc_group2 = self.create_subcloud_group(
-            self.ctx, "Group2", consts.SUBCLOUD_APPLY_TYPE_SERIAL, 6
+        self.sc_group2 = fake_subcloud.create_fake_subcloud_group(
+            self.ctx,
+            name="Group2",
+            update_apply_type=consts.SUBCLOUD_APPLY_TYPE_SERIAL,
+            max_parallel_subclouds=6,
         )
-        self.sc_group3 = self.create_subcloud_group(
-            self.ctx, "Group3", consts.SUBCLOUD_APPLY_TYPE_PARALLEL, 5
+        self.sc_group3 = fake_subcloud.create_fake_subcloud_group(
+            self.ctx, name="Group3", max_parallel_subclouds=5
         )
 
-        self.subcloud1 = self.create_subcloud(self.ctx, "subcloud1", self.sc_group3.id)
-        self.subcloud2 = self.create_subcloud(self.ctx, "subcloud2", self.sc_group3.id)
+        self.subcloud1 = fake_subcloud.create_fake_subcloud(
+            self.ctx, name="subcloud1", group_id=self.sc_group3.id
+        )
+        self.subcloud2 = fake_subcloud.create_fake_subcloud(
+            self.ctx, name="subcloud2", group_id=self.sc_group3.id
+        )
 
         self.orchestrator_manager = orchestrator_manager.OrchestratorManager()
 
@@ -71,61 +79,6 @@ class BaseTestOrchestratorManager(DCManagerTestCase):
         self.mock_db_api = self._mock_object(orchestrator_manager, "db_api", db_api)
         self.mock_utils_db_api = self._mock_object(utils, "db_api", db_api)
         self.mock_log = self._mock_object(orchestrator_manager, "LOG")
-
-    @staticmethod
-    def create_subcloud(
-        ctx, name, group_id, is_managed=False, is_online=False, sw_version="stx-9"
-    ):
-        values = {
-            "name": name,
-            "description": "subcloud description",
-            "location": "subcloud location",
-            "software_version": sw_version,
-            "management_subnet": "192.168.101.0/24",
-            "management_gateway_ip": "192.168.101.1",
-            "management_start_ip": "192.168.101.3",
-            "management_end_ip": "192.168.101.4",
-            "systemcontroller_gateway_ip": "192.168.204.101",
-            "external_oam_subnet_ip_family": "4",
-            "deploy_status": "not-deployed",
-            "error_description": "No errors present",
-            "region_name": uuidutils.generate_uuid().replace("-", ""),
-            "openstack_installed": False,
-            "group_id": group_id,
-            "data_install": "data from install",
-        }
-        return db_api.subcloud_create(ctx, **values)
-
-    @staticmethod
-    def create_subcloud_group(ctx, name, update_apply_type, max_parallel_subclouds):
-        values = {
-            "name": name,
-            "description": "description",
-            "update_apply_type": update_apply_type,
-            "max_parallel_subclouds": max_parallel_subclouds,
-        }
-        return db_api.subcloud_group_create(ctx, **values)
-
-    @staticmethod
-    def create_strategy(ctx, strategy_type, state, max_parallel_subclouds=1):
-        values = {
-            "type": strategy_type,
-            "subcloud_apply_type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
-            "max_parallel_subclouds": max_parallel_subclouds,
-            "stop_on_failure": True,
-            "state": state,
-        }
-        return db_api.sw_update_strategy_create(ctx, **values)
-
-    @staticmethod
-    def create_strategy_step(ctx, subcloud_id=1, state=consts.STRATEGY_STATE_INITIAL):
-        values = {
-            "subcloud_id": subcloud_id,
-            "stage": 1,
-            "state": state,
-            "details": "Dummy details",
-        }
-        return db_api.strategy_step_create(ctx, **values)
 
 
 class TestOrchestratorManager(BaseTestOrchestratorManager):
@@ -154,7 +107,7 @@ class TestOrchestratorManager(BaseTestOrchestratorManager):
     def test_init_with_strategy_not_applying(self):
         """Test init with strategy not applying"""
 
-        self.create_strategy(
+        fake_strategy.create_fake_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
 
@@ -169,7 +122,7 @@ class TestOrchestratorManager(BaseTestOrchestratorManager):
     def test_init_with_strategy_deleting_or_applying(self):
         """Test init with strategy deleting or applying"""
 
-        strategy = self.create_strategy(
+        strategy = fake_strategy.create_fake_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
 
@@ -355,7 +308,7 @@ class TestOrchestratorManagerStrategyCreate(BaseTestOrchestratorManagerStrategyC
     def test_create_software_strategy_fails_with_existing_strategy(self):
         """Test create software strategy fails with existing strategy"""
 
-        strategy = self.create_strategy(
+        strategy = fake_strategy.create_fake_strategy(
             self.ctx,
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
             consts.SW_UPDATE_STATE_INITIAL,
@@ -487,9 +440,9 @@ class TestOrchestratorManagerSoftwareStrategyCreate(
         Subcloud 5 is offline                   -> Not orchestrated
         """
 
-        self.create_subcloud(self.ctx, "subcloud3", 1)
-        self.create_subcloud(self.ctx, "subcloud4", 1)
-        self.create_subcloud(self.ctx, "subcloud5", 1)
+        fake_subcloud.create_fake_subcloud(self.ctx, name="subcloud3")
+        fake_subcloud.create_fake_subcloud(self.ctx, name="subcloud4")
+        fake_subcloud.create_fake_subcloud(self.ctx, name="subcloud5")
 
         update_values = [
             (dccommon_consts.MANAGEMENT_MANAGED, dccommon_consts.AVAILABILITY_ONLINE),
@@ -750,9 +703,9 @@ class TestOrchestratorManagerPrestageStrategyCreate(
             self.subcloud2.id, management_state=dccommon_consts.MANAGEMENT_UNMANAGED
         )
         self._update_subcloud(
-            self.create_subcloud(self.ctx, "subcloud3", 1).id,
+            fake_subcloud.create_fake_subcloud(self.ctx, name="subcloud3").id,
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
-            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
         )
 
         self.payload[consts.PRESTAGE_REQUEST_RELEASE] = "24.09"
@@ -780,13 +733,15 @@ class TestOrchestratorManagerStrategyDelete(BaseTestOrchestratorManager):
     def setUp(self):
         super().setUp()
 
-        self.create_strategy(
+        fake_strategy.create_fake_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
-        self.strategy_step1 = self.create_strategy_step(
+        self.strategy_step1 = fake_strategy.create_fake_strategy_step(
             self.ctx, self.subcloud1.id, consts.STRATEGY_STATE_COMPLETE
         )
-        self.strategy_step2 = self.create_strategy_step(self.ctx, self.subcloud2.id)
+        self.strategy_step2 = fake_strategy.create_fake_strategy_step(
+            self.ctx, self.subcloud2.id
+        )
 
     def test_delete_strategy_succeeds_with_finished_steps(self):
         """Test delete strategy succeeds"""
@@ -864,10 +819,10 @@ class TestOrchestratorManagerStrategyApply(BaseTestOrchestratorManager):
     def setUp(self):
         super().setUp()
 
-        self.create_strategy(
+        fake_strategy.create_fake_strategy(
             self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
         )
-        self.create_strategy_step(self.ctx)
+        fake_strategy.create_fake_strategy_step(self.ctx)
 
     def test_strategy_apply_succeeds(self):
         """Test strategy apply succeeds"""
@@ -908,11 +863,18 @@ class TestOrchestratorManagerStrategyAbort(BaseTestOrchestratorManager):
     def setUp(self):
         super().setUp()
 
-        self.strategy = self.create_strategy(
-            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
+        self.strategy = fake_strategy.create_fake_strategy(
+            self.ctx,
+            consts.SW_UPDATE_TYPE_SOFTWARE,
+            consts.SW_UPDATE_STATE_INITIAL,
+            max_parallel_subclouds=1,
         )
-        self.strategy_step1 = self.create_strategy_step(self.ctx, self.subcloud1.id)
-        self.strategy_step2 = self.create_strategy_step(self.ctx, self.subcloud2.id)
+        self.strategy_step1 = fake_strategy.create_fake_strategy_step(
+            self.ctx, self.subcloud1.id
+        )
+        self.strategy_step2 = fake_strategy.create_fake_strategy_step(
+            self.ctx, self.subcloud2.id
+        )
 
     def test_strategy_abort_succeeds(self):
         """Test strategy abort succeeds"""
@@ -959,8 +921,11 @@ class TestOrchestratorManagerStrategyMonitoringThread(BaseTestOrchestratorManage
     def setUp(self):
         super().setUp()
 
-        self.strategy = self.create_strategy(
-            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_INITIAL
+        self.strategy = fake_strategy.create_fake_strategy(
+            self.ctx,
+            consts.SW_UPDATE_TYPE_SOFTWARE,
+            consts.SW_UPDATE_STATE_INITIAL,
+            max_parallel_subclouds=1,
         )
 
         self.mock_greenthread = self._mock_object(eventlet, "greenthread")
@@ -1040,16 +1005,25 @@ class TestOrchestratorManagerStrategyMonitoring(BaseTestOrchestratorManager):
     def setUp(self):
         super().setUp()
 
-        self.strategy = self.create_strategy(
+        self.strategy = fake_strategy.create_fake_strategy(
             self.ctx,
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
             consts.SW_UPDATE_STATE_INITIAL,
+            max_parallel_subclouds=1,
         )
 
-        self.subcloud3 = self.create_subcloud(self.ctx, "subcloud3", self.sc_group3.id)
-        self.strategy_step1 = self.create_strategy_step(self.ctx, self.subcloud1.id)
-        self.strategy_step2 = self.create_strategy_step(self.ctx, self.subcloud2.id)
-        self.strategy_step3 = self.create_strategy_step(self.ctx, self.subcloud3.id)
+        self.subcloud3 = fake_subcloud.create_fake_subcloud(
+            self.ctx, name="subcloud3", group_id=self.sc_group3.id
+        )
+        self.strategy_step1 = fake_strategy.create_fake_strategy_step(
+            self.ctx, self.subcloud1.id
+        )
+        self.strategy_step2 = fake_strategy.create_fake_strategy_step(
+            self.ctx, self.subcloud2.id
+        )
+        self.strategy_step3 = fake_strategy.create_fake_strategy_step(
+            self.ctx, self.subcloud3.id
+        )
 
         # Because the periodic monitoring loop is not called, the monitor flag needs to
         # be manually set
@@ -1257,8 +1231,11 @@ class TestOrchestratorManagerStrategyMonitoring(BaseTestOrchestratorManager):
         # Recreate the strategy with a different max_parallel_subclouds to test the
         # execution of a smaller request to the worker
         db_api.sw_update_strategy_destroy(self.ctx)
-        self.strategy = self.create_strategy(
-            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, consts.SW_UPDATE_STATE_DELETING, 3
+        self.strategy = fake_strategy.create_fake_strategy(
+            self.ctx,
+            consts.SW_UPDATE_TYPE_SOFTWARE,
+            consts.SW_UPDATE_STATE_DELETING,
+            max_parallel_subclouds=3,
         )
 
         db_api.strategy_step_update_all(

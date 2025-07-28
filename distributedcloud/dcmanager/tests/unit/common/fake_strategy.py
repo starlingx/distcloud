@@ -11,8 +11,8 @@ from dcmanager.db import api as db_api
 def create_fake_strategy(
     ctxt,
     strategy_type,
-    subcloud_apply_type=consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
     state=consts.SW_UPDATE_STATE_INITIAL,
+    subcloud_apply_type=consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
     max_parallel_subclouds=2,
     stop_on_failure=True,
     extra_args=None,
@@ -30,8 +30,8 @@ def create_fake_strategy(
 
 def create_fake_strategy_step(
     ctxt,
-    state=consts.STRATEGY_STATE_INITIAL,
     subcloud_id=1,
+    state=consts.STRATEGY_STATE_INITIAL,
     stage=1,
     details="Dummy details",
 ):

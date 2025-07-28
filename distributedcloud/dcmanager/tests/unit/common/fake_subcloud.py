@@ -174,7 +174,7 @@ SAMPLE_HEARTBEAT_MAINTENANCE_TIMEOUT = 600
 SAMPLE_AVAILABILITY_STATE_AVAILABLE = "available"
 
 
-def create_fake_subcloud(ctxt, **kwargs):
+def create_fake_subcloud(ctx, **kwargs):
     values = {
         "name": "subcloud1",
         "description": "subcloud1 description",
@@ -194,7 +194,18 @@ def create_fake_subcloud(ctxt, **kwargs):
         "data_install": "data from install",
     }
     values.update(kwargs)
-    return db_api.subcloud_create(ctxt, **values)
+    return db_api.subcloud_create(ctx, **values)
+
+
+def create_fake_subcloud_group(ctx, **kwargs):
+    values = {
+        "name": "group name",
+        "description": "description",
+        "update_apply_type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+        "max_parallel_subclouds": 1,
+    }
+    values.update(kwargs)
+    return db_api.subcloud_group_create(ctx, **values)
 
 
 def get_test_system_peer_dict(data_type, **kw):
