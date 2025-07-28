@@ -636,22 +636,57 @@ class PhasedSubcloudDeployController(object):
                 payload, subcloud, [consts.INSTALL_VALUES]
             )
 
-        if has_cloud_init_config:
-            psd_common.upload_cloud_init_config(request, payload)
+        unvalidated_sw_version = payload.get("release", subcloud.software_version)
+        payload["software_version"] = utils.get_sw_version(unvalidated_sw_version)
 
         psd_common.validate_enroll_parameter(payload)
 
-        payload["software_version"] = subcloud.software_version
+        if has_cloud_init_config:
+            psd_common.upload_cloud_init_config(request, payload)
 
         # Use bootstrap file verification
         psd_common.pre_deploy_bootstrap(
             context, payload, subcloud, has_bootstrap_values
         )
-
-        self.dcmanager_rpc_client.subcloud_deploy_enroll(context, subcloud.id, payload)
-        subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
-
-        return subcloud_dict
+        try:
+            self.dcmanager_rpc_client.subcloud_deploy_enroll(
+                context, subcloud.id, payload
+            )
+            subcloud_dict = db_api.subcloud_db_model_to_dict(subcloud)
+            subcloud_dict["deploy-status"] = consts.DEPLOY_STATE_PRE_INIT_ENROLL
+            subcloud_dict["software-version"] = payload["software_version"]
+            subcloud_dict["description"] = payload.get(
+                "description", subcloud.description
+            )
+            subcloud_dict["location"] = payload.get("location", subcloud.location)
+            subcloud_dict["management-subnet"] = utils.get_primary_management_subnet(
+                payload
+            )
+            subcloud_dict["management-gateway-ip"] = (
+                utils.get_primary_management_gateway_address(payload)
+            )
+            subcloud_dict["management-start-ip"] = (
+                utils.get_primary_management_start_address(payload)
+            )
+            subcloud_dict["management-end-ip"] = (
+                utils.get_primary_management_end_address(payload)
+            )
+            systemcontroller_primary_gw = (
+                utils.get_primary_systemcontroller_gateway_address(payload)
+            )
+            subcloud_dict["systemcontroller-gateway-ip"] = (
+                systemcontroller_primary_gw
+                if systemcontroller_primary_gw
+                else subcloud.systemcontroller_gateway_ip
+            )
+            return subcloud_dict
+        except RemoteError as e:
+            pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
+        except Exception:
+            LOG.exception("Unable to enroll subcloud %s" % payload.get("name"))
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR, _("Unable to enroll subcloud")
+            )
 
     @pecan.expose(generic=True, template="json")
     def index(self):

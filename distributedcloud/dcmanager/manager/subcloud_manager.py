@@ -348,7 +348,6 @@ class SubcloudManager(manager.Manager):
 
         return install_command
 
-    # TODO(glyraper): software_version will be used in the future
     def compose_enroll_command(
         self,
         subcloud_name,
@@ -403,6 +402,12 @@ class SubcloudManager(manager.Manager):
                 subcloud_name,
                 "-e",
                 extra_vars,
+                "-e",
+                (
+                    "install_release_version=%s" % software_version
+                    if software_version
+                    else SW_VERSION
+                ),
             ]
 
             return enroll_command
@@ -2189,6 +2194,7 @@ class SubcloudManager(manager.Manager):
                 subcloud_id,
                 deploy_status=consts.DEPLOY_STATE_INITIATING_ENROLL,
                 data_install=json.dumps(payload["install_values"]),
+                software_version=payload["software_version"],
             )
 
             # TODO(glyraper): log_file to be used in the playbook execution
