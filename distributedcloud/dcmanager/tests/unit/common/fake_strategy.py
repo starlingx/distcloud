@@ -28,6 +28,17 @@ def create_fake_strategy(
     return db_api.sw_update_strategy_create(ctxt, **values)
 
 
+def update_fake_strategy(
+    ctxt,
+    state=None,
+    update_type=None,
+    additional_args=None,
+):
+    return db_api.sw_update_strategy_update(
+        ctxt, state=state, update_type=update_type, additional_args=additional_args
+    )
+
+
 def create_fake_strategy_step(
     ctxt,
     state=consts.STRATEGY_STATE_INITIAL,

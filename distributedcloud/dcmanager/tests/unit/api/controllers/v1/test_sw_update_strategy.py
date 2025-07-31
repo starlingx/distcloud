@@ -25,6 +25,7 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import rpcapi as rpc_client
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
+from dcmanager.tests.unit.common import consts as fake_consts
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
 
@@ -205,19 +206,12 @@ class BaseTestSwUpdateStrategyPost(BaseTestSwUpdateStrategyController):
 
         self.method = self.app.post_json
 
-
-class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
-    """Test class for post requests"""
-
-    def setUp(self):
-        super().setUp()
-
         self.params = {
             "type": consts.SW_UPDATE_TYPE_SOFTWARE,
             "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
             "max-parallel-subclouds": "10",
             "stop-on-failure": "true",
-            "release_id": "stx-10.0.0",
+            "release_id": fake_consts.RELEASE_ID,
         }
 
         self.mock_rpc_orchestrator_client().create_sw_update_strategy.return_value = (
@@ -230,7 +224,13 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self.mock_get_sc_installed_releases_id = self._mock_object(
             utils, "get_systemcontroller_installed_releases_ids"
         )
-        self.mock_get_sc_installed_releases_id.return_value = ["stx-10.0.0"]
+        self.mock_get_sc_installed_releases_id.return_value = [
+            fake_consts.RELEASE_ID,
+        ]
+
+
+class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
+    """Test class for post requests"""
 
     def test_post_succeeds(self):
         """Test post succeeds"""
@@ -471,12 +471,189 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self.create_update_strategy.assert_called_once()
 
 
-class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
+class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
+    """Test class for post requests with software strategy"""
+
+    def base_post_software_succeeds_extra_args(
+        self,
+        release_id=None,
+        snapshot=None,
+        rollback=None,
+        with_delete=None,
+        delete_only=None,
+    ):
+        """Base post test case of software strategy succeeds with extra args"""
+
+        self.params = {
+            "type": consts.SW_UPDATE_TYPE_SOFTWARE,
+            "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+            "max-parallel-subclouds": "10",
+            "stop-on-failure": "true",
+            consts.EXTRA_ARGS_RELEASE_ID: release_id,
+            consts.EXTRA_ARGS_WITH_DELETE: with_delete,
+            consts.EXTRA_ARGS_SNAPSHOT: snapshot,
+            consts.EXTRA_ARGS_DELETE_ONLY: delete_only,
+            consts.EXTRA_ARGS_ROLLBACK: rollback,
+        }
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.create_update_strategy.assert_called_once()
+
+    def base_post_software_fails_extra_args(
+        self,
+        error_msg,
+        release_id=None,
+        snapshot=None,
+        rollback=None,
+        with_delete=None,
+        delete_only=None,
+    ):
+        """Base post test case of software strategy fails with extra args"""
+
+        self.params = {
+            "type": consts.SW_UPDATE_TYPE_SOFTWARE,
+            "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+            "max-parallel-subclouds": "10",
+            "stop-on-failure": "true",
+            consts.EXTRA_ARGS_RELEASE_ID: release_id,
+            consts.EXTRA_ARGS_WITH_DELETE: with_delete,
+            consts.EXTRA_ARGS_SNAPSHOT: snapshot,
+            consts.EXTRA_ARGS_DELETE_ONLY: delete_only,
+            consts.EXTRA_ARGS_ROLLBACK: rollback,
+        }
+        response = self._send_request()
+        self._assert_pecan_and_response(response, http.client.BAD_REQUEST, error_msg)
+        self.create_update_strategy.assert_not_called()
+
+    def test_post_software_succeeds_with_delete(self):
+        """Test post of software strategy succeeds with delete"""
+
+        self.base_post_software_succeeds_extra_args(
+            release_id=fake_consts.RELEASE_ID, with_delete=True
+        )
+
+    def test_post_software_succeeds_snapshot(self):
+        """Test post of software strategy succeeds with snapshot"""
+
+        self.base_post_software_succeeds_extra_args(
+            release_id=fake_consts.RELEASE_ID, snapshot=True
+        )
+
+    def test_post_software_succeeds_with_delete_and_snapshot(self):
+        """Test post of software strategy succeeds with_delete and snapshot"""
+
+        self.base_post_software_succeeds_extra_args(
+            release_id=fake_consts.RELEASE_ID,
+            snapshot=True,
+            with_delete=True,
+        )
+
+    def test_post_software_succeeds_rollback(self):
+        """Test post of software strategy succeeds with rollback"""
+
+        self.base_post_software_succeeds_extra_args(rollback=True)
+
+    def test_post_software_succeeds_delete_only(self):
+        """Test post of software strategy succeeds with delete_only"""
+
+        self.base_post_software_succeeds_extra_args(delete_only=True)
+
+    def test_post_software_fails_without_extra_args(self):
+        """Test post of software strategy fails without extra args"""
+
+        error_msg = "Release ID is required for strategy type: sw-deploy."
+        self.base_post_software_fails_extra_args(error_msg)
+
+    def test_post_software_fails_snapshot_and_rollback(self):
+        """Test post of software strategy fails with snapshot and rollback"""
+
+        error_msg = (
+            "Option snapshot cannot be used with any of the following options: "
+            "rollback or delete_only."
+        )
+        self.base_post_software_fails_extra_args(
+            error_msg,
+            release_id=fake_consts.RELEASE_ID,
+            snapshot=True,
+            rollback=True,
+        )
+
+    def test_post_software_fails_snapshot_and_delete_only(self):
+        """Test post of software strategy fails with snapshot and delete_only"""
+
+        error_msg = (
+            "Option snapshot cannot be used with any of the following options: "
+            "rollback or delete_only."
+        )
+        self.base_post_software_fails_extra_args(
+            error_msg,
+            release_id=fake_consts.RELEASE_ID,
+            snapshot=True,
+            delete_only=True,
+        )
+
+    def test_post_software_fails_rollback_and_release(self):
+        """Test post of software strategy fails with rollback and release"""
+
+        error_msg = (
+            "Option rollback cannot be used with any of the following options: "
+            "release_id, snapshot, with_delete or delete_only."
+        )
+        self.base_post_software_fails_extra_args(
+            error_msg,
+            release_id=fake_consts.RELEASE_ID,
+            rollback=True,
+        )
+
+    def test_post_software_fails_rollback_and_with_delete(self):
+        """Test post of software strategy fails with rollback and with_delete"""
+
+        error_msg = (
+            "Option rollback cannot be used with any of the following options: "
+            "release_id, snapshot, with_delete or delete_only."
+        )
+        self.base_post_software_fails_extra_args(
+            error_msg,
+            rollback=True,
+            with_delete=True,
+        )
+
+    def test_post_software_fails_rollback_and_delete_only(self):
+        """Test post of software strategy fails with rollback and delete_only"""
+
+        error_msg = (
+            "Option rollback cannot be used with any of the following options: "
+            "release_id, snapshot, with_delete or delete_only."
+        )
+        self.base_post_software_fails_extra_args(
+            error_msg,
+            rollback=True,
+            delete_only=True,
+        )
+
+    def test_post_software_fails_with_delete_and_delete_only(self):
+        """Test post of software strategy fails with_delete and delete_only"""
+
+        error_msg = (
+            "Option with_delete cannot be used with any of the following options: "
+            "rollback or delete_only."
+        )
+        self.base_post_software_fails_extra_args(
+            error_msg,
+            release_id=fake_consts.RELEASE_ID,
+            with_delete=True,
+            delete_only=True,
+        )
+
+
+class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyController):
     """Test class for post requests with actions verb"""
 
     def setUp(self):
         super().setUp()
 
+        self.method = self.app.post_json
         self.url = f"{self.url}/actions"
 
         self.mock_rpc_orchestrator_client().apply_sw_update_strategy.return_value = (

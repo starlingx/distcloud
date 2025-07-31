@@ -100,6 +100,18 @@ class SoftwareClient(base.DriverBase):
         response = self.request(url, "GET", timeout)
         return self._handle_response(response, operation="Show deploy")
 
+    def deploy_delete(self, timeout=REST_DEFAULT_TIMEOUT):
+        """Deploy delete
+
+        This is the equivalent of 'software deploy delete' command.
+        It will remove the current deployment and change the release from
+        'deploying' to 'deployed'. If this is executed, the rollback
+        procedure will not be available.
+        """
+        url = self.endpoint + "/deploy"
+        response = self.request(url, "DELETE", timeout)
+        return self._handle_response(response, operation="Deploy delete")
+
     def commit_patch(self, releases, timeout=REST_DEFAULT_TIMEOUT):
         """Commit patch"""
         release_str = "/".join(releases)

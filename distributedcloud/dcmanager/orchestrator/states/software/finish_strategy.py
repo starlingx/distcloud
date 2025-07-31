@@ -61,6 +61,11 @@ class FinishStrategyState(BaseState):
 
         self.info_log(strategy_step, "Finishing software strategy")
 
+        if self._handle_extra_args_delete_only(
+            strategy_step, self.get_software_client(self.region_name)
+        ):
+            return self.next_state
+
         try:
             # Retrieve deployed releases id from RegionOne cache
             regionone_deployed_releases_id = [
@@ -134,3 +139,26 @@ class FinishStrategyState(BaseState):
 
     def _handle_deploy_commit(self, strategy_step, software_client, releases_to_commit):
         raise NotImplementedError()
+
+    def _handle_extra_args_delete_only(
+        self, strategy_step: str, software_client: software_v1.SoftwareClient
+    ) -> bool:
+        """Handle the delete_only extra args for software deploy strategies."""
+        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+        if extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
+            releases_to_delete = [extra_args[consts.EXTRA_ARGS_RELEASE_ID]]
+            self.info_log(
+                strategy_step,
+                f"Deleting release {releases_to_delete} as per delete_only argument.",
+            )
+            try:
+                software_client.deploy_delete()
+            except Exception as exc:
+                details = "Cannot delete release from subcloud."
+                self.handle_exception(
+                    strategy_step,
+                    details,
+                    exceptions.SoftwareFinishStrategyException,
+                    exc=exc,
+                )
+            return True
