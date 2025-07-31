@@ -121,14 +121,14 @@ class IpmiTool:
                 False, f"Failed to decode BMC password found in config file ({ex})"
             )
 
-        # Validate and format IPv6 address
+        # Validate IP address
         try:
-            ip = cfg["bmc_address"]
-            cfg["bmc_address"] = f"[{ip}]" if netaddr.IPAddress(ip).version == 6 else ip
+            netaddr.IPAddress(cfg["bmc_address"])
         except Exception as ex:
             exit_script(
                 False,
-                f"Invalid bmc_address found in the BMC configuration file: {ip} ({ex})",
+                "Invalid bmc_address found in the BMC configuration "
+                f"file: {cfg['bmc_address']} ({ex})",
             )
 
         return cls(cfg["bmc_address"], cfg["bmc_username"], cfg["bmc_password"])
@@ -179,9 +179,11 @@ def monitor_events(
 
     last_event_id = ipmi_tool.get_last_event_id()
     if not last_event_id:
-        message = "Failed to get initial event ID"
-        logging.error(message)
-        return False, message, None
+        message = "Failed to get initial event ID, SEL might be empty"
+        logging.warning(message)
+        # If the SEL is empty, we set the starting event ID to -1 because
+        # the first event will always be >= 0
+        last_event_id = -1
 
     logging.info(f"Starting monitoring from event ID: {last_event_id}")
     logging.info(
