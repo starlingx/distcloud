@@ -7,14 +7,17 @@
 
 """
 Monitors the IPMI System Event Log (SEL) for a specific target event and
-associated event data.
+associated event data, or retrieves the last event ID.
 
-The script periodically checks the SEL for the desired event. If the event
-is found, the script returns a return code of 0 and the matched event in
-json format. If the event is not found after the maximum number of checks,
-a non-zero return code is returned.
+The script operates in two modes. In monitoring mode, it periodically checks
+the SEL for the desired event. If the event is found, the script returns a
+return code of 0 and the matched event in json format. If the event is not
+found after the maximum number of checks, a non-zero return code is returned.
+It only monitors new events, existing events are ignored unless --initial-event-id
+is specified to start monitoring from a specific point.
 
-It only monitors new events, existing events are ignored.
+Alternatively, using --get-last-event makes the script simply return the ID of
+the most recent event in the SEL and exit. If the SEL is empty, it returns -1.
 """
 
 import argparse
@@ -168,22 +171,42 @@ class IpmiTool:
         return None
 
 
+def get_last_event_only(ipmi_tool: IpmiTool) -> None:
+    """Get the last event ID and exit"""
+    last_event_id = ipmi_tool.get_last_event_id()
+    if last_event_id is not None:
+        message = f"Last event ID: {last_event_id}"
+        result = {"success": True, "message": message, "last_event_id": last_event_id}
+    else:
+        # SEL is empty, return -1 as the last event ID
+        message = "SEL is empty, returning -1 as last event ID"
+        result = {"success": True, "message": message, "last_event_id": -1}
+
+    print(json.dumps(result))
+    sys.exit(0)
+
+
 def monitor_events(
     ipmi_tool: IpmiTool,
     target_pattern: str,
     event_data_values: list[str],
     interval: float,
     timeout: int,
+    initial_event_id: Optional[int] = None,
 ) -> tuple[bool, str, Optional[str]]:
     """Monitor IPMI SEL for target events"""
 
-    last_event_id = ipmi_tool.get_last_event_id()
-    if not last_event_id:
-        message = "Failed to get initial event ID, SEL might be empty"
-        logging.warning(message)
-        # If the SEL is empty, we set the starting event ID to -1 because
-        # the first event will always be >= 0
-        last_event_id = -1
+    if initial_event_id is not None:
+        last_event_id = initial_event_id
+        logging.info(f"Using provided initial event ID: {last_event_id}")
+    else:
+        last_event_id = ipmi_tool.get_last_event_id()
+        if last_event_id is None:
+            message = "Failed to get initial event ID, SEL might be empty"
+            logging.warning(message)
+            # If the SEL is empty, we set the starting event ID to -1 because
+            # the first event will always be >= 0
+            last_event_id = -1
 
     logging.info(f"Starting monitoring from event ID: {last_event_id}")
     logging.info(
@@ -278,20 +301,59 @@ def monitor_events(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Monitor IPMI SEL for target events")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Monitor new IPMI SEL entries for a pattern + data (monitoring mode) "
+            "or quickly query the current last event id (query mode)."
+        ),
+        epilog="""\
+Examples:
+
+  1) Query mode: get the last SEL event id (or -1 if empty) and exit.
+     ipmi_sel_event_monitor.py \\
+       --config-file rvmc-config.yaml \\
+       --get-last-event
+
+  2) Monitoring mode: wait for a specific pattern + data up to 5 minutes,
+     starting after event id 10. Checks every 15s for new events. On match,
+     exits 0 and prints JSON with "matched_data"; on timeout, exits non-zero.
+     ipmi_sel_event_monitor.py \\
+       --config-file rvmc-config.yaml \\
+       --pattern "Unknown #0x01 |  | Asserted" \\
+       --data-values "ffffe6,ffffe7" \\
+       --interval 15 \\
+       --timeout 300 \\
+       --initial-event-id 10
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--config-file",
         required=True,
         help="Path to BMC configuration file containing host, username, and password",
     )
     parser.add_argument(
-        "--pattern", required=True, help="Target event pattern to match"
+        "--get-last-event",
+        action="store_true",
+        help="Get the last event ID and exit (ignores other monitoring parameters)",
     )
-
+    parser.add_argument(
+        "--pattern", help="Target event pattern to match (required for monitoring mode)"
+    )
     parser.add_argument(
         "--data-values",
-        required=True,
-        help="Comma-separated list of event data values to match",
+        help=(
+            "Comma-separated list of event data values to match "
+            "(required for monitoring mode)"
+        ),
+    )
+    parser.add_argument(
+        "--initial-event-id",
+        type=int,
+        help=(
+            "Initial event ID to start monitoring from "
+            "(only monitor events after this ID)"
+        ),
     )
     parser.add_argument(
         "--interval", type=int, default=30, help="Check interval in seconds"
@@ -300,19 +362,31 @@ def main():
 
     args = parser.parse_args()
 
-    event_data_values = [d.strip() for d in args.data_values.split(",")]
+    # Validate arguments for monitoring mode
+    if not args.get_last_event:
+        if not args.pattern:
+            parser.error("--pattern is required when not using --get-last-event")
+        if not args.data_values:
+            parser.error("--data-values is required when not using --get-last-event")
+
     try:
         ipmi_tool = IpmiTool.from_config(args.config_file)
 
-        success, message, matched_data = monitor_events(
-            ipmi_tool,
-            args.pattern,
-            event_data_values,
-            args.interval,
-            args.timeout,
-        )
+        if args.get_last_event:
+            get_last_event_only(ipmi_tool)
+        else:
+            event_data_values = [d.strip() for d in args.data_values.split(",")]
 
-        exit_script(success, message, matched_data)
+            success, message, matched_data = monitor_events(
+                ipmi_tool,
+                args.pattern,
+                event_data_values,
+                args.interval,
+                args.timeout,
+                args.initial_event_id,
+            )
+
+            exit_script(success, message, matched_data)
 
     except Exception as e:
         exit_script(

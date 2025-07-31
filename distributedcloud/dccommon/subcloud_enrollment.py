@@ -198,15 +198,10 @@ class SubcloudEnrollmentInit(object):
         enroll_overrides = iso_values["install_values"].get("enroll_overrides", {})
         if enroll_overrides.get("ipmi_sel_event_monitoring", True) is not False:
             completion_script = os.path.join(scripts_dir, "99-completion-event")
-            # The sleep is necessary so that the system controller has time to
-            # start monitoring the custom cloud-init update event. If another
-            # event is sent too soon, the system controller would not be able to
-            # detect it.
             with open(completion_script, "w") as f:
                 f.write(
                     """#!/bin/bash
         echo "$(date '+%F %H:%M:%S'): INFO: All custom scripts completed successfully"
-        sleep 60s
         tmp_file=$(mktemp /tmp/ipmi_event_XXXXXX.txt)
         echo "0x04 0xF0 0x01 0x6f 0xff 0xff 0xe6 # \"Custom complete\"" > "$tmp_file"
         ipmitool sel add "$tmp_file" 2>/dev/null
