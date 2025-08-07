@@ -177,12 +177,7 @@ class SwUpdateStrategyController(object):
                     pecan.abort(400, _("subcloud-apply-type invalid"))
 
             if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-                utils.validate_software_strategy(payload.get("release_id"))
-
-                # validate the snapshot
-                snapshot = payload.get("snapshot")
-                if snapshot and snapshot not in [True, False]:
-                    pecan.abort(400, _("snapshot invalid"))
+                utils.validate_software_strategy(payload)
 
             elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                 prestaged_sw_version, message = (

@@ -37,6 +37,13 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
         ret_dict = {
             consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID),
             consts.EXTRA_ARGS_SNAPSHOT: payload.get(consts.EXTRA_ARGS_SNAPSHOT, False),
+            consts.EXTRA_ARGS_ROLLBACK: payload.get(consts.EXTRA_ARGS_ROLLBACK, False),
+            consts.EXTRA_ARGS_WITH_DELETE: payload.get(
+                consts.EXTRA_ARGS_WITH_DELETE, False
+            ),
+            consts.EXTRA_ARGS_DELETE_ONLY: payload.get(
+                consts.EXTRA_ARGS_DELETE_ONLY, False
+            ),
         }
 
         return ret_dict

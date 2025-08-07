@@ -107,6 +107,12 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
     return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 
+def validate_bool_param(param_name: str, value: bool) -> None:
+    if value is not None and not isinstance(value, bool):
+        msg = f"Invalid value for {param_name} - must be True or False"
+        pecan.abort(400, _(msg))
+
+
 def validate_address_str(ip_address_str, networks):
     """Determine whether an dual-stack address is valid."""
     if not ip_address_str:
@@ -2225,15 +2231,55 @@ def format_address(ip_address: str) -> str:
         raise
 
 
-def validate_software_strategy(release_id: str):
-    if not release_id:
+def validate_software_strategy(payload: dict):
+    release_id = payload.get(consts.EXTRA_ARGS_RELEASE_ID)
+    snapshot = payload.get(consts.EXTRA_ARGS_SNAPSHOT)
+    rollback = payload.get(consts.EXTRA_ARGS_ROLLBACK)
+    with_delete = payload.get(consts.EXTRA_ARGS_WITH_DELETE)
+    delete_only = payload.get(consts.EXTRA_ARGS_DELETE_ONLY)
+
+    validate_bool_param(consts.EXTRA_ARGS_SNAPSHOT, snapshot)
+    validate_bool_param(consts.EXTRA_ARGS_ROLLBACK, rollback)
+    validate_bool_param(consts.EXTRA_ARGS_WITH_DELETE, with_delete)
+    validate_bool_param(consts.EXTRA_ARGS_DELETE_ONLY, delete_only)
+
+    if not (rollback or delete_only):
+        if not release_id:
+            message = (
+                "Release ID is required for strategy type: "
+                f"{consts.SW_UPDATE_TYPE_SOFTWARE}."
+            )
+            pecan.abort(400, _(message))
+        elif release_id not in get_systemcontroller_installed_releases_ids():
+            message = f"Release ID: {release_id} not deployed in the SystemController"
+            pecan.abort(400, _(message))
+
+    if snapshot and (rollback or delete_only):
         message = (
-            "Release ID is required for strategy type: "
-            f"{consts.SW_UPDATE_TYPE_SOFTWARE}."
+            "Option snapshot cannot be used with any of the following options: "
+            "rollback or delete_only."
         )
         pecan.abort(400, _(message))
-    elif release_id not in get_systemcontroller_installed_releases_ids():
-        message = f"Release ID: {release_id} not deployed in the SystemController"
+
+    if rollback and (release_id or snapshot or with_delete or delete_only):
+        message = (
+            "Option rollback cannot be used with any of the following options: "
+            "release_id, snapshot, with_delete or delete_only."
+        )
+        pecan.abort(400, _(message))
+
+    if with_delete and (rollback or delete_only):
+        message = (
+            "Option with_delete cannot be used with any of the following options: "
+            "rollback or delete_only."
+        )
+        pecan.abort(400, _(message))
+
+    if delete_only and (release_id or snapshot or rollback or with_delete):
+        message = (
+            "Option delete_only cannot be used with any of the following options: "
+            "release_id, snapshot, rollback or with_delete."
+        )
         pecan.abort(400, _(message))
 
 

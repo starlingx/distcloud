@@ -40,14 +40,18 @@ class CreatingVIMStrategyState(BaseState):
         # Get release parameter data for sw-deploy strategy
         if self.strategy_name == vim.STRATEGY_NAME_SW_USM:
             extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
-            opts_dict["release_id"] = release_id
-            # Get snapshot parameter from strategy extra_args
-            opts_dict["snapshot"] = extra_args.get(consts.EXTRA_ARGS_SNAPSHOT)
-            # Create rollback = False since DC orchestration do not support rollback
-            opts_dict["rollback"] = False
-            # Create delete = True to enable VIM Orch to perform `sofware deploy delete`
-            opts_dict["delete"] = True
+            opts_dict[consts.EXTRA_ARGS_RELEASE_ID] = extra_args.get(
+                consts.EXTRA_ARGS_RELEASE_ID
+            )
+            rollback = extra_args.get(consts.EXTRA_ARGS_ROLLBACK)
+            opts_dict[consts.EXTRA_ARGS_ROLLBACK] = rollback
+            if not rollback:
+                opts_dict[consts.EXTRA_ARGS_SNAPSHOT] = extra_args.get(
+                    consts.EXTRA_ARGS_SNAPSHOT
+                )
+                opts_dict[consts.EXTRA_ARGS_DELETE] = extra_args.get(
+                    consts.EXTRA_ARGS_WITH_DELETE
+                )
 
         try:
             # Call the API to build the VIM strategy
@@ -60,10 +64,10 @@ class CreatingVIMStrategyState(BaseState):
                 opts_dict["max-parallel-workers"],
                 opts_dict["default-instance-action"],
                 opts_dict["alarm-restriction-type"],
-                release=opts_dict.get("release_id"),
-                snapshot=opts_dict.get("snapshot"),
-                rollback=opts_dict.get("rollback"),
-                delete=opts_dict.get("delete"),
+                release=opts_dict.get(consts.EXTRA_ARGS_RELEASE_ID),
+                snapshot=opts_dict.get(consts.EXTRA_ARGS_SNAPSHOT),
+                rollback=opts_dict.get(consts.EXTRA_ARGS_ROLLBACK),
+                delete=opts_dict.get(consts.EXTRA_ARGS_DELETE),
             )
         except vim_exc.VIMClientException as exc:
             details = "Failed to create VIM strategy."

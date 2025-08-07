@@ -63,6 +63,8 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.on_success_state_patch = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
         self.on_success_state_deployed = consts.STRATEGY_STATE_COMPLETE
         self.on_success_state_available = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
+        self.on_success_state_rollback = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
+        self.on_success_state_delete_only = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
         self.current_state = consts.STRATEGY_STATE_SW_PRE_CHECK
 
         # Create default strategy with release parameter
@@ -272,4 +274,62 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_called_once()
+        self.software_client.list.assert_not_called()
+
+    def test_pre_check_success_with_extra_args_rollback(self):
+        """Test pre-check success with rollback extra args"""
+
+        mock_sysinv_client = self._mock_object(BaseState, "get_sysinv_client")
+        mock_sysinv_client.return_value.get_system.return_value.system_mode = (
+            consts.SYSTEM_MODE_SIMPLEX
+        )
+
+        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_ROLLBACK: True}
+        )
+
+        self._setup_and_assert(self.on_success_state_rollback)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
+        self.software_client.list.assert_not_called()
+
+    def test_pre_check_success_with_extra_args_delete_only(self):
+        """Test pre-check success with delete only extra args"""
+
+        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_DELETE_ONLY: True}
+        )
+
+        self._setup_and_assert(self.on_success_state_delete_only)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
+        self.software_client.list.assert_not_called()
+
+    def test_pre_check_fails_with_extra_args_rollback_and_duplex_system(self):
+        """Test pre-check fails with rollback extra args"""
+
+        mock_sysinv_client = self._mock_object(BaseState, "get_sysinv_client")
+        mock_sysinv_client.return_value.get_system.return_value.system_mode = (
+            consts.SYSTEM_MODE_DUPLEX
+        )
+
+        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_ROLLBACK: True}
+        )
+
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        error_msg = (
+            f"{self.current_state}: Failed for subcloud {self.subcloud.name}: "
+            "Rollback is only allowed for simplex systems"
+        )
+        self._assert_error(error_msg)
+
         self.software_client.list.assert_not_called()

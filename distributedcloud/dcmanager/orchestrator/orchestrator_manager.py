@@ -574,10 +574,9 @@ class OrchestratorManager(manager.Manager):
                 if sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
                     filtered_valid_subclouds.append((subcloud, sync_status))
 
-            if filtered_valid_subclouds:
-                software_version = utils.get_major_release(
-                    payload.get(consts.EXTRA_ARGS_RELEASE_ID)
-                )
+            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+            if filtered_valid_subclouds and release_id:
+                software_version = utils.get_major_release(release_id)
                 ostree_mount.validate_ostree_iso_mount(software_version)
 
             valid_subclouds = filtered_valid_subclouds

@@ -331,6 +331,10 @@ EXTRA_ARGS_FORCE = "force"
 # extra_args for software
 EXTRA_ARGS_RELEASE_ID = "release_id"
 EXTRA_ARGS_SNAPSHOT = "snapshot"
+EXTRA_ARGS_ROLLBACK = "rollback"
+EXTRA_ARGS_DELETE = "delete"
+EXTRA_ARGS_WITH_DELETE = "with_delete"
+EXTRA_ARGS_DELETE_ONLY = "delete_only"
 
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = "prestage-software-version"

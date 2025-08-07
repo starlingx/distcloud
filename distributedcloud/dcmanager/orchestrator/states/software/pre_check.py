@@ -84,8 +84,15 @@ class PreCheckState(BaseState):
                 exceptions.SoftwarePreCheckFailedException,
             )
 
-        # Check for prestaged data
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+
+        if self._validate_extra_args_rollback(extra_args, strategy_step):
+            self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
+            return self.next_state
+        elif extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
+            self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
+            return self.next_state
+
         release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
         try:
             self.info_log(
@@ -212,3 +219,25 @@ class PreCheckState(BaseState):
                 self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
             else:
                 self.override_next_state(consts.STRATEGY_STATE_COMPLETE)
+
+    def _validate_extra_args_rollback(
+        self, extra_args: dict, strategy_step: str
+    ) -> bool:
+        """Validate the rollback from extra args"""
+        if extra_args.get(consts.EXTRA_ARGS_ROLLBACK):
+            try:
+                sysinv_client = self.get_sysinv_client(self.region_name)
+            except Exception as exc:
+                self.handle_exception(
+                    strategy_step,
+                    "Get sysinv client failed",
+                    exceptions.SoftwarePreCheckFailedException,
+                    exc=exc,
+                )
+            if sysinv_client.get_system().system_mode != consts.SYSTEM_MODE_SIMPLEX:
+                self.handle_exception(
+                    strategy_step,
+                    "Rollback is only allowed for simplex systems",
+                    exceptions.SoftwarePreCheckFailedException,
+                )
+            return True
