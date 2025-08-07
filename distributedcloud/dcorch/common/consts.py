@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Ericsson AB.
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -141,3 +141,7 @@ AUDIT_STATUS_COMPLETED = "completed"
 AUDIT_STATUS_FAILED = "failed"
 AUDIT_QUALIFIED_STATUS = [AUDIT_STATUS_NONE, AUDIT_STATUS_FAILED]
 AUDIT_CONDITIONAL_STATUS = [AUDIT_STATUS_COMPLETED, AUDIT_STATUS_IN_PROGRESS]
+
+CHECK_AUDIT_INTERVAL = 300  # frequency to check for audit work
+CHECK_SYNC_INTERVAL = 5  # frequency to check for sync work
+AUDIT_INTERVAL = 1200  # Default audit interval

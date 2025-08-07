@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import collections
+import datetime
 import eventlet
 import threading
 
@@ -94,6 +95,7 @@ class SyncThread(object):
 
     # used by the audit to cache the master resources
     master_resources_dict = collections.defaultdict(dict)
+    master_resources_dict["last_reset_time"] = timeutils.utcnow()
 
     def __init__(
         self,
@@ -784,13 +786,6 @@ class SyncThread(object):
             self.sc_admin_session, "audit", f"{self.subcloud_name}/{self.endpoint_type}"
         )
 
-    @classmethod
-    @lockutils.synchronized(AUDIT_LOCK_NAME)
-    def reset_master_resources_cache(cls):
-        # reset the cached master resources
-        LOG.debug("Reset the cached master resources.")
-        SyncThread.master_resources_dict = collections.defaultdict(dict)
-
     def audit_find_missing(
         self, resource_type, m_resources, db_resources, sc_resources, abort_resources
     ):
@@ -1054,6 +1049,45 @@ class SyncThread(object):
         else:
             # Else, return id field (by default)
             return resource.id
+
+    @classmethod
+    @lockutils.synchronized(AUDIT_LOCK_NAME)
+    def reset_master_resources_cache(cls, force_reset: bool = False) -> None:
+        """Reset the cached master resources if needed.
+
+        The cached master resources are reset if:
+        1) force_reset is True, or
+        2) the last reset time is older than CHECK_AUDIT_INTERVAL (300 seconds).
+
+        The cache if not reset if the last reset time is newer than
+        CHECK_AUDIT_INTERVAL (5 seconds). This is done to prevent unnecessary
+        resets of the cache in a multi-threaded environment where
+        multiple threads may call reset_master_resources_cache and
+        get_cached_master_resources, so we need to ensure that the cache
+        is not reset based on old information in between these calls.
+
+        :param force_reset: Boolean flag to force reset the cache.
+        """
+        last_reset_time = SyncThread.master_resources_dict.get("last_reset_time")
+        fresh_cache = (
+            last_reset_time
+            and timeutils.utcnow() - last_reset_time
+            <= datetime.timedelta(seconds=consts.CHECK_SYNC_INTERVAL)
+        )
+        if fresh_cache:
+            LOG.debug("Cache is still fresh, not resetting it.")
+            return
+        invalid_cache = (
+            last_reset_time
+            and timeutils.utcnow() - last_reset_time
+            > datetime.timedelta(seconds=consts.CHECK_AUDIT_INTERVAL)
+        )
+        if force_reset or invalid_cache:
+            LOG.debug("Reset the cached master resources.")
+            SyncThread.master_resources_dict = collections.defaultdict(dict)
+            SyncThread.master_resources_dict["last_reset_time"] = timeutils.utcnow()
+        else:
+            LOG.debug("Cached master resources are still valid, not resetting it.")
 
     # Audit functions to be overridden in inherited classes
     def get_all_resources(self, resource_type):

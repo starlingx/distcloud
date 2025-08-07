@@ -228,7 +228,7 @@ class TestGenericSyncManager(base.OrchestratorTestCase):
                 management_ip="10.10.10." + str(i),
             )
             last_audit_time = timeutils.utcnow() - timedelta(
-                seconds=generic_sync_manager.AUDIT_INTERVAL
+                seconds=consts.AUDIT_INTERVAL
             )
             utils.create_subcloud_sync_static(
                 self.ctx,
