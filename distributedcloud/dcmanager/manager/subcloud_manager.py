@@ -2529,7 +2529,12 @@ class SubcloudManager(manager.Manager):
 
             # Prepare for restore
             overrides_file = self._create_overrides_for_backup_or_restore(
-                "restore", payload, subcloud.name, auto_restore_mode, install_wipe_osds
+                "restore",
+                payload,
+                subcloud.name,
+                auto_restore_mode,
+                install_wipe_osds,
+                subcloud_region_name=subcloud.region_name,
             )
             restore_command = self.compose_backup_restore_command(
                 subcloud.name, subcloud_inventory_file, auto_restore_mode
@@ -2684,7 +2689,13 @@ class SubcloudManager(manager.Manager):
             raise Exception(f"Invalid auto restore mode: {auto_restore_mode}")
 
     def _create_overrides_for_backup_or_restore(
-        self, op, payload, subcloud_name, auto_restore_mode=None, install_wipe_osds=None
+        self,
+        op,
+        payload,
+        subcloud_name,
+        auto_restore_mode=None,
+        install_wipe_osds=None,
+        subcloud_region_name=None,
     ):
         # Set override names as expected by the playbook
         if not payload.get("override_values"):
@@ -2721,6 +2732,9 @@ class SubcloudManager(manager.Manager):
         payload["override_values"]["admin_password"] = str(
             keyring.get_password("CGCS", "admin")
         )
+
+        if subcloud_region_name:
+            payload["override_values"]["expected_region_name"] = subcloud_region_name
 
         if payload.get("backup_values"):
             LOG.info(

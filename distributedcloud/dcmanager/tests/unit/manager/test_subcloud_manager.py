@@ -4084,7 +4084,12 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         # Assert that we called the _create_overrides_for_backup_or_restore and
         # compose_install_command with auto_restore_mode = "factory"
         mock_create_overrides.assert_called_once_with(
-            "restore", values, self.subcloud.name, "factory", mock.ANY
+            "restore",
+            values,
+            self.subcloud.name,
+            "factory",
+            mock.ANY,
+            subcloud_region_name=self.subcloud.region_name,
         )
 
         mock_stage_auto_restore_files.assert_called_once()
@@ -4145,7 +4150,12 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.sm.restore_subcloud_backups(self.ctx, payload=values)
 
         mock_create_overrides.assert_called_once_with(
-            "restore", values, self.subcloud.name, None, True
+            "restore",
+            values,
+            self.subcloud.name,
+            None,
+            True,
+            subcloud_region_name=self.subcloud.region_name,
         )
 
         mock_run_restore_playbook.assert_called_once_with(
