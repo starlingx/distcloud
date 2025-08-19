@@ -384,13 +384,16 @@ def validate_subcloud_config(
 
     # Parse/validate the management subnet
     subcloud_subnets = []
+    filtered_subclouds = []
     subclouds = db_api.subcloud_get_all(context)
+
     for subcloud in subclouds:
-        # Ignore management subnet conflict with the subcloud specified by
-        # ignore_conflicts_with
+        # Filter out the same subcloud that was previously created and is currently
+        # being validated for management subnet and IP range conflicts
         if ignore_conflicts_with and (subcloud.id == ignore_conflicts_with.id):
             continue
         subcloud_subnets.append(netaddr.IPNetwork(subcloud.management_subnet))
+        filtered_subclouds.append(subcloud)
 
     system_mode = payload.get("system_mode")
     if not system_mode:
@@ -448,7 +451,7 @@ def validate_subcloud_config(
                 % min_management_valid_hosts,
             )
 
-        overlap, sc_name = check_range_overlaps(start_ip, end_ip, subclouds)
+        overlap, sc_name = check_range_overlaps(start_ip, end_ip, filtered_subclouds)
         if overlap:
             pecan.abort(
                 400,
@@ -473,7 +476,7 @@ def validate_subcloud_config(
         admin_start_ip,
         admin_end_ip,
         admin_gateway_ip,
-        existing_subclouds=subclouds,
+        existing_subclouds=filtered_subclouds,
         operation=operation,
         system_mode=system_mode,
     )
