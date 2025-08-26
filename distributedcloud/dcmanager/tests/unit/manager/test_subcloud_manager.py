@@ -44,6 +44,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
 from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import PlaybookExecutionFailed
+from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon import kubeoperator
 from dccommon import ostree_mount
 from dccommon import subcloud_enrollment
@@ -779,6 +780,50 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             updated_subcloud.deploy_status,
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_run_network_reconfiguration_find_and_save_playbook_error(
+        self, mock_find_msg
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+
+        self.sm._run_network_reconfiguration(
+            self.subcloud.name, mock.ANY, None, self.payload, self.ctx, self.subcloud
+        )
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, mock.ANY, consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+            updated_subcloud.deploy_status,
+        )
+
+    def test_run_network_reconfiguration_find_and_save_playbook_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+
+        self.sm._run_network_reconfiguration(
+            self.subcloud.name, mock.ANY, None, self.payload, self.ctx, self.subcloud
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(self.subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+            updated_subcloud.deploy_status,
+        )
+
     @mock.patch.object(subcloud_manager.SubcloudManager, "_delete_subcloud_routes")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_update_services_endpoint")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_create_subcloud_route")
@@ -1107,6 +1152,58 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
             "fake_subcloud1_playbook_output.log for detailed output"
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_subcloud_deploy_bootstrap_find_and_save_playbook_error(
+        self, mock_find_msg
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_INSTALLED,
+            data_install=json.dumps(self.fake_install_values),
+        )
+
+        self.sm.subcloud_deploy_bootstrap(self.ctx, subcloud.id, self.payload)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            subcloud.name, mock.ANY, consts.DEPLOY_STATE_BOOTSTRAPPING
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_BOOTSTRAP_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_subcloud_deploy_bootstrap_find_and_save_playbook_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_INSTALLED,
+            data_install=json.dumps(self.fake_install_values),
+        )
+
+        self.sm.subcloud_deploy_bootstrap(self.ctx, subcloud.id, self.payload)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_BOOTSTRAP_FAILED, updated_subcloud.deploy_status
+        )
+
     @mock.patch.object(subcloud_manager.SubcloudManager, "_deploy_bootstrap_prep")
     def test_subcloud_deploy_bootstrap_failed(self, mock_bootstrap_prep):
         mock_bootstrap_prep.side_effect = Exception("boom")
@@ -1159,6 +1256,72 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_CONFIG_FAILED, updated_subcloud.deploy_status
         )
         self.mock_create_subcloud_inventory.assert_called_once()
+
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_configure_subcloud_find_and_save_playbook_error(self, mock_find_msg):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_PRE_CONFIG,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+        )
+        self.fake_payload.update(
+            {
+                "user_uploaded_artifacts": "fake_files",
+                consts.BOOTSTRAP_ADDRESS: fake_subcloud.FAKE_BOOTSTRAP_VALUE[
+                    consts.BOOTSTRAP_ADDRESS
+                ],
+            }
+        )
+
+        self.sm.subcloud_deploy_config(
+            self.ctx, self.subcloud.id, payload=self.fake_payload
+        )
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud["name"], mock.ANY, consts.DEPLOY_STATE_CONFIGURING
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud["name"])
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_CONFIG_FAILED, updated_subcloud.deploy_status
+        )
+        self.mock_create_subcloud_inventory.assert_called_once()
+
+    def test_configure_subcloud_find_and_save_playbook_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_PRE_CONFIG
+        self.fake_payload.update(
+            {
+                "user_uploaded_artifacts": "fake_files",
+                consts.BOOTSTRAP_ADDRESS: fake_subcloud.FAKE_BOOTSTRAP_VALUE[
+                    consts.BOOTSTRAP_ADDRESS
+                ],
+            }
+        )
+
+        self.sm.subcloud_deploy_config(
+            self.ctx, self.subcloud.id, payload=self.fake_payload
+        )
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud["name"])
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(self.subcloud["name"], updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_CONFIG_FAILED, updated_subcloud.deploy_status
+        )
 
     def test_configure_subcloud_pre_config_failed(self):
 
@@ -1372,6 +1535,76 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
             "(fake_subcloud1).\ncheck individual log at /var/log/dcmanager/ansible/"
             "fake_subcloud1_playbook_output.log for detailed output"
         )
+
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit, "prep")
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit, "enroll_init")
+    @mock.patch.object(cutils, "get_region_name")
+    def test_subcloud_deploy_enroll_find_and_save_ansible_error(
+        self,
+        mock_get_region_name,
+        mock_subcloud_enrollment_enroll_init,
+        mock_subcloud_enrollment_prep,
+        mock_find_msg,
+    ):
+
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+        mock_get_region_name.return_value = "11111"
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_COMPLETE,
+            data_install=json.dumps(self.fake_payload_enroll["install_values"]),
+        )
+
+        self.sm.subcloud_deploy_enroll(self.ctx, subcloud.id, self.fake_payload_enroll)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            subcloud.name, mock.ANY, consts.DEPLOY_STATE_ENROLLING
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.payload["name"])
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_ENROLL_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertFalse(updated_subcloud.rehomed)
+
+    @mock.patch.object(cutils, "get_region_name")
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "subcloud_init_enroll", return_value=True
+    )
+    def test_subcloud_deploy_enroll_find_and_save_ansible_timeout(
+        self, mock_init_enroll, mock_get_region_name
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+        mock_get_region_name.return_value = "11111"
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_COMPLETE,
+            data_install=json.dumps(self.fake_payload_enroll["install_values"]),
+        )
+
+        self.sm.subcloud_deploy_enroll(self.ctx, subcloud.id, self.fake_payload_enroll)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_ENROLL_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertFalse(updated_subcloud.rehomed)
 
 
 class TestSubcloudAdd(BaseTestSubcloudManager):
@@ -3304,6 +3537,70 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             "log at subcloud1_fake_file.yml_playbook_output.log for detailed output"
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    @mock.patch.object(os.path, "join")
+    def test_backup_create_find_and_save_playbook_error(
+        self,
+        mock_os_path_join,
+        mock_create_inventory_file,
+        mock_is_healthy,
+        mock_find_msg,
+    ):
+        mock_os_path_join.return_value = "subcloud1_fake_file.yml"
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        self.backup_values["local_only"] = True
+        self.backup_values["registry_images"] = True
+
+        self.sm.create_subcloud_backups(self.ctx, payload=self.backup_values)
+
+        mock_create_inventory_file.assert_called_once()
+        mock_is_healthy.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, mock.ANY, consts.BACKUP_STATE_IN_PROGRESS
+        )
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(consts.BACKUP_STATE_FAILED, updated_subcloud.backup_status)
+
+    @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    @mock.patch.object(os.path, "join")
+    def test_backup_create_find_and_save_playbook_timeout(
+        self, mock_os_path_join, mock_create_inventory_file, mock_is_healthy
+    ):
+        mock_os_path_join.return_value = "subcloud1_fake_file.yml"
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.backup_values["local_only"] = True
+        self.backup_values["registry_images"] = True
+
+        self.sm.create_subcloud_backups(self.ctx, payload=self.backup_values)
+
+        mock_create_inventory_file.assert_called_once()
+        mock_is_healthy.assert_called_once()
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(self.subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(consts.BACKUP_STATE_FAILED, updated_subcloud.backup_status)
+
     def test_backup_create_managed_online_backup_state_in_progess(self):
         self.backup_values["local_only"] = False
         self.backup_values["registry_images"] = True
@@ -3648,6 +3945,81 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             ),
         ]
         self.mock_log_subcloud_manager.error.assert_has_calls(Calls)
+        mock_create_backup_overrides_file.assert_called_once()
+        mock_compose_backup_delete_command.assert_called_once()
+        self.mock_ansible_run_playbook.assert_called_once()
+        self.mock_create_subcloud_inventory.assert_not_called()
+
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "compose_backup_delete_command"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
+    )
+    def test_delete_subcloud_backup_find_and_save_ansible_error(
+        self,
+        mock_create_backup_overrides_file,
+        mock_compose_backup_delete_command,
+        mock_find_msg,
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
+        )
+
+        self.sm._delete_subcloud_backup(
+            self.ctx,
+            payload=self.values,
+            release_version=FAKE_SW_VERSION,
+            subcloud=self.subcloud,
+        )
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, mock.ANY, consts.BACKUP_STATE_FAILED
+        )
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+
+        mock_create_backup_overrides_file.assert_called_once()
+        mock_compose_backup_delete_command.assert_called_once()
+        self.mock_ansible_run_playbook.assert_called_once()
+        self.mock_create_subcloud_inventory.assert_not_called()
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "compose_backup_delete_command"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
+    )
+    def test_delete_subcloud_backup_find_and_save_ansible_timeout(
+        self, mock_create_backup_overrides_file, mock_compose_backup_delete_command
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
+        )
+
+        self.sm._delete_subcloud_backup(
+            self.ctx,
+            payload=self.values,
+            release_version=FAKE_SW_VERSION,
+            subcloud=self.subcloud,
+        )
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+
         mock_create_backup_overrides_file.assert_called_once()
         mock_compose_backup_delete_command.assert_called_once()
         self.mock_ansible_run_playbook.assert_called_once()
@@ -4320,6 +4692,72 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_RESTORE_FAILED, updated_subcloud.deploy_status
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_backup_restore_find_and_save_ansible_error(self, mock_find_msg):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        self.values["local_only"] = True
+        self.values["registry_images"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
+        )
+
+        self.assertRaises(
+            exceptions.SubcloudBackupOperationFailed,
+            self.sm.restore_subcloud_backups,
+            self.ctx,
+            payload=self.values,
+        )
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, mock.ANY, consts.DEPLOY_STATE_RESTORING
+        )
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_backup_restore_find_and_save_ansible_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.values["local_only"] = True
+        self.values["registry_images"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
+        )
+
+        self.assertRaises(
+            exceptions.SubcloudBackupOperationFailed,
+            self.sm.restore_subcloud_backups,
+            self.ctx,
+            payload=self.values,
+        )
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(self.subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_FAILED, updated_subcloud.deploy_status
+        )
+
 
 class TestSubcloudMigrate(BaseTestSubcloudManager):
     """Test class for testing subcloud migrate"""
@@ -4724,6 +5162,54 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_REHOME_FAILED, updated_subcloud.deploy_status
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_rehome_subcloud_find_and_save_ansible_error(self, mock_find_msg):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        self.mock_get_playbook_for_software_version = self._mock_object(
+            cutils, "get_playbook_for_software_version"
+        )
+        self.mock_get_playbook_for_software_version.return_value = SW_VERSION
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_NONE
+
+        self.sm.rehome_subcloud(self.ctx, self.subcloud)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud["name"], mock.ANY, consts.DEPLOY_STATE_REHOMING
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud["name"])
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_REHOME_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_rehome_subcloud_find_and_save_ansible_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.mock_get_playbook_for_software_version = self._mock_object(
+            cutils, "get_playbook_for_software_version"
+        )
+        self.mock_get_playbook_for_software_version.return_value = SW_VERSION
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_NONE
+
+        self.sm.rehome_subcloud(self.ctx, self.subcloud)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud["name"])
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_REHOME_FAILED, updated_subcloud.deploy_status
+        )
+
 
 class TestSubcloudInstall(BaseTestSubcloudManager):
     """Test class for testing subcloud install"""
@@ -4842,6 +5328,85 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
         self.assertEqual(consts.DEPLOY_STATE_INSTALLING, updated_subcloud.deploy_status)
         self.mock_ansible_run_playbook.assert_called_once()
         self.assertFalse(install_success)
+
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    @mock.patch.object(request, "urlretrieve")
+    @mock.patch("dcmanager.manager.subcloud_manager.SubcloudInstall")
+    def test_subcloud_install_find_and_save_playbook_error(
+        self, mock_subcloud_install_cls, mock_request_urlretrieve, mock_find_msg
+    ):
+
+        mock_request_urlretrieve.return_value = "fake_path", "empty"
+
+        mock_install_instance = mock_subcloud_install_cls.return_value
+        mock_install_instance.install.side_effect = PlaybookExecutionFailed()
+
+        payload = {
+            "software_version": SW_VERSION,
+            "install_values": self.fake_install_values,
+        }
+
+        install_success = self.sm._run_subcloud_install(
+            self.ctx,
+            self.subcloud,
+            self.mock_compose_install_command,
+            self.fake_log_file,
+            payload,
+        )
+
+        self.assertFalse(install_success)
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, self.fake_log_file, consts.DEPLOY_STATE_INSTALLING
+        )
+
+        mock_install_instance.cleanup.assert_called_once_with(
+            payload["software_version"]
+        )
+
+        # Verify that subcloud has the correct enroll status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_INSTALL_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+
+    @mock.patch.object(request, "urlretrieve")
+    @mock.patch("dcmanager.manager.subcloud_manager.SubcloudInstall")
+    def test_subcloud_install_find_and_save_playbook_timeout(
+        self, mock_subcloud_install_cls, mock_request_urlretrieve
+    ):
+
+        mock_request_urlretrieve.return_value = "fake_path", "empty"
+        mock_install_instance = mock_subcloud_install_cls.return_value
+        mock_install_instance.install.side_effect = PlaybookExecutionTimeout()
+
+        payload = {
+            "software_version": SW_VERSION,
+            "install_values": self.fake_install_values,
+        }
+
+        install_success = self.sm._run_subcloud_install(
+            self.ctx,
+            self.subcloud,
+            self.mock_compose_install_command,
+            self.fake_log_file,
+            payload,
+        )
+
+        self.assertFalse(install_success)
+        mock_install_instance.cleanup.assert_called_once_with(
+            payload["software_version"]
+        )
+
+        # Verify that subcloud has the correct enroll status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_INSTALL_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertIn("Timeout", updated_subcloud.error_description)
 
 
 class TestSubcloudRename(BaseTestSubcloudManager):

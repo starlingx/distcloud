@@ -589,7 +589,8 @@ class SubcloudInstall(object):
             if self.ipmi_logger:
                 msg += f"Console log files are available at {console_log_file}. "
             msg += f"Run {dcmanager_consts.ERROR_DESC_CMD} for details"
-            raise Exception(msg)
+            LOG.error(msg)
+            raise
         finally:
             if self.ipmi_logger:
                 self.ipmi_logger.stop_logging()
