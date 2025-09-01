@@ -237,7 +237,6 @@ class OrchestratorWorker(object):
                     self._abort(strategy, self.steps_to_process)
                 elif strategy.state == consts.SW_UPDATE_STATE_DELETING:
                     self._delete(strategy, self.steps_to_process)
-                    self.strategies[strategy.type]._post_delete_teardown()
                 # When a strategy reaches a finished state, it needs to return to
                 # stop the thread
                 else:
@@ -265,6 +264,8 @@ class OrchestratorWorker(object):
 
             # Wake up every so often to see if there is work to do.
             time.sleep(self._sleep_time)
+
+        self.strategies[self.strategy_type].teardown()
 
         # The strategy_type needs to be reset so that a new orchestration request
         # is identified in orchestrate(), starting the orchestration thread again
