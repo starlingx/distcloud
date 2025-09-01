@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -20,10 +20,11 @@ DEFAULT_SLEEP_DURATION = 10
 class CreatingVIMStrategyState(BaseState):
     """State for creating the VIM FPGA update strategy."""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super(CreatingVIMStrategyState, self).__init__(
             next_state=consts.STRATEGY_STATE_APPLYING_FW_UPDATE_STRATEGY,
             region_name=region_name,
+            strategy=strategy,
         )
         # max time to wait for the strategy to be built (in seconds)
         # is: sleep_duration * max_queries

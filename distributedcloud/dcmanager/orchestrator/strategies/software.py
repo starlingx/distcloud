@@ -40,14 +40,13 @@ class SoftwareStrategy(BaseStrategy):
 
         # Initialize shared cache instances for the states that require them
         self._shared_caches = SharedCacheRepository(consts.SW_UPDATE_TYPE_SOFTWARE)
-        self._shared_caches.initialize_caches()
 
     def pre_apply_setup(self, strategy):
-        # Restart caches for next strategy
+        # Start caches for the strategy
+        self.debug_log("Starting caches")
         self._shared_caches.initialize_caches()
         super().pre_apply_setup(strategy)
 
     def determine_state_operator(self, region_name, strategy_step):
         state = super().determine_state_operator(region_name, strategy_step)
-        state.add_shared_caches(self._shared_caches)
         return state

@@ -35,6 +35,7 @@ class TestSwUpdate(DCManagerTestCase):
     def setUp(self):
         super().setUp()
 
+        self.strategy = None
         self.strategy_step = None
         self.strategy_type = consts.SW_UPDATE_TYPE_SOFTWARE
 
@@ -51,12 +52,6 @@ class TestSwUpdate(DCManagerTestCase):
         self.software_client = mock.MagicMock()
         self.vim_client = mock.MagicMock()
         self.fm_client = mock.MagicMock()
-
-        self.snapshot_supported_version = mock.patch.object(
-            consts, "SNAPSHOT_SUPPORTED_VERSION", "10.10"
-        )
-        self.mock_snapshot_supported_version = self.snapshot_supported_version.start()
-        self.addCleanup(self.snapshot_supported_version.stop)
 
         clients = {
             "get_keystone_client": self.keystone_client,
@@ -92,11 +87,11 @@ class TestSwUpdate(DCManagerTestCase):
         )
 
     def _setup_and_assert(self, next_state):
+        self.worker.strategies[self.strategy_type].pre_apply_setup(self.strategy)
         # invoke the strategy state operation on the orch thread
         self.worker._perform_state_action(
             self.strategy_type, self.subcloud.region_name, self.strategy_step
         )
-
         # Verify the transition to the expected next state
         self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 

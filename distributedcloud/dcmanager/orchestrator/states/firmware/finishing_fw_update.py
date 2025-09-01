@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -22,9 +22,11 @@ DEFAULT_FAILED_SLEEP = 60
 class FinishingFwUpdateState(BaseState):
     """State for finishing the firmware update."""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super(FinishingFwUpdateState, self).__init__(
-            next_state=consts.STRATEGY_STATE_COMPLETE, region_name=region_name
+            next_state=consts.STRATEGY_STATE_COMPLETE,
+            region_name=region_name,
+            strategy=strategy,
         )
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.failed_sleep_duration = DEFAULT_FAILED_SLEEP

@@ -162,10 +162,10 @@ class DCManagerTestCase(base.BaseTestCase):
         )
         self.mock_audit_worker_time.sleep.side_effect = Exception()
 
-    def _mock_object(self, target, attribute, wraps=None):
+    def _mock_object(self, target, attribute, wraps=None, **kwargs):
         """Mock a specified target's attribute and return the mock object"""
 
-        mock_patch_object = mock.patch.object(target, attribute, wraps=wraps)
+        mock_patch_object = mock.patch.object(target, attribute, wraps=wraps, **kwargs)
         self.addCleanup(mock_patch_object.stop)
 
         return mock_patch_object.start()

@@ -56,22 +56,40 @@ class BaseStrategy(object):
         self.starting_state = starting_state
         # Track if the strategy setup function was executed
         self._setup = False
+        # Extra arguments
+        self.extra_args = None
 
-    def _pre_apply_setup(self, strategy):
+    def base_apply_setup(self, strategy):
         """Setup performed once before a strategy starts to apply"""
+        self.debug_log("BaseStrategy Pre-Apply Setup")
         if not self._setup:
             LOG.info("(%s) BaseStrategy Pre-Apply Setup" % self.update_type)
             self._setup = True
             self.pre_apply_setup(strategy)
 
     def pre_apply_setup(self, strategy):
-        """Subclass can override this method"""
+        """Initialize strategy extra_args"""
+        self.extra_args = getattr(strategy, "extra_args", {})
+        self.debug_log("Extra Args set")
 
     def teardown(self):
         """Cleanup code executed once after finishing a strategy"""
+        self.debug_log("BaseStrategy Teardown")
         if self._setup:
             LOG.info("(%s) BaseStrategy Teardown" % self.update_type)
             self._setup = False
+
+    def debug_log(self, details):
+        LOG.debug(
+            "Type: %s, VIM Strategy: %s, Setup: %s, Extra_Args: %s, Details: %s"
+            % (
+                self.update_type,
+                self.vim_strategy_name,
+                self._setup,
+                self.extra_args,
+                details,
+            )
+        )
 
     @staticmethod
     def get_ks_client(region_name: str = None) -> KeystoneClient:
@@ -119,4 +137,4 @@ class BaseStrategy(object):
 
         state_operator = self.STATE_OPERATORS.get(strategy_step.state)
         # instantiate and return the state_operator class
-        return state_operator(region_name=region_name)
+        return state_operator(region_name=region_name, strategy=self)

@@ -21,8 +21,10 @@ DEFAULT_SLEEP_DURATION = 10
 class CreatingVIMStrategyState(BaseState):
     """State for creating the VIM strategy."""
 
-    def __init__(self, next_state, region_name, strategy_name):
-        super().__init__(next_state=next_state, region_name=region_name)
+    def __init__(self, next_state, region_name, strategy, strategy_name):
+        super().__init__(
+            next_state=next_state, region_name=region_name, strategy=strategy
+        )
         self.strategy_name = strategy_name
         # max time to wait for the strategy to be built (in seconds)
         # is: sleep_duration * max_queries
@@ -39,7 +41,7 @@ class CreatingVIMStrategyState(BaseState):
 
         # Get release parameter data for sw-deploy strategy
         if self.strategy_name == vim.STRATEGY_NAME_SW_USM:
-            extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+            extra_args = self.strategy.extra_args
             opts_dict[consts.EXTRA_ARGS_RELEASE_ID] = extra_args.get(
                 consts.EXTRA_ARGS_RELEASE_ID
             )

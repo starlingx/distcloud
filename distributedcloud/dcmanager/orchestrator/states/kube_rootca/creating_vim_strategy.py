@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,11 +12,12 @@ from dcmanager.orchestrator.states.creating_vim_strategy import CreatingVIMStrat
 class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
     """State for creating the VIM Kube Root CA Update strategy."""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         next_state = consts.STRATEGY_STATE_APPLYING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY
         super(CreatingVIMKubeRootcaUpdateStrategyState, self).__init__(
             next_state=next_state,
             region_name=region_name,
+            strategy=strategy,
             strategy_name=vim.STRATEGY_NAME_KUBE_ROOTCA_UPDATE,
         )
 
@@ -28,7 +29,7 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
         #     expiry_date
         #     subject
         # These kwargs are retrieved from the extra_args of the strategy
-        extra_args = dcmanager_utils.get_sw_update_strategy_extra_args(self.context)
+        extra_args = self.strategy.extra_args
         if extra_args is None:
             extra_args = {}
         # Note that extra_args use "-" and not "_" in their keys

@@ -50,9 +50,6 @@ class TestPrestage(TestSwUpdate):
         self.strategy = fake_strategy.create_fake_strategy(
             self.ctx, self.strategy_type, extra_args=extra_args
         )
-
-        self.worker.strategies[self.strategy_type].pre_apply_setup(self.strategy)
-
         # The oam_floating_ip_dict is filled in the prestage pre-check with the
         # subcloud's oam ip, so is necessary to manually fill for the test cases that
         # validates other states
@@ -155,7 +152,9 @@ class TestPrestagePackagesState(TestPrestage):
         """Test prestage package succeeds"""
 
         self._setup_and_assert(
-            consts.STRATEGY_STATE_PRESTAGE_IMAGES, REQUIRED_EXTRA_ARGS, True
+            consts.STRATEGY_STATE_PRESTAGE_IMAGES,
+            REQUIRED_EXTRA_ARGS,
+            True,
         )
 
     def test_prestage_package_succeeds_with_prestage_software_version(self):

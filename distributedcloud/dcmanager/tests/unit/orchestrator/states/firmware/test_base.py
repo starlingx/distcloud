@@ -7,6 +7,7 @@
 import uuid
 
 from dcmanager.common import consts
+from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.fakes import FakeVimStrategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeDevice
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeDeviceImage
@@ -28,6 +29,7 @@ class TestFwUpdateState(TestSwUpdate):
         # Setting strategy_type to firmware will setup the firmware
         # orchestration worker, and will mock away the other orch threads
         self.strategy_type = consts.SW_UPDATE_TYPE_FIRMWARE
+        self.strategy = fake_strategy.create_fake_strategy(self.ctx, self.strategy_type)
 
     def _create_fake_strategy(self, state, apply_phase=None, build_phase=None):
         return FakeVimStrategy(

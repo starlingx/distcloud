@@ -35,17 +35,13 @@ class TestCreatingVIMKubeRootCAUpgradeStrategyStage(
             "expiry-date": "2020:01:31",
             "subject": "C=CA ST=ON L=OTT O=WR OU=STX CN=AL_RULES",
         }
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
         # Call the 'success' test
         self.test_creating_vim_strategy_success()
 
     def test_create_strategy_succeeds_without_extra_argst(self):
         """Test create strategy succeeds without extra_args"""
-
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=None
-        )
 
         self.test_creating_vim_strategy_success()

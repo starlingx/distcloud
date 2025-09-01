@@ -35,10 +35,11 @@ INVALID_STRATEGY_STATES = [
 class PreCheckState(BaseState):
     """Pre check software orchestration state"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super().__init__(
             next_state=consts.STRATEGY_STATE_SW_INSTALL_LICENSE,
             region_name=region_name,
+            strategy=strategy,
         )
         self._subcloud_releases = None
 
@@ -89,7 +90,7 @@ class PreCheckState(BaseState):
                 exceptions.SoftwarePreCheckFailedException,
             )
 
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+        extra_args = self.strategy.extra_args
 
         if self._validate_extra_args_rollback(extra_args, strategy_step):
             return self.next_state

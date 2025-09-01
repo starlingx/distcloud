@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,9 +12,10 @@ from dcmanager.orchestrator.states.creating_vim_strategy import CreatingVIMStrat
 class CreateVIMSoftwareStrategyState(CreatingVIMStrategyState):
     """Create VIM Software Strategy software orchestration state"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super(CreateVIMSoftwareStrategyState, self).__init__(
             next_state=consts.STRATEGY_STATE_SW_APPLY_VIM_STRATEGY,
             region_name=region_name,
+            strategy=strategy,
             strategy_name=vim.STRATEGY_NAME_SW_USM,
         )

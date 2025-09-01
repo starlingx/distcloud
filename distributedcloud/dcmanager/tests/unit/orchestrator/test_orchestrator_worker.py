@@ -154,6 +154,19 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
         self.orchestrator_worker.steps_to_process = self.steps_id
         self.orchestrator_worker._last_update = timeutils.utcnow()
 
+        self.pre_apply_setup = self._mock_object(
+            BaseStrategy,
+            "pre_apply_setup",
+            wraps=BaseStrategy.pre_apply_setup,
+            autospec=True,
+        )
+        self.teardown = self._mock_object(
+            BaseStrategy,
+            "teardown",
+            wraps=BaseStrategy.teardown,
+            autospec=True,
+        )
+
         # Because the thread group manager is mocked, the execution will not perform
         # all steps. Therefore, the specific _apply, _abort and _delete method will
         # be tested in their respective classes.
@@ -177,7 +190,12 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
         self.orchestrator_worker.steps_to_process.clear()
 
     def _assert_orchestration(
-        self, strategy_get_calls=0, apply_calls=0, abort_calls=0, delete_calls=0
+        self,
+        strategy_get_calls=0,
+        apply_calls=0,
+        abort_calls=0,
+        delete_calls=0,
+        pre_apply_setup_called=False,
     ):
         """Assert the class variables are reset when the orchestration completes"""
 
@@ -187,6 +205,10 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
         self.assertEqual(self.orchestrator_worker._apply.call_count, apply_calls)
         self.assertEqual(self.orchestrator_worker._abort.call_count, abort_calls)
         self.assertEqual(self.orchestrator_worker._delete.call_count, delete_calls)
+
+        self.assertEqual(self.pre_apply_setup.called, pre_apply_setup_called)
+        self.assertTrue(self.teardown.called)
+
         self.assertIsNone(self.orchestrator_worker.strategy_type)
         self.assertEqual(self.orchestrator_worker.steps_to_process, set())
         self.assertIsNone(self.orchestrator_worker._last_update)
@@ -211,7 +233,11 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
 
         self.orchestrator_worker.orchestration_thread()
 
-        self._assert_orchestration(strategy_get_calls=1, apply_calls=1)
+        self._assert_orchestration(
+            strategy_get_calls=1,
+            apply_calls=1,
+            pre_apply_setup_called=True,
+        )
         self.assertEqual(self.orchestrator_worker.steps_received, set())
         self.mock_log.info("There are no further steps to process, stopping.")
 
@@ -236,6 +262,7 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
 
         self._assert_orchestration(strategy_get_calls=2, abort_calls=1, apply_calls=1)
         self.assertEqual(self.orchestrator_worker.steps_received, set())
+        self.assertEqual(self.strategy.extra_args, None)
         self.mock_log.info(f"({self.strategy.type}) Orchestration stopped")
 
     def test_orchestration_thread_delete(self):

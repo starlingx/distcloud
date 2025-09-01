@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -27,10 +27,11 @@ ALARM_IGNORE_LIST = ["100.003", "200.001", "700.004", "750.006", "900.007", "900
 class KubeUpgradePreCheckState(BaseState):
     """Perform pre check operations to determine if kube upgrade is required"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super(KubeUpgradePreCheckState, self).__init__(
             next_state=STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
             region_name=region_name,
+            strategy=strategy,
         )
 
     def perform_state_action(self, strategy_step):
@@ -106,7 +107,7 @@ class KubeUpgradePreCheckState(BaseState):
         # if there is a to-version, use that when checking against the subcloud
         # target version, otherwise compare to the system controller version
         # to determine if this subcloud is permitted to upgrade.
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+        extra_args = self.strategy.extra_args
         if extra_args is None:
             extra_args = {}
         to_version = extra_args.get("to-version", None)

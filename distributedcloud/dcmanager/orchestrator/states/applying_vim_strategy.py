@@ -33,12 +33,13 @@ class ApplyingVIMStrategyState(BaseState):
         self,
         next_state,
         region_name,
+        strategy,
         strategy_name,
         wait_attempts=DEFAULT_MAX_WAIT_ATTEMPTS,
         wait_interval=WAIT_INTERVAL,
     ):
         super(ApplyingVIMStrategyState, self).__init__(
-            next_state=next_state, region_name=region_name
+            next_state=next_state, region_name=region_name, strategy=strategy
         )
         self.strategy_name = strategy_name
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES

@@ -20,43 +20,47 @@ FAKE_INVALID_CURRENT_STRATEGY = {"sw-upgrade": "building"}
 FAKE_EXISTING_CURRENT_STRATEGY = {"sw-patch": "applying"}
 
 FAKE_REGION_ONE_RELEASE_PRESTAGED = [
-    {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
-    {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
+    {"release_id": "starlingx-25.09.0", "state": "deployed", "sw_version": "25.09.0"},
+    {"release_id": "starlingx-25.09.1", "state": "deployed", "sw_version": "25.09.1"},
 ]
 
 FAKE_SUBCLOUD_RELEASES = [
-    {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
-    {"release_id": "starlingx-9.0.1", "state": "available", "sw_version": "9.0.1"},
+    {"release_id": "starlingx-25.09.0", "state": "deployed", "sw_version": "25.09.0"},
+    {"release_id": "starlingx-25.09.1", "state": "available", "sw_version": "25.09.1"},
 ]
 
 FAKE_SUBCLOUD_RELEASES_NOT_PRESTAGED = [
-    {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
+    {"release_id": "starlingx-25.09.0", "state": "deployed", "sw_version": "25.09.0"},
 ]
 
 FAKE_SUBCLOUD_RELEASES_DEPLOYED = [
-    {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
-    {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
+    {"release_id": "starlingx-25.09.0", "state": "deployed", "sw_version": "25.09.0"},
+    {"release_id": "starlingx-25.09.1", "state": "deployed", "sw_version": "25.09.1"},
 ]
 
 FAKE_SUBCLOUD_RELEASES_DEPLOYING = [
-    {"release_id": "starlingx-8.0.0", "state": "deployed", "sw_version": "8.0.0"},
-    {"release_id": "starlingx-9.0.0", "state": "deploying", "sw_version": "9.0.0"},
+    {"release_id": "starlingx-24.09.0", "state": "deployed", "sw_version": "24.09.0"},
+    {"release_id": "starlingx-25.09.0", "state": "deploying", "sw_version": "25.09.0"},
 ]
 
 FAKE_SUBCLOUD_RELEASES_AVAILABLE = [
-    {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
-    {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
-    {"release_id": "starlingx-9.0.2", "state": "available", "sw_version": "9.0.2"},
-    {"release_id": "starlingx-9.0.3", "state": "available", "sw_version": "9.0.3"},
-    {"release_id": "starlingx-8.0", "state": "unavailable", "sw_version": "8.0"},
+    {"release_id": "starlingx-25.09.0", "state": "deployed", "sw_version": "25.09.0"},
+    {"release_id": "starlingx-25.09.1", "state": "deployed", "sw_version": "25.09.1"},
+    {"release_id": "starlingx-25.09.2", "state": "available", "sw_version": "25.09.2"},
+    {"release_id": "starlingx-25.09.3", "state": "available", "sw_version": "25.09.3"},
+    {
+        "release_id": "starlingx-24.09.0",
+        "state": "unavailable",
+        "sw_version": "24.09.0",
+    },
 ]
 
 FAKE_SUBCLOUD_RELEASES_DEPLOYED_AVAILABLE = [
-    {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
-    {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
-    {"release_id": "starlingx-9.0.2", "state": "deployed", "sw_version": "9.0.2"},
-    {"release_id": "starlingx-9.0.3", "state": "available", "sw_version": "9.0.3"},
-    {"release_id": "starlingx-9.0.4", "state": "available", "sw_version": "9.0.4"},
+    {"release_id": "starlingx-25.09.0", "state": "deployed", "sw_version": "25.09.0"},
+    {"release_id": "starlingx-25.09.1", "state": "deployed", "sw_version": "25.09.1"},
+    {"release_id": "starlingx-25.09.2", "state": "deployed", "sw_version": "25.09.2"},
+    {"release_id": "starlingx-25.09.3", "state": "available", "sw_version": "25.09.3"},
+    {"release_id": "starlingx-25.09.4", "state": "available", "sw_version": "25.09.4"},
 ]
 
 
@@ -65,17 +69,19 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         super().setUp()
 
         self.on_success_state = consts.STRATEGY_STATE_SW_INSTALL_LICENSE
-        self.on_success_state_patch = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
+        self.on_success_state_patch_or_rollback = (
+            consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
+        )
         self.on_success_state_complete = consts.STRATEGY_STATE_COMPLETE
-        self.on_success_state_available = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
-        self.on_success_state_rollback = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
-        self.on_success_state_delete_only = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
+        self.on_success_state_available_or_delete_only = (
+            consts.STRATEGY_STATE_SW_FINISH_STRATEGY
+        )
         self.current_state = consts.STRATEGY_STATE_SW_PRE_CHECK
 
-        # Create default strategy with release parameter
-        self.extra_args = {"release_id": "starlingx-9.0.1"}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=self.extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx,
+            self.strategy_type,
+            additional_args={consts.EXTRA_ARGS_RELEASE_ID: "starlingx-25.09.1"},
         )
 
         # Add the strategy_step state being processed by this unit test
@@ -115,7 +121,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_AVAILABLE
 
-        self._setup_and_assert(self.on_success_state_available)
+        self._setup_and_assert(self.on_success_state_available_or_delete_only)
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -136,9 +142,9 @@ class TestPreCheckState(TestSoftwareOrchestrator):
     def test_pre_check_success_patch_release(self):
         """Test pre-check when the API call succeeds."""
 
-        self.strategy_step.subcloud.software_version = "9.0"
+        self.strategy_step.subcloud.software_version = "25.09"
 
-        self._setup_and_assert(self.on_success_state_patch)
+        self._setup_and_assert(self.on_success_state_patch_or_rollback)
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -163,7 +169,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
         self._assert_error(
             f"{self.current_state}: Failed for subcloud {self.subcloud.name}: Release "
-            f"{self.extra_args['release_id']} is not prestaged."
+            f"{self.strategy.extra_args['release_id']} is not prestaged."
         )
 
         self.vim_client.get_current_strategy.assert_called_once()
@@ -212,9 +218,10 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.mock_read_from_cache.return_value = []
 
         self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        extra_args = self.strategy.extra_args
         self._assert_error(
             f"{self.current_state}: Failed for subcloud {self.subcloud.name}: Release "
-            f"{self.extra_args['release_id']} not found or not deployed in RegionOne"
+            f"{extra_args['release_id']} not found or not deployed in RegionOne"
         )
 
         self.vim_client.get_current_strategy.assert_called_once()
@@ -297,7 +304,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
             self.ctx, additional_args={consts.EXTRA_ARGS_ROLLBACK: True}
         )
 
-        self._setup_and_assert(self.on_success_state_rollback)
+        self._setup_and_assert(self.on_success_state_patch_or_rollback)
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
@@ -333,7 +340,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
             self.ctx, additional_args={consts.EXTRA_ARGS_DELETE_ONLY: True}
         )
 
-        self._setup_and_assert(self.on_success_state_delete_only)
+        self._setup_and_assert(self.on_success_state_available_or_delete_only)
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
