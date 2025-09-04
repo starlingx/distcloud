@@ -3013,15 +3013,15 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
             rehome_command,
             [
                 "ansible-playbook",
-                cutils.get_playbook_for_software_version(
-                    subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, SW_VERSION
-                ),
+                subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
                 "-i",
                 f"{ANS_PATH}/subcloud1_inventory.yml",
                 "--limit",
                 subcloud_name,
                 "--timeout",
                 subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
+                "-e",
+                f"install_release_version={SW_VERSION}",
                 "-e",
                 str("override_files_dir='%s' region_name=%s")
                 % (ANS_PATH, subcloud_region),
@@ -4332,9 +4332,11 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
         )
         self.saved_payload = {
             "deploy_status": consts.DEPLOY_STATE_DONE,
-            "rehome_data": '{"saved_payload": {"system_mode": "simplex",\
-            "name": "testsub", "bootstrap-address": "128.224.119.56",\
-            "admin_password": "TGk2OW51eA=="}}',
+            "rehome_data": (
+                '{"saved_payload": {"system_mode": "simplex",\
+                "name": "testsub", "bootstrap-address": "128.224.119.56",\
+                "admin_password": "TGk2OW51eA=="}}'
+            ),
         }
 
     @mock.patch.object(subcloud_manager, "db_api", side_effect=db_api)

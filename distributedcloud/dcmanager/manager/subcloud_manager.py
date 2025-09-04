@@ -241,8 +241,10 @@ class SubcloudManager(manager.Manager):
         secret_name = SubcloudManager._get_subcloud_cert_secret_name(subcloud_region)
 
         cert = {
-            "apiVersion": "%s/%s"
-            % (kubeoperator.CERT_MANAGER_GROUP, kubeoperator.CERT_MANAGER_VERSION),
+            "apiVersion": (
+                "%s/%s"
+                % (kubeoperator.CERT_MANAGER_GROUP, kubeoperator.CERT_MANAGER_VERSION)
+            ),
             "kind": "Certificate",
             "metadata": {"namespace": CERT_NAMESPACE, "name": cert_name},
             "spec": {
@@ -582,15 +584,19 @@ class SubcloudManager(manager.Manager):
 
         rehome_command = [
             "ansible-playbook",
-            utils.get_playbook_for_software_version(
-                ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, software_version
-            ),
+            ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
             "-i",
             ansible_subcloud_inventory_file,
             "--limit",
             subcloud_name,
             "--timeout",
             REHOME_PLAYBOOK_TIMEOUT,
+            "-e",
+            (
+                "install_release_version=%s" % software_version
+                if software_version
+                else SW_VERSION
+            ),
             "-e",
             extra_vars,
         ]
