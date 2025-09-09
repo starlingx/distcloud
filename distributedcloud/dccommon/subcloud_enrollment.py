@@ -4,7 +4,6 @@
 #
 
 import crypt
-import json
 import os
 import tarfile
 import tempfile
@@ -131,7 +130,7 @@ class SubcloudEnrollmentInit(object):
 
         return True
 
-    def create_enroll_override_file(self, override_path, payload):
+    def create_enroll_override_file(self, override_path, payload, cloud_init_tarball):
         enroll_override_file = os.path.join(override_path, "enroll_overrides.yml")
 
         with open(enroll_override_file, "w") as f_out_override_file:
@@ -144,9 +143,20 @@ class SubcloudEnrollmentInit(object):
 
             enroll_overrides = payload["install_values"].get("enroll_overrides", {})
 
+            # If no custom cloud-init config is provided, disable IPMI SEL event
+            # monitoring by default.
+            if (
+                cloud_init_tarball is None
+                and "ipmi_sel_event_monitoring" not in enroll_overrides
+            ):
+                f_out_override_file.write("ipmi_sel_event_monitoring: false\n")
+
             if enroll_overrides:
                 for k, v in enroll_overrides.items():
-                    f_out_override_file.write(f"{k}: {json.dumps(v)}")
+                    # Properly format boolean values with yaml.dump
+                    f_out_override_file.write(
+                        f"{k}: {yaml.dump(v, default_flow_style=False).strip()}\n"
+                    )
 
     def _build_seed_user_config(self, path, iso_values):
         if not os.path.isdir(path):
@@ -245,7 +255,17 @@ class SubcloudEnrollmentInit(object):
 
         return True
 
-    def _generate_seed_iso(self, payload):
+    def _get_cloud_init_config(self):
+        cloud_init_tarball_name = f"{self.name}_{consts.CLOUD_INIT_CONFIG}.tar"
+        cloud_init_tarball = os.path.join(
+            consts.ANSIBLE_OVERRIDES_PATH, cloud_init_tarball_name
+        )
+        if os.path.isfile(cloud_init_tarball):
+            LOG.info(f"Detected {cloud_init_tarball} tarball")
+            return cloud_init_tarball
+        return None
+
+    def _generate_seed_iso(self, payload, cloud_init_tarball):
         LOG.info(f"Preparing seed iso generation for {self.name}")
 
         with tempfile.TemporaryDirectory(prefix="seed_") as temp_seed_data_dir:
@@ -253,12 +273,7 @@ class SubcloudEnrollmentInit(object):
             # into iso_values. For now, pass in payload.
             try:
                 # Untar cloud_init_config if present
-                cloud_init_tarball_name = f"{self.name}_{consts.CLOUD_INIT_CONFIG}.tar"
-                cloud_init_tarball = os.path.join(
-                    consts.ANSIBLE_OVERRIDES_PATH, cloud_init_tarball_name
-                )
-                if os.path.isfile(cloud_init_tarball):
-                    LOG.info(f"Detected {cloud_init_tarball} tarball")
+                if cloud_init_tarball:
                     with tarfile.open(cloud_init_tarball, "r") as tar:
                         tar.extractall(path=temp_seed_data_dir)
                     LOG.info(
@@ -355,7 +370,9 @@ class SubcloudEnrollmentInit(object):
             )
             os.remove(self.seed_iso_path)
 
-        self._generate_seed_iso(payload)
+        cloud_init_tarball = self._get_cloud_init_config()
+
+        self._generate_seed_iso(payload, cloud_init_tarball)
 
         # get the boot image url for bmc
         image_base_url = SubcloudInstall.get_image_base_url(
@@ -377,7 +394,7 @@ class SubcloudEnrollmentInit(object):
 
         SubcloudInstall.create_rvmc_config_file(override_path, bmc_values)
 
-        self.create_enroll_override_file(override_path, payload)
+        self.create_enroll_override_file(override_path, payload, cloud_init_tarball)
 
         return True
 

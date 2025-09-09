@@ -5019,7 +5019,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
     @mock.patch("os.chmod")
     def test_generate_seed_iso(self, mock_chmod):
         with mock.patch("os.path.isdir", side_effect=self.patched_isdir):
-            self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values))
+            self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values, None))
 
             self.mock_log_subcloud_enrollment.info.assert_any_call(
                 f"Preparing seed iso generation for {self.subcloud_name}"
@@ -5083,7 +5083,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.mock_os_makedirs.assert_called_once()
             self.assertEqual(self.mock_os_makedirs.call_args.args[0], self.iso_dir)
 
-            mock_generate_seed_iso.assert_called_once_with(self.iso_values)
+            mock_generate_seed_iso.assert_called_once_with(self.iso_values, None)
 
             # create rvmc config file
             self.mock_builtins_open.assert_any_call(
@@ -5146,3 +5146,109 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         )
         expected_log_file = f"{subcloud_log_base_path}_playbook_output.log"
         self.mock_ansible_run_playbook.assert_called_with(expected_log_file, mock.ANY)
+
+
+class TestEnrollOverrides(BaseTestSubcloudManager):
+    """Test class for testing enroll override file creation methods."""
+
+    def setUp(self):
+        super().setUp()
+        self.override_path = "/test/override/path"
+        self.rel_version = "25.09"
+        self.subcloud_name = "test_subcloud"
+        self.enroll_init = subcloud_enrollment.SubcloudEnrollmentInit(
+            self.subcloud_name
+        )
+        self.fake_install_values = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        self.iso_values = {
+            "software_version": self.rel_version,
+            "external_oam_floating_address": "10.10.10.2",
+            "install_values": self.fake_install_values,
+        }
+
+        # Base variables that can be modified in individual test cases
+        self.enroll_overrides = {"key2": "value2", "key3": "value3"}
+        self.expected_content = [
+            "enroll_reconfigured_oam: 10.10.10.2",
+            "key2: value2",
+            "key3: value3",
+        ]
+
+    def _run_test_scenario(
+        self,
+        enroll_overrides,
+        cloud_init_tarball,
+        expected_content,
+        unexpected_content=None,
+    ):
+        self.mock_builtins_open.side_effect = mock.mock_open()
+        test_iso_values = self.iso_values.copy()
+        if enroll_overrides:
+            test_iso_values["install_values"]["enroll_overrides"] = enroll_overrides
+
+        self.enroll_init.create_enroll_override_file(
+            self.override_path, test_iso_values, cloud_init_tarball
+        )
+
+        expected_file_path = f"{self.override_path}/enroll_overrides.yml"
+        self.mock_builtins_open.assert_called_with(expected_file_path, "w")
+
+        write_calls = self.mock_builtins_open().write.call_args_list
+        content = "".join([call[0][0] for call in write_calls])
+
+        for expected in expected_content:
+            self.assertIn(expected, content)
+
+        if unexpected_content:
+            for unexpected in unexpected_content:
+                self.assertNotIn(unexpected, content)
+
+    def test_create_enroll_override_file_without_cloud_tarball_and_ipmi_monitoring(
+        self,
+    ):
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: false")
+        self._run_test_scenario(self.enroll_overrides, None, expected_content)
+
+    def test_create_enroll_override_file_no_cloud_tarball_with_ipmi_monitoring(
+        self,
+    ):
+        self.enroll_overrides["ipmi_sel_event_monitoring"] = True
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: true")
+        self._run_test_scenario(self.enroll_overrides, None, expected_content)
+
+    def test_create_enroll_override_file_no_cloud_tarball_ipmi_false(
+        self,
+    ):
+        self.enroll_overrides["ipmi_sel_event_monitoring"] = False
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: false")
+        self._run_test_scenario(self.enroll_overrides, None, expected_content)
+
+    def test_create_enroll_override_file_with_cloud_tarball_and_ipmi_monitoring(
+        self,
+    ):
+        self.enroll_overrides["ipmi_sel_event_monitoring"] = True
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: true")
+        self._run_test_scenario(
+            self.enroll_overrides, "/path/to/cloud_init.tar", expected_content
+        )
+
+    def test_create_enroll_override_file_with_cloud_tarball_no_ipmi_override(self):
+        unexpected_content = ["ipmi_sel_event_monitoring"]
+        self._run_test_scenario(
+            self.enroll_overrides,
+            "/path/to/cloud_init.tar",
+            self.expected_content,
+            unexpected_content,
+        )
+
+    def test_create_enroll_override_file_with_cloud_init_tarball_ipmi_false(self):
+        self.enroll_overrides["ipmi_sel_event_monitoring"] = False
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: false")
+        self._run_test_scenario(
+            self.enroll_overrides, "/path/to/cloud_init.tar", expected_content
+        )
