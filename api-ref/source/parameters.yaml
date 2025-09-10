@@ -116,10 +116,10 @@ association_type:
   type: string
 auto_restore:
   description: |
-    Performs a subcloud restore with installation, automatically triggering the
-    restore process locally in the subcloud after installation completes. Also
-    restores container images.
-    Can be used with or without the local-only option.
+    Performs a subcloud restore by automatically triggering the restore
+    process locally in the subcloud using only BMC connectivity.
+    Also restores container images.
+    Can be used with or without the local-only and with-install options.
     Defaults to False.
   in: body
   required: false

@@ -1169,7 +1169,7 @@ def find_central_subcloud_backup(subcloud_name: str, software_version: str) -> P
     if not search_dir.exists():
         raise FileNotFoundError(f"Backup directory does not exist: {search_dir}")
 
-    pattern = f"{re.escape(subcloud_name)}_platform_backup_*.tgz"
+    pattern = f"{subcloud_name}_platform_backup_*.tgz"
     backup_files = list(search_dir.glob(pattern))
 
     if not backup_files:

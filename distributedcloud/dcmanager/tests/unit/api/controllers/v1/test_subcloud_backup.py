@@ -1108,8 +1108,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "Option release cannot be used without one of the following options: "
-            "with_install, auto or factory.",
+            "Option release cannot be used without 'with_install' or "
+            "'factory' options.",
         )
 
     def test_patch_restore_subcloud_fails_with_install_without_install_values(self):

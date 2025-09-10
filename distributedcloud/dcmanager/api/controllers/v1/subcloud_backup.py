@@ -398,13 +398,13 @@ class SubcloudBackupController(object):
                 )
 
             if payload.get("release") and not (
-                payload["with_install"] or payload["auto"] or payload["factory"]
+                payload["with_install"] or payload["factory"]
             ):
                 pecan.abort(
                     400,
                     _(
-                        "Option release cannot be used without one of the "
-                        "following options: with_install, auto or factory."
+                        "Option release cannot be used without 'with_install' "
+                        "or 'factory' options."
                     ),
                 )
 
@@ -477,10 +477,11 @@ class SubcloudBackupController(object):
                     % matching_iso
                 )
 
-            # An auto or factory restore implies with-install and registry-images
+            # An auto or factory restore implies registry-images
             if payload.get("auto") or payload.get("factory"):
-                payload["with_install"] = True
                 payload["registry_images"] = True
+            if payload.get("factory"):
+                payload["with_install"] = True
 
             try:
                 # local update to deploy_status - this is just for CLI response
