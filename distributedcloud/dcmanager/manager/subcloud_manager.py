@@ -3217,6 +3217,8 @@ class SubcloudManager(manager.Manager):
             rehomed=False,
         )
 
+        # enrollment finished, the cloud-init files are no longer needed
+        self._delete_subcloud_cloud_init_files(subcloud.name)
         LOG.info(f"Successfully enrolled {subcloud.name}")
         return True
 
@@ -3514,6 +3516,7 @@ class SubcloudManager(manager.Manager):
             self._delete_subcloud_overrides_file(subcloud_name)
             self._delete_subcloud_config_files(subcloud_name)
             self._delete_subcloud_install_files(subcloud_name)
+            self._delete_subcloud_cloud_init_files(subcloud_name)
         except Exception:
             LOG.exception(
                 "Unable to cleanup subcloud ansible files "
@@ -3540,6 +3543,13 @@ class SubcloudManager(manager.Manager):
         )
         if os.path.exists(install_path):
             shutil.rmtree(install_path)
+
+    @staticmethod
+    def _delete_subcloud_cloud_init_files(subcloud_name):
+        postfix = "_cloud_init_config.tar"
+        filepath = utils.get_ansible_filename(subcloud_name, postfix)
+        if os.path.exists(filepath):
+            os.remove(filepath)
 
     def _rename_subcloud_ansible_files(self, cur_sc_name, new_sc_name):
         """Renames the ansible and logs files from the given subcloud"""
