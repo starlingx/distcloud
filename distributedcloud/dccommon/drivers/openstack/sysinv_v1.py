@@ -574,7 +574,9 @@ class SysinvClient(base.DriverBase):
 
         return iuser
 
-    def update_user(self, passwd_hash, root_sig, passwd_expiry_days):
+    def update_user(
+        self, passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
+    ):
         """Update the user passwd for this region
 
         :param: passwd_hash
@@ -586,18 +588,28 @@ class SysinvClient(base.DriverBase):
                 LOG.warn("iuser not found %s" % self.region_name)
                 return iuser
 
+            # The "passwd_last_change" attribute may not be implemented in the subcloud
+            # TODO(rdossant): Remove this hasattr() check and the conditional logic
+            # below once all supported subcloud versions include the attribute.
+            has_last_change = hasattr(iuser, "passwd_last_change")
+
             if (
                 iuser.passwd_hash != passwd_hash
                 or iuser.passwd_expiry_days != passwd_expiry_days
+                or (has_last_change and iuser.passwd_last_change != passwd_last_change)
             ):
-                patch = make_sysinv_patch(
-                    {
-                        "passwd_hash": passwd_hash,
-                        "passwd_expiry_days": passwd_expiry_days,
-                        "root_sig": root_sig,
-                        "action": "apply",
-                    }
-                )
+                patch_data = {
+                    "passwd_hash": passwd_hash,
+                    "passwd_expiry_days": passwd_expiry_days,
+                    "root_sig": root_sig,
+                    "action": "apply",
+                }
+
+                # Do not send "passwd_last_change" if the subcloud does not support it
+                if has_last_change:
+                    patch_data["passwd_last_change"] = passwd_last_change
+
+                patch = make_sysinv_patch(patch_data)
                 LOG.info(
                     "region={} user update uuid={} patch={}".format(
                         self.region_name, iuser.uuid, patch

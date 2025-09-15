@@ -367,14 +367,25 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def update_user(self, sysinv_client, passwd_hash, root_sig, passwd_expiry_days):
+    def update_user(
+        self,
+        sysinv_client,
+        passwd_hash,
+        root_sig,
+        passwd_expiry_days,
+        passwd_last_change,
+    ):
         LOG.info(
-            "update_user={} {} {}".format(passwd_hash, root_sig, passwd_expiry_days),
+            "update_user={} {} {} {}".format(
+                passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
+            ),
             extra=self.log_extra,
         )
 
         try:
-            iuser = sysinv_client.update_user(passwd_hash, root_sig, passwd_expiry_days)
+            iuser = sysinv_client.update_user(
+                passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
+            )
             return iuser
         except (AttributeError, TypeError) as e:
             LOG.info("update_user error {} region_name".format(e), extra=self.log_extra)
@@ -392,6 +403,7 @@ class SysinvSyncThread(SyncThread):
         passwd_hash = None
         root_sig = None
         passwd_expiry_days = None
+        passwd_last_change = None
         if isinstance(payload, list):
             for ipayload in payload:
                 if ipayload.get("path") == "/passwd_hash":
@@ -400,14 +412,19 @@ class SysinvSyncThread(SyncThread):
                     root_sig = ipayload.get("value")
                 elif ipayload.get("path") == "/passwd_expiry_days":
                     passwd_expiry_days = ipayload.get("value")
+                elif ipayload.get("path") == "/passwd_last_change":
+                    passwd_last_change = ipayload.get("value")
         else:
             passwd_hash = payload.get("passwd_hash")
             root_sig = payload.get("root_sig")
             passwd_expiry_days = payload.get("passwd_expiry_days")
+            passwd_last_change = payload.get("passwd_last_change")
 
         LOG.info(
             "sync_user from dict passwd_hash={} root_sig={} "
-            "passwd_expiry_days={}".format(passwd_hash, root_sig, passwd_expiry_days),
+            "passwd_expiry_days={} passwd_last_change={}".format(
+                passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
+            ),
             extra=self.log_extra,
         )
 
@@ -421,7 +438,7 @@ class SysinvSyncThread(SyncThread):
             return
 
         iuser = self.update_user(
-            sysinv_client, passwd_hash, root_sig, passwd_expiry_days
+            sysinv_client, passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
         )
 
         # Ensure subcloud resource is persisted to the DB for later
