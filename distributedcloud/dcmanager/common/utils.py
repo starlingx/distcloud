@@ -869,6 +869,53 @@ def get_region_name(
         raise exceptions.ServiceUnavailable
 
 
+def find_and_save_ansible_error_msg(
+    context, subcloud, log_file, exception, stage, operation=None, **kwargs
+):
+    """Find and save ansible error message
+
+    Find Ansible error from logs and save it to error_description field
+    of the subcloud record.
+    The error message is extracted from the Ansible log file if Ansible
+    execution failed. If the exception is an Ansible timeout, a timeout
+    message is saved instead.
+
+    Params:
+        context: The request context.
+        subcloud: The subcloud object.
+        log_file: The path to the Ansible log file.
+        exception: The exception raised during Ansible execution.
+        stage: The stage of the operation.
+        operation: The operation being performed. If provided, it takes
+                   precedence over stage in timeout message and Exception.
+        **kwargs: Additional fields to update the subcloud record.
+
+    Returns:
+        - Timeout message if the exception is a timeout.
+        - Error message extracted from Ansible logs if the exception
+          is an Ansible failure.
+        - If the exception is neither a timeout nor an Ansible failure,
+          returns the string representation of the exception.
+
+    """
+    if isinstance(exception, dccommon_exceptions.PlaybookExecutionTimeout):
+        stage = operation if operation else stage
+        msg = f"Timeout occurred while {stage} subcloud {subcloud.name}"
+    elif isinstance(exception, dccommon_exceptions.PlaybookExecutionFailed):
+        msg = find_ansible_error_msg(subcloud.name, log_file, stage)
+    else:
+        stage = operation if operation else stage
+        msg = f"Error occurred while {stage} subcloud {subcloud.name}: {str(exception)}"
+
+    db_api.subcloud_update(
+        context,
+        subcloud.id,
+        error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+        **kwargs,
+    )
+    return msg
+
+
 def find_ansible_error_msg(subcloud_name, log_file, stage=None):
     """Find errors into ansible logs.
 

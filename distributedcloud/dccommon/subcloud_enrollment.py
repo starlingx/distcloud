@@ -412,7 +412,8 @@ class SubcloudEnrollmentInit(object):
                 f"Failed to enroll init {self.name}, check individual logs at "
                 f"{log_file}. Run {dcmanager_consts.ERROR_DESC_CMD} for details."
             )
-            raise Exception(msg)
+            LOG.error(msg)
+            raise
 
     def cleanup(self):
         if os.path.exists(self.seed_iso_path):

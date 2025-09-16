@@ -1017,21 +1017,21 @@ class SubcloudManager(manager.Manager):
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, rehome_command)
-        except PlaybookExecutionFailed:
+        except PlaybookExecutionFailed as e:
             msg = (
                 "Failed to run the subcloud rehome playbook for subcloud "
                 f"{subcloud.name}, check individual log at {log_file} "
                 "for detailed output."
             )
             LOG.error(msg)
-            msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_REHOMING
-            )
-            db_api.subcloud_update(
+
+            utils.find_and_save_ansible_error_msg(
                 context,
-                subcloud.id,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_REHOMING,
                 deploy_status=consts.DEPLOY_STATE_REHOME_FAILED,
-                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
             )
             return
         # Update the deploy status to complete and rehomed flag to true only
@@ -2228,15 +2228,21 @@ class SubcloudManager(manager.Manager):
                 )
                 return True
 
-        except Exception:
-            LOG.exception("Failed to enroll subcloud %s" % subcloud.name)
+        except Exception as e:
             # If we failed to initiate the subcloud enroll,
-            # update the deployment status
-            db_api.subcloud_update(
+            # save the error message and update the deployment status
+            msg = utils.find_and_save_ansible_error_msg(
                 context,
-                subcloud_id,
+                subcloud,
+                log_file=(
+                    f"{os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)}"
+                    "_playbook_output.log"
+                ),
+                exception=e,
+                stage=consts.DEPLOY_STATE_ENROLLING,
                 deploy_status=consts.DEPLOY_STATE_PRE_INIT_ENROLL_FAILED,
             )
+            LOG.error(msg)
             return False
 
     @staticmethod
@@ -2869,8 +2875,17 @@ class SubcloudManager(manager.Manager):
 
             LOG.info("Successfully backed up subcloud %s" % subcloud.name)
             return True
-        except PlaybookExecutionFailed:
-            self._fail_subcloud_backup_operation(context, log_file, subcloud)
+        except PlaybookExecutionFailed as e:
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.BACKUP_STATE_IN_PROGRESS,
+                backup_status=consts.BACKUP_STATE_FAILED,
+            )
+            LOG.error(msg)
+            self._set_subcloud_backup_failure_alarm(subcloud)
             return False
 
     @staticmethod
@@ -2899,23 +2914,21 @@ class SubcloudManager(manager.Manager):
             LOG.info("Successfully deleted backup for subcloud %s" % subcloud.name)
             return True
 
-        except PlaybookExecutionFailed:
+        except PlaybookExecutionFailed as e:
             LOG.error(
                 "Failed to delete backup for subcloud %s, check individual "
                 "log at %s for detailed output." % (subcloud.name, log_file)
             )
 
-            msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.BACKUP_STATE_FAILED
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.BACKUP_STATE_FAILED,
+                operation="deleting-backup",
             )
             LOG.error(msg)
-
-            db_api.subcloud_update(
-                context,
-                subcloud.id,
-                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
-            )
-
             return False
 
     def _run_subcloud_backup_restore_playbook(
@@ -2945,17 +2958,16 @@ class SubcloudManager(manager.Manager):
 
             db_api.subcloud_update(context, subcloud.id, deploy_status=complete_state)
             return True
-        except PlaybookExecutionFailed:
-            msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_RESTORING
+        except PlaybookExecutionFailed as e:
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_RESTORING,
+                deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
             )
             LOG.error(msg)
-            db_api.subcloud_update(
-                context,
-                subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
-                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
-            )
             return False
 
     @staticmethod
@@ -2965,21 +2977,6 @@ class SubcloudManager(manager.Manager):
         db_api.subcloud_update(
             context, subcloud.id, backup_status=consts.BACKUP_STATE_PREP_FAILED
         )
-
-    def _fail_subcloud_backup_operation(self, context, log_file, subcloud):
-        msg = utils.find_ansible_error_msg(
-            subcloud.name, log_file, consts.BACKUP_STATE_IN_PROGRESS
-        )
-        LOG.error(msg)
-
-        db_api.subcloud_update(
-            context,
-            subcloud.id,
-            backup_status=consts.BACKUP_STATE_FAILED,
-            error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
-        )
-
-        self._set_subcloud_backup_failure_alarm(subcloud)
 
     def _clear_subcloud_backup_failure_alarm_if_exists(self, subcloud):
         entity_instance_id = "subcloud=%s" % subcloud.name
@@ -3074,17 +3071,16 @@ class SubcloudManager(manager.Manager):
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             aborted = ansible.run_playbook(log_file, config_command)
-        except PlaybookExecutionFailed:
-            msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_CONFIGURING
+        except PlaybookExecutionFailed as e:
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_CONFIGURING,
+                deploy_status=consts.DEPLOY_STATE_CONFIG_FAILED,
             )
             LOG.error(msg)
-            db_api.subcloud_update(
-                context,
-                subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_CONFIG_FAILED,
-                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
-            )
             return False
         if aborted:
             return False
@@ -3157,17 +3153,15 @@ class SubcloudManager(manager.Manager):
         try:
             aborted = install.install(consts.DC_ANSIBLE_LOG_DIR, install_command)
         except Exception as e:
-            msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_INSTALLING
-            )
-            LOG.error(str(e))
-            LOG.error(msg)
-            db_api.subcloud_update(
+            msg = utils.find_and_save_ansible_error_msg(
                 context,
-                subcloud.id,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_INSTALLING,
                 deploy_status=consts.DEPLOY_STATE_INSTALL_FAILED,
-                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
             )
+            LOG.error(msg)
             install.cleanup(software_version)
             return False
         install.cleanup(software_version)
@@ -3192,18 +3186,16 @@ class SubcloudManager(manager.Manager):
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, enroll_command)
-        except PlaybookExecutionFailed:
-            msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_ENROLLING
+        except PlaybookExecutionFailed as e:
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_ENROLLING,
+                deploy_status=consts.DEPLOY_STATE_ENROLL_FAILED,
             )
             LOG.error(f"Enroll failed for subcloud {subcloud.name}: {msg}")
-            db_api.subcloud_update(
-                context,
-                subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_ENROLL_FAILED,
-                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
-            )
-
             return False
 
         # Ensure rehomed=False after bootstrapped from central cloud, it
@@ -3236,17 +3228,16 @@ class SubcloudManager(manager.Manager):
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             aborted = ansible.run_playbook(log_file, bootstrap_command)
-        except PlaybookExecutionFailed:
-            msg = utils.find_ansible_error_msg(
-                subcloud.name, log_file, consts.DEPLOY_STATE_BOOTSTRAPPING
+        except PlaybookExecutionFailed as e:
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_BOOTSTRAPPING,
+                deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
             )
             LOG.error(msg)
-            db_api.subcloud_update(
-                context,
-                subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
-                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
-            )
             return False
 
         if aborted:
@@ -4114,17 +4105,16 @@ class SubcloudManager(manager.Manager):
             ansible = dccommon_utils.AnsiblePlaybook(subcloud_name)
             ansible.run_playbook(log_file, update_command)
             utils.delete_subcloud_inventory(overrides_file)
-        except PlaybookExecutionFailed:
-            msg = utils.find_ansible_error_msg(
-                subcloud_name, log_file, consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+        except PlaybookExecutionFailed as e:
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_RECONFIGURING_NETWORK,
+                deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
             )
             LOG.error(msg)
-            db_api.subcloud_update(
-                context,
-                subcloud_id,
-                deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-                error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
-            )
             return
 
         self._configure_system_controller_network(context, payload, subcloud)

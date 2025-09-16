@@ -34,7 +34,6 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import PlaybookExecutionFailed
-from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon import ostree_mount
 from dccommon import utils as cutils
 
@@ -231,6 +230,7 @@ def prestage_complete(context, subcloud_id, prestage_versions):
         subcloud_id,
         prestage_status=consts.PRESTAGE_STATE_COMPLETE,
         prestage_versions=prestage_versions,
+        error_description=consts.ERROR_DESC_EMPTY,
     )
 
 
@@ -398,15 +398,20 @@ def _run_ansible(
             log_file, prestage_command, timeout=timeout_seconds, register_cleanup=True
         )
     except PlaybookExecutionFailed as ex:
-        timeout_msg = ""
-        if isinstance(ex, PlaybookExecutionTimeout):
-            timeout_msg = " (TIMEOUT)"
         msg = (
-            "Prestaging %s failed%s for subcloud %s, "
+            "Prestaging %s failed for subcloud %s, "
             "check individual log at %s for detailed output."
-            % (phase, timeout_msg, subcloud.name, log_file)
+            % (phase, subcloud.name, log_file)
         )
-        LOG.exception("%s: %s", msg, ex)
+        LOG.error("%s: %s", msg, ex)
+        utils.find_and_save_ansible_error_msg(
+            context,
+            subcloud,
+            log_file,
+            exception=ex,
+            stage=consts.PRESTAGE_STATE_PRESTAGING,
+            prestage_status=consts.PRESTAGE_STATE_FAILED,
+        )
         raise Exception(msg)
     finally:
         utils.delete_subcloud_inventory(ansible_subcloud_inventory_file)
