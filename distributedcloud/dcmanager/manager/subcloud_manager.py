@@ -2779,6 +2779,11 @@ class SubcloudManager(manager.Manager):
         if op == "restore" and auto_restore_mode:
             payload["override_values"]["auto_restore_mode"] = auto_restore_mode
 
+            # Do not login into external registries during restore as it's
+            # assumed the subcloud has no connectivity. Use the images from the
+            # backup archives instead.
+            payload["override_values"]["skip_registry_login"] = True
+
             # For standard restore, the following values would be defined by
             # the playbook running on the system controller. For auto restore
             # the playbook is not executed so we define the values here
