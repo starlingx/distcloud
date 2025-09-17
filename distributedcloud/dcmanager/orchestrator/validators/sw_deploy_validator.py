@@ -14,6 +14,7 @@ from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
+from dcmanager.common import utils
 from dcmanager.orchestrator.validators.base import StrategyValidationBase
 
 LOG = logging.getLogger(__name__)
@@ -35,15 +36,29 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
         :param payload: strategy request payload
         """
         ret_dict = {
-            consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID),
-            consts.EXTRA_ARGS_SNAPSHOT: payload.get(consts.EXTRA_ARGS_SNAPSHOT, False),
-            consts.EXTRA_ARGS_ROLLBACK: payload.get(consts.EXTRA_ARGS_ROLLBACK, False),
-            consts.EXTRA_ARGS_WITH_DELETE: payload.get(
-                consts.EXTRA_ARGS_WITH_DELETE, False
-            ),
+            consts.EXTRA_ARGS_FORCE: payload.get(consts.EXTRA_ARGS_FORCE, False),
             consts.EXTRA_ARGS_DELETE_ONLY: payload.get(
                 consts.EXTRA_ARGS_DELETE_ONLY, False
             ),
+            consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID),
+            consts.EXTRA_ARGS_ROLLBACK: payload.get(consts.EXTRA_ARGS_ROLLBACK, False),
+            consts.EXTRA_ARGS_SNAPSHOT: payload.get(consts.EXTRA_ARGS_SNAPSHOT, False),
+            consts.EXTRA_ARGS_SYSADMIN_PASSWORD: payload.get(
+                consts.EXTRA_ARGS_SYSADMIN_PASSWORD
+            ),
+            consts.EXTRA_ARGS_WITH_PRESTAGE: payload.get(
+                consts.EXTRA_ARGS_WITH_PRESTAGE, False
+            ),
+            consts.EXTRA_ARGS_WITH_DELETE: payload.get(
+                consts.EXTRA_ARGS_WITH_DELETE, False
+            ),
         }
+
+        if ret_dict.get(consts.EXTRA_ARGS_WITH_PRESTAGE):
+            # Update strategy extra_args with sw-deploy prestage information
+            ret_dict[consts.PRESTAGE_FOR_SW_DEPLOY] = True
+            ret_dict[consts.PRESTAGE_SOFTWARE_VERSION] = utils.get_major_release(
+                payload.get(consts.EXTRA_ARGS_RELEASE_ID),
+            )
 
         return ret_dict

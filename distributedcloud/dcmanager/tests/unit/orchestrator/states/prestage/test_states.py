@@ -68,10 +68,12 @@ class TestPrestagePreCheckState(TestPrestage):
         self.current_state = consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK
         self._setup_strategy_step(self.current_state)
 
-        # The validate_prestage method is mocked because the focus is on testing
-        # the orchestrator logic only. Any specific prestage functionality is covered on
-        # individual tests.
-        self.mock_prestage_subcloud = self._mock_object(prestage, "validate_prestage")
+        # The validate_prestage_subcloud method is mocked because the focus is on
+        # testing the orchestrator logic only. Any specific prestage functionality is
+        # covered on individual tests.
+        self.mock_prestage_subcloud = self._mock_object(
+            prestage, "validate_prestage_subcloud"
+        )
         self.mock_prestage_subcloud.return_value = OAM_FLOATING_IP
 
         self._mock_object(threading.Thread, "start")

@@ -120,7 +120,6 @@ class DCManagerApiTest(DCManagerTestCase):
         content_type=test_consts.TEXT_PLAIN,
     ):
         """Assert the response and pecan abort for a failed request"""
-
         self._assert_pecan(http_status, content, call_count=call_count)
         self._assert_response(response, http_status, content_type)
 

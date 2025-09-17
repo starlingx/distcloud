@@ -16,6 +16,7 @@ from dcmanager.common.exceptions import StrategyNotFound
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import orchestrator_worker
 from dcmanager.orchestrator.strategies.base import BaseStrategy
+from dcmanager.orchestrator.validators import sw_deploy_validator
 from dcmanager.tests import base
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
@@ -154,6 +155,15 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
         self.orchestrator_worker.steps_to_process = self.steps_id
         self.orchestrator_worker._last_update = timeutils.utcnow()
 
+        # Update the strategy with default extra args
+        extra_args = (
+            sw_deploy_validator.SoftwareDeployStrategyValidator().build_extra_args({})
+        )
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy.type, additional_args=extra_args
+        )
+
+        # Mock the BaseStrategy methods to avoid executing them
         self.pre_apply_setup = self._mock_object(
             BaseStrategy,
             "pre_apply_setup",
@@ -262,7 +272,6 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
 
         self._assert_orchestration(strategy_get_calls=2, abort_calls=1, apply_calls=1)
         self.assertEqual(self.orchestrator_worker.steps_received, set())
-        self.assertEqual(self.strategy.extra_args, None)
         self.mock_log.info(f"({self.strategy.type}) Orchestration stopped")
 
     def test_orchestration_thread_delete(self):

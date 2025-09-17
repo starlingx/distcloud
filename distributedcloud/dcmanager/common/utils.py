@@ -15,6 +15,7 @@
 #    under the License.
 #
 
+import base64 as b64
 import datetime
 import grp
 import itertools
@@ -107,9 +108,32 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
     return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 
-def validate_bool_param(param_name: str, value: bool) -> None:
-    if value is not None and not isinstance(value, bool):
-        msg = f"Invalid value for {param_name} - must be True or False"
+def validate_bool_param(param_name: str, value) -> bool:
+    """Validate and convert a parameter to bool.
+
+    Args:
+        param_name: Name of the parameter being validated
+        value: The value to validate and convert (bool or str)
+
+    Returns:
+        bool: Converted boolean value
+
+    Raises:
+        pecan.abort: 400 Bad Request if value is invalid
+    """
+    if value is not None:
+        if isinstance(value, bool):
+            return value
+
+        if isinstance(value, str):
+            val_lower = value.strip().lower()
+            if val_lower in ("true", "false"):
+                return val_lower == "true"
+
+        msg = (
+            f"Invalid value '{value}' for {param_name} "
+            "- must be True/False or 'true'/'false'"
+        )
         pecan.abort(400, _(msg))
 
 
@@ -2027,30 +2051,16 @@ def is_minor_release(version):
     return 0 <= MM <= 99 and 0 <= mm <= 99 and 1 <= pp <= 99
 
 
-def extract_version(release_id: str) -> str:
-    """Extract the MM.mm part of a release_id.
+def get_major_release(version: str) -> str:
+    """Returns the YY.MM portion of the given release version or ID string
 
     Args:
-        release_id: The release_id. Example: stx-10.0.1
+        version: The release version: 25.09.0 or release ID: stx-25.09.0
 
     Returns:
         str: The extracted major.minor version in the format MM.mm, or
              None if not found.
     """
-    # Regular expression to match the MM.mm part of the version
-    pattern = r"(\d{1,2}\.\d{1,2})"
-
-    # Search for the MM.mm pattern in the version_string
-    match = re.search(pattern, release_id)
-
-    # Return the MM.mm part if found, otherwise return None
-    if match:
-        return match.group(1)
-    return None
-
-
-def get_major_release(version):
-    """Returns the YY.MM portion of the given version string"""
     if "-" in version:
         version = version.split("-")[1]
     split_version = version.split(".")
@@ -2086,7 +2096,7 @@ def get_software_version(releases):
     """Returns the maximum YY.MM portion from the given release list"""
     versions = []
     for release in releases:
-        version = extract_version(release)
+        version = get_major_release(release)
         if version:
             versions.append(version)
     return max(versions, default=None)
@@ -2353,11 +2363,13 @@ def validate_software_strategy(payload: dict):
     rollback = payload.get(consts.EXTRA_ARGS_ROLLBACK)
     with_delete = payload.get(consts.EXTRA_ARGS_WITH_DELETE)
     delete_only = payload.get(consts.EXTRA_ARGS_DELETE_ONLY)
+    with_prestage = payload.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
 
     validate_bool_param(consts.EXTRA_ARGS_SNAPSHOT, snapshot)
     validate_bool_param(consts.EXTRA_ARGS_ROLLBACK, rollback)
     validate_bool_param(consts.EXTRA_ARGS_WITH_DELETE, with_delete)
     validate_bool_param(consts.EXTRA_ARGS_DELETE_ONLY, delete_only)
+    validate_bool_param(consts.EXTRA_ARGS_WITH_PRESTAGE, with_prestage)
 
     if not (rollback or delete_only):
         if not release_id:
@@ -2380,13 +2392,6 @@ def validate_software_strategy(payload: dict):
         )
         pecan.abort(400, _(message))
 
-    if rollback and (release_id or snapshot or with_delete or delete_only):
-        message = (
-            "Option rollback cannot be used with any of the following options: "
-            "release_id, snapshot, with_delete or delete_only."
-        )
-        pecan.abort(400, _(message))
-
     if with_delete and (rollback or delete_only):
         message = (
             "Option with_delete cannot be used with any of the following options: "
@@ -2394,12 +2399,219 @@ def validate_software_strategy(payload: dict):
         )
         pecan.abort(400, _(message))
 
-    if delete_only and (release_id or snapshot or rollback or with_delete):
+    if rollback and (release_id or delete_only or with_prestage):
         message = (
-            "Option delete_only cannot be used with any of the following options: "
-            "release_id, snapshot, rollback or with_delete."
+            "Option rollback cannot be used with any of the following options: "
+            "release_id, delete_only or with_prestage."
         )
         pecan.abort(400, _(message))
+
+    if delete_only and (release_id or with_prestage):
+        message = (
+            "Option delete_only cannot be used with any of the following options: "
+            "release_id or with_prestage."
+        )
+        pecan.abort(400, _(message))
+
+    if with_prestage:
+        validate_prestage(payload)
+
+
+def validate_prestage(payload):
+    """Global prestage validation (not subcloud-specific)"""
+
+    if is_system_controller_deploying():
+        msg = _(
+            "Prestage operations are not allowed while system "
+            "controller has a software deployment in progress."
+        )
+        pecan.abort(400, msg)
+
+    validate_sysadmin_password(payload, update_payload=False)
+
+
+def validate_sysadmin_password(payload: dict, update_payload: bool = True):
+    sysadmin_password = payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD)
+    if not sysadmin_password:
+        pecan.abort(400, _("subcloud sysadmin_password required"))
+    try:
+        validated_password = b64.b64decode(sysadmin_password).decode("utf-8")
+        if update_payload:
+            payload["sysadmin_password"] = validated_password
+    except Exception:
+        msg = _(
+            "Failed to decode subcloud sysadmin_password, verify the password is "
+            "base64 encoded"
+        )
+        LOG.exception(msg)
+        pecan.abort(400, msg)
+
+
+def validate_subcloud_apply_type(apply_type: str):
+    """Validate that the subcloud apply type is valid.
+
+    This function checks if the provided apply_type matches one of the allowed values:
+    - 'parallel': Apply updates to multiple subclouds simultaneously
+    - 'serial': Apply updates to one subcloud at a time
+
+    Args:
+        apply_type (str): The subcloud apply type to validate
+
+    Raises:
+        PecanAbort: If the apply_type is not one of the allowed values
+
+    Example:
+        >>> validate_subcloud_apply_type('parallel')  # Valid
+        >>> validate_subcloud_apply_type('serial')    # Valid
+        >>> validate_subcloud_apply_type('invalid')   # Raises PecanAbort
+    """
+    if apply_type not in [
+        consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+        consts.SUBCLOUD_APPLY_TYPE_SERIAL,
+    ]:
+        pecan.abort(400, _("subcloud-apply-type invalid"))
+
+
+def validate_subcloud_group_exclusivity(subcloud_group, cloud_name: str):
+    """Validate that subcloud_group and cloud_name parameters are mutually exclusive.
+
+    Args:
+        subcloud_group: The subcloud group parameter
+        cloud_name: The cloud name parameter
+
+    Raises:
+        PecanAbort: If both parameters are provided, since they are mutually exclusive
+    """
+    if subcloud_group and cloud_name:
+        pecan.abort(400, _("cloud_name and subcloud_group are mutually exclusive"))
+
+
+def validate_subcloud_group_exists(context, subcloud_group):
+    """Validate that the subcloud group exists.
+
+    Args:
+        subcloud_group: The subcloud group name
+
+    Returns:
+        group: The subcloud group object
+
+    Raises:
+        PecanAbort: If the subcloud group does not exist
+    """
+    group = subcloud_group_get_by_ref(context, subcloud_group)
+    if not group:
+        pecan.abort(400, _("Invalid group_id"))
+    return group
+
+
+def validate_max_parallel_value(value, payload: dict):
+    """Validate the maximum number of parallel subclouds for orchestration.
+
+    This function validates that the maximum parallel subclouds value is within
+    acceptable limits. For regular orchestration, the value must be between 1 and
+    MAX_PARALLEL_SUBCLOUDS_LIMIT. For prestage orchestration, there is a lower limit
+    of MAX_PARALLEL_PRESTAGE_LIMIT.
+
+    Args:
+        value (int): The maximum parallel subclouds value to validate
+        payload (dict): Dictionary containing strategy parameters including:
+            - type: The strategy type
+            - with_prestage: Whether this is a prestage operation
+
+    Raises:
+        PecanAbort: If value is invalid or exceeds limits
+
+    Examples:
+        # Valid for regular orchestration
+        >>> validate_max_parallel_value(500, {"type": "software"})
+        # Invalid for prestage
+        >>> validate_max_parallel_value(500, {"type": "prestage"})
+    """
+    strategy_type = payload.get("type")
+    with_prestage = payload.get("with_prestage")
+
+    # Determine which limit applies
+    is_prestage = with_prestage or strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE
+    max_parallel_limit = (
+        consts.MAX_PARALLEL_SUBCLOUDS_LIMIT
+        if not is_prestage
+        else consts.MAX_PARALLEL_PRESTAGE_LIMIT
+    )
+
+    if value < 1 or value > max_parallel_limit:
+        limit_type = "prestage" if is_prestage else f"{strategy_type} strategy"
+        abort_msg = (
+            f"Invalid max-parallel-subclouds value: {value}. "
+            f"For {limit_type}, the value must be between 1 and {max_parallel_limit}."
+        )
+        pecan.abort(400, _(abort_msg))
+
+
+def validate_strategy_payload(context, payload: dict):
+    """Validate strategy payload parameters.
+
+    This function validates the following strategy parameters:
+    - subcloud_group: Validates group exists and is mutually exclusive with cloud_name
+    - subcloud-apply-type: Must be 'parallel' or 'serial' if specified
+    - max-parallel-subclouds: Must be between 1 and MAX_PARALLEL_SUBCLOUDS_LIMIT
+
+    If subcloud_group is provided, its update_apply_type and max_parallel_subclouds
+    values are used instead of the request parameters.
+
+    For serial apply type, max_parallel_subclouds is set to 1.
+
+    :param context: request context object
+    :param payload: request payload containing strategy parameters
+    :raises PecanAbort: if validation fails
+    """
+
+    subcloud_group = payload.get("subcloud_group")
+    subcloud_apply_type = payload.get("subcloud-apply-type")
+    max_parallel_str = payload.get("max-parallel-subclouds")
+    cloud_name = payload.get("cloud_name")
+    force = payload.get(consts.EXTRA_ARGS_FORCE)
+
+    validate_bool_param(consts.EXTRA_ARGS_FORCE, force)
+
+    if subcloud_apply_type:
+        validate_subcloud_apply_type(subcloud_apply_type)
+
+    if subcloud_group:
+        validate_subcloud_group_exclusivity(subcloud_group, cloud_name)
+        if subcloud_apply_type or max_parallel_str:
+            pecan.abort(
+                400,
+                _(
+                    "subcloud-apply-type and max-parallel-subclouds are not allowed "
+                    "when subcloud_group is provided"
+                ),
+            )
+        group = validate_subcloud_group_exists(context, subcloud_group)
+        subcloud_apply_type = group.update_apply_type
+        max_parallel_subclouds = group.max_parallel_subclouds
+        payload["group_id"] = group.id
+    else:
+        try:
+            max_parallel_subclouds = int(max_parallel_str) if max_parallel_str else None
+        except ValueError:
+            abort_msg = (
+                f"max-parallel-subclouds invalid value. Value: {max_parallel_str}"
+            )
+            pecan.abort(400, _(abort_msg))
+
+    # Apply serial constraint
+    if subcloud_apply_type == consts.SUBCLOUD_APPLY_TYPE_SERIAL:
+        max_parallel_subclouds = 1
+
+    # Apply default value for max-parallel-subclouds if None
+    if max_parallel_subclouds is None:
+        max_parallel_subclouds = consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS
+
+    validate_max_parallel_value(max_parallel_subclouds, payload)
+
+    # Update payload with validated values
+    payload["subcloud-apply-type"] = subcloud_apply_type
+    payload["max-parallel-subclouds"] = max_parallel_subclouds
 
 
 def get_system_controller_deploy() -> Optional[dict]:

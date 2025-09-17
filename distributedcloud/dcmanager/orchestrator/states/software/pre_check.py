@@ -128,7 +128,7 @@ class PreCheckState(BaseState):
             )
 
         # We should skip the install_license state if it's a minor release.
-        if strategy_step.subcloud.software_version == utils.extract_version(release_id):
+        if strategy_step.subcloud.software_version == major_release:
             self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
 
         self.info_log(strategy_step, f"Check prestaged data for release: {release_id}")
@@ -204,7 +204,16 @@ class PreCheckState(BaseState):
         strategy_step,
         release_id,
     ):
-        """Check if the release with release_id is prestaged in subcloud_releases"""
+        """Check if the release with release_id is prestaged in subcloud_releases.
+
+        Args:
+            strategy_step: The current strategy step.
+            release_id (str): The release ID to deploy.
+
+        Raises:
+            SoftwarePreCheckFailedException: If prestaged data is required but not
+                                             found.
+        """
 
         def get_subcloud_release(releases, release_id):
             for release in releases:
@@ -214,23 +223,44 @@ class PreCheckState(BaseState):
 
         subcloud_releases = self._get_subcloud_releases(strategy_step)
         release = get_subcloud_release(subcloud_releases, release_id)
-        if not release:
-            details = f"Release {release_id} is not prestaged."
-            self.handle_exception(
-                strategy_step,
-                details,
-                exceptions.SoftwarePreCheckFailedException,
+        if release:
+            # Verify whether the subcloud has already deployed the release or if cleanup
+            # of the available releases is still pending.
+            self._process_releases_state(
+                strategy_step, subcloud_releases, release, release_id
             )
-
-        # Verify whether the subcloud has already deployed the release or if cleanup
-        # of the available releases is still pending.
-        self._process_releases_state(
-            strategy_step, subcloud_releases, release, release_id
-        )
+        else:
+            details = f"Release {release_id} is not prestaged."
+            if not self.strategy.extra_args.get(consts.EXTRA_ARGS_WITH_PRESTAGE):
+                self.handle_exception(
+                    strategy_step,
+                    details,
+                    exceptions.SoftwarePreCheckFailedException,
+                )
+            self.info_log(strategy_step, details)
+            self.override_next_state(consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK)
 
     def _process_releases_state(
         self, strategy_step, subcloud_releases, release, release_id
     ):
+        """Processes the state of software releases for a subcloud.
+
+        Determines the highest available and deployed releases from the provided
+        subcloud releases. If the highest deployed release matches the strategy
+        release, marks the strategy step as complete. Depending on the state of the
+        highest release, overrides the next strategy state accordingly.
+
+        Args:
+            strategy_step: The current strategy step object.
+            subcloud_releases (list): List of releases for the subcloud.
+            release (dict): The release prestaged.
+            release_id (str): The identifier of the release.
+
+        Side Effects:
+            Logs a warning if the release is already deployed.
+            Overrides the next strategy state based on release states.
+        """
+
         highest_release = max(
             (
                 release

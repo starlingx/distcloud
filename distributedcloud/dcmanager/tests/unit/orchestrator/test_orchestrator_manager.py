@@ -400,6 +400,9 @@ class TestOrchestratorManagerSoftwareStrategyCreate(
         )
 
         self.payload["subcloud_group"] = str(self.subcloud1.group_id)
+        del self.payload["subcloud-apply-type"]
+        del self.payload["max-parallel-subclouds"]
+        utils.validate_strategy_payload(self.ctx, self.payload)
 
         response = self.orchestrator_manager.create_sw_update_strategy(
             self.ctx, self.payload
@@ -423,6 +426,9 @@ class TestOrchestratorManagerSoftwareStrategyCreate(
         """Test create strategy succeeds with parallel apply for subcloud group"""
 
         self.payload["subcloud_group"] = str(self.subcloud1.group_id)
+        del self.payload["subcloud-apply-type"]
+        del self.payload["max-parallel-subclouds"]
+        utils.validate_strategy_payload(self.ctx, self.payload)
 
         response = self.orchestrator_manager.create_sw_update_strategy(
             self.ctx, payload=self.payload
@@ -502,6 +508,7 @@ class TestOrchestratorManagerSoftwareStrategyCreate(
         """Test strategy create succeeds without max parallel subclouds"""
 
         del self.payload["max-parallel-subclouds"]
+        utils.validate_strategy_payload(self.ctx, self.payload)
 
         response = self.orchestrator_manager.create_sw_update_strategy(
             self.ctx, payload=self.payload
@@ -514,22 +521,6 @@ class TestOrchestratorManagerSoftwareStrategyCreate(
         )
         self._assert_strategy(response, None, self.payload)
         self._assert_database_calls(group=False)
-        self.assertEqual(len(db_api.strategy_step_get_all(self.ctx)), 2)
-
-    def test_sw_strategy_create_succeeds_using_group_max_parallel_and_apply_type(self):
-        """Test strategy create succeeds using group's max parallel and apply type"""
-
-        del self.payload["subcloud-apply-type"]
-        del self.payload["max-parallel-subclouds"]
-
-        self.payload["subcloud_group"] = str(self.subcloud1.group_id)
-
-        response = self.orchestrator_manager.create_sw_update_strategy(
-            self.ctx, payload=self.payload
-        )
-
-        self._assert_strategy(response, self.sc_group3, self.payload)
-        self._assert_database_calls(group=True)
         self.assertEqual(len(db_api.strategy_step_get_all(self.ctx)), 2)
 
     def test_sw_strategy_create_fails_with_unknown_sync_status(self):
@@ -647,6 +638,9 @@ class TestOrchestratorManagerPrestageStrategyCreate(
         """Test creating a prestage strategy succeeds"""
 
         self.payload["subcloud_group"] = self.sc_group3.name
+        del self.payload["subcloud-apply-type"]
+        del self.payload["max-parallel-subclouds"]
+        utils.validate_strategy_payload(self.ctx, self.payload)
 
         response = self.orchestrator_manager.create_sw_update_strategy(
             self.ctx, payload=self.payload
@@ -656,26 +650,6 @@ class TestOrchestratorManagerPrestageStrategyCreate(
         self._assert_strategy(response, self.sc_group3, self.payload)
         self._assert_database_calls(count_invalid=False, group=True, group_name=True)
         self.assertEqual(len(db_api.strategy_step_get_all(self.ctx)), 2)
-
-    def test_prestage_strategy_create_fails_without_password(self):
-        """Test create strategy fails for prestage without password"""
-
-        self.payload["sysadmin_password"] = ""
-        self.payload["subcloud_group"] = str(self.subcloud1.group_id)
-
-        exception = self.assertRaises(
-            exceptions.BadRequest,
-            self.orchestrator_manager.create_sw_update_strategy,
-            self.ctx,
-            payload=self.payload,
-        )
-
-        self.assertEqual(
-            str(exception),
-            "Bad strategy request: Prestage failed: Missing required parameter "
-            "'sysadmin_password'",
-        )
-        self._assert_database_calls(count_invalid=False, create=False)
 
     def test_prestage_strategy_create_fails_with_subcloud_backup_in_progress(self):
         """Test create prestage strategy fails with subcloud backup in progress"""

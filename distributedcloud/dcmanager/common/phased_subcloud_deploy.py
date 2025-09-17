@@ -991,23 +991,6 @@ def validate_k8s_version(payload):
             )
 
 
-def validate_sysadmin_password(payload: dict):
-    sysadmin_password = payload.get("sysadmin_password")
-    if not sysadmin_password:
-        pecan.abort(400, _("subcloud sysadmin_password required"))
-    try:
-        payload["sysadmin_password"] = base64.b64decode(sysadmin_password).decode(
-            "utf-8"
-        )
-    except Exception:
-        msg = _(
-            "Failed to decode subcloud sysadmin_password, "
-            "verify the password is base64 encoded"
-        )
-        LOG.exception(msg)
-        pecan.abort(400, msg)
-
-
 def format_ip_address(payload):
     """Format IP addresses in 'bootstrap_values' and 'install_values'.
 
@@ -1380,7 +1363,7 @@ def pre_deploy_create(payload: dict, context: RequestContext, request: pecan.Req
 
 def pre_deploy_install(payload: dict, validate_password=False):
     if validate_password:
-        validate_sysadmin_password(payload)
+        utils.validate_sysadmin_password(payload)
 
     install_values = payload["install_values"]
 
@@ -1416,7 +1399,7 @@ def pre_deploy_bootstrap(
     validate_password=True,
 ):
     if validate_password:
-        validate_sysadmin_password(payload)
+        utils.validate_sysadmin_password(payload)
 
     update_payload_with_bootstrap_address(payload, subcloud)
     if has_bootstrap_values:
@@ -1450,7 +1433,7 @@ def pre_deploy_bootstrap(
 
 def pre_deploy_config(payload: dict, subcloud: models.Subcloud, validate_password=True):
     if validate_password:
-        validate_sysadmin_password(payload)
+        utils.validate_sysadmin_password(payload)
 
     update_payload_with_bootstrap_address(payload, subcloud)
 
