@@ -6,8 +6,6 @@
 
 import time
 
-from oslo_utils import timeutils
-
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as vim_exc
 from dcmanager.common import consts
@@ -178,7 +176,7 @@ class ApplyingVIMStrategyState(BaseState):
                     strategy_name=self.strategy_name,
                 )
             if subcloud_strategy.state == vim.STATE_APPLYING:
-                self._log_apply_progress(
+                last_details = self._log_apply_progress(
                     strategy_step,
                     subcloud_strategy,
                     last_details,
@@ -201,22 +199,13 @@ class ApplyingVIMStrategyState(BaseState):
 
         if new_details != last_details:
             self.info_log(strategy_step, new_details)
-            last_details = new_details
             db_api.strategy_step_update(
                 self.context,
                 strategy_step.subcloud_id,
                 details=new_details,
-                updated_at=timeutils.utcnow(),
             )
-        else:
-            # When the thread has waited for a minute, update the strategy step even
-            # if the details did not change so that the strategy monitoring does not
-            # identify the step as stopped
-            db_api.strategy_step_update(
-                self.context,
-                strategy_step.subcloud_id,
-                updated_at=timeutils.utcnow(),
-            )
+
+        return new_details
 
     def perform_state_action(self, strategy_step):
         """Apply a VIM strategy using VIM REST API

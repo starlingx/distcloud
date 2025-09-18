@@ -990,11 +990,10 @@ def strategy_step_update(
     details=None,
     started_at=None,
     finished_at=None,
-    updated_at=None,
 ):
     """Update a strategy step or raise if it does not exist."""
     return IMPL.Connection(context).strategy_step_update(
-        subcloud_id, stage, state, details, started_at, finished_at, updated_at
+        subcloud_id, stage, state, details, started_at, finished_at
     )
 
 

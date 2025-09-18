@@ -56,11 +56,13 @@ class OrchestratorWorker(object):
     def __init__(self):
         self.context = context.get_admin_context()
         # Keeps track of greenthreads we create to do work.
-        # The one additional thread is used to run the orchestration itself
+        # The maximum thread pool size is set to a greater value than the amount of
+        # subclouds each worker receives to account for scenarios where one of them is
+        # restarted and has its work resplit.
+        # The additional thread is used to account for the execution of the
+        # orchestration thread itself.
         self.thread_group_manager = scheduler.ThreadGroupManager(
-            thread_pool_size=(
-                (consts.MAX_PARALLEL_SUBCLOUDS_LIMIT / CONF.orch_worker_workers) + 1
-            )
+            thread_pool_size=(consts.MAX_PARALLEL_SUBCLOUDS_LIMIT + 1)
         )
         # Track worker created for each subcloud.
         self.subcloud_workers = dict()
@@ -155,18 +157,19 @@ class OrchestratorWorker(object):
         self._stop.set()
 
     def reset_updated_at(self):
-        # Everytime half of the orchestration interval has passed, the updated_at
-        # field needs to be reset to the current time to show that the subclouds
+        # Everytime a third of the orchestration interval has passed, the updated_at
+        # field needs to be reset to the current time to inform that the subclouds
         # are in active orchestration, avoiding the manager identifying them as idle
         if (timeutils.utcnow() - self._last_update).total_seconds() > (
-            CONF.scheduler.orchestration_interval / 2
+            CONF.scheduler.orchestration_interval / 3
         ):
             last_update_threshold = timeutils.utcnow() - datetime.timedelta(
-                seconds=(CONF.scheduler.orchestration_interval / 2)
+                seconds=(CONF.scheduler.orchestration_interval / 3)
             )
             self._last_update = timeutils.utcnow()
 
             with self.strategy_step_lock:
+                LOG.debug(f"({self.strategy_type}) Resetting updated_at")
                 db_api.strategy_step_update_reset_updated_at(
                     self.context, self.steps_to_process, last_update_threshold
                 )
