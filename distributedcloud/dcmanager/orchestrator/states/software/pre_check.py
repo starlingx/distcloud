@@ -101,19 +101,25 @@ class PreCheckState(BaseState):
 
         release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
 
-        # Get the release with release_id and state == deployed in RegionOne releases
-        regionone_deployed_release = self._read_from_cache(
-            cache_specifications.REGION_ONE_RELEASE_USM_CACHE_TYPE,
-            release_id=release_id,
-            state=software_v1.DEPLOYED,
-        )
-        self.debug_log(
-            strategy_step, f"RegionOne deployed release: {regionone_deployed_release}"
+        major_release = utils.get_major_release(release_id)
+
+        # Remove state restriction for N-1 release
+        state_filter = (
+            None if major_release < utils.tsc.SW_VERSION else software_v1.DEPLOYED
         )
 
-        # Check if the release is deployed in RegionOne
-        if not regionone_deployed_release:
-            details = f"Release {release_id} is not deployed in RegionOne."
+        # Get the release with release_id in RegionOne releases
+        regionone_releases = self._read_from_cache(
+            cache_specifications.REGION_ONE_RELEASE_USM_CACHE_TYPE,
+            release_id=release_id,
+            state=state_filter,
+        )
+
+        self.debug_log(strategy_step, f"RegionOne release: {regionone_releases}")
+
+        # Check if the release is in RegionOne
+        if not regionone_releases:
+            details = f"Release {release_id} not found or not deployed in RegionOne"
             self.handle_exception(
                 strategy_step,
                 details,

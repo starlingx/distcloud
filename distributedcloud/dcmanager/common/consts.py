@@ -476,6 +476,7 @@ ASSOCIATION_SYNC_STATUS_UNKNOWN = "unknown"
 HEARTBEAT_FAILURE_POLICY_ALARM = "alarm"
 
 SOFTWARE_VERSION_24_09 = "24.09"
+SNAPSHOT_SUPPORTED_VERSION = "25.09"
 
 # The maximum number of parallel subclouds in an orchestration process
 MAX_PARALLEL_SUBCLOUDS_LIMIT = 5000

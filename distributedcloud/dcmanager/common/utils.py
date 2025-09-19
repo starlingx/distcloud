@@ -1308,8 +1308,10 @@ def _get_system_controller_software_list() -> list[dict]:
         raise
 
 
-def get_systemcontroller_deployed_releases(
-    software_list: List[dict], key: str = "sw_version"
+def get_systemcontroller_installed_releases_ids(
+    software_list: List[dict],
+    key: str = "sw_version",
+    state: Optional[List[str]] = None,
 ) -> List[str]:
     """Get a list of deployed software releases on the SystemController using the key.
 
@@ -1317,28 +1319,113 @@ def get_systemcontroller_deployed_releases(
     using the key provided. For example, the key can be "sw_version" or "release_id",
     this will return ["10.0.0", "10.0.2", ...] or ["stx-10.0.0", "stx-10.0.1", ...]
     respectively. Other keys can be used as well, like "state", "description", etc.
+    Additionally, it is possible to filter the releases by their state, for example,
+    only the deployed releases. By default it will return all releases regardless of
+    their state.
 
     Args:
         software_list (list): The software list provided by USM API
         key (str): (default 'sw_version') The key to extract information from each
         deployed release.
+        state (list): (default []) List of states to filter the releases. If empty,
+        it will return all releases regardless of their state.
 
     Returns:
-        List[str]: Values of the given key from all deployed software releases.
+        List[str]: Values of the given key from software releases that match the state
+        filter. If state is empty, it will return all releases.
 
     """
-    deployed_releases = [
+
+    state = state or []
+
+    releases = [
         release[key]
         for release in software_list
-        if release["state"] == software_v1.DEPLOYED
+        if not state or release["state"] in state
     ]
 
-    return deployed_releases
+    return releases
 
 
-def get_systemcontroller_installed_releases_ids() -> List[str]:
+def check_version_for_sw_deploy_strategy(version: str) -> bool:
+    """Check if version is valid for sw_deploy strategy
+
+    This function checks if a given release version is valid to be deployed
+    using the sw_deploy strategy. To determine if the release is valid for
+    sw_deploy, it is compared to the release of the System Controller.
+    If the release is lower than the System Controller release, it is
+    assumed that the release is valid and no further checks are required.
+    For releases equal to or greater than the System Controller release,
+    the state should be deployed.
+
+    Args:
+        version (str): The requested software version
+
+    Returns:
+        bool: `True` if software version is lower than System Controller
+        release or if the software version is deployed on System Controller,
+        otherwise `False`
+
+    """
     software_list = _get_system_controller_software_list()
-    return get_systemcontroller_deployed_releases(software_list, key="release_id")
+    major_release = get_major_release(version)
+    # For N release the state must be deployed
+    state_filter = [software_v1.DEPLOYED]
+
+    # Remove the state restriction for releases lower than System Controller
+    if major_release < tsc.SW_VERSION:
+        state_filter = []
+
+    installed_releases = get_systemcontroller_installed_releases_ids(
+        software_list, key="release_id", state=state_filter
+    )
+
+    # Check if the requested version is in the list of installed releases
+    return version in installed_releases
+
+
+def check_version_for_prestage(
+    version: str, software_list: Optional[List[str]] = None
+) -> bool:
+    """Check if version is valid for prestage
+
+    This function checks if a given release version is valid to be prestaged.
+    To determine if the release is valid for prestage, it is compared to the
+    release of the System Controller.
+    If the release is lower than the System Controller release, it is
+    assumed that the release is valid and no further checks are required.
+    For releases equal to or greater than the System Controller release,
+    the state should be deployed.
+
+    Args:
+        version (str): The requested software version
+        software_list (list[dict]): The software list from USM API. If not
+        provided, it will be fetched from the System Controller.
+
+    Returns:
+        bool: `True` if software version is lower than System Controller
+        release or if the software version is deployed on System Controller,
+        otherwise `False`
+
+    """
+
+    # For N release the state must be deployed
+    state_filter = [software_v1.DEPLOYED]
+
+    software_list = software_list or _get_system_controller_software_list()
+
+    major_release = get_major_release(version)
+
+    # Remove the state restriction for releases lower than System Controller
+    if major_release < tsc.SW_VERSION:
+        state_filter = []
+
+    installed_releases = get_major_releases(
+        get_systemcontroller_installed_releases_ids(software_list, state=state_filter)
+    )
+
+    # Return False if the version is not found or state is not valid
+    return version in installed_releases
 
 
 def is_software_ready_to_be_prestaged_for_install(software_list, software_version):
@@ -1453,11 +1540,6 @@ def get_validated_sw_version_for_prestage(
     if system_controller_sw_list is None:
         system_controller_sw_list = _get_system_controller_software_list()
 
-    # Gets only the list of deployed major releases.
-    deployed_releases = get_major_releases(
-        get_systemcontroller_deployed_releases(system_controller_sw_list)
-    )
-
     # Check for deploy release param
     if for_sw_deploy:
         # 22.12 version is not supported for software deploy
@@ -1468,11 +1550,13 @@ def get_validated_sw_version_for_prestage(
             )
 
         # Ensures that the requested release version exists within the
-        # list of deployed releases
-        if software_version not in deployed_releases:
+        # System Controller software list according to the deploy criteria.
+        if not check_version_for_prestage(
+            software_version, software_list=system_controller_sw_list
+        ):
             return None, (
-                "The requested software version was not installed in the "
-                "system controller, cannot prestage for software deploy."
+                "The requested software version not found or not deployed in "
+                "the system controller, cannot prestage for software deploy."
             )
 
     else:
@@ -2299,8 +2383,11 @@ def validate_software_strategy(payload: dict):
                 f"{consts.SW_UPDATE_TYPE_SOFTWARE}."
             )
             pecan.abort(400, _(message))
-        elif release_id not in get_systemcontroller_installed_releases_ids():
-            message = f"Release ID: {release_id} not deployed in the SystemController"
+        elif not check_version_for_sw_deploy_strategy(release_id):
+            message = (
+                f"Release ID: {release_id} not found or not deployed in "
+                "the SystemController"
+            )
             pecan.abort(400, _(message))
 
     if snapshot and (rollback or delete_only):

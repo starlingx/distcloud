@@ -2886,6 +2886,12 @@ class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         {"sw_version": "22.12.0", "state": "available"},
     ]
 
+    FAKE_SOFTWARE_LIST_MIXED_UNAVAILABLE_DEPLOYED_RELEASES = [
+        {"sw_version": "24.09.300", "state": "unavailable"},
+        {"sw_version": "24.09.400", "state": "unavailable"},
+        {"sw_version": "25.09.0", "state": "deployed"},
+    ]
+
     def setUp(self):
         super().setUp()
 
@@ -3169,6 +3175,7 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
             "is not supported. Version format must be MM.mm.",
         )
 
+    @mock.patch.object(cutils.tsc, "SW_VERSION", "24.09")
     def test_prestage_for_sw_deploy_fails_with_invalid_release(self):
         """Test prestage for sw deploy fails with invalid release"""
 
@@ -3185,9 +3192,49 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
             response,
             http.client.BAD_REQUEST,
             f"Prestage failed '{self.subcloud.name}': The requested software "
-            "version was not installed in the system controller, cannot "
+            "version not found or not deployed in the system controller, cannot "
             "prestage for software deploy.",
         )
+
+    @mock.patch.object(cutils.tsc, "SW_VERSION", "25.09")
+    def test_prestage_for_sw_deploy_fails_with_inactive_release(self):
+        """Test prestage for sw deploy fails with inactive release"""
+
+        self.params["release"] = "24.09"
+        self.params["for_sw_deploy"] = "true"
+
+        self.mock_get_validated_sw_version_for_prestage.side_effect = (
+            self.original_get_validated_sw_version_for_prestage
+        )
+
+        self.software_list = self.FAKE_SOFTWARE_LIST_MIXED_UNAVAILABLE_DEPLOYED_RELEASES
+
+        self._setup_mock_get_system_controller_software_list()
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().prestage_subcloud.assert_called_once()
+
+    @mock.patch.object(cutils.tsc, "SW_VERSION", "25.09")
+    def test_prestage_for_sw_deploy_fails_with_deployed_release(self):
+        """Test prestage for sw deploy fails with deployed release"""
+
+        self.params["release"] = "25.09"
+        self.params["for_sw_deploy"] = "true"
+
+        self.mock_get_validated_sw_version_for_prestage.side_effect = (
+            self.original_get_validated_sw_version_for_prestage
+        )
+
+        self.software_list = self.FAKE_SOFTWARE_LIST_MIXED_UNAVAILABLE_DEPLOYED_RELEASES
+
+        self._setup_mock_get_system_controller_software_list()
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().prestage_subcloud.assert_called_once()
 
     def test_prestage_for_sw_deploy_fails_with_22_12_release(self):
         """Test prestage for sw deploy fails with 22.12 release"""

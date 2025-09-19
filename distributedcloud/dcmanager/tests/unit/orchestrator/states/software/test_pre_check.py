@@ -214,7 +214,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
         self._assert_error(
             f"{self.current_state}: Failed for subcloud {self.subcloud.name}: Release "
-            f"{self.extra_args['release_id']} is not deployed in RegionOne."
+            f"{self.extra_args['release_id']} not found or not deployed in RegionOne"
         )
 
         self.vim_client.get_current_strategy.assert_called_once()

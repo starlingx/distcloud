@@ -221,11 +221,11 @@ class BaseTestSwUpdateStrategyPost(BaseTestSwUpdateStrategyController):
         self.create_update_strategy = (
             self.mock_rpc_orchestrator_client().create_sw_update_strategy
         )
-        self.mock_get_sc_installed_releases_id = self._mock_object(
-            utils, "get_systemcontroller_installed_releases_ids"
+        self.mock_check_version_for_sw_deploy_strategy = self._mock_object(
+            utils, "check_version_for_sw_deploy_strategy"
         )
-        self.mock_get_sc_installed_releases_id.return_value = [
-            fake_consts.RELEASE_ID,
+        self.mock_check_version_for_sw_deploy_strategy.return_value = [
+            True,
         ]
 
 

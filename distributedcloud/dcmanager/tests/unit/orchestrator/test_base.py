@@ -52,6 +52,12 @@ class TestSwUpdate(DCManagerTestCase):
         self.vim_client = mock.MagicMock()
         self.fm_client = mock.MagicMock()
 
+        self.snapshot_supported_version = mock.patch.object(
+            consts, "SNAPSHOT_SUPPORTED_VERSION", "10.10"
+        )
+        self.mock_snapshot_supported_version = self.snapshot_supported_version.start()
+        self.addCleanup(self.snapshot_supported_version.stop)
+
         clients = {
             "get_keystone_client": self.keystone_client,
             "get_sysinv_client": self.sysinv_client,

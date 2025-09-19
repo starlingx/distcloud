@@ -54,6 +54,25 @@ class CreatingVIMStrategyState(BaseState):
                 )
 
         try:
+            release_id = opts_dict.get(consts.EXTRA_ARGS_RELEASE_ID)
+            strategy_params = {
+                "release": release_id,
+                "snapshot": opts_dict.get(consts.EXTRA_ARGS_SNAPSHOT),
+                "rollback": opts_dict.get(consts.EXTRA_ARGS_ROLLBACK),
+                "delete": opts_dict.get(consts.EXTRA_ARGS_DELETE),
+            }
+
+            # Remove the snapshot parameter for releases < 25.09
+            # as it is not supported by the N-1 API and will cause
+            # the strategy creation to fail.
+            if release_id:
+                major_release = utils.get_major_release(release_id)
+                if (
+                    major_release < consts.SNAPSHOT_SUPPORTED_VERSION
+                    and not strategy_params[consts.EXTRA_ARGS_SNAPSHOT]
+                ):
+                    strategy_params.pop("snapshot", None)
+
             # Call the API to build the VIM strategy
             # release, snapshot, rollback and delete will be sent as a
             # **kwargs value for sw-deploy strategy
@@ -64,10 +83,7 @@ class CreatingVIMStrategyState(BaseState):
                 opts_dict["max-parallel-workers"],
                 opts_dict["default-instance-action"],
                 opts_dict["alarm-restriction-type"],
-                release=opts_dict.get(consts.EXTRA_ARGS_RELEASE_ID),
-                snapshot=opts_dict.get(consts.EXTRA_ARGS_SNAPSHOT),
-                rollback=opts_dict.get(consts.EXTRA_ARGS_ROLLBACK),
-                delete=opts_dict.get(consts.EXTRA_ARGS_DELETE),
+                **strategy_params,
             )
         except vim_exc.VIMClientException as exc:
             details = "Failed to create VIM strategy."
