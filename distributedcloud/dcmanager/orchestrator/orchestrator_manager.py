@@ -184,45 +184,32 @@ class OrchestratorManager(manager.Manager):
                 )
 
     def _create_and_send_step_batches(self, strategy_type, steps):
-        steps_to_orchestrate = list()
-        steps_to_update = list()
+        steps_data = {step.subcloud.name: step.id for step in steps}
 
         chunksize = (len(steps) + CONF.orch_worker_workers) // (
             CONF.orch_worker_workers
         )
 
-        for step in steps:
-            steps_to_orchestrate.append(step.id)
-            steps_to_update.append(step.id)
+        steps_to_orchestrate = list(steps_data.items())
+        for i in range(0, len(steps_to_orchestrate), chunksize):
+            chunk = steps_to_orchestrate[i : (i + chunksize)]
 
-            if len(steps_to_orchestrate) == chunksize:
-                LOG.info(
-                    f"({strategy_type}) Sending {len(steps_to_orchestrate)} steps "
-                    "to orchestrate"
-                )
-                self.orchestrator_worker_rpc_client.orchestrate(
-                    self.context, steps_to_orchestrate, strategy_type
-                )
+            LOG.info(f"({strategy_type}) Sending {len(chunk)} steps to orchestrate")
 
-                steps_to_orchestrate = []
-
-        if steps_to_orchestrate:
-            LOG.info(
-                f"({strategy_type}) Sending final {len(steps_to_orchestrate)} steps "
-                "to orchestrate"
-            )
             self.orchestrator_worker_rpc_client.orchestrate(
-                self.context, steps_to_orchestrate, strategy_type
+                self.context, dict(chunk), strategy_type
             )
 
         # Reset the update_at field for all subclouds that were sent for processing to
         # avoid having them identified by the manager in its next loop.
         db_api.strategy_step_update_all(
-            self.context, {}, {"updated_at": timeutils.utcnow()}, steps_to_update
+            self.context,
+            {},
+            {"updated_at": timeutils.utcnow()},
+            steps_data.values(),
         )
 
-        if steps:
-            LOG.info(f"({strategy_type}) Finished sending steps to orchestrate")
+        LOG.info(f"({strategy_type}) Finished sending steps to orchestrate")
 
     def _verify_pending_steps(self, strategy_type, max_parallel_subclouds):
         """Verifies if there are any steps that were not updated in the threshold

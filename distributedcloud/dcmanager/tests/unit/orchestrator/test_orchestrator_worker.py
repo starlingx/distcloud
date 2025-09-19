@@ -72,6 +72,9 @@ class BaseTestOrchestratorWorker(base.DCManagerTestCase):
             fake_strategy.create_fake_strategy_step(self.ctx, self.subclouds[3].id),
         )
         self.steps_id = set([step.id for step in self.steps])
+        self.steps_data = {
+            subcloud.name: step.id for subcloud, step in zip(self.subclouds, self.steps)
+        }
 
 
 class TestOrchestratorWorker(BaseTestOrchestratorWorker):
@@ -103,36 +106,42 @@ class TestOrchestratorWorkerOrchestrate(BaseTestOrchestratorWorker):
         should be set and the orchestration thread started.
         """
 
-        self.orchestrator_worker.orchestrate(self.steps_id, self.strategy.type)
+        self.orchestrator_worker.orchestrate(self.steps_data, self.strategy.type)
 
         self.mock_log.info(
-            f"({self.strategy.type}) Orchestration starting with steps: {self.steps_id}"
+            f"({self.strategy.type}) Orchestration starting with steps: "
+            f"{list(self.steps_data.keys())}"
         )
         self.mock_scheduler.ThreadGroupManager().start.assert_called_once()
         self.assertEqual(self.orchestrator_worker.strategy_type, self.strategy.type)
-        self.assertEqual(self.orchestrator_worker.steps_received, self.steps_id)
+        self.assertEqual(
+            self.orchestrator_worker.steps_received, set(self.steps_data.values())
+        )
         self.assertIsNotNone(self.orchestrator_worker._last_update)
 
     def test_orchestrate_with_active_strategy(self):
         """Test orchestrate with active strategy
 
         When there is an active strategy, the self.strategy_type is set and the
-        orchestration thread is running, so only the steos_received is updated.
+        orchestration thread is running, so only the steps_received is updated.
         """
 
         # Force the strategy_type to be set so the orchestration is identified as
         # running
         self.orchestrator_worker.strategy_type = self.strategy.type
-        steps_id = [self.steps[0].id]
+        steps_data = {self.subclouds[0].name: self.steps[0].id}
 
-        self.orchestrator_worker.orchestrate(steps_id, self.strategy.type)
+        self.orchestrator_worker.orchestrate(steps_data, self.strategy.type)
 
         self.mock_log.info(
-            f"({self.strategy.type}) New steps were received for processing: {steps_id}"
+            f"({self.strategy.type}) New steps were received for processing: "
+            f"{list(steps_data.keys())}"
         )
         self.mock_scheduler.ThreadGroupManager().start.assert_not_called()
         self.assertEqual(self.orchestrator_worker.strategy_type, self.strategy.type)
-        self.assertEqual(self.orchestrator_worker.steps_received, set(steps_id))
+        self.assertEqual(
+            self.orchestrator_worker.steps_received, set(steps_data.values())
+        )
 
 
 class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):

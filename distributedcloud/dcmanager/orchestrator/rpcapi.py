@@ -110,11 +110,11 @@ class ManagerOrchestratorWorkerClient(object):
             client = self._client
         return client.call(ctxt, method, **kwargs)
 
-    def orchestrate(self, ctxt, steps_id, strategy_type):
+    def orchestrate(self, ctxt, steps_data, strategy_type):
         return self.call(
             ctxt,
             self.make_msg(
-                "orchestrate", steps_id=steps_id, strategy_type=strategy_type
+                "orchestrate", steps_data=steps_data, strategy_type=strategy_type
             ),
         )
 

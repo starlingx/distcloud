@@ -1264,9 +1264,7 @@ class TestOrchestratorManagerStrategyMonitoring(BaseTestOrchestratorManager):
                 f"({self.strategy.type}) 3 pending steps were found, start processing"
             ),
             mock.call.info(f"({self.strategy.type}) Sending 2 steps to orchestrate"),
-            mock.call.info(
-                f"({self.strategy.type}) Sending final 1 steps to orchestrate"
-            ),
+            mock.call.info(f"({self.strategy.type}) Sending 1 steps to orchestrate"),
             mock.call.info(
                 f"({self.strategy.type}) Finished sending steps to orchestrate"
             ),

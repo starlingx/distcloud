@@ -174,12 +174,20 @@ class OrchestratorWorker(object):
                     self.context, self.steps_to_process, last_update_threshold
                 )
 
-    def orchestrate(self, steps_id, strategy_type):
+    def orchestrate(self, steps_data, strategy_type):
+        # The data received is a list of tuples containing the subcloud name and step id
+        subcloud_names = list(steps_data.keys())
+        steps_id = set(steps_data.values())
+
         if self.strategy_type is None:
-            LOG.info(f"({strategy_type}) Orchestration starting with steps: {steps_id}")
+            LOG.info(
+                f"({strategy_type}) Orchestration starting with steps: {subcloud_names}"
+            )
             # If the strategy does not exist, set the steps to process directly
             with self.steps_lock:
-                self.steps_received = set(steps_id)
+                # The queries are managed through the step's id instead of the subcloud
+                # name
+                self.steps_received = steps_id
             self.strategy_type = strategy_type
             self.thread_group_manager.start(self.orchestration_thread)
             self._last_update = timeutils.utcnow()
@@ -188,7 +196,8 @@ class OrchestratorWorker(object):
             # that, if the strategy is already being tracked in the worker, only the
             # steps needs to be extended
             LOG.info(
-                f"({strategy_type}) New steps were received for processing: {steps_id}"
+                f"({strategy_type}) New steps were received for processing: "
+                f"{subcloud_names}"
             )
             # When the strategy exists, the steps should not be set directly to avoid
             # concurrency issues.

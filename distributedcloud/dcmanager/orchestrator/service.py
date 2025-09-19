@@ -208,9 +208,9 @@ class DCManagerOrchestratorWorkerService(service.Service):
         super().stop()
 
     @request_context
-    def orchestrate(self, context, steps_id, strategy_type):
+    def orchestrate(self, context, steps_data, strategy_type):
         LOG.info(f"Handling orchestrate request for strategy of type {strategy_type}")
-        return self.orchestrator_worker.orchestrate(steps_id, strategy_type)
+        return self.orchestrator_worker.orchestrate(steps_data, strategy_type)
 
     @request_context
     def stop_processing(self, context):
