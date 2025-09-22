@@ -67,15 +67,11 @@ class BaseStrategy(object):
     def pre_apply_setup(self, strategy):
         """Subclass can override this method"""
 
-    def _post_delete_teardown(self):
-        """Cleanup code executed once after deleting a strategy"""
+    def teardown(self):
+        """Cleanup code executed once after finishing a strategy"""
         if self._setup:
-            LOG.info("(%s) BaseStrategy Post-Delete Teardown" % self.update_type)
+            LOG.info("(%s) BaseStrategy Teardown" % self.update_type)
             self._setup = False
-            self.post_delete_teardown()
-
-    def post_delete_teardown(self):
-        """Subclass can override this method"""
 
     @staticmethod
     def get_ks_client(region_name: str = None) -> KeystoneClient:
