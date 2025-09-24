@@ -16,6 +16,7 @@
 import collections
 from datetime import datetime
 import functools
+import multiprocessing
 import os
 import random
 import threading
@@ -300,20 +301,54 @@ def get_ssl_cert_ca_file():
     return os.path.join(consts.SSL_CERT_CA_DIR, consts.CERT_CA_FILE_DEBIAN)
 
 
-def send_subcloud_shutdown_signal(subcloud_name):
-    """Sends a shutdown signal to a Redfish controlled subcloud.
+def _power_off_wrapper(
+    subcloud_name: str,
+    rvmc_config_file: str,
+    log: logging,
+    result_queue: multiprocessing.Queue,
+):
+    """Wrapper function to run in separate process and return result via queue."""
+    try:
+        rvmc.power_off(subcloud_name, rvmc_config_file, log)
+        result_queue.put(("success", None))
+    except Exception as e:
+        error_details = (e.__class__.__name__, str(e))
+        result_queue.put(("error", error_details))
 
-    :param subcloud_name: the name of the subcloud to be shut down
-    :type subcloud_name: str
-    """
-    # All logs are expected to originate from the rvmc module,
-    # so the log churn from the 'redfish.rest.v1' module is disabled.
+
+def send_subcloud_shutdown_signal(subcloud_name: str):
+    """Runs send_subcloud_shutdown_signal with direct process control."""
+
+    timeout = consts.TIMEOUT_FOR_SUBCLOUD_SHUTDOWN
     logging.getLogger("redfish.rest.v1").setLevel(logging.CRITICAL)
-
     rvmc_config_file = os.path.join(
         consts.ANSIBLE_OVERRIDES_PATH, subcloud_name, consts.RVMC_CONFIG_FILE_NAME
     )
-    rvmc.power_off(subcloud_name, rvmc_config_file, LOG)
+
+    result_queue = multiprocessing.Queue()
+    process = multiprocessing.Process(
+        target=_power_off_wrapper,
+        args=(subcloud_name, rvmc_config_file, LOG, result_queue),
+    )
+
+    process.start()
+    process.join(timeout=timeout)
+
+    if process.is_alive():
+        # If the process is still alive, it means it has timed out
+        # Try to send a SIGTERM to allow cleanup and then a
+        # SIGKILL if it still didn't terminated itself
+        process.terminate()
+        process.join(timeout=2)
+        if process.is_alive():
+            process.kill()
+            process.join()
+
+        raise TimeoutError(f"Shutting down subcloud timed out after {timeout} seconds")
+
+    status, result = result_queue.get_nowait()
+    if status != "success":
+        raise RuntimeError(result)
 
 
 def subcloud_has_dcagent(software_version: str):
