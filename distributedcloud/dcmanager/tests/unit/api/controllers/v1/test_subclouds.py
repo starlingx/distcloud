@@ -1989,7 +1989,10 @@ class TestSubcloudsPatchWithRename(BaseTestSubcloudsPatch):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "new name must contain alphabetic characters",
+            "Invalid name: must consist of lowercase alphanumeric "
+            "characters or '-', must start and end with an "
+            "alphanumeric character, and may contain '.' to "
+            "separate valid segments.",
         )
 
     def test_patch_with_rename_fails_with_new_name_as_current_name(self):

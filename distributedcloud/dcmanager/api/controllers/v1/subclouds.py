@@ -923,7 +923,13 @@ class SubcloudsController(object):
 
                 # Validates new name
                 if not utils.is_subcloud_name_format_valid(new_subcloud_name):
-                    pecan.abort(400, _("new name must contain alphabetic characters"))
+                    error_msg = (
+                        "Invalid name: must consist of lowercase alphanumeric "
+                        "characters or '-', must start and end with an "
+                        "alphanumeric character, and may contain '.' to "
+                        "separate valid segments."
+                    )
+                    pecan.abort(400, _(error_msg))
 
                 # Checks if new subcloud name is the same as the current subcloud
                 if new_subcloud_name == subcloud.name:
