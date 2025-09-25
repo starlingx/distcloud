@@ -2999,7 +2999,10 @@ class SubcloudManager(manager.Manager):
             keyring.get_password("CGCS", "admin")
         )
 
-        if subcloud_region_name:
+        # The factory-installed region name is not expected to match the
+        # subclouds's region name stored in the system controller, so we don't
+        # add the following override for factory restore.
+        if subcloud_region_name and auto_restore_mode != "factory":
             payload["override_values"]["expected_region_name"] = subcloud_region_name
 
         if payload.get("backup_values"):

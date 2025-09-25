@@ -210,10 +210,10 @@ class SubcloudEnrollmentInit(object):
             completion_script = os.path.join(scripts_dir, "99-completion-event")
             with open(completion_script, "w") as f:
                 f.write(
-                    """#!/bin/bash
+                    f"""#!/bin/bash
         echo "$(date '+%F %H:%M:%S'): INFO: All custom scripts completed successfully"
         tmp_file=$(mktemp /tmp/ipmi_event_XXXXXX.txt)
-        echo "0x04 0xF0 0x01 0x6f 0xff 0xff 0xe6 # \"Custom complete\"" > "$tmp_file"
+        echo "{consts.IPMI_CUSTOM_COMPLETE_EVENT}" > "$tmp_file"
         ipmitool sel add "$tmp_file" 2>/dev/null
         rm -f "$tmp_file"
         """
