@@ -324,6 +324,7 @@ ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK = (
 )
 
 ENROLL_INIT_SEED_ISO_NAME = "seed.iso"
+AUTO_RESTORE_SEED_ISO_NAME = "auto-restore-seed.iso"
 
 ANSIBLE_SUBCLOUD_ENROLL_INIT_PLAYBOOK = (
     "/usr/share/ansible/stx-ansible/playbooks/enroll_init.yml"

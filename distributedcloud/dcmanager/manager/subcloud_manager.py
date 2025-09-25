@@ -34,6 +34,7 @@ import threading
 import time
 from typing import Optional
 
+from eventlet.green import subprocess
 from eventlet import greenpool
 from fm_api import constants as fm_const
 from fm_api import fm_api
@@ -2476,11 +2477,242 @@ class SubcloudManager(manager.Manager):
             )
             raise
 
+    def _create_auto_restore_user_data(self, temp_dir: str, subcloud_name: str) -> None:
+        """Create cloud-init user-data file for auto-restore
+
+        The seed iso will be mounted into the subcloud and the backup archive and
+        restore override values will be copied into the SUBCLOUD_AUTO_RESTORE_DIR.
+        Then the dc-auto-restore service is started, triggering the auto-restore
+        operation inside the subcloud.
+        """
+        runcmd = [
+            [
+                "/bin/bash",
+                "-c",
+                "echo $(date): Starting auto-restore from seed ISO",
+            ],
+            ["mkdir", "-p", "/mnt/seed-iso"],
+            ["mount", "LABEL=CIDATA", "/mnt/seed-iso"],
+            [
+                "cp",
+                "-r",
+                "/mnt/seed-iso/auto-restore",
+                f"{consts.SUBCLOUD_AUTO_RESTORE_DIR}",
+            ],
+            [
+                "/bin/bash",
+                "-c",
+                f"if [ ! -f {consts.SUBCLOUD_AUTO_RESTORE_DIR}/"
+                "backup_restore_values.yml ]; then "
+                "echo 'ERROR: backup_restore_values.yml not found'; "
+                "exit 1; fi",
+            ],
+            [
+                "/bin/bash",
+                "-c",
+                "echo 'Auto-restore files copied:'; "
+                f"ls -la {consts.SUBCLOUD_AUTO_RESTORE_DIR}",
+            ],
+            ["umount", "/mnt/seed-iso"],
+            ["rmdir", "/mnt/seed-iso"],
+            [
+                "/bin/bash",
+                "-c",
+                "echo 'Starting auto-restore service'; "
+                "systemctl start dc-auto-restore.service",
+            ],
+            [
+                "/bin/bash",
+                "-c",
+                "echo $(date): Auto-restore seed processing completed successfully",
+            ],
+        ]
+        user_data_content = {
+            "network": {"config": "disabled"},
+            "runcmd": runcmd,
+            "cloud_config_modules": [["runcmd", "always"]],
+            "cloud_final_modules": [["scripts-user", "always"]],
+        }
+
+        user_data_file = os.path.join(temp_dir, "user-data")
+        with open(user_data_file, "w", encoding="utf-8") as f:
+            f.write("#cloud-config\n")
+            yaml.dump(user_data_content, f, default_flow_style=False, sort_keys=False)
+
+        LOG.info(f"Created user-data for auto-restore seed ISO for {subcloud_name}")
+
+    def _create_auto_restore_meta_data(self, temp_dir: str, subcloud_name: str) -> None:
+        meta_data_content = {"instance-id": f"{subcloud_name}"}
+
+        meta_data_file = os.path.join(temp_dir, "meta-data")
+        with open(meta_data_file, "w", encoding="utf-8") as f:
+            yaml.dump(meta_data_content, f, default_flow_style=False)
+
+        LOG.info(f"Created meta-data for auto-restore seed ISO for {subcloud_name}")
+
+    def _generate_auto_restore_seed_iso(
+        self, subcloud: Subcloud, overrides_file: str, payload: dict
+    ) -> str:
+        try:
+            software_version = str(payload.get("software_version"))
+            www_root = os.path.join("/opt/platform/iso", software_version)
+            iso_dir_path = os.path.join(www_root, "nodes", subcloud.name)
+            iso_output_path = os.path.join(
+                iso_dir_path, dccommon_consts.AUTO_RESTORE_SEED_ISO_NAME
+            )
+
+            if not os.path.isdir(www_root):
+                os.mkdir(www_root, 0o755)
+            if not os.path.isdir(iso_dir_path):
+                os.makedirs(iso_dir_path, 0o755, exist_ok=True)
+            elif os.path.exists(iso_output_path):
+                # Clean up iso file if it already exists.
+                LOG.info(
+                    f"Found preexisting seed iso for subcloud {subcloud.name}, "
+                    "cleaning up"
+                )
+                os.remove(iso_output_path)
+
+            LOG.info(
+                f"Generating auto-restore seed ISO for {subcloud.name}: "
+                f"{iso_output_path}"
+            )
+
+            # Create the cloud-init ISO structure in a single temp directory
+            with tempfile.TemporaryDirectory(
+                prefix=f".{subcloud.name}",
+                dir=self._get_auto_restore_temp_dir_location(subcloud, payload),
+            ) as temp_iso_dir:
+                self._create_auto_restore_user_data(temp_iso_dir, subcloud.name)
+                self._create_auto_restore_meta_data(temp_iso_dir, subcloud.name)
+
+                self._stage_auto_restore_files(
+                    Path(temp_iso_dir), Path(overrides_file), payload, subcloud
+                )
+
+                gen_seed_iso_command = [
+                    "genisoimage",
+                    "-o",
+                    iso_output_path,
+                    "-volid",
+                    "CIDATA",
+                    "-untranslated-filenames",
+                    "-joliet",
+                    "-rock",
+                    "-iso-level",
+                    "2",
+                    temp_iso_dir,
+                ]
+
+                LOG.info(f"Running auto-restore ISO generation: {gen_seed_iso_command}")
+                result = subprocess.run(
+                    gen_seed_iso_command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+
+                output = result.stdout.decode("utf-8").replace("\n", ", ")
+
+                if result.returncode == 0:
+                    LOG.info(
+                        "Successfully generated auto-restore seed ISO for %s: "
+                        "returncode: %s, output: %s",
+                        subcloud.name,
+                        result.returncode,
+                        output,
+                    )
+                    return iso_output_path
+
+                LOG.error(
+                    "Failed to generate auto-restore seed ISO for %s: "
+                    "returncode: %s, output: %s",
+                    subcloud.name,
+                    result.returncode,
+                    output,
+                )
+                return None
+
+        except Exception as e:
+            LOG.exception(
+                f"Exception generating auto-restore seed ISO for {subcloud.name}: {e}"
+            )
+            return None
+
+    def _cleanup_auto_restore_seed_iso(self, iso_path: str) -> None:
+        try:
+            if iso_path and os.path.exists(iso_path):
+                os.remove(iso_path)
+                LOG.info(f"Cleaned up auto-restore seed ISO: {iso_path}")
+        except Exception as e:
+            LOG.warning(f"Failed to cleanup auto-restore seed ISO {iso_path}: {e}")
+
+    def _create_rvmc_config_for_seed_iso(
+        self, subcloud: Subcloud, payload: dict
+    ) -> str:
+        override_path = os.path.join(
+            dccommon_consts.ANSIBLE_OVERRIDES_PATH, subcloud.name
+        )
+
+        if not os.path.exists(override_path):
+            os.makedirs(override_path, 0o755)
+
+        sysinv_client = SysinvClient(
+            dccommon_utils.get_region_one_name(),
+            endpoint_cache.EndpointCache.get_admin_session(),
+        )
+
+        https_enabled = sysinv_client.get_system().capabilities.get(
+            "https_enabled", False
+        )
+        subcloud_primary_oam_ip_family = utils.get_primary_oam_address_ip_family(
+            subcloud
+        )
+        image_base_url = SubcloudInstall.get_image_base_url(
+            https_enabled, sysinv_client, subcloud_primary_oam_ip_family
+        )
+
+        install_values = payload.get("install_values", {})
+        bmc_values = {
+            "bmc_username": install_values.get("bmc_username"),
+            "bmc_password": install_values.get("bmc_password"),
+            "bmc_address": install_values.get("bmc_address"),
+            "image": os.path.join(
+                image_base_url,
+                "iso",
+                payload["software_version"],
+                "nodes",
+                subcloud.name,
+                dccommon_consts.AUTO_RESTORE_SEED_ISO_NAME,
+            ),
+        }
+
+        SubcloudInstall.create_rvmc_config_file(override_path, bmc_values)
+
+        rvmc_config_path = os.path.join(
+            override_path, dccommon_consts.RVMC_CONFIG_FILE_NAME
+        )
+        LOG.info(
+            "Created RVMC config for auto-restore seed ISO for "
+            f"subcloud {subcloud.name}: {rvmc_config_path}"
+        )
+        return rvmc_config_path
+
     def _restore_subcloud_backup(self, context, payload, subcloud):
         log_file = (
             os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
             + "_playbook_output.log"
         )
+
+        bmc_access_only = True
+        seed_iso_path = None
+
+        if payload.get("factory"):
+            auto_restore_mode = "factory"
+        elif payload.get("auto"):
+            auto_restore_mode = "auto"
+        else:
+            auto_restore_mode = None
+            bmc_access_only = False
 
         # To get the bootstrap_address for the subcloud, we considered
         # the following order:
@@ -2522,15 +2754,6 @@ class SubcloudManager(manager.Manager):
                 subcloud, bootstrap_address=bootstrap_address
             )
 
-            bmc_access_only = True
-            if payload.get("factory"):
-                auto_restore_mode = "factory"
-            elif payload.get("auto"):
-                auto_restore_mode = "auto"
-            else:
-                auto_restore_mode = None
-                bmc_access_only = False
-
             # Install wipe_osds parameter is required to determine if
             # the OSDs should be wiped during restore when --with-install
             # subcommand is provided.
@@ -2548,6 +2771,29 @@ class SubcloudManager(manager.Manager):
                 install_wipe_osds,
                 subcloud_region_name=subcloud.region_name,
             )
+
+            # Handle auto-restore without install using seed ISO
+            if auto_restore_mode == "auto" and not payload.get("with_install"):
+                LOG.info(
+                    f"Performing auto-restore without install for {subcloud.name} "
+                    f"using seed ISO approach"
+                )
+
+                seed_iso_path = self._generate_auto_restore_seed_iso(
+                    subcloud, overrides_file, payload
+                )
+
+                if not seed_iso_path:
+                    raise Exception("Failed to generate auto-restore seed ISO")
+
+                data_install = json.loads(subcloud.data_install)
+                if payload.get("install_values"):
+                    payload.get("install_values").update(data_install)
+                else:
+                    payload["install_values"] = data_install
+
+                self._create_rvmc_config_for_seed_iso(subcloud, payload)
+
             restore_command = self.compose_backup_restore_command(
                 subcloud.name, subcloud_inventory_file, auto_restore_mode
             )
@@ -2626,14 +2872,19 @@ class SubcloudManager(manager.Manager):
             if not install_success:
                 return subcloud, False
 
-        success = self._run_subcloud_backup_restore_playbook(
-            subcloud, restore_command, context, log_file, auto_restore_mode
-        )
+        try:
+            success = self._run_subcloud_backup_restore_playbook(
+                subcloud, restore_command, context, log_file, auto_restore_mode
+            )
 
-        if success:
-            utils.delete_subcloud_inventory(overrides_file)
+            if success:
+                utils.delete_subcloud_inventory(overrides_file)
 
-        return subcloud, success
+            return subcloud, success
+
+        finally:
+            if seed_iso_path:
+                self._cleanup_auto_restore_seed_iso(seed_iso_path)
 
     @staticmethod
     def _build_subcloud_operation_notice(
