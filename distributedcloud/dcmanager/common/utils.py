@@ -814,7 +814,9 @@ def get_region_from_subcloud_address(payload):
             REGION_VALUE_CMD,
         ]
 
-        task = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
+        task = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=5).decode(
+            "utf-8"
+        )
         if len(task) < 1:
             err_cause = "Malformed subcloud region"
             return subcloud_region, err_cause
