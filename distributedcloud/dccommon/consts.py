@@ -342,3 +342,5 @@ SUBCLOUD_FEED_PATH = "/var/www/pages/feed"
 
 CLOUD_INIT_CONFIG = "cloud_init_config"
 PLATFORM_RECONFIGURE_FILE_NAME = "10-platform-reconfig"
+
+TIMEOUT_FOR_SUBCLOUD_SHUTDOWN = 60

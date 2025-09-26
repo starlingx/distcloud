@@ -1520,8 +1520,12 @@ class SubcloudManager(manager.Manager):
                 return
 
             if subcloud.deploy_status == consts.DEPLOY_STATE_ABORTING_INSTALL:
-                # Send shutdown signal to subcloud
+                LOG.info(f"Sending shutdown signal to subcloud {subcloud.name}")
                 dccommon_utils.send_subcloud_shutdown_signal(subcloud.name)
+                LOG.info(f"Shutdown signal sent to subcloud {subcloud.name}")
+            LOG.info(f"Successfully aborted deployment of {subcloud.name}")
+        except TimeoutError:
+            LOG.warning(f"Subcloud deploy abort timed out for subcloud {subcloud.name}")
         except Exception as ex:
             LOG.error(
                 "Subcloud deploy abort failed for subcloud %s: %s"
@@ -1532,7 +1536,6 @@ class SubcloudManager(manager.Manager):
             )
             # exception is logged above
             raise ex
-        LOG.info("Successfully aborted deployment of %s" % subcloud.name)
         utils.update_abort_status(context, subcloud.id, subcloud.deploy_status)
 
     def subcloud_deploy_resume(
