@@ -38,6 +38,11 @@ FAKE_SUBCLOUD_RELEASES_DEPLOYED = [
     {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
 ]
 
+FAKE_SUBCLOUD_RELEASES_DEPLOYING = [
+    {"release_id": "starlingx-8.0.0", "state": "deployed", "sw_version": "8.0.0"},
+    {"release_id": "starlingx-9.0.0", "state": "deploying", "sw_version": "9.0.0"},
+]
+
 FAKE_SUBCLOUD_RELEASES_AVAILABLE = [
     {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
     {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
@@ -61,7 +66,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.on_success_state = consts.STRATEGY_STATE_SW_INSTALL_LICENSE
         self.on_success_state_patch = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
-        self.on_success_state_deployed = consts.STRATEGY_STATE_COMPLETE
+        self.on_success_state_complete = consts.STRATEGY_STATE_COMPLETE
         self.on_success_state_available = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
         self.on_success_state_rollback = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
         self.on_success_state_delete_only = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
@@ -99,7 +104,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_DEPLOYED
 
-        self._setup_and_assert(self.on_success_state_deployed)
+        self._setup_and_assert(self.on_success_state_complete)
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -175,7 +180,8 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
         self._assert_error(
             f"{self.current_state}: Failed for subcloud {self.subcloud.name}: "
-            "sw-upgrade strategy is in an invalid state. State: building"
+            "sw-upgrade strategy is currently executing and a new strategy cannot "
+            "be created. State: building"
         )
 
         self.vim_client.get_current_strategy.assert_called_once()
@@ -199,8 +205,8 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         self.vim_client.delete_strategy.assert_not_called()
         self.software_client.list.assert_not_called()
 
-    def test_pre_check_failed_not_prestaged(self):
-        """Test pre-check when the API call fails release data not prestaged."""
+    def test_pre_check_failed_not_deployed_regionone(self):
+        """Test pre-check when the release is not deployed in RegionOne."""
 
         # No releases in state deployed
         self.mock_read_from_cache.return_value = []
@@ -213,7 +219,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
-        self.software_client.list.assert_called_once()
+        self.assertFalse(self.software_client.list.called)
 
     def test_pre_check_fail_with_vim_client_exception(self):
         """Test pre-check fail with vim client exception"""
@@ -283,6 +289,7 @@ class TestPreCheckState(TestSoftwareOrchestrator):
         mock_sysinv_client.return_value.get_system.return_value.system_mode = (
             consts.SYSTEM_MODE_SIMPLEX
         )
+        self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_DEPLOYING
 
         self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
 
@@ -294,7 +301,28 @@ class TestPreCheckState(TestSoftwareOrchestrator):
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
-        self.software_client.list.assert_not_called()
+        self.software_client.list.assert_called()
+
+    def test_pre_check_success_with_extra_args_rollback_retry(self):
+        """Test pre-check success with rollback extra args"""
+
+        mock_sysinv_client = self._mock_object(BaseState, "get_sysinv_client")
+        mock_sysinv_client.return_value.get_system.return_value.system_mode = (
+            consts.SYSTEM_MODE_SIMPLEX
+        )
+        self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_DEPLOYED
+
+        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_ROLLBACK: True}
+        )
+
+        self._setup_and_assert(self.on_success_state_complete)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
+        self.software_client.list.assert_called()
 
     def test_pre_check_success_with_extra_args_delete_only(self):
         """Test pre-check success with delete only extra args"""

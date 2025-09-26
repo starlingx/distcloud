@@ -40,6 +40,7 @@ class PreCheckState(BaseState):
             next_state=consts.STRATEGY_STATE_SW_INSTALL_LICENSE,
             region_name=region_name,
         )
+        self._subcloud_releases = None
 
     def perform_state_action(self, strategy_step):
         """Pre check region status"""
@@ -70,6 +71,10 @@ class PreCheckState(BaseState):
 
         # Strategy format: {strategy_name: strategy_state}
         if strategy and strategy.get(vim.STRATEGY_NAME_SW_USM):
+            self.info_log(
+                strategy_step,
+                f"Subcloud has an existing {vim.STRATEGY_NAME_SW_USM} strategy.",
+            )
             # Check state and handle accordingly
             self._handle_sw_deploy_strategy(
                 vim_client,
@@ -87,38 +92,24 @@ class PreCheckState(BaseState):
         extra_args = utils.get_sw_update_strategy_extra_args(self.context)
 
         if self._validate_extra_args_rollback(extra_args, strategy_step):
-            self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
             return self.next_state
-        elif extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
+
+        if extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
+            self.info_log(strategy_step, "Delete only requested.")
             self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
             return self.next_state
 
         release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
-        try:
-            self.info_log(
-                strategy_step, f"Check prestaged data for release: {release_id}"
-            )
-            # Get the release with release_id and state == deployed in
-            # RegionOne releases
-            regionone_deployed_release = self._read_from_cache(
-                cache_specifications.REGION_ONE_RELEASE_USM_CACHE_TYPE,
-                release_id=release_id,
-                state=software_v1.DEPLOYED,
-            )
-            self.debug_log(
-                strategy_step, f"RegionOne release: {regionone_deployed_release}"
-            )
-            software_client = self.get_software_client(self.region_name)
-            subcloud_releases = software_client.list()
-            self.debug_log(strategy_step, f"Subcloud releases: {subcloud_releases}")
-        except Exception as exc:
-            details = "Subcloud software list failed."
-            self.handle_exception(
-                strategy_step,
-                details,
-                exceptions.SoftwarePreCheckFailedException,
-                exc=exc,
-            )
+
+        # Get the release with release_id and state == deployed in RegionOne releases
+        regionone_deployed_release = self._read_from_cache(
+            cache_specifications.REGION_ONE_RELEASE_USM_CACHE_TYPE,
+            release_id=release_id,
+            state=software_v1.DEPLOYED,
+        )
+        self.debug_log(
+            strategy_step, f"RegionOne deployed release: {regionone_deployed_release}"
+        )
 
         # Check if the release is deployed in RegionOne
         if not regionone_deployed_release:
@@ -133,10 +124,10 @@ class PreCheckState(BaseState):
         if strategy_step.subcloud.software_version == utils.extract_version(release_id):
             self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
 
+        self.info_log(strategy_step, f"Check prestaged data for release: {release_id}")
         self._check_prestaged_data(
             strategy_step,
             release_id,
-            subcloud_releases,
         )
 
         return self.next_state
@@ -157,7 +148,10 @@ class PreCheckState(BaseState):
                 )
         elif strategy_state in INVALID_STRATEGY_STATES:
             # If the strategy is in an invalid state, abort orchestration
-            details = f"{vim.STRATEGY_NAME_SW_USM} strategy is in an invalid state."
+            details = (
+                f"{vim.STRATEGY_NAME_SW_USM} strategy is currently executing and "
+                "a new strategy cannot be created."
+            )
             self.handle_exception(
                 strategy_step,
                 details,
@@ -165,11 +159,43 @@ class PreCheckState(BaseState):
                 state=strategy_state,
             )
 
+    def _get_subcloud_releases(self, strategy_step) -> list:
+        """Retrieve the list of subcloud software releases.
+
+        If the releases have already been fetched and cached, returns the cached list.
+        Otherwise, fetches the list from the software client associated with the current
+        region, logs the retrieved releases, and caches the result.
+
+        Args:
+            strategy_step: The current strategy step, used for logging and exception.
+
+        Returns:
+            list: A list of subcloud software releases.
+
+        Raises:
+            SoftwarePreCheckFailedException: If subcloud software list fails.
+        """
+        if self._subcloud_releases is not None:
+            return self._subcloud_releases
+        try:
+            software_client = self.get_software_client(self.region_name)
+            self._subcloud_releases = software_client.list()
+            self.debug_log(
+                strategy_step, f"Subcloud releases: {self._subcloud_releases}"
+            )
+            return self._subcloud_releases
+        except Exception as exc:
+            self.handle_exception(
+                strategy_step,
+                "Subcloud software list failed.",
+                exceptions.SoftwarePreCheckFailedException,
+                exc=exc,
+            )
+
     def _check_prestaged_data(
         self,
         strategy_step,
         release_id,
-        subcloud_releases,
     ):
         """Check if the release with release_id is prestaged in subcloud_releases"""
 
@@ -179,6 +205,7 @@ class PreCheckState(BaseState):
                     return release
             return None
 
+        subcloud_releases = self._get_subcloud_releases(strategy_step)
         release = get_subcloud_release(subcloud_releases, release_id)
         if not release:
             details = f"Release {release_id} is not prestaged."
@@ -198,12 +225,20 @@ class PreCheckState(BaseState):
         self, strategy_step, subcloud_releases, release, release_id
     ):
         highest_release = max(
-            (r for r in subcloud_releases if r["state"] != software_v1.UNAVAILABLE),
-            key=lambda r: r["sw_version"],
+            (
+                release
+                for release in subcloud_releases
+                if release["state"] != software_v1.UNAVAILABLE
+            ),
+            key=lambda release: release["sw_version"],
         )
         highest_deployed_release = max(
-            (r for r in subcloud_releases if r["state"] == software_v1.DEPLOYED),
-            key=lambda r: r["sw_version"],
+            (
+                release
+                for release in subcloud_releases
+                if release["state"] == software_v1.DEPLOYED
+            ),
+            key=lambda release: release["sw_version"],
         )
 
         # If the software audit did not run due to an invalid deploy_status,
@@ -223,21 +258,54 @@ class PreCheckState(BaseState):
     def _validate_extra_args_rollback(
         self, extra_args: dict, strategy_step: str
     ) -> bool:
-        """Validate the rollback from extra args"""
-        if extra_args.get(consts.EXTRA_ARGS_ROLLBACK):
-            try:
-                sysinv_client = self.get_sysinv_client(self.region_name)
-            except Exception as exc:
-                self.handle_exception(
-                    strategy_step,
-                    "Get sysinv client failed",
-                    exceptions.SoftwarePreCheckFailedException,
-                    exc=exc,
-                )
-            if sysinv_client.get_system().system_mode != consts.SYSTEM_MODE_SIMPLEX:
-                self.handle_exception(
-                    strategy_step,
-                    "Rollback is only allowed for simplex systems",
-                    exceptions.SoftwarePreCheckFailedException,
-                )
-            return True
+        """Validate the rollback from extra args and decide next state.
+
+        If rollback requested:
+          - If ANY subcloud release is in DEPLOYING, proceed to create VIM strategy.
+          - Otherwise, there is no release to rollback
+        Returns True if rollback was requested and handled.
+        """
+        if not extra_args.get(consts.EXTRA_ARGS_ROLLBACK):
+            return False
+        try:
+            sysinv_client = self.get_sysinv_client(self.region_name)
+        except Exception as exc:
+            self.handle_exception(
+                strategy_step,
+                "Get sysinv client failed",
+                exceptions.SoftwarePreCheckFailedException,
+                exc=exc,
+            )
+        if sysinv_client.get_system().system_mode != consts.SYSTEM_MODE_SIMPLEX:
+            self.handle_exception(
+                strategy_step,
+                "Rollback is only allowed for simplex systems",
+                exceptions.SoftwarePreCheckFailedException,
+            )
+
+        subcloud_releases = self._get_subcloud_releases(strategy_step)
+
+        # VIM strategy can only rollback to a release in DEPLOYING state with a deploy
+        # status of 'start-failed', 'host-failed', or 'active-failed'.
+        # Note: the release state comes from 'software release show',
+        # and the deploy state comes from 'software deploy show'.
+        # The VIM strategy will check the deploy state when deciding if rollback is
+        # possible.
+        has_deploying = any(
+            release.get("state") == software_v1.DEPLOYING
+            for release in subcloud_releases
+        )
+
+        if has_deploying:
+            self.info_log(
+                strategy_step,
+                "Rollback requested: creating VIM rollback strategy.",
+            )
+            self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
+        else:
+            self.info_log(
+                strategy_step,
+                "Rollback requested but no release available to rollback to.",
+            )
+            self.override_next_state(consts.STRATEGY_STATE_COMPLETE)
+        return True
