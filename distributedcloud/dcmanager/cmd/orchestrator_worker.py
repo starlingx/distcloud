@@ -40,6 +40,10 @@ def main():
 
     from dcmanager.orchestrator import service as orchestrator
 
+    # Override values from /etc/dcmanager/dcmanager.conf specific
+    # to dcmanager-orchestrator:
+    CONF.set_override("max_overflow", 1200, group="database")
+
     srv = orchestrator.DCManagerOrchestratorWorkerService()
     launcher = service.launch(CONF, srv, workers=cfg.CONF.orch_worker_workers)
 

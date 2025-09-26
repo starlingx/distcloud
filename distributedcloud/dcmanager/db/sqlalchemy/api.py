@@ -1926,7 +1926,6 @@ class Connection(object):
         details=None,
         started_at=None,
         finished_at=None,
-        updated_at=None,
     ):
         with write_session() as session:
             strategy_step_ref = self.strategy_step_get(subcloud_id)
@@ -1940,8 +1939,6 @@ class Connection(object):
                 strategy_step_ref.started_at = started_at
             if finished_at is not None:
                 strategy_step_ref.finished_at = finished_at
-            if updated_at is not None:
-                strategy_step_ref.updated_at = updated_at
             strategy_step_ref.save(session)
             return strategy_step_ref
 

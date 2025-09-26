@@ -183,7 +183,7 @@ class OrchestratorManager(manager.Manager):
                     "monitoring loop"
                 )
 
-    def _create_and_send_step_batches(self, strategy_type, steps, update=False):
+    def _create_and_send_step_batches(self, strategy_type, steps):
         steps_to_orchestrate = list()
         steps_to_update = list()
 
@@ -193,6 +193,7 @@ class OrchestratorManager(manager.Manager):
 
         for step in steps:
             steps_to_orchestrate.append(step.id)
+            steps_to_update.append(step.id)
 
             if len(steps_to_orchestrate) == chunksize:
                 LOG.info(
@@ -203,8 +204,6 @@ class OrchestratorManager(manager.Manager):
                     self.context, steps_to_orchestrate, strategy_type
                 )
 
-                if update:
-                    steps_to_update.extend(steps_to_orchestrate)
                 steps_to_orchestrate = []
 
         if steps_to_orchestrate:
@@ -216,15 +215,11 @@ class OrchestratorManager(manager.Manager):
                 self.context, steps_to_orchestrate, strategy_type
             )
 
-            if update:
-                steps_to_update.extend(steps_to_orchestrate)
-
-        # When retrieving steps that were not processing, the update_at field
-        # needs to be reset to avoid it being identified in subsequent verifications
-        if update:
-            db_api.strategy_step_update_all(
-                self.context, {}, {"updated_at": timeutils.utcnow()}, steps_to_update
-            )
+        # Reset the update_at field for all subclouds that were sent for processing to
+        # avoid having them identified by the manager in its next loop.
+        db_api.strategy_step_update_all(
+            self.context, {}, {"updated_at": timeutils.utcnow()}, steps_to_update
+        )
 
         if steps:
             LOG.info(f"({strategy_type}) Finished sending steps to orchestrate")
@@ -252,7 +247,7 @@ class OrchestratorManager(manager.Manager):
                 f"({strategy_type}) {len(steps_to_process)} pending steps were found, "
                 "start processing"
             )
-            self._create_and_send_step_batches(strategy_type, steps_to_process, True)
+            self._create_and_send_step_batches(strategy_type, steps_to_process)
             return True
 
         return False
@@ -363,7 +358,7 @@ class OrchestratorManager(manager.Manager):
                         f"({strategy_type}) {len(steps)} pending steps were found, "
                         "start processing"
                     )
-                    self._create_and_send_step_batches(strategy_type, steps, True)
+                    self._create_and_send_step_batches(strategy_type, steps)
 
                 return
 
@@ -714,7 +709,7 @@ class OrchestratorManager(manager.Manager):
         self.sleep_time = self.sleep_time / 6
 
         # Send steps to be processed and start monitoring
-        self._create_and_send_step_batches(sw_update_strategy.type, steps, True)
+        self._create_and_send_step_batches(sw_update_strategy.type, steps)
         self.thread_group_manager.start(
             self.periodic_strategy_monitoring, sw_update_strategy.type
         )
