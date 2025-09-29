@@ -71,6 +71,9 @@ class BaseTestOrchestratorManager(DCManagerTestCase):
         self.subcloud2 = fake_subcloud.create_fake_subcloud(
             self.ctx, name="subcloud2", group_id=self.sc_group3.id
         )
+        self.subcloud3 = fake_subcloud.create_fake_subcloud(
+            self.ctx, name="subcloud3", group_id=self.sc_group3.id
+        )
 
         self.orchestrator_manager = orchestrator_manager.OrchestratorManager()
 
@@ -440,7 +443,6 @@ class TestOrchestratorManagerSoftwareStrategyCreate(
         Subcloud 5 is offline                   -> Not orchestrated
         """
 
-        fake_subcloud.create_fake_subcloud(self.ctx, name="subcloud3")
         fake_subcloud.create_fake_subcloud(self.ctx, name="subcloud4")
         fake_subcloud.create_fake_subcloud(self.ctx, name="subcloud5")
 
@@ -703,7 +705,7 @@ class TestOrchestratorManagerPrestageStrategyCreate(
             self.subcloud2.id, management_state=dccommon_consts.MANAGEMENT_UNMANAGED
         )
         self._update_subcloud(
-            fake_subcloud.create_fake_subcloud(self.ctx, name="subcloud3").id,
+            self.subcloud3.id,
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
         )
@@ -870,14 +872,22 @@ class TestOrchestratorManagerStrategyAbort(BaseTestOrchestratorManager):
             max_parallel_subclouds=1,
         )
         self.strategy_step1 = fake_strategy.create_fake_strategy_step(
-            self.ctx, self.subcloud1.id
+            self.ctx, self.subcloud1.id, state=consts.STRATEGY_STATE_COMPLETE
         )
         self.strategy_step2 = fake_strategy.create_fake_strategy_step(
             self.ctx, self.subcloud2.id
         )
+        self.strategy_step3 = fake_strategy.create_fake_strategy_step(
+            self.ctx, self.subcloud3.id
+        )
 
     def test_strategy_abort_succeeds(self):
-        """Test strategy abort succeeds"""
+        """Test strategy abort succeeds
+
+        When some of the strategy steps have already completed, they should have their
+        state preserved, only setting to aborted the steps that are in initial state
+        and that were sent to the workers or that are still waiting to be processed.
+        """
 
         self.orchestrator_manager.apply_sw_update_strategy(self.ctx)
         self.mock_db_api.reset_mock()
@@ -890,10 +900,16 @@ class TestOrchestratorManagerStrategyAbort(BaseTestOrchestratorManager):
         self.mock_db_api.strategy_step_abort_all_not_processing.assert_called_once()
         self.mock_db_api.sw_update_strategy_db_model_to_dict.assert_called_once()
 
-        # Subclouds after the max_parallel_subclouds that are in initial state
-        # should be updated to aborted
-        strategy_step = db_api.strategy_step_get(self.ctx, self.strategy_step2.id)
-        self.assertEqual(strategy_step.state, consts.STRATEGY_STATE_ABORTED)
+        # The first subcloud should remain in complete state as it was already
+        # processed. The second subcloud would be processing in the worker, so it should
+        # remain in initial state until the worker processes it. The third subcloud,
+        # because it is outside the max_parallel_subclouds range, should not be in any
+        # of the workers, so it should be set to aborted.
+
+        strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(strategy_steps[0].state, consts.STRATEGY_STATE_COMPLETE)
+        self.assertEqual(strategy_steps[1].state, consts.STRATEGY_STATE_INITIAL)
+        self.assertEqual(strategy_steps[2].state, consts.STRATEGY_STATE_ABORTED)
 
     def test_strategy_abort_fails_with_invalid_strategy_state(self):
         """Test strategy abort fails with invalid strategy state"""
@@ -1012,9 +1028,6 @@ class TestOrchestratorManagerStrategyMonitoring(BaseTestOrchestratorManager):
             max_parallel_subclouds=1,
         )
 
-        self.subcloud3 = fake_subcloud.create_fake_subcloud(
-            self.ctx, name="subcloud3", group_id=self.sc_group3.id
-        )
         self.strategy_step1 = fake_strategy.create_fake_strategy_step(
             self.ctx, self.subcloud1.id
         )
