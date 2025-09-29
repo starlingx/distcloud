@@ -1987,9 +1987,11 @@ class Connection(object):
                 session, max_parallel_subclouds
             )
 
+            # Only the strategy steps in initial state that were not send for processing
+            # should be updated.
             session.query(models.StrategyStep).filter(
                 models.StrategyStep.id.notin_(subquery)
-            ).update(
+            ).filter(models.StrategyStep.state == consts.STRATEGY_STATE_INITIAL).update(
                 {"state": consts.STRATEGY_STATE_ABORTED}, synchronize_session="fetch"
             )
 
