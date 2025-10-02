@@ -676,21 +676,25 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
                 response, http.client.BAD_REQUEST, error_message, index
             )
 
-    def test_post_fails_with_invalid_management_subnet(self):
-        """Test post fails with invalid management subnet
+    def test_post_fails_with_invalid_management_subnet_sx(self):
+        """Test post fails with invalid management subnet - AIO-SX
 
         The address must be a valid IP with correct mask.
 
         Scenarios:
             - Mask with only one IP address in it
-            - Inexistent mask
-            - Invalid value for IP address
+            - Mask with only two IP addresses in it
+            - Inexistent mask (same as /32)
+            - Mask with too big
+            - Other subnet value
             - Address with letters in it
             - Incomplete IP address
         """
 
         invalid_values = [
             "192.168.101.0/32",
+            "192.168.101.0/31",
+            "192.168.101.0",
             "192.168.101.0/33",
             "192.168.276.0/24",
             "192.168.206.wut/24",
@@ -704,11 +708,62 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             error_msg = "management_subnet invalid:"
 
-            if index == 1:
+            if index in (1, 2, 3):
                 error_msg = (
                     f"{error_msg} Subnet too small - must have at least 4 addresses"
                 )
-            elif index == 5:
+            elif index == 7:
+                error_msg = (
+                    "management_start_address invalid: Address must be in subnet "
+                    "192.168.204.0/24"
+                )
+            else:
+                error_msg = f"{error_msg} Invalid subnet - not a valid IP subnet"
+
+            self._assert_pecan_and_response(
+                response, http.client.BAD_REQUEST, error_msg, index
+            )
+
+    def test_post_fails_with_invalid_management_subnet_dx(self):
+        """Test post fails with invalid management subnet - AIO-DX
+
+        The address must be a valid IP with correct mask.
+
+        Scenarios:
+            - Mask with only one IP address in it
+            - Mask with only two IP addresses in it
+            - Mask with only four IP addresses in it
+            - Inexistent mask (same as /32)
+            - Mask with too big
+            - Other subnet value
+            - Address with letters in it
+            - Incomplete IP address
+        """
+
+        invalid_values = [
+            "192.168.101.0/32",
+            "192.168.101.0/31",
+            "192.168.101.0/30",
+            "192.168.101.0",
+            "192.168.101.0/33",
+            "192.168.276.0/24",
+            "192.168.206.wut/24",
+            "192.168.204/24",
+        ]
+
+        self.params["system_mode"] = "duplex"
+
+        for index, invalid_value in enumerate(invalid_values, start=1):
+            self.params["management_subnet"] = invalid_value
+
+            response = self._send_request()
+
+            error_msg = "management_subnet invalid:"
+            if index in (1, 2, 3, 4):
+                error_msg = (
+                    f"{error_msg} Subnet too small - must have at least 8 addresses"
+                )
+            elif index == 8:
                 error_msg = (
                     "management_start_address invalid: Address must be in subnet "
                     "192.168.204.0/24"
