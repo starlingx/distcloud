@@ -41,9 +41,10 @@ from dcmanager.orchestrator.strategies.software import SoftwareStrategy
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
-DEFAULT_SLEEP_TIME_IN_SECONDS = 10
-DELETE_COUNTER = 18
-MANAGER_SLEEP_TIME_IN_SECONDS = 30
+# The thread pool size needs to be a bit larger than the equal division between workers
+# to maintain the execution up to max_parallel_subclouds when a first batch is
+# completing.
+THREAD_POOL_SIZE = consts.MAX_PARALLEL_SUBCLOUDS_LIMIT // (CONF.orch_worker_workers - 1)
 
 
 class OrchestratorWorker(object):
@@ -62,7 +63,8 @@ class OrchestratorWorker(object):
         # The additional thread is used to account for the execution of the
         # orchestration thread itself.
         self.thread_group_manager = scheduler.ThreadGroupManager(
-            thread_pool_size=(consts.MAX_PARALLEL_SUBCLOUDS_LIMIT + 1)
+            # The additional thread is used for the orchestration itself
+            thread_pool_size=(THREAD_POOL_SIZE + 1)
         )
         # Track worker created for each subcloud.
         self.subcloud_workers = dict()
@@ -79,7 +81,7 @@ class OrchestratorWorker(object):
         # Determines if the worker should not process new steps
         self._stop = threading.Event()
         # Time for the orchestration to sleep after every loop
-        self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+        self._sleep_time = consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
         # Time for the last cycle evaluation. Because the manager thread retrieves
         # the subclouds that needs to be processed every so often, the workers needs
         # to ensure the updated_at is reset after some time to avoid the manager
@@ -212,7 +214,27 @@ class OrchestratorWorker(object):
         while self._processing:
             with self.steps_lock:
                 if self.steps_received:
-                    self.steps_to_process.update(self.steps_received)
+                    available_pool = max(
+                        0, THREAD_POOL_SIZE - len(self.steps_to_process)
+                    )
+
+                    # When there is enough space in the pool, just copy the steps
+                    # received
+                    if available_pool >= len(self.steps_received):
+                        self.steps_to_process.update(self.steps_received)
+                    else:
+                        LOG.info(
+                            f"({self.strategy_type}) Orchestration received "
+                            f"{len(self.steps_received) - available_pool} more "
+                            "steps than it can handle. Discarding additional steps."
+                        )
+                        # When the worker receives more steps than it can handle, only
+                        # add up to the amount it can process
+                        if available_pool > 0:
+                            self.steps_to_process.update(
+                                list(self.steps_received)[:available_pool]
+                            )
+
                     self.steps_received.clear()
 
             # When the steps to process is empty, it means that there is no further
@@ -287,18 +309,18 @@ class OrchestratorWorker(object):
             self.steps_received.clear()
 
         self._last_update = None
-        self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+        self._sleep_time = consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
 
     def _adjust_sleep_time(self, number_of_subclouds, strategy_type):
         prev_sleep_time = self._sleep_time
 
         if number_of_subclouds <= 0:
-            new_sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+            new_sleep_time = consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
         else:
             new_sleep_time = min(
-                (DEFAULT_SLEEP_TIME_IN_SECONDS * 60)
+                (consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS * 60)
                 / min(number_of_subclouds, consts.MAX_PARALLEL_SUBCLOUDS_LIMIT),
-                DEFAULT_SLEEP_TIME_IN_SECONDS,
+                consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS,
             )
 
         if new_sleep_time != prev_sleep_time:
@@ -503,7 +525,7 @@ class OrchestratorWorker(object):
 
             # The strategy application is complete
             self.subcloud_workers.clear()
-            self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+            self._sleep_time = consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
             return
 
         # The worker is not allowed to process new steps. It should only finish the
@@ -517,7 +539,7 @@ class OrchestratorWorker(object):
             if not work_remaining:
                 # We have completed the remaining steps
                 LOG.info(f"({strategy.type}) Stopping strategy due to failure")
-                self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+                self._sleep_time = consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
 
         for step in steps:
             region = self._get_region_name(step)
@@ -526,7 +548,7 @@ class OrchestratorWorker(object):
                 self._bulk_update_subcloud_and_strategy_steps()
 
                 self.subcloud_workers.clear()
-                self._sleep_time = DEFAULT_SLEEP_TIME_IN_SECONDS
+                self._sleep_time = consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
                 self._processing = False
                 return
             if step.state == consts.STRATEGY_STATE_COMPLETE:
@@ -564,7 +586,7 @@ class OrchestratorWorker(object):
                 self._delete_subcloud_worker(region, step.subcloud_id, step.id)
             elif step.state == consts.STRATEGY_STATE_INITIAL:
                 if (
-                    strategy.max_parallel_subclouds > len(self.subcloud_workers)
+                    THREAD_POOL_SIZE > len(self.subcloud_workers)
                     and not self._stop.is_set()
                 ):
                     # Don't start upgrading this subcloud if it has been unmanaged by
@@ -634,7 +656,7 @@ class OrchestratorWorker(object):
         # Since the steps were just recently updated, the manager needs to confirm
         # all workers completed the request before proceeding, so the sleep is longer
         # to avoid unnecessary requests
-        self._sleep_time = MANAGER_SLEEP_TIME_IN_SECONDS
+        self._sleep_time = consts.ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
 
     def _do_delete_subcloud_strategy(self, strategy_type, region, step):
         """Delete the vim strategy in the subcloud"""
@@ -730,9 +752,9 @@ class OrchestratorWorker(object):
         # Wait for 180 seconds so that last 100 workers can complete their execution
         counter = 0
         while len(self.subcloud_workers) > 0:
-            time.sleep(DEFAULT_SLEEP_TIME_IN_SECONDS)
+            time.sleep(consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS)
             counter = counter + 1
-            if counter > DELETE_COUNTER:
+            if counter > consts.ORCHESTRATION_DELETE_COUNTER:
                 break
 
         # Remove the strategy from the database if all workers have completed their

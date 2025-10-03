@@ -37,10 +37,6 @@ from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import rpcapi as orchestrator_rpc_api
-from dcmanager.orchestrator.orchestrator_worker import (
-    DEFAULT_SLEEP_TIME_IN_SECONDS,
-    DELETE_COUNTER,
-)
 from dcmanager.orchestrator.validators.firmware_validator import (
     FirmwareStrategyValidator,
 )
@@ -59,7 +55,6 @@ from dcmanager.orchestrator.validators.sw_deploy_validator import (
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
-ORCHESTRATION_STRATEGY_MONITORING_INTERVAL = 30
 
 
 class OrchestratorManager(manager.Manager):
@@ -73,7 +68,7 @@ class OrchestratorManager(manager.Manager):
 
         # Used to protect strategies when an atomic read/update is required.
         self.strategy_lock = threading.Lock()
-        self.sleep_time = ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
+        self.sleep_time = consts.ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
 
         # Software and kubernetes are audited every loop and don't need to be triggered
         audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
@@ -320,7 +315,7 @@ class OrchestratorManager(manager.Manager):
                         update_type=strategy_type,
                         state=consts.SW_UPDATE_STATE_ABORTING,
                     )
-                self.sleep_time = ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
+                self.sleep_time = consts.ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
         elif strategy.state == consts.SW_UPDATE_STATE_DELETING:
             if total_steps != 0:
                 # In the worker process, the deletion step has a wait of up to 180
@@ -328,7 +323,10 @@ class OrchestratorManager(manager.Manager):
                 # of that, the threshold needs to be higher to ensure a step that is
                 # still being process is not identified as idle.
                 last_update_threshold = timeutils.utcnow() - datetime.timedelta(
-                    seconds=(DEFAULT_SLEEP_TIME_IN_SECONDS * (DELETE_COUNTER + 1))
+                    seconds=(
+                        consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
+                        * (consts.ORCHESTRATION_DELETE_COUNTER + 1)
+                    )
                 )
 
                 # If there are steps that were not deleted yet, verify if there is
@@ -356,7 +354,7 @@ class OrchestratorManager(manager.Manager):
             LOG.info(f"({strategy_type}) Subcloud strategy deleted")
             self._monitor_strategy = False
             self.delete_start_at = None
-            self.sleep_time = ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
+            self.sleep_time = consts.ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
 
     def stop(self):
         self.thread_group_manager.stop()

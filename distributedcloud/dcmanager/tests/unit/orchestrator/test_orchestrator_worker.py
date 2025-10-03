@@ -192,7 +192,7 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
         self.assertIsNone(self.orchestrator_worker._last_update)
         self.assertEqual(
             self.orchestrator_worker._sleep_time,
-            orchestrator_worker.DEFAULT_SLEEP_TIME_IN_SECONDS,
+            consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS,
         )
 
     def test_orchestration_thread_apply(self):
@@ -263,6 +263,47 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
 
         self._assert_orchestration()
         self.mock_log.info("There are no further steps to process, stopping.")
+
+    @mock.patch("dcmanager.orchestrator.orchestrator_worker.THREAD_POOL_SIZE", 1)
+    def _test_orchestrator_worker_pool(self, steps_to_process, steps_received):
+        """Base test for the orchestrator's pool"""
+
+        self.orchestrator_worker.steps_to_process = steps_to_process
+        self.orchestrator_worker.steps_received = steps_received
+
+        self.orchestrator_worker.orchestration_thread()
+
+        calls = list()
+
+        additional_steps = len(steps_to_process) - len(steps_received)
+
+        if additional_steps:
+            mock.call.info(
+                f"({self.strategy.type}) Orchestration received {additional_steps} "
+                "more steps than it can handle. Discarding additional steps."
+            )
+
+        calls.append(mock.ANY)
+        calls.append(mock.ANY)
+        self.mock_log.assert_has_calls(calls)
+
+    def test_orchestration_thread_with_new_steps_and_available_pool(self):
+        """Test orchestration thread with new steps and available pool"""
+
+        # The pool has a size of 1, so only 1 step is sent
+        self._test_orchestrator_worker_pool(set(), {self.steps[0].id})
+
+    def test_orchestration_thread_with_new_steps_and_partially_available_pool(self):
+        """Test orchestration thread with new steps and partially available pool"""
+
+        # Sending more steps than the 1 the pool can handle
+        self._test_orchestrator_worker_pool(set(), self.steps_id)
+
+    def test_orchestration_thread_with_new_steps_and_unavailable_pool(self):
+        """Test orchestration thread with new steps and unavailable pool"""
+
+        # Populate the pool with 1 step and send additional ones
+        self._test_orchestrator_worker_pool({self.steps[0].id}, self.steps_id)
 
     def test_orchestration_thread_stops_on_strategy_not_found_exception(self):
         """Test orchestration thread stops on strategy not found exception"""
@@ -371,7 +412,7 @@ class TestOrchestratorWorkerAbort(BaseTestOrchestratorWorker):
         self.mock_db_api.strategy_step_update_all.assert_called_once()
         self.assertEqual(
             self.orchestrator_worker._sleep_time,
-            orchestrator_worker.MANAGER_SLEEP_TIME_IN_SECONDS,
+            consts.ORCHESTRATION_STRATEGY_MONITORING_INTERVAL,
         )
 
 
