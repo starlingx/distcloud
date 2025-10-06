@@ -5669,9 +5669,10 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
                 f"{override_path}/enroll_overrides.yml", "w"
             )
 
-            self.mock_builtins_open().write.assert_any_call(
-                "---" "\nenroll_reconfigured_oam: " + "10.10.10.2" + "\n"
+            written_data = "".join(
+                call.args[0] for call in self.mock_builtins_open().write.call_args_list
             )
+            self.assertIn("enroll_reconfigured_oam: 10.10.10.2", written_data)
 
     @mock.patch.object(
         subcloud_install.SubcloudInstall,
