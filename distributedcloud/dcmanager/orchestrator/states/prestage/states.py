@@ -87,9 +87,15 @@ class PrestagePackagesState(BaseState):
         )
 
     def perform_state_action(self, strategy_step):
+        oam_floating_ip_dict = self.oam_floating_ip_dict.get(
+            strategy_step.subcloud.name
+        )
+        if not oam_floating_ip_dict:
+            oam_floating_ip_dict = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
+
         payload = {
             "sysadmin_password": self.extra_args["sysadmin_password"],
-            "oam_floating_ip": self.oam_floating_ip_dict[strategy_step.subcloud.name],
+            "oam_floating_ip": oam_floating_ip_dict,
             "force": self.extra_args["force"],
         }
         if self.extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
@@ -120,9 +126,15 @@ class PrestageImagesState(BaseState):
         )
 
     def perform_state_action(self, strategy_step):
+        oam_floating_ip_dict = self.oam_floating_ip_dict.get(
+            strategy_step.subcloud.name
+        )
+        if not oam_floating_ip_dict:
+            oam_floating_ip_dict = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
+
         payload = {
             "sysadmin_password": self.extra_args["sysadmin_password"],
-            "oam_floating_ip": self.oam_floating_ip_dict[strategy_step.subcloud.name],
+            "oam_floating_ip": oam_floating_ip_dict,
             "force": self.extra_args["force"],
         }
         if self.extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
