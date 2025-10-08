@@ -3205,9 +3205,10 @@ class SubcloudManager(manager.Manager):
         # Run the subcloud backup restore playbook
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
-            ansible.run_playbook(
-                log_file, restore_command, timeout=CONF.playbook_timeout
-            )
+            # The restore timeout needs to be increased a half because the default
+            # of 1h is not enough to restore a duplex subcloud running rook ceph.
+            restore_timeout = CONF.playbook_timeout * 1.5
+            ansible.run_playbook(log_file, restore_command, timeout=restore_timeout)
 
             mode_str = f"{auto_restore_mode} " if auto_restore_mode else ""
             LOG.info(f"Successfully {mode_str}restore subcloud {subcloud.name}")
