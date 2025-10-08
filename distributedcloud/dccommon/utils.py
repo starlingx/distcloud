@@ -54,6 +54,139 @@ STALE_TOKEN_DURATION_STEP = 20
 TIMEOUT_EXITCODE = 124
 
 
+class CachingWrapper:
+    """A wrapper that caches method call results of an object.
+
+    This wrapper intercepts method calls to a target object, caches their
+    results for a specified Time-To-Live (TTL), and serves them from the
+    cache.
+
+    **Caching and Concurrency Logic**
+
+    When a cached method is called:
+    1.  A cache key is generated from the method name and its arguments.
+      * If any of the method's arguments are not hashable (e.g., a `list` or `dict`),
+        a `TypeError` is caught, and the call is executed directly without any caching.
+
+    2.  The wrapper checks for a valid, non-expired cache entry. If found,
+        the cached result is returned immediately.
+
+    3.  If the entry is missing or expired, the wrapper acquires a global lock
+        to check if another thread is already regenerating this exact key.
+        * If another thread is working: The current thread becomes a
+          "waiter." It releases the lock and blocks on a `threading.Event`
+          specific to that cache key.
+        * If no thread is working: The current thread becomes the "worker."
+          It registers an `Event` for this key (so others can wait on it),
+          releases the lock, and proceeds to execute the underlying method.
+
+    4.  Once the "worker" thread completes the computation, it re-acquires the
+        lock, writes the new result and timestamp to the cache.
+
+    5.  Setting the event wakes up all "waiter" threads. The waiters then
+        re-attempt the method call, which will now find the fresh result
+        in the cache and return it.
+        * If the "worker" thread fails with an exception, it still sets the event
+          to wake up the waiters. The waiters will then re-attempt the call, and
+          one of them will become the new worker.
+
+    Args:
+        target_object (object): The object instance to wrap.
+        ttl (int, optional): The Time-To-Live for cache entries, in seconds.
+            Defaults to 60.
+    """
+
+    _cache = collections.defaultdict(dict)
+    _lock = threading.Lock()
+    _in_progress = {}
+
+    def __init__(self, target_object, ttl=60):
+        self._target = target_object
+        self._ttl = ttl
+
+    def __getattr__(self, name):
+        """Intercepts method calls, adds caching, and returns the result."""
+        try:
+            attr = getattr(self._target, name)
+        except AttributeError:
+            raise AttributeError(
+                f"'{self._target.__class__.__name__}' object has no attribute '{name}'"
+            )
+
+        if not callable(attr):
+            return attr
+
+        @functools.wraps(attr)
+        def cached_method(*args, **kwargs):
+            try:
+                # examples of cache_key:
+                # ('SysinvClient', 'get_system')
+                # ('SysinvClient', 'get_service_parameters', 'name', 'https_port')
+                cache_key = (
+                    (
+                        self._target.__class__.__name__,
+                        name,
+                    )
+                    + args
+                    + tuple(sorted(kwargs.items()))
+                )
+            except TypeError:
+                LOG.warning(
+                    f"Arguments for method '{name}' are not hashable, skipping cache."
+                )
+                return attr(*args, **kwargs)
+
+            event_to_wait_on = None
+            is_worker = False
+
+            with CachingWrapper._lock:
+                if cache_key in CachingWrapper._cache:
+                    result, timestamp = CachingWrapper._cache[cache_key]
+
+                    now = timeutils.utcnow()
+                    if (now - timestamp).total_seconds() < self._ttl:
+                        LOG.debug(f"Returning cached result for call to '{name}'")
+                        return result
+                    else:
+                        LOG.debug(f"Cache expired for call to '{name}'")
+                        del CachingWrapper._cache[cache_key]
+
+                if cache_key in CachingWrapper._in_progress:
+                    # There's already a call in progress, get the event we need to wait
+                    event_to_wait_on = CachingWrapper._in_progress[cache_key]
+                else:
+                    # There's no call in progress
+                    # Create a new event and register it so others can wait for it
+                    event_to_wait_on = threading.Event()
+                    CachingWrapper._in_progress[cache_key] = event_to_wait_on
+                    is_worker = True
+
+            if is_worker:
+                LOG.debug(f"Calling method '{name}' and caching its result (worker).")
+                try:
+                    new_result = attr(*args, **kwargs)
+                    now = timeutils.utcnow()
+                    with CachingWrapper._lock:
+                        CachingWrapper._cache[cache_key] = (new_result, now)
+                    return new_result
+                except Exception as e:
+                    LOG.error(f"Call to '{name}' failed: {e}")
+                    raise e
+                finally:
+                    with CachingWrapper._lock:
+                        if cache_key in CachingWrapper._in_progress:
+                            del CachingWrapper._in_progress[cache_key]
+                    event_to_wait_on.set()
+            else:
+                LOG.debug(f"Waiting for in-progress call to '{name}' (waiter).")
+                # event.wait() blocks until event.set() is called
+                event_to_wait_on.wait()
+                LOG.debug(f"Finished waiting. Re-fetching result for '{name}'.")
+                return cached_method(*args, **kwargs)
+
+        return cached_method
+
+
 class memoized(object):
     """Decorator.
 

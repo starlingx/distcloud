@@ -708,7 +708,8 @@ def validate_group_id(context, group_id):
 def get_sysinv_client() -> SysinvClient:
     region_name = cutils.get_region_one_name()
     admin_session = EndpointCache.get_admin_session()
-    return SysinvClient(region_name, admin_session)
+    sysinv_client = SysinvClient(region_name, admin_session)
+    return cutils.CachingWrapper(sysinv_client)
 
 
 def get_network_address_pools(network="management"):
