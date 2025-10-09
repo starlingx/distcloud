@@ -7,6 +7,7 @@ import crypt
 import os
 import tarfile
 import tempfile
+import time
 import yaml
 
 from eventlet.green import subprocess
@@ -133,30 +134,31 @@ class SubcloudEnrollmentInit(object):
     def create_enroll_override_file(self, override_path, payload, cloud_init_tarball):
         enroll_override_file = os.path.join(override_path, "enroll_overrides.yml")
 
+        # Build final content as a single dict and dump it once to avoid mis-indentation
+        enroll_overrides = (
+            payload.get("install_values", {}).get("enroll_overrides") or {}
+        )
+
+        content = {
+            "enroll_reconfigured_oam": payload.get(
+                "external_oam_floating_address"
+            ).split(",")[0]
+        }
+
+        # If no custom cloud-init provided, default ipmi_sel_event_monitoring to False
+        if (
+            cloud_init_tarball is None
+            and "ipmi_sel_event_monitoring" not in enroll_overrides
+        ):
+            enroll_overrides["ipmi_sel_event_monitoring"] = False
+
+        # Merge user overrides
+        content.update(enroll_overrides)
+
         with open(enroll_override_file, "w") as f_out_override_file:
-            f_out_override_file.write(
-                "---"
-                "\nenroll_reconfigured_oam: "
-                + payload.get("external_oam_floating_address").split(",")[0]
-                + "\n"
+            yaml.safe_dump(
+                content, f_out_override_file, default_flow_style=False, sort_keys=False
             )
-
-            enroll_overrides = payload["install_values"].get("enroll_overrides", {})
-
-            # If no custom cloud-init config is provided, disable IPMI SEL event
-            # monitoring by default.
-            if (
-                cloud_init_tarball is None
-                and "ipmi_sel_event_monitoring" not in enroll_overrides
-            ):
-                f_out_override_file.write("ipmi_sel_event_monitoring: false\n")
-
-            if enroll_overrides:
-                for k, v in enroll_overrides.items():
-                    # Properly format boolean values with yaml.dump
-                    f_out_override_file.write(
-                        f"{k}: {yaml.dump(v, default_flow_style=False).strip()}\n"
-                    )
 
     def _build_seed_user_config(self, path, iso_values):
         if not os.path.isdir(path):
@@ -176,6 +178,12 @@ class SubcloudEnrollmentInit(object):
         reconfig_script = os.path.join(enroll_utils, "enroll-init-reconfigure")
         extern_oam_gw_ip = iso_values["external_oam_gateway_address"].split(",")[0]
 
+        # Compute the epoch time only if we are updating the subcloud clock
+        enroll_timestamp_int = None
+        enroll_overrides = iso_values["install_values"].get("enroll_overrides", {})
+        if enroll_overrides.get("update_subcloud_clock") is True:
+            enroll_timestamp_int = int(time.time())
+
         reconfig_command = (
             f"{reconfig_script}"
             f" --oam_subnet {iso_values['external_oam_subnet'].split(',')[0]}"
@@ -192,6 +200,9 @@ class SubcloudEnrollmentInit(object):
                 f"{iso_values['external_oam_node_1_address'].split(',')[0]}"
             )
 
+        if enroll_timestamp_int is not None:
+            reconfig_command += f" --enroll-timestamp {enroll_timestamp_int}"
+
         platform_script = os.path.join(
             scripts_dir,
             consts.PLATFORM_RECONFIGURE_FILE_NAME,
@@ -205,7 +216,6 @@ class SubcloudEnrollmentInit(object):
         # event to indicate that all custom scripts executed before it ran successfully.
         # If any of the scripts fail, this one won't be executed and the Ansible
         # monitoring task will time out.
-        enroll_overrides = iso_values["install_values"].get("enroll_overrides", {})
         if enroll_overrides.get("ipmi_sel_event_monitoring", True) is not False:
             completion_script = os.path.join(scripts_dir, "99-completion-event")
             with open(completion_script, "w") as f:
