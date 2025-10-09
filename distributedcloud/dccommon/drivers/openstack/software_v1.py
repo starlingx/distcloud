@@ -11,6 +11,7 @@ import requests
 from dccommon import consts
 from dccommon.drivers import base
 from dccommon import exceptions
+from dccommon import utils
 
 LOG = log.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class SoftwareClient(base.DriverBase):
         session: keystone_session,
         region: str = None,
         endpoint: str = None,
-        endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
+        endpoint_type: str = None,
         token: str = None,
     ):
         if not (endpoint or region):
@@ -50,6 +51,12 @@ class SoftwareClient(base.DriverBase):
         self.token = token
 
         if not self.endpoint:
+            if not endpoint_type:
+                endpoint_type = (
+                    consts.KS_ENDPOINT_INTERNAL
+                    if utils.is_system_controller_region(region)
+                    else consts.KS_ENDPOINT_ADMIN
+                )
             self.endpoint = session.get_endpoint(
                 service_type=consts.ENDPOINT_TYPE_USM,
                 region_name=region,
