@@ -348,6 +348,24 @@ def _get_prestage_subcloud_info(subcloud):
         )
 
 
+def get_subcloud_oam_ip(subcloud):
+    """Retrieve the subcloud's oam ip"""
+
+    try:
+        keystone_endpoint = cutils.build_subcloud_endpoint(
+            subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
+        )
+        admin_session = EndpointCache.get_admin_session(keystone_endpoint)
+        # Interested only in primary OAM address of subcloud
+        return utils.get_oam_floating_ip_primary(subcloud, admin_session)
+    except Exception as e:
+        LOG.exception(e)
+        raise exceptions.PrestagePreCheckFailedException(
+            subcloud=subcloud.name,
+            details="Failed to retrieve the subcloud's oam ip.",
+        )
+
+
 def get_prestage_versions(subcloud_name):
     log_file = utils.get_subcloud_ansible_log_file(subcloud_name)
     # Get the prestage versions from the ansible playbook logs
