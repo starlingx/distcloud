@@ -127,7 +127,7 @@ class SysinvClient(base.DriverBase):
         region: str,
         session: keystone_session,
         timeout: float = consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
-        endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
+        endpoint_type: str = None,
         endpoint: str = None,
         token: str = None,
     ):
@@ -136,6 +136,12 @@ class SysinvClient(base.DriverBase):
         kwargs = {}
 
         if not endpoint:
+            if not endpoint_type:
+                endpoint_type = (
+                    consts.KS_ENDPOINT_INTERNAL
+                    if utils.is_system_controller_region(region)
+                    else consts.KS_ENDPOINT_ADMIN
+                )
             endpoint = session.get_endpoint(
                 service_type=consts.ENDPOINT_TYPE_PLATFORM,
                 region_name=region,
