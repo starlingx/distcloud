@@ -9,7 +9,6 @@ from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.orchestrator.cache import clients
 from dcmanager.orchestrator.states.base import BaseState
-from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.states.software.test_base import (
     TestSoftwareOrchestrator,
 )
@@ -42,13 +41,6 @@ class TestInstallLicenseState(TestSoftwareOrchestrator):
 
         self.mock_cache = self._mock_object(clients, "get_sysinv_client")
         self.mock_cache.return_value = self.sysinv_client
-
-    def _setup_and_assert(self, next_state):
-        self.strategy = fake_strategy.create_fake_strategy(self.ctx, self.strategy_type)
-
-        self.worker.strategies[self.strategy_type].pre_apply_setup(self.strategy)
-
-        super()._setup_and_assert(next_state)
 
     def test_install_license_failure(self):
         """Test the installing license step where the install fails.

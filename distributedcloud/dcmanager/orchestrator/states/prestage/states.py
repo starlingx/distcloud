@@ -21,35 +21,40 @@ LOG = logging.getLogger(__name__)
 class PrestagePreCheckState(BaseState):
     """Perform pre check operations"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super().__init__(
-            next_state=consts.STRATEGY_STATE_PRESTAGE_PACKAGES, region_name=region_name
+            next_state=consts.STRATEGY_STATE_PRESTAGE_PACKAGES,
+            region_name=region_name,
+            strategy=strategy,
         )
 
     def perform_state_action(self, strategy_step):
-        if self.extra_args is None:
+        extra_args = self.strategy.extra_args
+        oam_floating_ip_dict = self.strategy.oam_floating_ip_dict
+
+        if not extra_args:
             message = "Prestage pre-check: missing all mandatory arguments"
             self.error_log(strategy_step, message)
             raise Exception(message)
 
         payload = {
-            "sysadmin_password": self.extra_args["sysadmin_password"],
-            "force": self.extra_args["force"],
+            "sysadmin_password": extra_args["sysadmin_password"],
+            "force": extra_args["force"],
         }
-        if self.extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
+        if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
             payload.update(
                 {
-                    consts.PRESTAGE_REQUEST_RELEASE: self.extra_args.get(
+                    consts.PRESTAGE_REQUEST_RELEASE: extra_args.get(
                         consts.PRESTAGE_SOFTWARE_VERSION
                     )
                 }
             )
         # Taking the for_sw_deploy parameter if it was specified when the
         # strategy was created
-        if self.extra_args.get(consts.PRESTAGE_FOR_SW_DEPLOY):
+        if extra_args.get(consts.PRESTAGE_FOR_SW_DEPLOY):
             payload.update(
                 {
-                    consts.PRESTAGE_FOR_SW_DEPLOY: self.extra_args.get(
+                    consts.PRESTAGE_FOR_SW_DEPLOY: extra_args.get(
                         consts.PRESTAGE_FOR_SW_DEPLOY
                     )
                 }
@@ -62,7 +67,7 @@ class PrestagePreCheckState(BaseState):
             oam_floating_ip = prestage.validate_prestage(
                 strategy_step.subcloud, payload, system_controller_sw_list
             )
-            self.oam_floating_ip_dict[strategy_step.subcloud.name] = oam_floating_ip
+            oam_floating_ip_dict[strategy_step.subcloud.name] = oam_floating_ip
         except exceptions.PrestagePreCheckFailedException as ex:
             # We've either failed precheck or we want to skip this subcloud.
             # Either way, we'll re-raise up to the base class for status
@@ -81,33 +86,36 @@ class PrestagePreCheckState(BaseState):
 class PrestagePackagesState(BaseState):
     """Perform prestage packages operation"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super().__init__(
-            next_state=consts.STRATEGY_STATE_PRESTAGE_IMAGES, region_name=region_name
+            next_state=consts.STRATEGY_STATE_PRESTAGE_IMAGES,
+            region_name=region_name,
+            strategy=strategy,
         )
 
     def perform_state_action(self, strategy_step):
-        oam_floating_ip_dict = self.oam_floating_ip_dict.get(
-            strategy_step.subcloud.name
-        )
-        if not oam_floating_ip_dict:
-            oam_floating_ip_dict = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
+        extra_args = self.strategy.extra_args
+        oam_floating_ip_dict = self.strategy.oam_floating_ip_dict
+        oam_floating_ip = oam_floating_ip_dict.get(strategy_step.subcloud.name)
+
+        if not oam_floating_ip:
+            oam_floating_ip = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
 
         payload = {
-            "sysadmin_password": self.extra_args["sysadmin_password"],
-            "oam_floating_ip": oam_floating_ip_dict,
-            "force": self.extra_args["force"],
+            "sysadmin_password": extra_args["sysadmin_password"],
+            "oam_floating_ip": oam_floating_ip,
+            "force": extra_args["force"],
         }
-        if self.extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
+        if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
             payload.update(
                 {
-                    consts.PRESTAGE_REQUEST_RELEASE: self.extra_args.get(
+                    consts.PRESTAGE_REQUEST_RELEASE: extra_args.get(
                         consts.PRESTAGE_SOFTWARE_VERSION
                     )
                 }
             )
 
-        prestage_reason = utils.get_prestage_reason(self.extra_args)
+        prestage_reason = utils.get_prestage_reason(extra_args)
 
         prestage.prestage_packages(
             self.context, strategy_step.subcloud, payload, prestage_reason
@@ -120,33 +128,36 @@ class PrestagePackagesState(BaseState):
 class PrestageImagesState(BaseState):
     """Perform prestage images operation"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super().__init__(
-            next_state=consts.STRATEGY_STATE_COMPLETE, region_name=region_name
+            next_state=consts.STRATEGY_STATE_COMPLETE,
+            region_name=region_name,
+            strategy=strategy,
         )
 
     def perform_state_action(self, strategy_step):
-        oam_floating_ip_dict = self.oam_floating_ip_dict.get(
-            strategy_step.subcloud.name
-        )
-        if not oam_floating_ip_dict:
-            oam_floating_ip_dict = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
+        extra_args = self.strategy.extra_args
+        oam_floating_ip_dict = self.strategy.oam_floating_ip_dict
+        oam_floating_ip = oam_floating_ip_dict.get(strategy_step.subcloud.name)
+
+        if not oam_floating_ip:
+            oam_floating_ip = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
 
         payload = {
-            "sysadmin_password": self.extra_args["sysadmin_password"],
-            "oam_floating_ip": oam_floating_ip_dict,
-            "force": self.extra_args["force"],
+            "sysadmin_password": extra_args["sysadmin_password"],
+            "oam_floating_ip": oam_floating_ip,
+            "force": extra_args["force"],
         }
-        if self.extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
+        if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
             payload.update(
                 {
-                    consts.PRESTAGE_REQUEST_RELEASE: self.extra_args.get(
+                    consts.PRESTAGE_REQUEST_RELEASE: extra_args.get(
                         consts.PRESTAGE_SOFTWARE_VERSION
                     )
                 }
             )
 
-        prestage_reason = utils.get_prestage_reason(self.extra_args)
+        prestage_reason = utils.get_prestage_reason(extra_args)
 
         prestage.prestage_images(
             self.context, strategy_step.subcloud, payload, prestage_reason

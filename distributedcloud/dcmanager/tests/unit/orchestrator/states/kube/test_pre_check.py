@@ -147,8 +147,6 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
     def test_pre_check_succeeds_with_strategy_without_extra_args(self):
         """Test pre-check succeeds with strategy without extra args"""
 
-        self.strategy = fake_strategy.create_fake_strategy(self.ctx, self.strategy_type)
-
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
         )
@@ -380,8 +378,8 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # existing upgrade in the subcloud, so the subcloud upgrade should
         # continue
         extra_args = {"to-version": high_partial_version}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
         self._setup_and_assert(self.on_success_state)
@@ -413,8 +411,8 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         ]
 
         extra_args = {"to-version": target_version}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
         self._setup_and_assert(self.on_success_state)
@@ -467,8 +465,8 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": target_version}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
         self._setup_and_assert(self.on_success_state)
@@ -515,8 +513,8 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.4"}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
         self._setup_and_assert(self.on_success_state)
@@ -535,8 +533,8 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.4"}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
         self._setup_and_assert(self.on_success_state)
@@ -555,8 +553,8 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.6"}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
         self._setup_and_assert(self.on_success_state)

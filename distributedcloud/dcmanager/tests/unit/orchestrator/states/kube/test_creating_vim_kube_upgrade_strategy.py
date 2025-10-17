@@ -112,8 +112,8 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
 
         if kube_version:
             extra_args = {"to-version": kube_version}
-            self.strategy = fake_strategy.create_fake_strategy(
-                self.ctx, self.strategy_type, extra_args=extra_args
+            self.strategy = fake_strategy.update_fake_strategy(
+                self.ctx, self.strategy_type, additional_args=extra_args
             )
         else:
             kube_version = kube_version_list[0].version
@@ -166,8 +166,6 @@ class TestCreatingVIMKubeUpgradeStrategyStage(
 
     def test_strategy_fails_without_active_version_to_upgrade(self):
         """Test upgrade fails without an active version to upgrade"""
-
-        fake_strategy.create_fake_strategy(self.ctx, self.strategy_type)
 
         self.sysinv_client.get_kube_versions.return_value = (
             KUBE_VERSION_LIST_WITHOUT_ACTIVE

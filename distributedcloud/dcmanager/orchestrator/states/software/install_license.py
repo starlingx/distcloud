@@ -20,10 +20,11 @@ LICENSE_FILE_NOT_FOUND_SUBSTRING = "License file not found"
 class InstallLicenseState(BaseState):
     """Software orchestration state action for installing a license"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super().__init__(
             next_state=consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY,
             region_name=region_name,
+            strategy=strategy,
         )
 
     @staticmethod

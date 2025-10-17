@@ -289,23 +289,6 @@ def validate_quota_limits(payload):
             raise exceptions.InvalidInputError
 
 
-def get_sw_update_strategy_extra_args(context, update_type=None):
-    """Query an existing sw_update_strategy for its extra_args.
-
-    :param context: request context object.
-    :param update_type: filter the update strategy (defaults to None)
-    :returns dict (returns an empty dictionary if no strategy exists)
-    """
-    try:
-        sw_update_strategy = db_api.sw_update_strategy_get(
-            context, update_type=update_type
-        )
-        return sw_update_strategy.extra_args
-    except exceptions.NotFound:
-        # return an empty dictionary if there is no strategy
-        return {}
-
-
 def get_sw_update_opts(context, for_sw_update=False, subcloud_id=None):
     """Get sw update options for a subcloud
 

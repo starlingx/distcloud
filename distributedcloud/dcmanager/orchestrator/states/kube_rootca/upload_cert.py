@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,24 +7,24 @@ from dcmanager.common.consts import (
     STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
 )
 from dcmanager.common.exceptions import CertificateUploadError
-from dcmanager.common import utils as dcmanager_utils
 from dcmanager.orchestrator.states.base import BaseState
 
 
 class KubeRootcaUpdateUploadCertState(BaseState):
     """Upload a kube rootca certificate from the vault"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super(KubeRootcaUpdateUploadCertState, self).__init__(
             next_state=STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY,
             region_name=region_name,
+            strategy=strategy,
         )
 
     def perform_state_action(self, strategy_step):
         """Upload the cert. Only a valid state if the update is started"""
 
         # Get the cert-file from the extra_args of the strategy
-        extra_args = dcmanager_utils.get_sw_update_strategy_extra_args(self.context)
+        extra_args = self.strategy.extra_args
         if extra_args is None:
             extra_args = {}
         cert_file = extra_args.get("cert-file", None)

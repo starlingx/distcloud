@@ -9,4 +9,4 @@ TEXT_PLAIN = "text/plain"
 TEXT_HTML = "text/html"
 APPLICATION_JSON = "application/json"
 
-RELEASE_ID = "starlingx-10.10.100"
+RELEASE_ID = "starlingx-25.09.0"

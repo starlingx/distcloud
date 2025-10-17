@@ -9,7 +9,6 @@ import mock
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states import creating_vim_strategy
-from dcmanager.orchestrator.validators import sw_deploy_validator
 from dcmanager.tests.unit.common.consts import RELEASE_ID
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit import fakes
@@ -41,20 +40,15 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             self.subcloud.id, self.current_state
         )
 
-    def create_fake_software_strategy(self, payload=None):
-        payload = payload or {}
-        extra_args = (
-            sw_deploy_validator.SoftwareDeployStrategyValidator().build_extra_args(
-                payload
-            )
-        )
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+    def _update_fake_software_strategy(self, payload):
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=payload
         )
 
     def base_create_vim_software_strategy_success(self, payload=None, **kwargs):
         """Creates a base vim software strategy testcase when the API call succeeds."""
-        self.create_fake_software_strategy(payload)
+        if payload:
+            self._update_fake_software_strategy(payload)
 
         self.vim_client.get_strategy.side_effect = [
             None,
@@ -80,7 +74,9 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
 
     def test_create_vim_software_strategy_success_without_optional_extra_args(self):
         """Test create vim software strategy when the API call succeeds."""
-        payload = {consts.EXTRA_ARGS_RELEASE_ID: RELEASE_ID}
+        payload = {
+            consts.EXTRA_ARGS_RELEASE_ID: RELEASE_ID,
+        }
 
         strategy_params = {
             "release": RELEASE_ID,
@@ -96,7 +92,6 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
     def test_create_vim_software_strategy_success_with_snapshot(self):
         """Test create vim software strategy with snapshot."""
         payload = {
-            consts.EXTRA_ARGS_RELEASE_ID: RELEASE_ID,
             consts.EXTRA_ARGS_SNAPSHOT: True,
         }
 
@@ -115,7 +110,6 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
     def test_create_vim_software_strategy_success_with_delete(self):
         """Test create vim software strategy with_delete."""
         payload = {
-            consts.EXTRA_ARGS_RELEASE_ID: RELEASE_ID,
             consts.EXTRA_ARGS_WITH_DELETE: True,
         }
 
@@ -134,7 +128,6 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
     def test_create_vim_software_strategy_success_with_delete_and_snapshot(self):
         """Test create vim software strategy with delete and snapshot."""
         payload = {
-            consts.EXTRA_ARGS_RELEASE_ID: RELEASE_ID,
             consts.EXTRA_ARGS_SNAPSHOT: True,
             consts.EXTRA_ARGS_WITH_DELETE: True,
         }
@@ -153,12 +146,12 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
 
     def test_create_vim_software_strategy_success_rollback(self):
         """Test create vim software strategy with rollback."""
-        payload = {consts.EXTRA_ARGS_ROLLBACK: True}
+        payload = {consts.EXTRA_ARGS_RELEASE_ID: None, consts.EXTRA_ARGS_ROLLBACK: True}
         strategy_params = {
             "release": None,
-            "snapshot": None,
+            "snapshot": False,
             "rollback": True,
-            "delete": None,
+            "delete": False,
         }
 
         self.base_create_vim_software_strategy_success(
@@ -166,16 +159,15 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             **strategy_params,
         )
 
-    @mock.patch.object(consts, "SNAPSHOT_SUPPORTED_VERSION", "25.09")
     def test_create_vim_software_strategy_success_with_snapshot_and_lower_release(self):
         """Test create vim software strategy with snapshot and lower release."""
         payload = {
-            consts.EXTRA_ARGS_RELEASE_ID: RELEASE_ID,
+            consts.EXTRA_ARGS_RELEASE_ID: "starlingx-24.09.0",
             consts.EXTRA_ARGS_SNAPSHOT: True,
         }
 
         strategy_params = {
-            "release": RELEASE_ID,
+            "release": "starlingx-24.09.0",
             "snapshot": True,
             "rollback": False,
             "delete": False,
@@ -186,17 +178,16 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             **strategy_params,
         )
 
-    @mock.patch.object(consts, "SNAPSHOT_SUPPORTED_VERSION", "25.09")
     def test_create_vim_software_strategy_success_without_snapshot_and_lower_release(
         self,
     ):
         """Test create vim software strategy without snapshot and lower release."""
         payload = {
-            consts.EXTRA_ARGS_RELEASE_ID: RELEASE_ID,
+            consts.EXTRA_ARGS_RELEASE_ID: "starlingx-24.09.0",
         }
 
         strategy_params = {
-            "release": RELEASE_ID,
+            "release": "starlingx-24.09.0",
             "rollback": False,
             "delete": False,
         }

@@ -265,7 +265,7 @@ class OrchestratorWorker(object):
                     consts.SW_UPDATE_STATE_APPLYING,
                     consts.SW_UPDATE_STATE_ABORTING,
                 ]:
-                    self.strategies[strategy.type]._pre_apply_setup(strategy)
+                    self.strategies[strategy.type].base_apply_setup(strategy)
                     self._apply(strategy, self.steps_to_process)
                 elif strategy.state == consts.SW_UPDATE_STATE_ABORT_REQUESTED:
                     self._abort(strategy, self.steps_to_process)

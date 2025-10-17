@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -29,10 +29,11 @@ WAIT_INTERVAL = 60
 class ApplyingVIMStrategyState(BaseState):
     """State for creating the VIM FPGA update strategy."""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super(ApplyingVIMStrategyState, self).__init__(
             next_state=consts.STRATEGY_STATE_FINISHING_FW_UPDATE,
             region_name=region_name,
+            strategy=strategy,
         )
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
         self.wait_attempts = DEFAULT_MAX_WAIT_ATTEMPTS

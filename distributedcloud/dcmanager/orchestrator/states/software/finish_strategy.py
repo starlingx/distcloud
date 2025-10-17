@@ -19,10 +19,11 @@ from dcorch.rpc import client as dcorch_rpc_client
 class FinishStrategyState(BaseState):
     """Finish Software Strategy software orchestration state"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super().__init__(
             next_state=consts.STRATEGY_STATE_COMPLETE,
             region_name=region_name,
+            strategy=strategy,
         )
 
     @staticmethod
@@ -144,7 +145,7 @@ class FinishStrategyState(BaseState):
         self, strategy_step: str, software_client: software_v1.SoftwareClient
     ) -> bool:
         """Handle the delete_only extra args for software deploy strategies."""
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+        extra_args = self.strategy.extra_args
         if extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
             releases_to_delete = [extra_args[consts.EXTRA_ARGS_RELEASE_ID]]
             self.info_log(

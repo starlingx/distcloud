@@ -52,16 +52,13 @@ class KubernetesStrategy(BaseStrategy):
 
         # Initialize shared cache instances for the states that require them
         self._shared_caches = SharedCacheRepository(self.update_type)
-        self._shared_caches.initialize_caches()
 
     def pre_apply_setup(self, strategy):
-        # Restart caches for next strategy so that we always have the
-        # latest RegionOne data at the moment the strategy is applied
+        # Start caches for the strategy
+        self.debug_log("Starting caches")
         self._shared_caches.initialize_caches()
         super().pre_apply_setup(strategy)
 
     def determine_state_operator(self, region_name, strategy_step):
         state = super().determine_state_operator(region_name, strategy_step)
-        # Share the cache with the state object
-        state.add_shared_caches(self._shared_caches)
         return state

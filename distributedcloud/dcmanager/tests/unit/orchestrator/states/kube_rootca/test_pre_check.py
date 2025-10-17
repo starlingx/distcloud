@@ -32,12 +32,6 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
 
         The pre-check should transition to the create vim strategy state
         """
-        # Create a strategy with no extra_args
-        extra_args = None
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
-        )
-
         self._setup_and_assert(self.on_success_state)
 
     def test_pre_check_extra_args_no_cert_file(self):
@@ -49,8 +43,8 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
             "expiry-date": "2020:01:31",
             "subject": "C=CA ST=ON L=OTT O=WR OU=STX CN=AL_RULES",
         }
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
         self._setup_and_assert(self.on_success_state)
@@ -64,8 +58,8 @@ class TestPreCheckStage(TestKubeRootCaUpgradeState):
         """
 
         extra_args = {"cert-file": "some_fake_cert_file"}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
         self._setup_and_assert(STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START)

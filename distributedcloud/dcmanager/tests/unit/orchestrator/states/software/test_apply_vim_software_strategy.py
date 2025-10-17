@@ -9,7 +9,6 @@ import mock
 from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states import applying_vim_strategy
-from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit import fakes
 from dcmanager.tests.unit.orchestrator.states.software.test_base import (
     TestSoftwareOrchestrator,
@@ -22,7 +21,6 @@ APPLY_PHASE_ERROR = fakes.FakeVimStrategyPhase(response="Deploy Start Failed")
 STRATEGY_APPLY_FAILED = fakes.FakeVimStrategy(
     state=vim.STATE_APPLY_FAILED, apply_phase=APPLY_PHASE_ERROR
 )
-RELEASE_ID = "starlingx-9.0.1"
 
 
 @mock.patch.object(applying_vim_strategy, "DEFAULT_MAX_FAILED_QUERIES", 3)
@@ -39,11 +37,6 @@ class TestApplyVIMSoftwareStrategyState(TestSoftwareOrchestrator):
 
         self.on_success_state = consts.STRATEGY_STATE_SW_FINISH_STRATEGY
         self.current_state = consts.STRATEGY_STATE_SW_APPLY_VIM_STRATEGY
-
-        # Create default strategy with release parameter
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args={"release_id": RELEASE_ID}
-        )
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(

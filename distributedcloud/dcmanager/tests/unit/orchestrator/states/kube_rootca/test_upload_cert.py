@@ -38,8 +38,8 @@ class TestUploadCertStage(TestKubeRootCaUpgradeState):
 
         # Mock the strategy with a reference to a cert-file in extra_args
         extra_args = {"cert-file": FAKE_CERT_FILE}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.strategy_type, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
     def test_upload_cert_fails(self):
