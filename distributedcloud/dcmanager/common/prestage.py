@@ -59,44 +59,6 @@ PRINT_PRESTAGE_VERSIONS_TASK = (
 PRESTAGE_VERSIONS_KEY_STR = "prestage_versions:"
 
 
-def global_prestage_validate(payload):
-    """Global prestage validation (not subcloud-specific)"""
-
-    if utils.is_system_controller_deploying():
-        raise exceptions.PrestagePreCheckFailedException(
-            subcloud=dccommon_consts.SYSTEM_CONTROLLER_NAME,
-            details=(
-                "Prestage operations are not allowed while system "
-                "controller has a software deployment in progress."
-            ),
-        )
-
-    if (
-        "sysadmin_password" not in payload
-        or payload["sysadmin_password"] is None
-        or payload["sysadmin_password"] == ""
-    ):
-        raise exceptions.PrestagePreCheckFailedException(
-            subcloud=None,
-            orch_skip=False,
-            details="Missing required parameter 'sysadmin_password'",
-        )
-
-    # Ensure we can decode the sysadmin_password
-    # (we decode again when running ansible)
-    try:
-        base64.b64decode(payload["sysadmin_password"]).decode("utf-8")
-    except Exception as ex:
-        raise exceptions.PrestagePreCheckFailedException(
-            subcloud=None,
-            orch_skip=False,
-            details=(
-                "Failed to decode subcloud sysadmin_password, verify the password "
-                "is base64 encoded. Details: %s" % ex
-            ),
-        )
-
-
 def initial_subcloud_validate(subcloud):
     """Basic validation a subcloud prestage operation.
 
@@ -153,7 +115,7 @@ def initial_subcloud_validate(subcloud):
         )
 
 
-def validate_prestage(subcloud, payload, system_controller_sw_list=None):
+def validate_prestage_subcloud(subcloud, payload, system_controller_sw_list=None):
     """Validate a subcloud prestage operation.
 
     Prestage conditions validation
@@ -393,11 +355,9 @@ def _run_ansible(
         timeout_seconds = CONF.playbook_timeout
 
     LOG.info(
-        "Prestaging %s for subcloud: %s, version: %s, timeout: %ss",
-        phase,
-        subcloud.name,
-        software_version,
-        timeout_seconds,
+        f"Prestaging {phase} for subcloud: {subcloud.name}, "
+        f"version: {software_version}, floating_ip: {oam_floating_ip}, "
+        f"timeout: {timeout_seconds}",
     )
 
     # Create the ansible inventory for the new subcloud
@@ -405,7 +365,9 @@ def _run_ansible(
         subcloud.name,
         ansible_subcloud_inventory_file,
         oam_floating_ip,
-        ansible_pass=json.dumps(base64.b64decode(sysadmin_password).decode("utf-8")),
+        ansible_pass=json.dumps(
+            base64.b64decode(sysadmin_password, validate=True).decode("utf-8")
+        ),
     )
 
     log_file = utils.get_subcloud_ansible_log_file(subcloud.name)

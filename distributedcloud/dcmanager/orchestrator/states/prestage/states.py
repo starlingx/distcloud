@@ -64,7 +64,7 @@ class PrestagePreCheckState(BaseState):
             system_controller_sw_list = self._read_from_cache(
                 REGION_ONE_RELEASE_USM_CACHE_TYPE
             )
-            oam_floating_ip = prestage.validate_prestage(
+            oam_floating_ip = prestage.validate_prestage_subcloud(
                 strategy_step.subcloud, payload, system_controller_sw_list
             )
             oam_floating_ip_dict[strategy_step.subcloud.name] = oam_floating_ip
@@ -164,5 +164,14 @@ class PrestageImagesState(BaseState):
         )
 
         self.info_log(strategy_step, "Images finished")
+
+        if self.strategy.update_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+            # We should skip the install_license state if it's a minor release.
+            if strategy_step.subcloud.software_version == utils.get_major_release(
+                extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+            ):
+                self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
+            else:
+                self.override_next_state(consts.STRATEGY_STATE_SW_INSTALL_LICENSE)
 
         return self.next_state

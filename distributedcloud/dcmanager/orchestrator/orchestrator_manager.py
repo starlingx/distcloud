@@ -447,21 +447,7 @@ class OrchestratorManager(manager.Manager):
             )
             raise exceptions.BadRequest(resource="strategy", msg=msg)
 
-        single_group = None
         subcloud_group = payload.get("subcloud_group")
-
-        if subcloud_group:
-            single_group = utils.subcloud_group_get_by_ref(context, subcloud_group)
-            subcloud_apply_type = single_group.update_apply_type
-            max_parallel_subclouds = single_group.max_parallel_subclouds
-        else:
-            subcloud_apply_type = payload.get("subcloud-apply-type")
-            max_parallel_subclouds_str = payload.get("max-parallel-subclouds")
-
-            if not max_parallel_subclouds_str:
-                max_parallel_subclouds = None
-            else:
-                max_parallel_subclouds = int(max_parallel_subclouds_str)
 
         stop_on_failure = payload.get("stop-on-failure") in ["true"]
         force = payload.get(consts.EXTRA_ARGS_FORCE) in ["true"]
@@ -469,30 +455,27 @@ class OrchestratorManager(manager.Manager):
         # Has the user specified a specific subcloud?
         cloud_name = payload.get("cloud_name")
         strategy_type = payload.get("type")
-        prestage_global_validated = False
 
         # Has the user specified for_sw_deploy flag for prestage strategy?
         if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
             for_sw_deploy = payload.get(consts.PRESTAGE_FOR_SW_DEPLOY) in ["true"]
 
         if cloud_name:
-            # Make sure subcloud exists
             try:
                 subcloud = db_api.subcloud_get_by_name(context, cloud_name)
             except exceptions.SubcloudNameNotFound:
                 msg = f"Subcloud {cloud_name} does not exist"
                 LOG.error(
-                    "Failed creating software update strategy of type "
-                    f"{payload['type']}. {msg}"
+                    "Failed creating software update strategy of type: "
+                    f"{strategy_type}. {msg}"
                 )
                 raise exceptions.BadRequest(resource="strategy", msg=msg)
-
             # TODO(rlima): move prestage to its validator
-            if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE or payload.get(
+                "with_prestage"
+            ):
                 # Do initial validation for subcloud
                 try:
-                    prestage.global_prestage_validate(payload)
-                    prestage_global_validated = True
                     prestage.initial_subcloud_validate(subcloud)
                 except exceptions.PrestagePreCheckFailedException as ex:
                     raise exceptions.BadRequest(resource="strategy", msg=str(ex))
@@ -513,7 +496,7 @@ class OrchestratorManager(manager.Manager):
             count_invalid_subclouds = db_api.subcloud_count_invalid_for_strategy_type(
                 context,
                 self.strategy_validators[strategy_type].endpoint_type,
-                single_group.id if subcloud_group else None,
+                payload["group_id"] if subcloud_group else None,
                 cloud_name,
             )
             if count_invalid_subclouds > 0:
@@ -530,18 +513,10 @@ class OrchestratorManager(manager.Manager):
         # handle extra_args processing such as staging to the vault
         self._process_extra_args_creation(strategy_type, extra_args)
 
-        if consts.SUBCLOUD_APPLY_TYPE_SERIAL == subcloud_apply_type:
-            max_parallel_subclouds = 1
-
-        if max_parallel_subclouds is None:
-            max_parallel_subclouds = (
-                consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS
-            )
-
         valid_subclouds = db_api.subcloud_get_all_valid_for_strategy_step_creation(
             context,
             self.strategy_validators[strategy_type].endpoint_type,
-            single_group.id if subcloud_group else None,
+            payload["group_id"] if subcloud_group else None,
             cloud_name,
             self.strategy_validators[strategy_type].build_availability_status_filter(),
             self.strategy_validators[strategy_type].build_sync_status_filter(force),
@@ -562,12 +537,6 @@ class OrchestratorManager(manager.Manager):
             valid_subclouds = filtered_valid_subclouds
 
         elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-            if not prestage_global_validated:
-                try:
-                    prestage.global_prestage_validate(payload)
-                except exceptions.PrestagePreCheckFailedException as ex:
-                    raise exceptions.BadRequest(resource="strategy", msg=str(ex))
-
             extra_args = {
                 consts.EXTRA_ARGS_SYSADMIN_PASSWORD: payload.get(
                     consts.EXTRA_ARGS_SYSADMIN_PASSWORD
@@ -595,10 +564,13 @@ class OrchestratorManager(manager.Manager):
             self._process_extra_args_deletion(strategy_type, extra_args)
             msg = "Strategy has no steps to apply"
             LOG.error(
-                "Failed creating software update strategy of type "
-                f"{payload['type']}. {msg}"
+                "Failed creating software update strategy of type: "
+                f"{strategy_type}. {msg}"
             )
             raise exceptions.BadRequest(resource="strategy", msg=msg)
+
+        max_parallel_subclouds = payload.get("max-parallel-subclouds")
+        subcloud_apply_type = payload.get("subcloud-apply-type")
 
         # Create the strategy
         strategy = db_api.sw_update_strategy_create(

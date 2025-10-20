@@ -224,6 +224,12 @@ class BaseTestSwUpdateStrategyPost(BaseTestSwUpdateStrategyController):
         self.mock_check_version_for_sw_deploy_strategy = self._mock_object(
             utils, "check_version_for_sw_deploy_strategy"
         )
+        self.mock_get_system_controller_deploy = self._mock_object(
+            utils, "get_system_controller_deploy"
+        )
+        self.mock_get_validated_sw_version_for_prestage = self._mock_object(
+            utils, "get_validated_sw_version_for_prestage"
+        )
         self.mock_check_version_for_sw_deploy_strategy.return_value = [
             True,
         ]
@@ -234,17 +240,6 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
 
     def test_post_succeeds(self):
         """Test post succeeds"""
-
-        response = self._send_request()
-
-        self._assert_response(response)
-        self.create_update_strategy.assert_called_once()
-
-    def test_post_succeeds_with_force_option(self):
-        """Test post succeeds with force option"""
-
-        self.params["force"] = "true"
-        self.params["cloud_name"] = "subcloud1"
 
         response = self._send_request()
 
@@ -278,19 +273,87 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
     def test_post_fails_with_invalid_max_parallel_subclouds(self):
         """Test post fails with invalid max parallel subclouds"""
 
-        invalid_values = ["fake", 0, 5001, -2]
+        invalid_values = ["fake", 5001, -2]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
             self.params["max-parallel-subclouds"] = invalid_value
 
             response = self._send_request()
+            default_error_msg = (
+                f"Invalid max-parallel-subclouds value: {invalid_value}. "
+                f"For {self.params.get('type')} strategy, the value must be between 1 "
+                f"and {consts.MAX_PARALLEL_SUBCLOUDS_LIMIT}."
+            )
+            value_error_msg = (
+                f"max-parallel-subclouds invalid value. Value: {invalid_value}"
+            )
 
             self._assert_pecan_and_response(
                 response,
                 http.client.BAD_REQUEST,
-                "max-parallel-subclouds invalid",
+                default_error_msg if invalid_value != "fake" else value_error_msg,
                 call_count=index,
             )
+
+        self.create_update_strategy.assert_not_called()
+
+    def test_post_fails_with_invalid_max_parallel_subclouds_prestage(self):
+        """Test post fails with invalid max parallel subclouds"""
+
+        invalid_value = 251
+
+        self.params["max-parallel-subclouds"] = invalid_value
+        self.params["with_prestage"] = True
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            (
+                f"Invalid max-parallel-subclouds value: {invalid_value}. For prestage, "
+                f"the value must be between 1 and {consts.MAX_PARALLEL_PRESTAGE_LIMIT}."
+            ),
+        )
+
+        self.create_update_strategy.assert_not_called()
+
+    def test_prestage_strategy_create_fails_without_password(self):
+        """Test create strategy fails for prestage without password"""
+
+        self.params["sysadmin_password"] = ""
+        self.params["type"] = consts.SW_UPDATE_TYPE_PRESTAGE
+        self.mock_get_system_controller_deploy.return_value = None
+        self.mock_get_validated_sw_version_for_prestage.return_value = ("25.09", "")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "subcloud sysadmin_password required",
+        )
+
+        self.create_update_strategy.assert_not_called()
+
+    def test_prestage_strategy_create_fails_release_deploying(self):
+        """Test create strategy fails when software deployment is in progress"""
+
+        self.params["sysadmin_password"] = ""
+        self.params["type"] = consts.SW_UPDATE_TYPE_PRESTAGE
+        self.mock_get_system_controller_deploy.return_value = "starlingx-25.09.1"
+        self.mock_get_validated_sw_version_for_prestage.return_value = ("25.09", "")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            (
+                "Prestage operations are not allowed while system controller "
+                "has a software deployment in progress."
+            ),
+        )
 
         self.create_update_strategy.assert_not_called()
 
@@ -323,33 +386,26 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "force invalid"
-        )
-        self.create_update_strategy.assert_not_called()
-
-    def test_post_fails_with_force_without_cloud_name(self):
-        """Test post fails with force without cloud name"""
-
-        self.params["force"] = "true"
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "The --force option can only be "
-            "applied for a single subcloud. Please specify the subcloud name.",
+            (
+                f"Invalid value '{self.params['force']}' for force "
+                "- must be True/False or 'true'/'false'"
+            ),
         )
         self.create_update_strategy.assert_not_called()
 
-    def test_post_succeeds_with_force_all_types(self):
-        """Test post succeeds with force all types
+    def test_succeed_using_subcloud_group_no_apply_type_and_max_parallel(self):
+        """Test succeeds using subcloud group without apply type and max parallel"""
 
-        Some strategy types defined in FORCE_ALL_TYPES allow the use of
-        the force parameter for all subclouds (without specifying the cloud_name)
-        """
+        self.params["subcloud_group"] = fake_subcloud.create_fake_subcloud_group(
+            self.ctx, name="Group1", max_parallel_subclouds=5
+        )
 
-        self.params["type"] = consts.SW_UPDATE_TYPE_KUBERNETES
+        del self.params["subcloud-apply-type"]
+        del self.params["max-parallel-subclouds"]
+
+        self.params["subcloud_group"] = "2"
 
         response = self._send_request()
 
@@ -413,8 +469,10 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
             self._assert_pecan_and_response(
                 response,
                 http.client.BAD_REQUEST,
-                "subcloud-apply-type and max-parallel-subclouds "
-                "are not supported when subcloud_group is applied",
+                (
+                    "subcloud-apply-type and max-parallel-subclouds are not allowed "
+                    "when subcloud_group is provided"
+                ),
                 call_count=index,
             )
             self.create_update_strategy.assert_not_called()
@@ -474,6 +532,20 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
 class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
     """Test class for post requests with software strategy"""
 
+    RELEASE_ID_ERROR = "Release ID is required for strategy type: sw-deploy."
+    SNAPSHOT_ERROR = (
+        "Option snapshot cannot be used with any of the following options: "
+        "rollback or delete_only."
+    )
+    WITH_DELETE_ERROR = (
+        "Option with_delete cannot be used with any of the following options: "
+        "rollback or delete_only."
+    )
+    ROLLBACK_ERROR = (
+        "Option rollback cannot be used with any of the following options: "
+        "release_id, delete_only or with_prestage."
+    )
+
     def base_post_software_succeeds_extra_args(
         self,
         release_id=None,
@@ -508,6 +580,7 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
         rollback=None,
         with_delete=None,
         delete_only=None,
+        with_prestage=None,
     ):
         """Base post test case of software strategy fails with extra args"""
 
@@ -521,6 +594,7 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
             consts.EXTRA_ARGS_SNAPSHOT: snapshot,
             consts.EXTRA_ARGS_DELETE_ONLY: delete_only,
             consts.EXTRA_ARGS_ROLLBACK: rollback,
+            consts.EXTRA_ARGS_WITH_PRESTAGE: with_prestage,
         }
         response = self._send_request()
         self._assert_pecan_and_response(response, http.client.BAD_REQUEST, error_msg)
@@ -562,18 +636,13 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
     def test_post_software_fails_without_extra_args(self):
         """Test post of software strategy fails without extra args"""
 
-        error_msg = "Release ID is required for strategy type: sw-deploy."
-        self.base_post_software_fails_extra_args(error_msg)
+        self.base_post_software_fails_extra_args(self.RELEASE_ID_ERROR)
 
     def test_post_software_fails_snapshot_and_rollback(self):
         """Test post of software strategy fails with snapshot and rollback"""
 
-        error_msg = (
-            "Option snapshot cannot be used with any of the following options: "
-            "rollback or delete_only."
-        )
         self.base_post_software_fails_extra_args(
-            error_msg,
+            self.SNAPSHOT_ERROR,
             release_id=fake_consts.RELEASE_ID,
             snapshot=True,
             rollback=True,
@@ -582,68 +651,57 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
     def test_post_software_fails_snapshot_and_delete_only(self):
         """Test post of software strategy fails with snapshot and delete_only"""
 
-        error_msg = (
-            "Option snapshot cannot be used with any of the following options: "
-            "rollback or delete_only."
-        )
         self.base_post_software_fails_extra_args(
-            error_msg,
+            self.SNAPSHOT_ERROR,
             release_id=fake_consts.RELEASE_ID,
             snapshot=True,
+            delete_only=True,
+        )
+
+    def test_post_software_fails_with_delete_and_rollback(self):
+        """Test post of software strategy fails with rollback and with_delete"""
+
+        self.base_post_software_fails_extra_args(
+            self.WITH_DELETE_ERROR,
+            rollback=True,
+            with_delete=True,
+        )
+
+    def test_post_software_fails_with_delete_and_delete_only(self):
+        """Test post of software strategy fails with_delete and delete_only"""
+
+        self.base_post_software_fails_extra_args(
+            self.WITH_DELETE_ERROR,
+            release_id=fake_consts.RELEASE_ID,
+            with_delete=True,
             delete_only=True,
         )
 
     def test_post_software_fails_rollback_and_release(self):
         """Test post of software strategy fails with rollback and release"""
 
-        error_msg = (
-            "Option rollback cannot be used with any of the following options: "
-            "release_id, snapshot, with_delete or delete_only."
-        )
         self.base_post_software_fails_extra_args(
-            error_msg,
+            self.ROLLBACK_ERROR,
             release_id=fake_consts.RELEASE_ID,
             rollback=True,
-        )
-
-    def test_post_software_fails_rollback_and_with_delete(self):
-        """Test post of software strategy fails with rollback and with_delete"""
-
-        error_msg = (
-            "Option rollback cannot be used with any of the following options: "
-            "release_id, snapshot, with_delete or delete_only."
-        )
-        self.base_post_software_fails_extra_args(
-            error_msg,
-            rollback=True,
-            with_delete=True,
         )
 
     def test_post_software_fails_rollback_and_delete_only(self):
         """Test post of software strategy fails with rollback and delete_only"""
 
-        error_msg = (
-            "Option rollback cannot be used with any of the following options: "
-            "release_id, snapshot, with_delete or delete_only."
-        )
         self.base_post_software_fails_extra_args(
-            error_msg,
+            self.ROLLBACK_ERROR,
             rollback=True,
             delete_only=True,
         )
 
-    def test_post_software_fails_with_delete_and_delete_only(self):
-        """Test post of software strategy fails with_delete and delete_only"""
+    def test_post_software_fails_rollback_and_with_prestage(self):
+        """Test post of software strategy fails with rollback and with_prestage"""
 
-        error_msg = (
-            "Option with_delete cannot be used with any of the following options: "
-            "rollback or delete_only."
-        )
         self.base_post_software_fails_extra_args(
-            error_msg,
-            release_id=fake_consts.RELEASE_ID,
-            with_delete=True,
-            delete_only=True,
+            self.ROLLBACK_ERROR,
+            rollback=True,
+            with_prestage=True,
         )
 
 

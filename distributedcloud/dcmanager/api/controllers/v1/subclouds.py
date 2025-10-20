@@ -625,7 +625,7 @@ class SubcloudsController(object):
         # If the subcloud is not secondary, a unique UUID
         # for the subcloud region will be generated.
         if "secondary" not in payload:
-            psd_common.validate_sysadmin_password(payload)
+            utils.validate_sysadmin_password(payload)
             psd_common.subcloud_region_create(payload, context)
 
         psd_common.pre_deploy_create(payload, context, request)
@@ -1248,7 +1248,7 @@ class SubcloudsController(object):
             payload["bootstrap-address"] = payload["install_values"][
                 "bootstrap_address"
             ]
-            psd_common.validate_sysadmin_password(payload)
+            utils.validate_sysadmin_password(payload)
             psd_common.pre_deploy_install(payload, validate_password=False)
             psd_common.pre_deploy_bootstrap(
                 context,
@@ -1319,17 +1319,17 @@ class SubcloudsController(object):
             payload = self._get_prestage_payload(request)
             payload["subcloud_name"] = subcloud.name
             try:
-                prestage.global_prestage_validate(payload)
+                utils.validate_prestage(payload)
             except exceptions.PrestagePreCheckFailedException as exc:
-                LOG.exception("global_prestage_validate failed")
+                LOG.exception("validate_prestage failed")
                 pecan.abort(400, _(str(exc)))
 
             try:
-                payload["oam_floating_ip"] = prestage.validate_prestage(
+                payload["oam_floating_ip"] = prestage.validate_prestage_subcloud(
                     subcloud, payload
                 )
             except exceptions.PrestagePreCheckFailedException as exc:
-                LOG.exception("validate_prestage failed")
+                LOG.exception("validate_prestage_subcloud failed")
                 pecan.abort(400, _(str(exc)))
 
             try:

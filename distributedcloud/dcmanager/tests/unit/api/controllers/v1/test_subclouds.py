@@ -3096,8 +3096,10 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "Prestage failed 'SystemController': Prestage operations are not "
-            "allowed while system controller has a software deployment in progress.",
+            (
+                "Prestage operations are not allowed while system controller "
+                "has a software deployment in progress."
+            ),
         )
 
     def test_patch_prestage_fails_without_payload(self):

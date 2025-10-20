@@ -324,22 +324,26 @@ SYSTEM_MODE_DUPLEX = "duplex"
 SYSTEM_MODE_SIMPLEX = "simplex"
 SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
 
+# common extra_args
+EXTRA_ARGS_FORCE = "force"
+
 # extra_args for kube upgrade
 EXTRA_ARGS_TO_VERSION = "to-version"
+
 # extra_args for kube rootca update
 EXTRA_ARGS_CERT_FILE = "cert-file"
 EXTRA_ARGS_EXPIRY_DATE = "expiry-date"
 EXTRA_ARGS_SUBJECT = "subject"
 EXTRA_ARGS_SYSADMIN_PASSWORD = "sysadmin_password"
-EXTRA_ARGS_FORCE = "force"
 
 # extra_args for software
-EXTRA_ARGS_RELEASE_ID = "release_id"
-EXTRA_ARGS_SNAPSHOT = "snapshot"
-EXTRA_ARGS_ROLLBACK = "rollback"
-EXTRA_ARGS_DELETE = "delete"
-EXTRA_ARGS_WITH_DELETE = "with_delete"
 EXTRA_ARGS_DELETE_ONLY = "delete_only"
+EXTRA_ARGS_DELETE = "delete"
+EXTRA_ARGS_RELEASE_ID = "release_id"
+EXTRA_ARGS_ROLLBACK = "rollback"
+EXTRA_ARGS_SNAPSHOT = "snapshot"
+EXTRA_ARGS_WITH_DELETE = "with_delete"
+EXTRA_ARGS_WITH_PRESTAGE = "with_prestage"
 
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = "prestage-software-version"
@@ -485,3 +489,4 @@ SNAPSHOT_SUPPORTED_VERSION = "25.09"
 
 # The maximum number of parallel subclouds in an orchestration process
 MAX_PARALLEL_SUBCLOUDS_LIMIT = 5000
+MAX_PARALLEL_PRESTAGE_LIMIT = 250

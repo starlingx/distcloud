@@ -538,7 +538,7 @@ class PhasedSubcloudDeployController(object):
             payload, subcloud, files_for_resume
         )
 
-        psd_common.validate_sysadmin_password(payload)
+        utils.validate_sysadmin_password(payload)
         for state in deploy_states_to_run:
             if state == INSTALL:
                 psd_common.pre_deploy_install(payload, validate_password=False)
