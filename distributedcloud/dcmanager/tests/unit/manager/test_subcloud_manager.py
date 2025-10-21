@@ -4758,6 +4758,92 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_RESTORE_FAILED, updated_subcloud.deploy_status
         )
 
+    def test_compose_backup_restore_command_basic(self):
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1", f"{ANS_PATH}/subcloud1_inventory.yml"
+        )
+        expected = [
+            "ansible-playbook",
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+        ]
+        self.assertEqual(restore_command, expected)
+
+    def test_compose_backup_restore_command_with_auto_restore_mode(self):
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1", f"{ANS_PATH}/subcloud1_inventory.yml", auto_restore_mode="auto"
+        )
+        expected = [
+            "ansible-playbook",
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+            "-e",
+            "auto_restore_mode=auto",
+            "-e",
+            f"rvmc_config_file={ANS_PATH}/subcloud1/"
+            f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
+            "-e",
+            "mount_seed_iso=true",
+        ]
+        self.assertEqual(restore_command, expected)
+
+    def test_compose_backup_restore_command_with_factory_restore_mode(self):
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            auto_restore_mode="factory",
+        )
+        expected = [
+            "ansible-playbook",
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+            "-e",
+            "auto_restore_mode=factory",
+            "-e",
+            f"rvmc_config_file={ANS_PATH}/subcloud1/"
+            f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
+        ]
+        self.assertEqual(restore_command, expected)
+
+    def test_compose_backup_restore_command_with_auto_and_with_install(self):
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            auto_restore_mode="auto",
+            with_install=True,
+        )
+        expected = [
+            "ansible-playbook",
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+            "-e",
+            "auto_restore_mode=auto",
+            "-e",
+            f"rvmc_config_file={ANS_PATH}/subcloud1/"
+            f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
+        ]
+        self.assertEqual(restore_command, expected)
+
 
 class TestSubcloudMigrate(BaseTestSubcloudManager):
     """Test class for testing subcloud migrate"""
