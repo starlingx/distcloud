@@ -509,7 +509,11 @@ class SubcloudManager(manager.Manager):
         return backup_command
 
     def compose_backup_restore_command(
-        self, subcloud_name, ansible_subcloud_inventory_file, auto_restore_mode=None
+        self,
+        subcloud_name,
+        ansible_subcloud_inventory_file,
+        auto_restore_mode=None,
+        with_install=False,
     ):
         backup_command = [
             "ansible-playbook",
@@ -539,6 +543,11 @@ class SubcloudManager(manager.Manager):
                     dccommon_consts.RVMC_CONFIG_FILE_NAME,
                 ),
             ]
+
+            # When auto-restoring on pre-installed subclouds, we need to use a
+            # seed iso to transfer the central backup and overrides to the subcloud
+            if auto_restore_mode == "auto" and not with_install:
+                backup_command += ["-e", "mount_seed_iso=true"]
 
         return backup_command
 
@@ -2775,6 +2784,13 @@ class SubcloudManager(manager.Manager):
                 subcloud_region_name=subcloud.region_name,
             )
 
+            restore_command = self.compose_backup_restore_command(
+                subcloud.name,
+                subcloud_inventory_file,
+                auto_restore_mode,
+                payload.get("with_install"),
+            )
+
             # Handle auto-restore without install using seed ISO
             if auto_restore_mode == "auto" and not payload.get("with_install"):
                 LOG.info(
@@ -2796,10 +2812,6 @@ class SubcloudManager(manager.Manager):
                     payload["install_values"] = data_install
 
                 self._create_rvmc_config_for_seed_iso(subcloud, payload)
-
-            restore_command = self.compose_backup_restore_command(
-                subcloud.name, subcloud_inventory_file, auto_restore_mode
-            )
 
         except Exception:
             db_api.subcloud_update(
