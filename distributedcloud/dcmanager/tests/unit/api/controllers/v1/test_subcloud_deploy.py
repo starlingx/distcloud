@@ -69,9 +69,8 @@ class BaseTestSubcloudDeployController(DCManagerApiTest):
 
         return f"{prefix}{filename}" if filename else None
 
-    def _create_fake_fields(
-        self, file_options=consts.DEPLOY_COMMON_FILE_OPTIONS, is_file_upload=True
-    ):
+    def _create_fake_fields(self, file_options=None, is_file_upload=True):
+        file_options = file_options or consts.DEPLOY_COMMON_FILE_OPTIONS
         fields = []
 
         for file_option in file_options:
@@ -116,18 +115,6 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
             read_data=fake_subcloud.FAKE_UPGRADES_METADATA
         )
 
-    def _assert_file_open_calls(self, builtins_call_count=1, os_call_count=3):
-        """Asserts that the mock_builtins_open and os_open were called correctly
-
-        Depending on the file, either the builtins or the os function will be called.
-        The consts.DEPLOY_COMMON_FILE_OPTIONS, which is the default variable used
-        when creating the upload files, results in one call to builtins and three for
-        os. That is the reason for this function's default values.
-        """
-
-        self.assertEqual(self.mock_builtins_open.call_count, builtins_call_count)
-        self.assertEqual(self.mock_os_open.call_count, os_call_count)
-
     def test_post_succeeds_with_params(self):
         """Test post succeeds with params"""
 
@@ -139,7 +126,7 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
 
         self._assert_response(response)
         self.assertEqual(FAKE_SOFTWARE_VERSION, response.json["software_version"])
-        self._assert_file_open_calls(2, len(self.params) - 2)
+        self.assertEqual(self.mock_builtins_open.call_count, len(self.params))
 
     def test_post_succeeds_without_release(self):
         """Test post succeeds without release"""
@@ -149,7 +136,7 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
         self._assert_response(response)
         # Verify the active release will be returned if release isn't present
         self.assertEqual(SW_VERSION, response.json["software_version"])
-        self._assert_file_open_calls()
+        self.assertEqual(self.mock_builtins_open.call_count, 4)
 
     def test_post_fails_with_missing_deploy_chart(self):
         """Test post fails with missing deploy chart"""
@@ -214,7 +201,7 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_response(response)
-        self._assert_file_open_calls(1, len(self.upload_files) - 1)
+        self.assertEqual(self.mock_builtins_open.call_count, len(self.upload_files))
 
     def test_post_succeeds_with_empty_dir_path(self):
         """Test post succeeds with empty dir_path"""
@@ -224,7 +211,7 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_response(response)
-        self._assert_file_open_calls()
+        self.assertEqual(self.mock_builtins_open.call_count, 4)
 
     def test_post_succeeds_with_deploy_prestage(self):
         """Test post succeeds with deploy prestage"""
@@ -235,7 +222,7 @@ class TestSubcloudDeployPost(BaseTestSubcloudDeployController):
         response = self._send_request()
 
         self._assert_response(response)
-        self._assert_file_open_calls(0, len(self.upload_files))
+        self.assertEqual(self.mock_builtins_open.call_count, 1)
 
     def test_post_fails_for_subcloud_deploy_missing_file_name(self):
         """Test post fails when a file option has an empty name is missing"""

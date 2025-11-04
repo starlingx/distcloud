@@ -12,12 +12,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import os
+import shutil
+import zipfile
 
 import http.client as httpclient
 from oslo_config import cfg
@@ -38,6 +40,7 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 LOCK_NAME = "SubcloudDeployController"
+APPLICATION_ZIP_FILETYPE = "application/zip"
 
 
 class SubcloudDeployController(object):
@@ -46,7 +49,7 @@ class SubcloudDeployController(object):
         super(SubcloudDeployController, self).__init__()
 
     @staticmethod
-    def _upload_files(dir_path, file_option, file_item, binary):
+    def _upload_files(dir_path, file_option, file_item):
 
         prefix = file_option + "_"
         # create the version directory if it does not exist
@@ -60,14 +63,17 @@ class SubcloudDeployController(object):
 
         # upload the new file
         file_item.file.seek(0, os.SEEK_SET)
-        contents = file_item.file.read()
         fn = os.path.join(dir_path, prefix + os.path.basename(file_item.filename))
-        if binary:
-            dst = open(fn, "wb")
-            dst.write(contents)
+        if file_item.type == APPLICATION_ZIP_FILETYPE:
+            with zipfile.ZipFile(file_item.file, "r") as zf:
+                zf.extractall(dir_path)
+            # add the prefix to the original file
+            shutil.move(
+                os.path.join(dir_path, os.path.basename(file_item.filename)), fn
+            )
         else:
-            dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
-            os.write(dst, contents)
+            with open(fn, "wb") as dst:
+                shutil.copyfileobj(file_item.file, dst)
 
     @expose(generic=True, template="json")
     def index(self):
@@ -114,11 +120,8 @@ class SubcloudDeployController(object):
             if not filename:
                 pecan.abort(httpclient.BAD_REQUEST, _("No %s file uploaded" % f))
 
-            binary = False
-            if f == consts.DEPLOY_CHART:
-                binary = True
             try:
-                self._upload_files(dir_path, f, file_item, binary)
+                self._upload_files(dir_path, f, file_item)
             except Exception as e:
                 pecan.abort(
                     httpclient.INTERNAL_SERVER_ERROR,
