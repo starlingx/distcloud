@@ -62,6 +62,7 @@ from dccommon.subcloud_install import SubcloudInstall
 from dccommon import utils as dccommon_utils
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
+from dcmanager.common.consts import ANSIBLE_SUBCLOUD_PLAYBOOK
 from dcmanager.common.consts import INVENTORY_FILE_POSTFIX
 from dcmanager.common import context as dcmanager_context
 from dcmanager.common import exceptions
@@ -95,7 +96,6 @@ ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK = (
 ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK = (
     "/usr/share/ansible/stx-ansible/playbooks/restore_subcloud_backup.yml"
 )
-ANSIBLE_SUBCLOUD_PLAYBOOK = "/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml"
 ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = (
     "/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml"
 )

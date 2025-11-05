@@ -53,6 +53,19 @@ class BaseTestPhasedSubcloudDeployController(DCManagerApiTest):
         )
         self.mock_is_system_controller_deploying.return_value = False
 
+        self.mock_os_path_isfile = self._mock_object(os.path, "isfile")
+
+    def _setup_mock_playbook_exists(self, playbook_filename, software_version):
+        if software_version != SW_VERSION:
+            software_version_path = os.path.join(
+                consts.ANSIBLE_PREVIOUS_VERSION_BASE_PATH, software_version
+            )
+            playbook_filename = playbook_filename.replace(
+                consts.ANSIBLE_CURRENT_VERSION_BASE_PATH, software_version_path
+            )
+
+        self.mock_os_path_isfile.side_effect = lambda file: (file == playbook_filename)
+
 
 class TestPhasedSubcloudDeployController(BaseTestPhasedSubcloudDeployController):
     """Test class for PhasedSubcloudDeployController"""
@@ -95,6 +108,11 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
         ]
         self.mock_rpc_client().subcloud_deploy_create.side_effect = (
             self.subcloud_deploy_create
+        )
+
+        self._setup_mock_playbook_exists(
+            consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
+            SW_VERSION,
         )
 
     def subcloud_deploy_create(self, context, subcloud_id, _):
@@ -424,6 +442,20 @@ class TestPhasedSubcloudDeployPatchBootstrap(
         )
         self.mock_rpc_client().subcloud_deploy_bootstrap.assert_called_once()
 
+    def test_patch_bootstrap_fails_if_playbook_for_sw_version_does_not_exist(self):
+        """Test patch bootstrap fails if playbook for sw version does not exist"""
+
+        self.mock_os_path_isfile.side_effect = lambda file: False
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "The bootstrap playbook was not found for "
+            f"{fake_subcloud.FAKE_SOFTWARE_VERSION} software version",
+        )
+
     def test_patch_bootstrap_fails_with_rpc_client_generic_exception(self):
         """Test patch bootstrap fails with rpc client generic exception"""
 
@@ -453,6 +485,11 @@ class TestPhasedSubcloudDeployPatchBootstrapMgmt(
         self.upload_files = [
             ("bootstrap_values", "bootstrap_fake_filename", fake_content)
         ]
+
+        self._setup_mock_playbook_exists(
+            consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
+            fake_subcloud.FAKE_SOFTWARE_VERSION,
+        )
 
     def test_patch_bootstrap_mgmt_succeeds_default_config(self):
         """Test patch bootstrap succeeds with default management"""
@@ -662,6 +699,11 @@ class TestPhasedSubcloudDeployPatchBootstrapAdmin(
         self.upload_files = [
             ("bootstrap_values", "bootstrap_fake_filename", fake_content)
         ]
+
+        self._setup_mock_playbook_exists(
+            consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
+            fake_subcloud.FAKE_SOFTWARE_VERSION,
+        )
 
     def test_patch_bootstrap_admin_succeeds_default_config(self):
         """Test patch bootstrap succeeds with default admin config"""
@@ -1362,6 +1404,11 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             "deploy_playbook_fake.yaml",
         ]
 
+        self._setup_mock_playbook_exists(
+            consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
+            SW_VERSION,
+        )
+
     def _setup_mock_get_request_data(self, states_to_execute=psd_api.DEPLOY_PHASES):
         bootstrap_request = {"bootstrap_values": fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA}
         config_request = {
@@ -1610,6 +1657,11 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
         ]
         self.mock_get_subcloud_db_install_values = self._mock_object(
             psd_common, "get_subcloud_db_install_values"
+        )
+
+        self._setup_mock_playbook_exists(
+            consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
+            SW_VERSION,
         )
 
     def test_patch_enroll_fails_invalid_deploy_status(self):

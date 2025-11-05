@@ -268,8 +268,20 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
         )
         self.mock_is_valid_software_deploy_state.return_value = True
 
+        self.mock_os_path_isfile = self._mock_object(os.path, "isfile")
+
     def _update_subcloud(self, **kwargs):
         self.subcloud = db_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
+
+    def _setup_mock_playbook_exists(self, playbook_filename, software_version):
+        software_version_path = os.path.join(
+            consts.ANSIBLE_PREVIOUS_VERSION_BASE_PATH, software_version
+        )
+        playbook_filename = playbook_filename.replace(
+            consts.ANSIBLE_CURRENT_VERSION_BASE_PATH, software_version_path
+        )
+
+        self.mock_os_path_isfile.side_effect = lambda file: (file == playbook_filename)
 
 
 class TestSubcloudsController(BaseTestSubcloudsController):
@@ -1333,6 +1345,11 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         self.install_data["software_version"] = software_version
         self.upload_files = self.get_post_upload_files()
         self.params.update({"release": software_version})
+
+        self._setup_mock_playbook_exists(
+            consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
+            software_version,
+        )
 
         response = self._send_request()
 
@@ -2751,6 +2768,11 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         self.params["release"] = fake_subcloud.FAKE_SOFTWARE_VERSION
 
         self._update_subcloud(software_version=SW_VERSION)
+
+        self._setup_mock_playbook_exists(
+            consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
+            fake_subcloud.FAKE_SOFTWARE_VERSION,
+        )
 
         response = self._send_request()
 
