@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,6 +15,7 @@
 #
 
 import re
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -24,6 +25,7 @@ from oslo_utils import encodeutils
 from oslo_utils import uuidutils
 import pecan
 from pecan import hooks
+from platform_util.oidc import oidc_utils
 
 from dcmanager.api.policies import base as base_policy
 from dcmanager.api import policy
@@ -34,9 +36,33 @@ ALLOWED_WITHOUT_AUTH = "/"
 audit_log_name = "{}.{}".format(__name__, "auditor")
 auditLOG = log.getLogger(audit_log_name)
 
+# OIDC Cache
+_oidc_cache = {}
+_oidc_cache_lock = threading.Lock()
+
+# OIDC args cache timeout
+OIDC_ARGS_TIMEOUT = 86400
+
 
 def generate_request_id():
     return "req-%s" % uuidutils.generate_uuid()
+
+
+def get_oidc_args_cached(cache: dict) -> dict:
+    """Return OIDC args cache"""
+    with _oidc_cache_lock:
+        cfg = cache.get("oidc_args")
+        ts = cache.get("oidc_args_ts", 0.0)
+        now = time.monotonic()
+
+        # Update OIDC Config every day
+        if not cfg or (now - ts) >= OIDC_ARGS_TIMEOUT:
+            auditLOG.debug("Updating OIDC args cache")
+            cfg = oidc_utils.get_apiserver_oidc_args()
+            cache["oidc_args"] = cfg
+            cache["oidc_args_ts"] = now
+
+        return cfg
 
 
 class RequestContext(base_context.RequestContext):
@@ -110,6 +136,9 @@ class RequestContext(base_context.RequestContext):
         self.roles = roles or []
         self.password = password
 
+        self.oidc_token = kwargs.get("oidc_token")
+        self.auth_type = kwargs.get("auth_type", "keystone")
+
         # Check user is admin or not
         if is_admin is None:
             self.is_admin = policy.authorize(
@@ -146,6 +175,8 @@ class RequestContext(base_context.RequestContext):
             "is_admin": self.is_admin,
             "request_id": self.request_id,
             "password": self.password,
+            "oidc_token": self.oidc_token,
+            "auth_type": self.auth_type,
         }
 
     @classmethod
@@ -166,24 +197,64 @@ def get_service_context(**args):
     this credential refers to the credentials built for dcmanager middleware
     in an OpenStack cloud.
     """
-    pass
 
 
 class AuthHook(hooks.PecanHook):
     def before(self, state):
         if state.request.path == ALLOWED_WITHOUT_AUTH:
             return
+
         req = state.request
-        identity_status = req.headers.get("X-Identity-Status")
-        service_identity_status = req.headers.get("X-Service-Identity-Status")
-        if identity_status == "Confirmed" or service_identity_status == "Confirmed":
-            return
-        if req.headers.get("X-Auth-Token"):
-            msg = "Auth token is invalid: %s" % req.headers["X-Auth-Token"]
+
+        keystone_token = req.headers.get("X-Auth-Token")
+        oidc_token = req.headers.get("OIDC-Token")
+
+        if keystone_token:
+            identity_status = req.headers.get("X-Identity-Status")
+            service_identity_status = req.headers.get("X-Service-Identity-Status")
+            if identity_status == "Confirmed" or service_identity_status == "Confirmed":
+                return
+            msg = "Auth token is invalid: %s" % keystone_token
+        elif oidc_token:
+            if self._validate_oidc_auth(oidc_token):
+                return
+            msg = "OIDC token is invalid"
         else:
             msg = "Authentication required"
+
         msg = "Failed to validate access token: %s" % str(msg)
         pecan.abort(status_code=401, detail=msg)
+
+    def _validate_oidc_auth(self, oidc_token):
+        """Validate OIDC token using platform utilities"""
+        if not oidc_token:
+            auditLOG.debug("No OIDC token provided")
+            return False
+
+        try:
+            oidc_config = get_oidc_args_cached(_oidc_cache)
+            if not oidc_config:
+                auditLOG.debug("OIDC configuration not available")
+                return False
+
+            issuer_url = oidc_config.get("oidc-issuer-url")
+            client_id = oidc_config.get("oidc-client-id")
+
+            if not issuer_url or not client_id:
+                auditLOG.debug("OIDC configuration incomplete")
+                return False
+
+            with _oidc_cache_lock:
+                token_bucket = _oidc_cache.setdefault("oidc_tokens", {})
+
+            token_claims = oidc_utils.validate_oidc_token(
+                oidc_token, token_bucket, issuer_url, client_id
+            )
+
+            return token_claims is not None
+        except Exception as e:
+            auditLOG.debug(f"OIDC validation failed: {e}")
+            return False
 
 
 class AuditLoggingHook(hooks.PecanHook):

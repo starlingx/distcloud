@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei, Tech. Co,. Ltd.
-# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,6 +15,7 @@
 #    under the License.
 #
 
+import os
 import pecan
 
 from keystonemiddleware import auth_token
@@ -58,20 +59,31 @@ def setup_app(*args, **kwargs):
 
 def _wrap_app(app):
     app = request_id.RequestId(app)
-    if cfg.CONF.pecan.auth_enable and cfg.CONF.auth_strategy == "keystone":
-        conf = dict(cfg.CONF.keystone_authtoken)
-        # Change auth decisions of requests to the app itself.
-        conf.update({"delay_auth_decision": True})
 
-        # NOTE: Policy enforcement works only if Keystone
-        # authentication is enabled. No support for other authentication
-        # types at this point.
-        return auth_token.AuthProtocol(app, conf)
-    else:
-        return app
+    if cfg.CONF.pecan.auth_enable:
+        auth_type = _get_auth_type()
+
+        # For Keystone or OIDC, we still need Keystone middleware
+        # OIDC validation is handled in AuthHook
+        if auth_type in ["keystone", "oidc"]:
+            conf = dict(cfg.CONF.keystone_authtoken)
+            conf.update({"delay_auth_decision": True})
+
+            # Policy enforcement works for both Keystone and OIDC
+            return auth_token.AuthProtocol(app, conf)
+
+    return app
 
 
 _launcher = None
+
+
+def _get_auth_type():
+    """Get authentication type from environment or config"""
+    env_auth_type = os.environ.get("STX_AUTH_TYPE")
+    if env_auth_type and env_auth_type.lower() in ["keystone", "oidc"]:
+        return env_auth_type.lower()
+    return cfg.CONF.auth_strategy
 
 
 def serve(api_service, conf, workers=1):

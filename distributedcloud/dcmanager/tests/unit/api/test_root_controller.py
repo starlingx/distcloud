@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -66,6 +66,7 @@ class DCManagerApiTest(DCManagerTestCase):
         self.upload_files = None
         self.verb = None
         self.headers = {
+            "X-Auth-Token": "fake_keystone_token",
             "X-Tenant-Id": utils.UUID1,
             "X_ROLE": "admin,member,reader",
             "X-Identity-Status": "Confirmed",

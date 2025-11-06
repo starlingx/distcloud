@@ -125,6 +125,7 @@ ignored-modules = cgcs_patch.patch_functions,
                   nfv_client.openstack,
                   software.utils,
                   tsconfig,
+                  platform_util,
 
 # List of classes names for which member attributes should not be checked
 # (useful for classes with attributes dynamically set).

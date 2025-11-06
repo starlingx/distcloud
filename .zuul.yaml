@@ -37,6 +37,7 @@
       - starlingx/update
       - starlingx/config
       - starlingx/root
+      - starlingx/utilities
     vars:
       python_version: 3.9
       tox_envlist: py39
@@ -52,6 +53,7 @@
       - starlingx/nfv
       - starlingx/update
       - starlingx/config
+      - starlingx/utilities
     vars:
       python_version: 3.9
       tox_envlist: pylint
@@ -67,6 +69,7 @@
       - starlingx/nfv
       - starlingx/update
       - starlingx/config
+      - starlingx/utilities
     vars:
       python_version: 3.9
       tox_envlist: pep8
