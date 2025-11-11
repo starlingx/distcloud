@@ -318,6 +318,25 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
 
         self.create_update_strategy.assert_not_called()
 
+    def test_post_fails_with_invalid_force_or_sysadmin_password(self):
+        """Test post fails with invalid max parallel subclouds"""
+
+        self.params["force"] = True
+        self.params["sysadmin_password"] = "fake_password"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            (
+                "The with_prestage option is required when using "
+                "force or sysadmin_password"
+            ),
+        )
+
+        self.create_update_strategy.assert_not_called()
+
     def test_prestage_strategy_create_fails_without_password(self):
         """Test create strategy fails for prestage without password"""
 
