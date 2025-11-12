@@ -1566,6 +1566,14 @@ def get_validated_sw_version_for_prestage(
                 "the system controller, cannot prestage for software deploy."
             )
 
+        # for-sw-deploy prestage we don't want to prestage an N-1 release to an N
+        # subcloud
+        if subcloud and software_version < subcloud.software_version:
+            return None, (
+                f"The requested software version ({software_version}) is lower than "
+                f"the current subcloud software version ({subcloud.software_version})."
+            )
+
     else:
         # Check for install release param
         if not is_software_ready_to_be_prestaged_for_install(
@@ -2143,6 +2151,58 @@ def get_major_releases(releases):
             major_releases.append(major_release)
 
     return major_releases
+
+
+def get_formatted_release_list(
+    software_list: list = None, software_version: str = None
+) -> list:
+    """Get formatted release list.
+
+    This function filters and formats the software list based on the provided
+    software version. It removes state restrictions for N-1 releases and formats
+    the output to match the CLI format.
+
+    :param software_list: list of software releases. If None, returns an empty list.
+    :param software_version: software version to filter releases. If None, uses
+                             the current system controller software version.
+
+    :returns: list of formatted software releases if software_list is provided,
+              otherwise an empty list. The output format is similar to the CLI
+              software list command output:
+              |release_id|reboot_required|state|
+
+              For example:
+              |starlingx-25.09.0|True|deployed|
+              |starlingx-25.09.1|False|available|
+    """
+    state_filter = None
+    filtered_software_list = []
+
+    software_version = software_version if software_version else tsc.SW_VERSION
+
+    # Return empty list if no software list is provided
+    if not software_list:
+        return []
+
+    # Remove state restriction for N-1 release
+    state_filter = None if software_version < tsc.SW_VERSION else software_v1.DEPLOYED
+
+    for release in software_list:
+        # Filter software list by state if state_filter is set, and prestaged sw version
+        if (state_filter is None or release["state"] == state_filter) and (
+            get_major_release(release["sw_version"]) == software_version
+        ):
+            # The output format is similar to the one used in the CLI:
+            # |release_id|reboot_required|state|
+            release_info = "|{}|{}|{}|".format(
+                release["release_id"],
+                release["reboot_required"],
+                release["state"],
+            )
+
+            filtered_software_list.append(release_info)
+
+    return filtered_software_list
 
 
 # Feature: Subcloud Name Reconfiguration

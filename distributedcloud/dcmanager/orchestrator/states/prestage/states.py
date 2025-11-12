@@ -41,17 +41,13 @@ class PrestagePreCheckState(BaseState):
             "sysadmin_password": extra_args["sysadmin_password"],
             "force": extra_args["force"],
         }
-        if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
-            payload.update(
-                {
-                    consts.PRESTAGE_REQUEST_RELEASE: extra_args.get(
-                        consts.PRESTAGE_SOFTWARE_VERSION
-                    )
-                }
-            )
+        prestage_software_version = extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION)
+        if prestage_software_version:
+            payload.update({consts.PRESTAGE_REQUEST_RELEASE: prestage_software_version})
         # Taking the for_sw_deploy parameter if it was specified when the
         # strategy was created
-        if extra_args.get(consts.PRESTAGE_FOR_SW_DEPLOY):
+        for_sw_deploy = extra_args.get(consts.PRESTAGE_FOR_SW_DEPLOY)
+        if for_sw_deploy:
             payload.update(
                 {
                     consts.PRESTAGE_FOR_SW_DEPLOY: extra_args.get(
@@ -68,6 +64,16 @@ class PrestagePreCheckState(BaseState):
                 strategy_step.subcloud, payload, system_controller_sw_list
             )
             oam_floating_ip_dict[strategy_step.subcloud.name] = oam_floating_ip
+
+            # Get and save formatted system controller sw list for provided prestage
+            # software version if for_sw_deploy is set.
+            if for_sw_deploy:
+                self.strategy.system_controller_sw_list = (
+                    utils.get_formatted_release_list(
+                        system_controller_sw_list, prestage_software_version
+                    )
+                )
+
         except exceptions.PrestagePreCheckFailedException as ex:
             # We've either failed precheck or we want to skip this subcloud.
             # Either way, we'll re-raise up to the base class for status
@@ -97,6 +103,7 @@ class PrestagePackagesState(BaseState):
         extra_args = self.strategy.extra_args
         oam_floating_ip_dict = self.strategy.oam_floating_ip_dict
         oam_floating_ip = oam_floating_ip_dict.get(strategy_step.subcloud.name)
+        system_controller_sw_list = self.strategy.system_controller_sw_list
 
         if not oam_floating_ip:
             oam_floating_ip = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
@@ -116,6 +123,12 @@ class PrestagePackagesState(BaseState):
             )
 
         prestage_reason = utils.get_prestage_reason(extra_args)
+
+        # Add system controller sw list to payload if software data is present
+        if system_controller_sw_list and len(system_controller_sw_list) > 0:
+            payload.update(
+                {consts.PRESTAGE_SYSTEM_CONTROLLER_SW_LIST: system_controller_sw_list}
+            )
 
         prestage.prestage_packages(
             self.context, strategy_step.subcloud, payload, prestage_reason

@@ -351,6 +351,9 @@ PRESTAGE_SOFTWARE_VERSION = "prestage-software-version"
 PRESTAGE_REQUEST_RELEASE = "release"
 PRESTAGE_FOR_INSTALL = "for_install"
 PRESTAGE_FOR_SW_DEPLOY = "for_sw_deploy"
+# extra-vars to pass the system controller cached sw list to
+# prestage packages playbook
+PRESTAGE_SYSTEM_CONTROLLER_SW_LIST = "system_controller_sw_list"
 
 # Device Image Bitstream Types
 BITSTREAM_TYPE_ROOT_KEY = "root-key"

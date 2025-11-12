@@ -2963,6 +2963,11 @@ class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):
         {"sw_version": "22.12.0", "state": "available"},
     ]
 
+    FAKE_SOFTWARE_LIST_ONE_DEPLOYED_ONE_PREVIOUS_RELEASE = [
+        {"sw_version": "24.09.0", "state": "deployed"},
+        {"sw_version": "25.09.0", "state": "deployed"},
+    ]
+
     FAKE_SOFTWARE_LIST_MIXED_UNAVAILABLE_DEPLOYED_RELEASES = [
         {"sw_version": "24.09.300", "state": "unavailable"},
         {"sw_version": "24.09.400", "state": "unavailable"},
@@ -3337,6 +3342,31 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
             http.client.BAD_REQUEST,
             f"Prestage failed '{self.subcloud.name}': The requested software version "
             "is not supported, cannot prestage for software deploy.",
+        )
+
+    def test_prestage_for_sw_deploy_fails_with_previous_release(self):
+        """Test prestage for sw deploy fails with previous release"""
+
+        release = "24.09"
+        self.params["release"] = release
+        self.params["for_sw_deploy"] = "true"
+        self._update_subcloud(software_version="25.09")
+
+        self.mock_get_validated_sw_version_for_prestage.side_effect = (
+            self.original_get_validated_sw_version_for_prestage
+        )
+
+        self.software_list = self.FAKE_SOFTWARE_LIST_ONE_DEPLOYED_ONE_PREVIOUS_RELEASE
+        self._setup_mock_get_system_controller_software_list()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Prestage failed '{self.subcloud.name}': The requested software version "
+            f"({release}) is lower than the current subcloud software version "
+            f"({self.subcloud.software_version}).",
         )
 
     def test_patch_prestage_fails_with_unmanaged_subcloud(self):
