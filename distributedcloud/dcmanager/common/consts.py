@@ -284,6 +284,7 @@ BACKUP_STATE_COMPLETE_CENTRAL = "complete-central"
 PRESTAGE_STATE_PRESTAGING = "prestaging"
 PRESTAGE_STATE_FAILED = "failed"
 PRESTAGE_STATE_COMPLETE = "complete"
+PRESTAGE_STATE_NONE = "None"
 
 # States to indicate if a prestage operation is currently in progress
 STATES_FOR_ONGOING_PRESTAGE = [

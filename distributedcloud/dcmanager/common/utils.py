@@ -2537,7 +2537,7 @@ def validate_max_parallel_value(value, payload: dict):
         >>> validate_max_parallel_value(500, {"type": "prestage"})
     """
     strategy_type = payload.get("type")
-    with_prestage = payload.get("with_prestage")
+    with_prestage = payload.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
 
     # Determine which limit applies
     is_prestage = with_prestage or strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE

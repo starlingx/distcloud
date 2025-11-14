@@ -383,6 +383,15 @@ class OrchestratorWorker(object):
                 f"({strategy_type}) Stage: {step.stage}, State: {step.state}, "
                 f"Subcloud: {step.subcloud.name}"
             )
+            if (
+                strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
+                and step.state == consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK
+            ):
+                # If with_prestage is enabled to sw-deploy-strategy we need to update
+                # the prestage_status when prestage-orchestration begins.
+                self._update_subcloud_data(
+                    step.subcloud.id, prestage_status=consts.PRESTAGE_STATE_PRESTAGING
+                )
             # Instantiate the state operator and perform the state actions
             state_operator = self.strategies[strategy_type].determine_state_operator(
                 region, step
@@ -406,7 +415,10 @@ class OrchestratorWorker(object):
                 details=self._format_update_details(None, str(ex)),
             )
 
-            if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            if (
+                step.state
+                in self.strategies[consts.SW_UPDATE_TYPE_PRESTAGE].STATE_OPERATORS
+            ):
                 self._update_subcloud_data(step.subcloud.id, prestage_status=None)
         except Exception as ex:
             # Catch ALL exceptions and set the strategy to failed
@@ -421,7 +433,10 @@ class OrchestratorWorker(object):
                 details=self._format_update_details(step.state, str(ex)),
             )
 
-            if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            if (
+                step.state
+                in self.strategies[consts.SW_UPDATE_TYPE_PRESTAGE].STATE_OPERATORS
+            ):
                 self._update_subcloud_data(
                     step.subcloud.id, prestage_status=consts.PRESTAGE_STATE_FAILED
                 )
@@ -484,7 +499,10 @@ class OrchestratorWorker(object):
                     # Update deploy state for subclouds to complete
                     subcloud_update["deploy_status"] = consts.DEPLOY_STATE_DONE
 
-                if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                if (
+                    self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE
+                    or strategy.extra_args.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
+                ):
                     subcloud_update["prestage_versions"] = (
                         prestage.get_prestage_versions(step.subcloud.name)
                     )
@@ -562,7 +580,10 @@ class OrchestratorWorker(object):
                     # Update deploy state for subclouds to complete
                     subcloud_update["deploy_status"] = consts.DEPLOY_STATE_DONE
 
-                if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+                if (
+                    self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE
+                    or strategy.extra_args.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
+                ):
                     subcloud_update["prestage_versions"] = (
                         prestage.get_prestage_versions(step.subcloud.name)
                     )

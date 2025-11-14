@@ -51,7 +51,7 @@ class SoftwareStrategy(BaseStrategy):
         self.debug_log("Starting caches")
         self._shared_caches.initialize_caches()
         # If sw-deploy needs to be done with prestage, add prestage state operators
-        if strategy.extra_args.get("with_prestage"):
+        if strategy.extra_args.get(consts.EXTRA_ARGS_WITH_PRESTAGE):
             self.STATE_OPERATORS.update(
                 {
                     consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK: PrestagePreCheckState,
