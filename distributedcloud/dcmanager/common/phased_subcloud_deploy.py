@@ -943,6 +943,29 @@ def validate_install_values(payload, subcloud=None):
             pecan.abort(400, _("Invalid value of rvmc_debug_level: %s") % e)
 
 
+def validate_bootstrap_playbook_for_sw_version(
+    payload, playbook=consts.ANSIBLE_SUBCLOUD_PLAYBOOK
+):
+    """Validate bootstrap playbook's existence.
+
+    Validate the bootstrap playbook's existence if the software version
+    is not the current one.
+    """
+    software_version = payload["software_version"]
+    if software_version == tsc.SW_VERSION:
+        return
+
+    try:
+        utils.get_playbook_for_software_version(playbook, software_version)
+
+    except exceptions.PlaybookNotFound:
+        pecan.abort(
+            400,
+            _("The bootstrap playbook was not found for %s software version")
+            % software_version,
+        )
+
+
 def validate_k8s_version(payload):
     """Validate k8s version.
 
@@ -1351,6 +1374,7 @@ def pre_deploy_create(payload: dict, context: RequestContext, request: pecan.Req
     else:
         validate_install_values(payload)
 
+    validate_bootstrap_playbook_for_sw_version(payload)
     validate_k8s_version(payload)
 
     format_ip_address(payload)
@@ -1428,6 +1452,7 @@ def pre_deploy_bootstrap(
     # between deploy create and deploy bootstrap commands. Validate them
     # again:
     validate_system_controller_deploy_status("bootstrap")
+    validate_bootstrap_playbook_for_sw_version(payload)
     validate_k8s_version(payload)
 
 

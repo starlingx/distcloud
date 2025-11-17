@@ -427,6 +427,7 @@ CERT_NAMESPACE_PLATFORM_CA_CERTS = "cert-manager"
 # The ansible playbook base directories
 ANSIBLE_CURRENT_VERSION_BASE_PATH = "/usr/share/ansible/stx-ansible/playbooks"
 ANSIBLE_PREVIOUS_VERSION_BASE_PATH = "/opt/dc-vault/playbooks"
+ANSIBLE_SUBCLOUD_PLAYBOOK = "/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml"
 
 # Subcloud backup locations
 CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
