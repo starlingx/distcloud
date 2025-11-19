@@ -2698,6 +2698,10 @@ class SubcloudManager(manager.Manager):
             ),
         }
 
+        for value in dccommon_consts.OPTIONAL_BMC_INSTALL_VALUES:
+            if value in install_values:
+                bmc_values[value] = install_values.get(value)
+
         SubcloudInstall.create_rvmc_config_file(override_path, bmc_values)
 
         rvmc_config_path = os.path.join(
