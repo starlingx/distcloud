@@ -117,7 +117,8 @@ class SubcloudInstall(object):
     def get_sysinv_client():
         admin_session = endpoint_cache.EndpointCache.get_admin_session()
         region_name = cutils.get_region_one_name()
-        return SysinvClient(region_name, admin_session)
+        sysinv_client = SysinvClient(region_name, admin_session)
+        return cutils.CachingWrapper(sysinv_client)
 
     @staticmethod
     def format_address(ip_address):
