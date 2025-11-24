@@ -472,7 +472,7 @@ class OrchestratorManager(manager.Manager):
                 raise exceptions.BadRequest(resource="strategy", msg=msg)
             # TODO(rlima): move prestage to its validator
             if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE or payload.get(
-                "with_prestage"
+                consts.EXTRA_ARGS_WITH_PRESTAGE
             ):
                 # Do initial validation for subcloud
                 try:

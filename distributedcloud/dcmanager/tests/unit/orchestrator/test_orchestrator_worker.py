@@ -38,8 +38,15 @@ class BaseTestOrchestratorWorker(base.DCManagerTestCase):
 
         self.orchestrator_worker = orchestrator_worker.OrchestratorWorker()
 
+        # Create the strategy with the default extra_args for the sw-deploy strategy
+        extra_args = (
+            sw_deploy_validator.SoftwareDeployStrategyValidator().build_extra_args({})
+        )
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, consts.SW_UPDATE_TYPE_SOFTWARE, stop_on_failure=False
+            self.ctx,
+            consts.SW_UPDATE_TYPE_SOFTWARE,
+            stop_on_failure=False,
+            extra_args=extra_args,
         )
         self.subclouds = [
             fake_subcloud.create_fake_subcloud(
@@ -154,14 +161,6 @@ class TestOrchestratorWorkerOrchestrationThread(BaseTestOrchestratorWorker):
         self.orchestrator_worker.strategy_type = self.strategy.type
         self.orchestrator_worker.steps_to_process = self.steps_id
         self.orchestrator_worker._last_update = timeutils.utcnow()
-
-        # Update the strategy with default extra args
-        extra_args = (
-            sw_deploy_validator.SoftwareDeployStrategyValidator().build_extra_args({})
-        )
-        self.strategy = fake_strategy.update_fake_strategy(
-            self.ctx, self.strategy.type, additional_args=extra_args
-        )
 
         # Mock the BaseStrategy methods to avoid executing them
         self.pre_apply_setup = self._mock_object(
