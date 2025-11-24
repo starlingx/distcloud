@@ -55,7 +55,7 @@ def hex_to_int(hex_str: str) -> int:
     return int(hex_str, 16)
 
 
-def run_command(cmd: list[str]) -> Optional[str]:
+def run_command(cmd: list[str]) -> str:
     """Run a shell command and return its output"""
     try:
         result = subprocess.run(
@@ -68,9 +68,7 @@ def run_command(cmd: list[str]) -> Optional[str]:
         return result.stdout
 
     except subprocess.CalledProcessError as e:
-        logging.error(f"Command failed: {' '.join(cmd)}")
-        logging.error(f"stderr: {e.stderr.strip()}")
-        return None
+        exit_script(False, f"Command failed: {e.stderr.strip()}")
 
 
 def exit_script(
@@ -98,7 +96,7 @@ def exit_script(
 
 
 class IpmiTool:
-    def __init__(self, host, user, password):
+    def __init__(self, host, user, password, ciphersuite=None):
         self.base_cmd = [
             "ipmitool",
             "-I",
@@ -110,6 +108,14 @@ class IpmiTool:
             "-P",
             password,
         ]
+
+        if ciphersuite:
+            self.base_cmd.extend(
+                [
+                    "-C",
+                    str(ciphersuite),
+                ]
+            )
 
     @classmethod
     def from_config(cls, path: str) -> "IpmiTool":
@@ -150,7 +156,12 @@ class IpmiTool:
                 f"file: {cfg['bmc_address']} ({ex})",
             )
 
-        return cls(cfg["bmc_address"], cfg["bmc_username"], cfg["bmc_password"])
+        return cls(
+            cfg["bmc_address"],
+            cfg["bmc_username"],
+            cfg["bmc_password"],
+            cfg.get("bmc_ciphersuite"),
+        )
 
     @staticmethod
     def get_id_from_line(event_line: str) -> int:
