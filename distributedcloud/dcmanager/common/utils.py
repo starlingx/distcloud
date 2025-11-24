@@ -2364,7 +2364,6 @@ def validate_software_strategy(payload: dict):
     with_delete = payload.get(consts.EXTRA_ARGS_WITH_DELETE)
     delete_only = payload.get(consts.EXTRA_ARGS_DELETE_ONLY)
     with_prestage = payload.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
-    force = payload.get(consts.EXTRA_ARGS_FORCE)
     sysadmin_password = payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD)
 
     validate_bool_param(consts.EXTRA_ARGS_SNAPSHOT, snapshot)
@@ -2373,11 +2372,8 @@ def validate_software_strategy(payload: dict):
     validate_bool_param(consts.EXTRA_ARGS_DELETE_ONLY, delete_only)
     validate_bool_param(consts.EXTRA_ARGS_WITH_PRESTAGE, with_prestage)
 
-    if (force or sysadmin_password) and not with_prestage:
-        message = (
-            "The with_prestage option is required when using "
-            "force or sysadmin_password"
-        )
+    if sysadmin_password and not with_prestage:
+        message = "The with_prestage option is required when using sysadmin_password"
         pecan.abort(400, _(message))
 
     if not (rollback or delete_only):
