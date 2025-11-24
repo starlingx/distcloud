@@ -1938,14 +1938,19 @@ class VmcObject(object):
                     )
                 elif _retry > 1:
                     self.logging_util.wlog(
-                        "Unable to verify Set Boot Override [%s:%s:%s] - try %s"
+                        "Unable to verify Set Boot Override [%s:%s:%s] - try %d"
                         % (enabled, device, mode, _retry)
+                    )
+                    self.logging_util.ilog(
+                        "Media Types Found: %s  Supported: %s"
+                        % (self.vm_media_types, SUPPORTED_VIRTUAL_MEDIA_DEVICES)
                     )
                     self.logging_util.dlog4(
                         "Systems Member GET request data \n%s\n" % (self.response_json)
                     )
                     _retry += 1
-                    continue
+                else:
+                    _retry += 1
 
         if _success is False:
             self.logging_util.elog(
