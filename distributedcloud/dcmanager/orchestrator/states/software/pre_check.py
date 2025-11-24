@@ -226,9 +226,11 @@ class PreCheckState(BaseState):
         if release:
             # Verify whether the subcloud has already deployed the release or if cleanup
             # of the available releases is still pending.
-            self._process_releases_state(
+            next_state = self._process_releases_state(
                 strategy_step, subcloud_releases, release, release_id
             )
+            if next_state:
+                self.override_next_state(next_state)
         else:
             details = f"Release {release_id} is not prestaged."
             if not self.strategy.extra_args.get(consts.EXTRA_ARGS_WITH_PRESTAGE):
@@ -249,6 +251,8 @@ class PreCheckState(BaseState):
         subcloud releases. If the highest deployed release matches the strategy
         release, marks the strategy step as complete. Depending on the state of the
         highest release, overrides the next strategy state accordingly.
+        If the subcloud is already prestaged but the with_prestage option is enabled,
+        runs the prestage playbook to check for new prestage images.
 
         Args:
             strategy_step: The current strategy step object.
@@ -259,6 +263,9 @@ class PreCheckState(BaseState):
         Side Effects:
             Logs a warning if the release is already deployed.
             Overrides the next strategy state based on release states.
+
+        Returns:
+            Next sw-deploy-strategy state
         """
 
         highest_release = max(
@@ -288,9 +295,19 @@ class PreCheckState(BaseState):
             # If the highest release is in the 'available' state we should delete
             # in the STRATEGY_STATE_SW_FINISH_STRATEGY
             if highest_release["state"] == software_v1.AVAILABLE:
-                self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
-            else:
-                self.override_next_state(consts.STRATEGY_STATE_COMPLETE)
+                return consts.STRATEGY_STATE_SW_FINISH_STRATEGY
+            return consts.STRATEGY_STATE_COMPLETE
+
+        # If the subcloud is already prestaged but the with_prestage option is enabled,
+        # we still need to run the prestage playbook to check whether new prestage
+        # images are required.
+        if self.strategy.extra_args.get(consts.EXTRA_ARGS_WITH_PRESTAGE):
+            details = (
+                f"Release {release_id} is already prestaged in subcloud. "
+                "Prestage playbook will be executed again to check the images."
+            )
+            self.warn_log(strategy_step, details)
+            return consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK
 
     def _validate_extra_args_rollback(
         self, extra_args: dict, strategy_step: str
