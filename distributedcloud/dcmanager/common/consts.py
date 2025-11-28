@@ -492,3 +492,7 @@ SNAPSHOT_SUPPORTED_VERSION = "25.09"
 # The maximum number of parallel subclouds in an orchestration process
 MAX_PARALLEL_SUBCLOUDS_LIMIT = 5000
 MAX_PARALLEL_PRESTAGE_LIMIT = 250
+
+# The minimal amount of addresses the mgmt and/or admin subnets require
+MIN_SUBNET_HOST_ADDRESSES = 3
+MIN_AIO_SX_SUBNET_HOST_ADDRESSES = 1

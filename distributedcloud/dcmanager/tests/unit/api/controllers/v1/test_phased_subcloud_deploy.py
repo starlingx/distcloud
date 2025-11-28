@@ -592,10 +592,10 @@ class TestPhasedSubcloudDeployPatchBootstrapMgmt(
 
         self.modified_bootstrap_data["system_mode"] = consts.SYSTEM_MODE_DUPLEX
         self.modified_bootstrap_data["management_start_address"] = "192.168.101.102"
-        self.modified_bootstrap_data["management_end_address"] = "192.168.101.104"
+        self.modified_bootstrap_data["management_end_address"] = "192.168.101.103"
 
         self._send_and_assert_fail(
-            "management address range must contain at least 4 addresses",
+            "management address range must contain at least 3 addresses",
         )
 
     def test_patch_bootstrap_mgmt_fails_subnet_non_overlap(self):
@@ -803,10 +803,10 @@ class TestPhasedSubcloudDeployPatchBootstrapAdmin(
 
         self.modified_bootstrap_data["system_mode"] = consts.SYSTEM_MODE_DUPLEX
         self.modified_bootstrap_data["admin_start_address"] = "192.168.104.102"
-        self.modified_bootstrap_data["admin_end_address"] = "192.168.104.104"
+        self.modified_bootstrap_data["admin_end_address"] = "192.168.104.103"
 
         self._send_and_assert_fail(
-            "admin address range must contain at least 4 addresses"
+            "admin address range must contain at least 3 addresses"
         )
 
     def test_patch_bootstrap_admin_fails_missing_subnet_address(self):

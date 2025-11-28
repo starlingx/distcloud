@@ -436,7 +436,11 @@ def validate_subcloud_config(
         LOG.exception(e)
         pecan.abort(400, _("management_end_address invalid: %s") % e)
 
-    min_management_valid_hosts = 1 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 4
+    min_management_valid_hosts = (
+        consts.MIN_AIO_SX_SUBNET_HOST_ADDRESSES
+        if system_mode == consts.SYSTEM_MODE_SIMPLEX
+        else consts.MIN_SUBNET_HOST_ADDRESSES
+    )
 
     for start_ip, end_ip in zip(management_start_ips, management_end_ips):
         if start_ip > end_ip:
@@ -613,7 +617,11 @@ def validate_admin_network_config(
         LOG.exception(e)
         pecan.abort(400, _("admin_end_address invalid: %s") % e)
 
-    min_admin_valid_hosts = 1 if system_mode == consts.SYSTEM_MODE_SIMPLEX else 4
+    min_admin_valid_hosts = (
+        consts.MIN_AIO_SX_SUBNET_HOST_ADDRESSES
+        if system_mode == consts.SYSTEM_MODE_SIMPLEX
+        else consts.MIN_SUBNET_HOST_ADDRESSES
+    )
 
     for start_ip, end_ip in zip(admin_start_ips, admin_end_ips):
         if start_ip > end_ip:
