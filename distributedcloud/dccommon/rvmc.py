@@ -1444,6 +1444,7 @@ class VmcObject(object):
                 )
                 self.vm_url_list.append(self.vm_url)
                 self.vm_url_data_list.append(self.response_dict)
+                break
             else:
                 self.logging_util.dlog3(
                     "Virtual Media %s does not support CD/DVD ; "
