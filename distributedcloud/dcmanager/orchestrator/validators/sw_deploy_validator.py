@@ -36,7 +36,6 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
         :param payload: strategy request payload
         """
         ret_dict = {
-            consts.EXTRA_ARGS_FORCE: payload.get(consts.EXTRA_ARGS_FORCE, False),
             consts.EXTRA_ARGS_DELETE_ONLY: payload.get(
                 consts.EXTRA_ARGS_DELETE_ONLY, False
             ),
@@ -54,9 +53,14 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
             ),
         }
 
+        # Update sw-deploy extra_args with the required options for prestage.
         if ret_dict.get(consts.EXTRA_ARGS_WITH_PRESTAGE):
-            # Update strategy extra_args with sw-deploy prestage information
             ret_dict[consts.PRESTAGE_FOR_SW_DEPLOY] = True
+            # Force is always set to False because allowing prestage to run on a
+            # subcloud with management alarms is pointless: prestage may succeed,
+            # but the subsequent sw-deploy will still fail under the same alarm
+            # conditions.
+            ret_dict[consts.EXTRA_ARGS_FORCE] = False
             ret_dict[consts.PRESTAGE_SOFTWARE_VERSION] = utils.get_major_release(
                 payload.get(consts.EXTRA_ARGS_RELEASE_ID),
             )
