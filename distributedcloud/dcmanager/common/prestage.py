@@ -295,10 +295,7 @@ def _get_prestage_subcloud_info(subcloud):
         # Interested only in primary OAM address of subcloud
         oam_floating_ip = utils.get_oam_floating_ip_primary(subcloud, admin_session)
         controller_active_info = sysinv_client.get_host("controller-0")
-        controller_0_is_active = (
-            controller_active_info.capabilities["Personality"]
-            == consts.PERSONALITY_CONTROLLER_ACTIVE
-        )
+        controller_0_is_active = utils.is_active_controller(controller_active_info)
 
         return mode, health, oam_floating_ip, controller_0_is_active
 

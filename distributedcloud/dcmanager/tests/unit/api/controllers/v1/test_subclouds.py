@@ -3280,11 +3280,11 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
             "prestage for software deploy.",
         )
 
-    @mock.patch.object(cutils.tsc, "SW_VERSION", "25.09")
+    @mock.patch.object(cutils.tsc, "SW_VERSION", "26.03")
     def test_prestage_for_sw_deploy_fails_with_inactive_release(self):
         """Test prestage for sw deploy fails with inactive release"""
 
-        self.params["release"] = "24.09"
+        self.params["release"] = "25.09"
         self.params["for_sw_deploy"] = "true"
 
         self.mock_get_validated_sw_version_for_prestage.side_effect = (

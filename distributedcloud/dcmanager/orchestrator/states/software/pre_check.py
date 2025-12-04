@@ -4,7 +4,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import re
+import time
+
 from dccommon.drivers.openstack import software_v1
+from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
 from dccommon import exceptions as vim_exc
 from dcmanager.common import consts
@@ -31,6 +35,16 @@ INVALID_STRATEGY_STATES = [
     vim.STATE_ABORTING,
 ]
 
+# TODO(nicodemos): Remove these constants once upgrades can be started from either
+# controller (currently only works when controller-0 is active).
+# When a swact occurs, services become unavailable and API calls may fail.
+# The max time allowed here is 5 minutes (ie: 30 queries with 10 secs sleep)
+DEFAULT_MAX_FAILED_QUERIES = 30
+# After a swact, there is a sleep before proceeding to the next state
+# Added another minute to ensure controller is stable
+DEFAULT_SWACT_SLEEP = 60
+DEFAULT_SLEEP_DURATION = 10
+
 
 class PreCheckState(BaseState):
     """Pre check software orchestration state"""
@@ -42,6 +56,9 @@ class PreCheckState(BaseState):
             strategy=strategy,
         )
         self._subcloud_releases = None
+        # max time to wait (in seconds) is: sleep_duration * max_queries
+        self.sleep_duration = DEFAULT_SLEEP_DURATION
+        self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
 
     def perform_state_action(self, strategy_step):
         """Pre check region status"""
@@ -130,6 +147,10 @@ class PreCheckState(BaseState):
         # We should skip the install_license state if it's a minor release.
         if strategy_step.subcloud.software_version == major_release:
             self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
+        else:
+            # TODO(nicodemos): Remove this once upgrades can be started from either
+            # controller (currently only works when controller-0 is active).
+            self._check_active_controller(strategy_step)
 
         self.info_log(strategy_step, f"Check prestaged data for release: {release_id}")
         self._check_prestaged_data(
@@ -363,3 +384,202 @@ class PreCheckState(BaseState):
             )
             self.override_next_state(consts.STRATEGY_STATE_COMPLETE)
         return True
+
+    def _check_active_controller(self, strategy_step):
+        """Ensure controller-0 is the active controller, performing swact if needed.
+
+        Checks if controller-0 is the active controller. If not, initiates a swact
+        operation and waits for it to complete before proceeding.
+
+        Args:
+            strategy_step: The current strategy step.
+
+        Raises:
+            SoftwarePreCheckFailedException: If client creation, swact initiation,
+                                             or swact completion fails.
+            StrategyStoppedException: If the strategy is stopped during execution.
+        """
+        try:
+            sysinv_client = self.get_sysinv_client(self.get_region_name(strategy_step))
+            controller_0_host = sysinv_client.get_host("controller-0")
+        except Exception as exc:
+            self.handle_exception(
+                strategy_step,
+                "Get subcloud sysinv client failed",
+                exceptions.SoftwarePreCheckFailedException,
+                exc=exc,
+            )
+
+        if utils.is_active_controller(controller_0_host):
+            return
+
+        self.warn_log(
+            strategy_step,
+            "Controller-0 is not the active controller; proceeding with swact.",
+        )
+        self._check_health(strategy_step, sysinv_client)
+
+        try:
+            controller_1_host = sysinv_client.get_host("controller-1")
+            response = sysinv_client.swact_host(controller_1_host.id)
+            if response.task != "Swacting":
+                self.handle_exception(
+                    strategy_step,
+                    "Unable to swact to host controller-0",
+                    exceptions.SoftwarePreCheckFailedException,
+                )
+        except Exception as exc:
+            self.handle_exception(
+                strategy_step,
+                "Failed to initiate swact",
+                exceptions.SoftwarePreCheckFailedException,
+                exc=exc,
+            )
+
+        swact_fail_count = 0
+        while True:
+            fail_exception = None
+            if self.stopped():
+                raise exceptions.StrategyStoppedException()
+
+            try:
+                host = sysinv_client.get_host("controller-0")
+                if utils.is_active_controller(host):
+                    self.info_log(
+                        strategy_step,
+                        "Host: controller-0 is now the active controller.",
+                    )
+                    break
+                swact_fail_count += 1
+            except Exception as exc:
+                swact_fail_count += 1
+                fail_exception = exc
+
+            if swact_fail_count >= self.max_failed_queries:
+                self.handle_exception(
+                    strategy_step,
+                    "Timeout waiting for swact to complete. Please check "
+                    "sysinv.log on the subcloud for details.",
+                    exceptions.SoftwarePreCheckFailedException,
+                    exc=fail_exception,
+                )
+            time.sleep(self.sleep_duration)
+
+        self.info_log(
+            strategy_step,
+            f"Waiting {DEFAULT_SWACT_SLEEP} seconds before proceeding",
+        )
+        time.sleep(DEFAULT_SWACT_SLEEP)
+
+        # Final verification that controller-0 is still active after sleep
+        try:
+            host = sysinv_client.get_host("controller-0")
+            if not utils.is_active_controller(host):
+                self.handle_exception(
+                    strategy_step,
+                    "Controller-0 is no longer active after swact completion",
+                    exceptions.SoftwarePreCheckFailedException,
+                )
+        except Exception as exc:
+            self.handle_exception(
+                strategy_step,
+                "Failed to verify controller-0 status after swact",
+                exceptions.SoftwarePreCheckFailedException,
+                exc=exc,
+            )
+
+    def _check_health(self, strategy_step, sysinv_client: SysinvClient):
+        """Check subcloud system health before proceeding with software operations.
+
+        Validates system health by checking for failed components and management
+        affecting alarms. Acceptable conditions are:
+        - Completely healthy system (no failed checks)
+        - Only non-management affecting alarms
+        - Single alarm check failure with non-management affecting alarms only
+
+        Args:
+            strategy_step: The current strategy step.
+            sysinv_client: System inventory client for health queries.
+
+        Raises:
+            SoftwarePreCheckFailedException: If system health check fails due to
+                                             management affecting issues.
+        """
+
+        self.info_log(
+            strategy_step, f"Checking {strategy_step.subcloud.name} system health"
+        )
+        system_health = sysinv_client.get_system_health()
+        fails = re.findall(r"\[Fail\]", system_health)
+        failed_alarm_check = re.findall(r"No alarms: \[Fail\]", system_health)
+        no_mgmt_alarms = re.findall(
+            r"\[0\] of which are management affecting", system_health
+        )
+
+        # The health conditions acceptable for upgrade are:
+        # a) subcloud is completely healthy (i.e. no failed checks)
+        # b) subcloud only fails alarm check and it only has non-management
+        #    affecting alarm(s)
+        if (len(fails) == 0) or (
+            len(fails) == 1 and failed_alarm_check and no_mgmt_alarms
+        ):
+            self.info_log(strategy_step, "Health check passed.")
+            return
+
+        if not failed_alarm_check:
+            # Health check failure: no alarms involved
+            #
+            # These could be Kubernetes or other related failure(s) which has not been
+            # been converted into an alarm condition.
+            details = (
+                "System health check failed. Please run 'system health-query' command "
+                f"on the subcloud or {consts.ERROR_DESC_CMD} on central for details"
+            )
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.SoftwarePreCheckFailedException,
+            )
+        else:
+            if len(fails) == 1:
+                try:
+                    fm_client = self.get_fm_client(strategy_step.subcloud.name)
+                except Exception:
+                    # if getting the token times out, the orchestrator may have
+                    # restarted and subcloud may be offline; so will attempt
+                    # to use the persisted values
+                    message = (
+                        f"Subcloud {strategy_step.subcloud.name} failed to get "
+                        "FM client"
+                    )
+                    self.handle_exception(
+                        strategy_step,
+                        message,
+                        exceptions.SoftwarePreCheckFailedException,
+                    )
+                # Healthy check failure: exclusively alarms related
+                alarms = fm_client.get_alarms()
+                for alarm in alarms:
+                    if alarm.mgmt_affecting == "True":
+                        details = (
+                            f"System health check failed due to alarm {alarm.alarm_id}."
+                            " Please run 'system health-query' command on the subcloud "
+                            f"or {consts.ERROR_DESC_CMD} on central for details."
+                        )
+                        self.handle_exception(
+                            strategy_step,
+                            details,
+                            exceptions.SoftwarePreCheckFailedException,
+                        )
+            else:
+                # Multiple failures
+                details = (
+                    "System health check failed due to multiple failures. "
+                    "Please run 'system health-query' command on the "
+                    f"subcloud or {consts.ERROR_DESC_CMD} on central for details."
+                )
+                self.handle_exception(
+                    strategy_step,
+                    details,
+                    exceptions.SoftwarePreCheckFailedException,
+                )

@@ -149,10 +149,10 @@ class FinishStrategyState(BaseState):
         """Handle the delete_only extra args for software deploy strategies."""
         extra_args = self.strategy.extra_args
         if extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
-            releases_to_delete = [extra_args[consts.EXTRA_ARGS_RELEASE_ID]]
             self.info_log(
                 strategy_step,
-                f"Deleting release {releases_to_delete} as per delete_only argument.",
+                "Executing 'software deploy delete' operation on the subcloud: "
+                f"{strategy_step.subcloud.name} (delete_only requested).",
             )
             try:
                 software_client.deploy_delete()

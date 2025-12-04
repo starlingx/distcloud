@@ -77,6 +77,7 @@ class TestSwUpdate(DCManagerTestCase):
     def _setup_subcloud(self, deploy_status=consts.DEPLOY_STATE_INSTALLED):
         subcloud_id = fake_subcloud.create_fake_subcloud(
             self.ctx,
+            software_version="25.09",
             deploy_status=deploy_status,
         ).id
         return db_api.subcloud_update(

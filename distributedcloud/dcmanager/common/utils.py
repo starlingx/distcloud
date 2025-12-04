@@ -2729,3 +2729,7 @@ def verify_ongoing_subcloud_strategy(context, subcloud):
         return True
 
     return False
+
+
+def is_active_controller(host):
+    return host.capabilities.get("Personality") == consts.PERSONALITY_CONTROLLER_ACTIVE
