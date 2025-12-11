@@ -482,6 +482,7 @@ class SubcloudBackupController(object):
                 payload["registry_images"] = True
             if payload.get("factory"):
                 payload["with_install"] = True
+                payload["local_only"] = True
 
             try:
                 # local update to deploy_status - this is just for CLI response

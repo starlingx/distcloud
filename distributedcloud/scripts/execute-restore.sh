@@ -26,6 +26,7 @@ readonly RESTORE_PLAYBOOK_COMPLETE_FLAG="${CONFIG_DIR}/.restore_playbook_complet
 readonly LOG_FILE="/var/log/auto-restore.log"
 readonly OPENRC_FILE="/etc/platform/openrc"
 readonly ANSIBLE_PLAYBOOK="/usr/share/ansible/stx-ansible/playbooks/restore_platform.yml"
+readonly AUTO_RESTORE_COMPLETE_FLAG="/var/run/.auto_restore_complete"
 
 log() {
     local level="${2:-INFO}"
@@ -72,7 +73,7 @@ send_ipmi_event() {
     else
         log "Failed to send IPMI event after retries: $event_type" "ERROR"
         rm -f "$temp_file"
-        return 1
+        return 0
     fi
 }
 
@@ -442,6 +443,7 @@ handle_second_boot() {
     if retry "source openrc" 10 10 "_source_openrc" &&
        retry "system restore-complete" 15 10 "_restore_complete"; then
         log "System restore-complete executed successfully"
+        touch "$AUTO_RESTORE_COMPLETE_FLAG" || log "Failed to create flag" "WARN"
         send_ipmi_event "restore_complete"
         cleanup
         systemctl disable dc-auto-restore.service
