@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -386,11 +386,8 @@ class OrchestratorManager(manager.Manager):
 
     def _process_extra_args_creation(self, strategy_type, extra_args):
         if extra_args:
-            # cert-file extra_arg needs vault handling for kube rootca update
             if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                # extra_args can be 'cert-file'  or 'subject / expiry_date'
-                # but combining both is not supported
-                cert_file = extra_args.get(consts.EXTRA_ARGS_CERT_FILE)
+                # extra_args can be 'subject or expiry_date'
                 expiry_date = extra_args.get(consts.EXTRA_ARGS_EXPIRY_DATE)
                 subject = extra_args.get(consts.EXTRA_ARGS_SUBJECT)
                 if expiry_date:
@@ -401,28 +398,6 @@ class OrchestratorManager(manager.Manager):
                     is_valid, reason = utils.validate_certificate_subject(subject)
                     if not is_valid:
                         raise exceptions.BadRequest(resource="strategy", msg=reason)
-                if cert_file:
-                    if expiry_date or subject:
-                        raise exceptions.BadRequest(
-                            resource="strategy",
-                            msg=(
-                                "Invalid extra args. <cert-file> cannot be specified "
-                                "along with <subject> or <expiry-date>."
-                            ),
-                        )
-                    # copy the cert-file to the vault
-                    vault_file = self._vault_upload(consts.CERTS_VAULT_DIR, cert_file)
-                    # update extra_args with the new path (in the vault)
-                    extra_args[consts.EXTRA_ARGS_CERT_FILE] = vault_file
-
-    def _process_extra_args_deletion(self, strategy_type, extra_args):
-        if extra_args:
-            # cert-file extra_arg needs vault handling for kube rootca update
-            if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                cert_file = extra_args.get(consts.EXTRA_ARGS_CERT_FILE)
-                if cert_file:
-                    # remove this cert file from the vault
-                    self._vault_remove(consts.CERTS_VAULT_DIR, cert_file)
 
     def create_sw_update_strategy(self, context, payload):
         """Create software update strategy.
@@ -560,8 +535,6 @@ class OrchestratorManager(manager.Manager):
             valid_subclouds = filtered_valid_subclouds
 
         if not valid_subclouds:
-            # handle extra_args processing such as removing from the vault
-            self._process_extra_args_deletion(strategy_type, extra_args)
             msg = "Strategy has no steps to apply"
             LOG.error(
                 "Failed creating software update strategy of type: "
@@ -672,12 +645,6 @@ class OrchestratorManager(manager.Manager):
         )
 
         LOG.info(f"({sw_update_strategy.type}) Subcloud orchestration delete triggered")
-
-        # handle extra_args processing such as removing from the vault
-        self._process_extra_args_deletion(
-            sw_update_strategy.type, sw_update_strategy.extra_args
-        )
-
         return strategy_dict
 
     def apply_sw_update_strategy(self, context, update_type=None):

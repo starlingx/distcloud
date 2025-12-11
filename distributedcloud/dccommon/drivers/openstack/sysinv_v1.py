@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -724,13 +724,6 @@ class SysinvClient(base.DriverBase):
         """
         # todo(abailey): sysinv client endpoint needs to add alarm_ignore_list
         return self.sysinv_client.kube_rootca_update.create(force)
-
-    def kube_rootca_update_upload_cert(self, pem_file):
-        """Ask System Inventory to upload a cert.
-
-        :param pem_file: a file handle to a pem file containing key and cert
-        """
-        return self.sysinv_client.kube_rootca_update.rootCA_upload(pem_file)
 
     def get_kube_rootca_update(self, update_uuid):
         """Retrieve the details of a given kubernetes rootca update

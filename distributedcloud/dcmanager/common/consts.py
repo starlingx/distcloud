@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -153,9 +153,6 @@ STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY = (
 )
 
 # Kube Root CA Update orchestration states (ordered)
-STRATEGY_STATE_KUBE_ROOTCA_UPDATE_PRE_CHECK = "kube rootca update pre check"
-STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START = "kube rootca update start"
-STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT = "kube rootca update upload cert"
 STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY = (
     "creating vim kube rootca update strategy"
 )
@@ -332,7 +329,6 @@ EXTRA_ARGS_FORCE = "force"
 EXTRA_ARGS_TO_VERSION = "to-version"
 
 # extra_args for kube rootca update
-EXTRA_ARGS_CERT_FILE = "cert-file"
 EXTRA_ARGS_EXPIRY_DATE = "expiry-date"
 EXTRA_ARGS_SUBJECT = "subject"
 EXTRA_ARGS_SYSADMIN_PASSWORD = "sysadmin_password"

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -39,9 +39,6 @@ class BaseTestKubeRootCAUpdateAudit(DCManagerTestCase):
         super().setUp()
 
         self._mock_object(rpcapi, "ManagerAuditWorkerClient")
-        self.mock_regionone_sysinvclient = self._mock_object(
-            kube_rootca_update_audit, "SysinvClient"
-        )
         self._mock_object(EndpointCache, "get_admin_session")
         self.mock_log = self._mock_object(kube_rootca_update_audit, "LOG")
 
@@ -60,87 +57,13 @@ class BaseTestKubeRootCAUpdateAudit(DCManagerTestCase):
         )
         return kube_rootca_audit_data
 
-    def _test_kube_rootca_update_audit(self, rehomed, sync_status):
+    def _test_kube_rootca_update_audit(self, sync_status):
         response = self.kube_rootca_audit.get_subcloud_sync_status(
-            self.mock_subcloud_sysinvclient(),
             self.mock_subcloud_fmclient(),
-            self._get_rootca_audit_data(),
-            rehomed,
             self.subcloud.name,
         )
 
         self.assertEqual(response, sync_status)
-
-
-class TestKubeRootCAUpdateAudit(BaseTestKubeRootCAUpdateAudit):
-    def setUp(self):
-        super().setUp()
-
-    def test_kube_rootca_update_audit_region_one_client_exception(self):
-        self.mock_regionone_sysinvclient().get_kube_rootca_cert_id.side_effect = (
-            Exception("fake")
-        )
-
-        response = self._get_rootca_audit_data()
-
-        self.assertIsNone(response)
-        self.mock_log.exception.assert_called_with(
-            "Failed to get Kubernetes root CA from Region One, "
-            "skip Kubernetes root CA audit."
-        )
-
-
-class TestKubeRootCAUpdateAuditCertBased(BaseTestKubeRootCAUpdateAudit):
-    def setUp(self):
-        super().setUp()
-
-        # Set the Kubeernetes Root CA cert identifier as cert1 for all regions
-        self.mock_regionone_sysinvclient().get_kube_rootca_cert_id.return_value = (
-            True,
-            FakeKubeRootcaData("cert1", ""),
-        )
-
-    def test_kube_rootca_update_audit_cert_based_skipped_on_error(self):
-        self.mock_subcloud_sysinvclient().get_kube_rootca_cert_id.return_value = (
-            True,
-            FakeKubeRootcaData("", "error"),
-        )
-
-        self._test_kube_rootca_update_audit(True, None)
-        self.mock_log.error.assert_called_with(
-            "Subcloud: subcloud1. Failed to get Kubernetes root CA cert id, error: "
-            "error, skip kube rootca update audit."
-        )
-
-    def test_kube_rootca_update_audit_cert_based_skipped_on_client_exception(self):
-        self.mock_subcloud_sysinvclient().get_kube_rootca_cert_id.side_effect = (
-            Exception("fake")
-        )
-
-        self._test_kube_rootca_update_audit(True, None)
-        self.mock_log.exception.assert_called_with(
-            "Subcloud: subcloud1. Failed to get Kubernetes root CA status, skip kube "
-            "rootca update audit."
-        )
-
-    def test_kube_rootca_update_audit_cert_based_in_sync(self):
-        # Return the same kube root ca ID in the subclouds
-        self.mock_subcloud_sysinvclient().get_kube_rootca_cert_id.return_value = (
-            True,
-            FakeKubeRootcaData("cert1", ""),
-        )
-
-        self._test_kube_rootca_update_audit(True, dccommon_consts.SYNC_STATUS_IN_SYNC)
-
-    def test_kube_rootca_update_audit_cert_based_out_of_sync(self):
-        self.mock_subcloud_sysinvclient().get_kube_rootca_cert_id.return_value = (
-            True,
-            FakeKubeRootcaData("cert2", ""),
-        )
-
-        self._test_kube_rootca_update_audit(
-            True, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        )
 
 
 class TestKubeRootCAUpdateAuditAlarmBased(BaseTestKubeRootCAUpdateAudit):
@@ -155,12 +78,12 @@ class TestKubeRootCAUpdateAuditAlarmBased(BaseTestKubeRootCAUpdateAudit):
     def test_kube_rootca_update_audit_alarm_based_in_sync_without_alarms(self):
         self.mock_subcloud_fmclient().get_alarms_by_ids.return_value = None
 
-        self._test_kube_rootca_update_audit(False, dccommon_consts.SYNC_STATUS_IN_SYNC)
+        self._test_kube_rootca_update_audit(dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     def test_kube_rootca_update_audit_alarm_based_in_sync_rehomed_without_alarms(self):
         self.mock_subcloud_fmclient().get_alarms_by_ids.return_value = None
 
-        self._test_kube_rootca_update_audit(True, dccommon_consts.SYNC_STATUS_IN_SYNC)
+        self._test_kube_rootca_update_audit(dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     # A rehomed subcloud would only affect the execution by avoiding the
     # get_kube_rootca_cert_id call from get_subcloud_audit_data. Because that is
@@ -170,21 +93,19 @@ class TestKubeRootCAUpdateAuditAlarmBased(BaseTestKubeRootCAUpdateAudit):
             FakeAlarm("k8s_application=platform-integ-apps"),
         ]
 
-        self._test_kube_rootca_update_audit(False, dccommon_consts.SYNC_STATUS_IN_SYNC)
+        self._test_kube_rootca_update_audit(dccommon_consts.SYNC_STATUS_IN_SYNC)
 
     def test_kube_rootca_update_audit_alarm_based_out_of_sync(self):
         self.mock_subcloud_fmclient().get_alarms_by_ids.return_value = [
             FakeAlarm("system.certificate.kubernetes-root-ca"),
         ]
 
-        self._test_kube_rootca_update_audit(
-            False, dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
-        )
+        self._test_kube_rootca_update_audit(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC)
 
     def test_kube_rootca_update_audit_alarm_based_skipped_on_client_exception(self):
         self.mock_subcloud_fmclient().get_alarms_by_ids.side_effect = Exception("fake")
 
-        self._test_kube_rootca_update_audit(False, None)
+        self._test_kube_rootca_update_audit(None)
         self.mock_log.exception.assert_called_with(
             "Subcloud: subcloud1. Failed to get alarms by id, skip kube rootca "
             "update audit."

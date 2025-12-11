@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -39,7 +39,6 @@ class KubeRootCaStrategyValidator(StrategyValidationBase):
         return {
             consts.EXTRA_ARGS_EXPIRY_DATE: payload.get(consts.EXTRA_ARGS_EXPIRY_DATE),
             consts.EXTRA_ARGS_SUBJECT: payload.get(consts.EXTRA_ARGS_SUBJECT),
-            consts.EXTRA_ARGS_CERT_FILE: payload.get(consts.EXTRA_ARGS_CERT_FILE),
         }
 
     def build_sync_status_filter(self, force):
