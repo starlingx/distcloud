@@ -383,15 +383,35 @@ class OrchestratorWorker(object):
                 f"({strategy_type}) Stage: {step.stage}, State: {step.state}, "
                 f"Subcloud: {step.subcloud.name}"
             )
-            if (
-                strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
-                and step.state == consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK
-            ):
-                # If with_prestage is enabled to sw-deploy-strategy we need to update
-                # the prestage_status when prestage-orchestration begins.
-                self._update_subcloud_data(
-                    step.subcloud.id, prestage_status=consts.PRESTAGE_STATE_PRESTAGING
-                )
+
+            # When running sw-upgrade with prestage, the prestage status need to be
+            # set in the _perform_state_action instead of the apply loop
+            if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+                if step.state == consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK:
+                    self._update_subcloud_data(
+                        step.subcloud.id,
+                        prestage_status=consts.PRESTAGE_STATE_PRESTAGING,
+                    )
+                # Set the prestage to complete once all prestage states are finished
+                # This can be done if the prestage_status was set to prestaging
+                # previously and the strategy step is in either install license or
+                # create vim strategy for sw.
+                elif (
+                    (
+                        step.state == consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
+                        or step.state == consts.STRATEGY_STATE_SW_INSTALL_LICENSE
+                    )
+                    and step.subcloud.prestage_status
+                    == consts.PRESTAGE_STATE_PRESTAGING
+                ):
+                    subcloud_update = {
+                        "prestage_versions": prestage.get_prestage_versions(
+                            step.subcloud.name
+                        ),
+                        "prestage_status": consts.PRESTAGE_STATE_COMPLETE,
+                    }
+                    self._update_subcloud_data(step.subcloud.id, **subcloud_update)
+
             # Instantiate the state operator and perform the state actions
             state_operator = self.strategies[strategy_type].determine_state_operator(
                 region, step
@@ -499,10 +519,7 @@ class OrchestratorWorker(object):
                     # Update deploy state for subclouds to complete
                     subcloud_update["deploy_status"] = consts.DEPLOY_STATE_DONE
 
-                if (
-                    self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE
-                    or strategy.extra_args.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
-                ):
+                if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                     subcloud_update["prestage_versions"] = (
                         prestage.get_prestage_versions(step.subcloud.name)
                     )
@@ -580,10 +597,7 @@ class OrchestratorWorker(object):
                     # Update deploy state for subclouds to complete
                     subcloud_update["deploy_status"] = consts.DEPLOY_STATE_DONE
 
-                if (
-                    self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE
-                    or strategy.extra_args.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
-                ):
+                if self.strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                     subcloud_update["prestage_versions"] = (
                         prestage.get_prestage_versions(step.subcloud.name)
                     )
