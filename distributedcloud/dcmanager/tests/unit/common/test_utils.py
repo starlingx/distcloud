@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,11 +7,67 @@
 """
 Tests for the generic utils.
 """
+import copy
 import netaddr
 
 from dcmanager.common import exceptions
 from dcmanager.common import utils
 from dcmanager.tests.base import DCManagerTestCase
+from dcmanager.tests.base import mock
+
+SOFTWARE_LIST = [
+    {
+        "release_id": "starlingx-24.09.0",
+        "reboot_required": True,
+        "state": "deployed",
+        "sw_version": "24.09.0",
+    },
+    {
+        "release_id": "starlingx-24.09.1",
+        "reboot_required": True,
+        "state": "deployed",
+        "sw_version": "24.09.1",
+    },
+    {
+        "release_id": "starlingx-25.09.0",
+        "reboot_required": True,
+        "state": "deployed",
+        "sw_version": "25.09.0",
+    },
+    {
+        "release_id": "starlingx-25.09.1",
+        "reboot_required": False,
+        "state": "deployed",
+        "sw_version": "25.09.1",
+    },
+    {
+        "release_id": "starlingx-25.09.2",
+        "reboot_required": False,
+        "state": "available",
+        "sw_version": "25.09.2",
+    },
+    {
+        "release_id": "starlingx-26.03.0",
+        "reboot_required": True,
+        "state": "deployed",
+        "sw_version": "26.03.0",
+    },
+]
+
+SOFTWARE_LIST_UNAVAILABLE = [
+    {
+        "release_id": "starlingx-24.09.0",
+        "reboot_required": True,
+        "state": "unavailable",
+        "sw_version": "24.09.0",
+    },
+    {
+        "release_id": "starlingx-24.09.1",
+        "reboot_required": True,
+        "state": "unavailable",
+        "sw_version": "24.09.1",
+    },
+]
 
 
 class FakeAddressPool(object):
@@ -319,3 +375,65 @@ class TestCommonUtils(DCManagerTestCase):
         self.assertEqual(utils.get_major_release("starlingx-24.09.1"), "24.09")
         self.assertEqual(utils.get_major_release("24.09"), "24.09")
         self.assertEqual(utils.get_major_release("24.09.1"), "24.09")
+
+    @mock.patch.object(utils.tsc, "SW_VERSION", "25.09")
+    def test_get_formatted_release_list(self):
+        """deployed releases matching with 25.09 (N release)"""
+        software_list = copy.deepcopy(SOFTWARE_LIST)
+        formatted_list = utils.get_formatted_release_list(software_list, "25.09")
+
+        expected_list = [
+            "|starlingx-25.09.0|True|deployed|",
+            "|starlingx-25.09.1|False|deployed|",
+        ]
+        self.assertEqual(formatted_list, expected_list)
+
+    @mock.patch.object(utils.tsc, "SW_VERSION", "25.09")
+    def test_get_formatted_release_list_default_sw_version(self):
+        """deployed releases matching with default 25.09 SW_VERSION (N release)"""
+        software_list = copy.deepcopy(SOFTWARE_LIST)
+        formatted_list = utils.get_formatted_release_list(software_list)
+
+        expected_list = [
+            "|starlingx-25.09.0|True|deployed|",
+            "|starlingx-25.09.1|False|deployed|",
+        ]
+        self.assertEqual(formatted_list, expected_list)
+
+    @mock.patch.object(utils.tsc, "SW_VERSION", "25.09")
+    def test_get_formatted_release_list_previous_sw_version(self):
+        """deployed releases matching with 24.09 (N-1 release)"""
+        software_list = copy.deepcopy(SOFTWARE_LIST)
+        formatted_list = utils.get_formatted_release_list(software_list, "24.09")
+
+        expected_list = [
+            "|starlingx-24.09.0|True|deployed|",
+            "|starlingx-24.09.1|True|deployed|",
+        ]
+        self.assertEqual(formatted_list, expected_list)
+
+    @mock.patch.object(utils.tsc, "SW_VERSION", "25.09")
+    def test_get_formatted_release_list_unavailable_previous_sw_version(self):
+        """deployed releases matching with unavailable 24.09 (N-1 release)"""
+        software_list = copy.deepcopy(SOFTWARE_LIST_UNAVAILABLE)
+        formatted_list = utils.get_formatted_release_list(software_list, "24.09")
+
+        expected_list = [
+            "|starlingx-24.09.0|True|unavailable|",
+            "|starlingx-24.09.1|True|unavailable|",
+        ]
+        self.assertEqual(formatted_list, expected_list)
+
+    def test_get_formatted_release_list_without_software_list(self):
+        """get formatted release list without specifying software_list"""
+        formatted_list = utils.get_formatted_release_list()
+
+        expected_list = []
+        self.assertEqual(formatted_list, expected_list)
+
+    def test_get_formatted_release_list_with_empty_software_list(self):
+        """get formatted release list with empty software_list"""
+        formatted_list = utils.get_formatted_release_list([])
+
+        expected_list = []
+        self.assertEqual(formatted_list, expected_list)

@@ -17,12 +17,28 @@ from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.cache import clients
+from dcmanager.orchestrator.states.prestage import states as prestage_states
 from dcmanager.tests.unit.common import fake_strategy
+from dcmanager.tests.unit.orchestrator.test_base import mock
 from dcmanager.tests.unit.orchestrator.test_base import TestSwUpdate
 
 FAKE_PASSWORD = (base64.b64encode("testpass".encode("utf-8"))).decode("ascii")
 OAM_FLOATING_IP = "10.10.10.12"
 REQUIRED_EXTRA_ARGS = {"sysadmin_password": FAKE_PASSWORD, "force": False}
+FAKE_REGION_ONE_RELEASE_PRESTAGED = [
+    {
+        "release_id": "starlingx-25.09.0",
+        "reboot_required": True,
+        "state": "deployed",
+        "sw_version": "25.09.0",
+    },
+    {
+        "release_id": "starlingx-25.09.1",
+        "reboot_required": False,
+        "state": "deployed",
+        "sw_version": "25.09.1",
+    },
+]
 
 
 class TestPrestage(TestSwUpdate):
@@ -138,6 +154,30 @@ class TestPrestagePreCheckState(TestPrestage):
         extra_args[consts.PRESTAGE_FOR_SW_DEPLOY] = True
 
         self._setup_and_assert(consts.STRATEGY_STATE_PRESTAGE_PACKAGES, extra_args)
+
+    @mock.patch.object(prestage.utils.tsc, "SW_VERSION", new="25.09")
+    @mock.patch.object(prestage_states.PrestagePreCheckState, "_read_from_cache")
+    def test_prestage_pre_check_succeeds_for_sw_deploy_with_cached_software_list(
+        self, mock_read_from_cache
+    ):
+        """Test prestage pre check succeeds for sw_deploy with cached software list"""
+
+        mock_read_from_cache.return_value = FAKE_REGION_ONE_RELEASE_PRESTAGED
+        expected_software_list = [
+            "|starlingx-25.09.0|True|deployed|",
+            "|starlingx-25.09.1|False|deployed|",
+        ]
+
+        extra_args = copy.copy(REQUIRED_EXTRA_ARGS)
+        extra_args[consts.PRESTAGE_FOR_SW_DEPLOY] = True
+
+        self._setup_and_assert(consts.STRATEGY_STATE_PRESTAGE_PACKAGES, extra_args)
+
+        prestage_strategy = self.worker.strategies[self.strategy_type]
+        mock_read_from_cache.assert_called_once()
+        self.assertEqual(
+            prestage_strategy.system_controller_sw_list, expected_software_list
+        )
 
 
 class TestPrestagePackagesState(TestPrestage):

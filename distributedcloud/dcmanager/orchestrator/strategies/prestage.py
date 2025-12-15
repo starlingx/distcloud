@@ -40,6 +40,7 @@ class PrestageStrategy(BaseStrategy):
         # Initialize shared cache instances for the states that require them
         self._shared_caches = SharedCacheRepository(consts.SW_UPDATE_TYPE_SOFTWARE)
         self.oam_floating_ip_dict = dict()
+        self.system_controller_sw_list = list()
 
     def pre_apply_setup(self, strategy):
         # Start caches for the strategy

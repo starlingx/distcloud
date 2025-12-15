@@ -408,8 +408,15 @@ def prestage_packages(context, subcloud, payload, reason):
     )
 
     software_version = payload.get(consts.PRESTAGE_REQUEST_RELEASE, SW_VERSION)
+    software_list = payload.get(consts.PRESTAGE_SYSTEM_CONTROLLER_SW_LIST)
     extra_vars_str = f"software_version={software_version} "
     extra_vars_str += f"prestage_reason={reason}"
+
+    # This only applies if the list was populated in prestage pre-check.
+    if software_list:
+        extra_vars_str += (
+            f" {consts.PRESTAGE_SYSTEM_CONTROLLER_SW_LIST}='{software_list}'"
+        )
 
     ostree_mount.validate_ostree_iso_mount(software_version)
 
