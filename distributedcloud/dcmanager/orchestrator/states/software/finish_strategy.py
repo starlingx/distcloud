@@ -47,14 +47,12 @@ class FinishStrategyState(BaseState):
                 self.context, self.region_name, software_version
             )
 
-        # Update the database with the software version, deploy status to complete and
-        # clear prestage status value
+        # Update the database with the software version, deploy status to complete
         db_api.subcloud_update(
             self.context,
             strategy_step.subcloud_id,
             software_version=software_version,
             deploy_status=consts.DEPLOY_STATE_DONE,
-            prestage_status=consts.PRESTAGE_STATE_NONE,
         )
 
         return self.next_state
