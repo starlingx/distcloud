@@ -12,7 +12,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.vim import STATE_BUILDING
 from dccommon.drivers.openstack.vim import STRATEGY_NAME_SW_USM
 from dcmanager.common import consts
-from dcmanager.common.exceptions import StrategyNotFound
+from dcmanager.common.exceptions import StrategyNotFound, StrategySkippedException
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import orchestrator_worker
 from dcmanager.orchestrator.strategies.base import BaseStrategy
@@ -412,6 +412,168 @@ class TestOrchestratorWorkerApply(BaseTestOrchestratorWorker):
         self.assertEqual(
             steps[3].state,
             self.orchestrator_worker.strategies[self.strategy.type].starting_state,
+        )
+
+
+class TestOrchestratorWorkerPerformStateAction(BaseTestOrchestratorWorker):
+    """Test class for Orchestrator Worker's _perform_state_action method"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.subcloud = self.subclouds[0]
+        self.step = db_api.strategy_step_update(
+            self.ctx, self.subcloud.id, state=consts.STRATEGY_STATE_SW_PRE_CHECK
+        )
+
+        # Mock the determine_state_operator so that the strategy step does not need
+        # to be executed
+        self.mock_determine_state_operator = self._mock_object(
+            BaseStrategy, "determine_state_operator"
+        )
+        # Just set a generic state response to validate the step is updated correctly
+        self.next_state = consts.STRATEGY_STATE_FAILED
+        self.mock_state_operator = mock.MagicMock()
+        self.mock_state_operator.perform_state_action.return_value = self.next_state
+        self.mock_determine_state_operator.return_value = self.mock_state_operator
+
+        self.mock_prestage = self._mock_object(orchestrator_worker, "prestage")
+        self.mock_prestage.get_prestage_versions.return_value = None
+
+    def _setup_and_assert(self, mock_log_calls=[], details=""):
+        self.orchestrator_worker._perform_state_action(
+            self.strategy.type, self.subcloud.region_name, self.step
+        )
+
+        calls = [
+            mock.call.info(
+                f"({self.strategy.type}) Stage: {self.step.stage}, "
+                f"State: {self.step.state}, Subcloud: {self.step.subcloud.name}"
+            ),
+        ]
+
+        if mock_log_calls:
+            calls.extend(mock_log_calls)
+
+        self.mock_log.assert_has_calls(calls)
+        self.mock_determine_state_operator.assert_called_once_with(
+            self.subcloud.region_name, self.step
+        )
+        self.mock_state_operator.registerStopEvent.assert_called_once_with(
+            self.orchestrator_worker._stop
+        )
+        self.mock_state_operator.perform_state_action.assert_called_once_with(self.step)
+        self.assertEqual(len(self.orchestrator_worker.strategy_step_data), 1)
+        self._assert_strategy_step_data(
+            self.orchestrator_worker.strategy_step_data[0], details
+        )
+
+    def _assert_strategy_step_data(self, step_data, details=""):
+        self.assertEqual(
+            step_data["id"],
+            self.step.id,
+        )
+        self.assertEqual(step_data["state"], self.next_state)
+        self.assertEqual(step_data["details"], details)
+
+    # The empty default is used because prestage_versions should be allowed to be None
+    def _create_subcloud_data(self, prestage_status, prestage_versions="empty"):
+        subcloud_data = [
+            {
+                "id": self.subcloud.id,
+                "prestage_status": prestage_status,
+            }
+        ]
+        if prestage_versions != "empty":
+            subcloud_data[0]["prestage_versions"] = prestage_versions
+
+        return subcloud_data
+
+    def test_perform_state_action_succeeds(self):
+        """Test perform_state_action succeeds"""
+
+        self._setup_and_assert()
+
+    def test_perform_state_action_sets_prestaging_in_sw_deploy_with_prestage(self):
+        """Test perform_state_action sets prestaging in sw-deploy with prestage
+
+        A sw-deploy strategy with prestage should set the subcloud's prestage_status
+        field to prestaging once the prestate pre-check starts.
+        """
+
+        self.step.state = consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK
+
+        self._setup_and_assert()
+        self.assertEqual(
+            self.orchestrator_worker.subcloud_data,
+            self._create_subcloud_data(consts.PRESTAGE_STATE_PRESTAGING),
+        )
+
+    def test_perform_state_action_sets_prestage_status_in_sw_deploy_with_prestage(self):
+        """Test perform_state_action sets prestage status in sw-deploy with prestage
+
+        A sw-deploy strategy with prestage should set the subcloud's prestage_status
+        field to complete along with the prestage_versions once prestaging finishes for
+        the subcloud.
+        """
+
+        for state in [
+            consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY,
+            consts.STRATEGY_STATE_SW_INSTALL_LICENSE,
+        ]:
+            self.step.state = state
+            self.step.subcloud.prestage_status = consts.PRESTAGE_STATE_PRESTAGING
+
+            self._setup_and_assert()
+            self.assertEqual(
+                self.orchestrator_worker.subcloud_data,
+                self._create_subcloud_data(consts.PRESTAGE_STATE_COMPLETE, None),
+            )
+
+            # The subcloud data needs to be cleared so taht the new loop run will
+            # have only the data for the state being tested.
+            self.orchestrator_worker.subcloud_data.clear()
+            self.orchestrator_worker.strategy_step_data.clear()
+            self.mock_log.reset_mock()
+            self.mock_state_operator.reset_mock()
+            self.mock_determine_state_operator.reset_mock()
+
+    def test_perform_state_action_fails_with_strategy_skipped_exception(self):
+        """Test perform_state_action fails with strategy skipped exception"""
+
+        self.step.state = consts.STRATEGY_STATE_PRESTAGE_IMAGES
+        self.next_state = consts.STRATEGY_STATE_COMPLETE
+        self.mock_state_operator.perform_state_action.side_effect = (
+            StrategySkippedException("Fake")
+        )
+
+        mock_calls = [
+            mock.call.info(
+                f"({self.strategy.type}) Skipping subcloud, Stage: {self.step.stage}, "
+                f"State: {self.step.state}, Subcloud: {self.step.subcloud.name}"
+            )
+        ]
+        self._setup_and_assert(mock_calls, details="Fake")
+        self.assertEqual(
+            self.orchestrator_worker.subcloud_data, self._create_subcloud_data(None)
+        )
+
+    def test_perform_state_action_fails_with_generic_exception(self):
+        """Test perform_state_action fails with generic exception"""
+
+        self.step.state = consts.STRATEGY_STATE_PRESTAGE_IMAGES
+        self.mock_state_operator.perform_state_action.side_effect = Exception("Fake")
+
+        mock_calls = [
+            mock.call.exception(
+                f"({self.strategy.type}) Failed! Stage: {self.step.stage}, "
+                f"State: {self.step.state}, Subcloud: {self.step.subcloud.name}"
+            )
+        ]
+        self._setup_and_assert(mock_calls, details=f"{self.step.state}: Fake")
+        self.assertEqual(
+            self.orchestrator_worker.subcloud_data,
+            self._create_subcloud_data(consts.PRESTAGE_STATE_FAILED),
         )
 
 
