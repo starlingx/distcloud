@@ -23,6 +23,7 @@ import filecmp
 import json
 import os
 from os import path as os_path
+from pathlib import Path
 import shutil
 import sys
 import tempfile
@@ -305,12 +306,17 @@ FAKE_BACKUP_CREATE_LOAD_1 = {
     "registry_images": False,
 }
 
-FAKE_BACKUP_RESTORE_LOAD = {"sysadmin_password": "testpasswd", "subcloud": 1}
+FAKE_BACKUP_RESTORE_LOAD = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1,
+    "override_values": {},
+}
 
 FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL = {
     "sysadmin_password": "testpasswd",
     "subcloud": 1,
     "install_values": fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES,
+    "override_values": {},
 }
 
 SERVICE_ENDPOINTS = [
@@ -4476,6 +4482,34 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
         )
 
+    def test_compose_backup_restore_command_with_ipmi_sel_monitoring(self):
+        inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
+
+        restore_command = self.sm.compose_backup_restore_command(
+            subcloud_name=self.subcloud.name,
+            ansible_subcloud_inventory_file=inventory_file,
+            auto_restore_mode="factory",
+            with_install=True,
+            ipmi_sel_event_monitoring=True,
+        )
+
+        # Verify the ipmi_sel_event_monitoring parameter is in the command
+        self.assertIn("ipmi_sel_event_monitoring=True", restore_command)
+
+    def test_compose_backup_restore_command_without_ipmi_sel_monitoring(self):
+        inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
+
+        restore_command = self.sm.compose_backup_restore_command(
+            subcloud_name=self.subcloud.name,
+            ansible_subcloud_inventory_file=inventory_file,
+            auto_restore_mode="factory",
+            with_install=True,
+            ipmi_sel_event_monitoring=None,
+        )
+
+        # Verify the ipmi_sel_event_monitoring parameter is NOT in the command
+        self.assertNotIn("ipmi_sel_event_monitoring", " ".join(restore_command))
+
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
     )
@@ -4843,6 +4877,424 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
         ]
         self.assertEqual(restore_command, expected)
+
+
+class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
+    """Test class for testing _stage_auto_restore_files method"""
+
+    def setUp(self):
+        super().setUp()
+        self.mock_path_mkdir = self._mock_object(Path, "mkdir")
+        self.mock_os_link = self._mock_object(os, "link")
+        self.mock_os_chmod = self._mock_object(os, "chmod")
+
+        self.stage_dir = Path("/tmp/test_stage_dir")
+        self.overrides_file = Path("/tmp/test_overrides.yml")
+        self.backup_file = Path(
+            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
+        )
+        self.expected_path = self.stage_dir / "auto-restore"
+        self.expected_destination = self.expected_path / "backup_restore_values.yml"
+
+    @mock.patch("builtins.open", new_callable=mock.mock_open)
+    @mock.patch("yaml.dump")
+    def test_stage_auto_restore_files_factory_without_sel_events(
+        self, mock_yaml_dump, mock_open
+    ):
+        """Test staging files for factory restore without SEL event monitoring"""
+        payload = {"local_only": False, "factory": True}
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode="factory",
+            ipmi_sel_event_monitoring=False,
+        )
+
+        # Verify auto-restore directory creation was attempted
+        self.mock_path_mkdir.assert_called_once()
+
+        # Verify only the auto_restore_mode was written to the file
+        mock_yaml_dump.assert_called_once_with(
+            {"auto_restore_mode": "factory"},
+            mock_open.return_value,
+            default_flow_style=False,
+        )
+
+        # Verify no hard links were created
+        self.mock_os_link.assert_not_called()
+
+        self.assertEqual(result, str(self.expected_path))
+
+    def test_stage_auto_restore_files_factory_with_sel_events(self):
+        """Test staging files for factory restore with SEL event monitoring"""
+        payload = {"local_only": True, "factory": True}
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode="factory",
+            ipmi_sel_event_monitoring=True,
+        )
+
+        # Verify auto-restore directory creation was attempted
+        self.mock_path_mkdir.assert_called_once()
+
+        # With SEL monitoring, it should stage the overrides file
+        self.mock_os_link.assert_called_once_with(
+            self.overrides_file, self.expected_destination
+        )
+        self.mock_os_chmod.assert_called_once_with(self.expected_destination, 0o600)
+
+        self.assertEqual(result, str(self.expected_path))
+
+    def test_stage_auto_restore_files_local_only(self):
+        """Test staging files for local-only auto restore"""
+        payload = {"local_only": True, "factory": False}
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode=None,
+            ipmi_sel_event_monitoring=None,
+        )
+
+        # Verify auto-restore directory creation
+        self.mock_path_mkdir.assert_called_once()
+
+        # Verify hard link was created for overrides file
+        self.mock_os_link.assert_called_once_with(
+            self.overrides_file, self.expected_destination
+        )
+
+        # Verify chmod was called to set permissions to 0o600
+        self.mock_os_chmod.assert_called_once_with(self.expected_destination, 0o600)
+
+        self.assertEqual(result, str(self.expected_path))
+
+    @mock.patch.object(cutils, "find_central_subcloud_backup")
+    def test_stage_auto_restore_files_central_restore(self, mock_find_backup):
+        """Test staging files for central (non-local) auto restore"""
+        mock_find_backup.return_value = self.backup_file
+
+        payload = {
+            "local_only": False,
+            "factory": False,
+            "software_version": "25.09",
+        }
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode="auto",
+            ipmi_sel_event_monitoring=None,
+        )
+
+        # Verify auto-restore directory creation
+        self.mock_path_mkdir.assert_called_once()
+
+        # Verify find_central_subcloud_backup was called
+        mock_find_backup.assert_called_once_with(self.subcloud.name, "25.09")
+
+        # Verify hard links were created for both files
+        expected_calls = [
+            mock.call(self.overrides_file, self.expected_destination),
+            mock.call(self.backup_file, self.expected_path / self.backup_file.name),
+        ]
+        self.mock_os_link.assert_has_calls(expected_calls)
+        self.assertEqual(self.mock_os_link.call_count, 2)
+
+        # Verify chmod was called once for overrides file
+        self.mock_os_chmod.assert_called_once_with(self.expected_destination, 0o600)
+
+        self.assertEqual(result, str(self.expected_path))
+
+    @mock.patch.object(cutils, "find_central_subcloud_backup")
+    def test_stage_auto_restore_files_auto_restore_mode(self, mock_find_backup):
+        """Test staging files with auto restore mode"""
+        mock_find_backup.return_value = self.backup_file
+
+        payload = {
+            "local_only": False,
+            "factory": False,
+            "software_version": "22.12",
+        }
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode="auto",
+            ipmi_sel_event_monitoring=None,
+        )
+
+        # Verify auto-restore directory creation was attempted
+        self.mock_path_mkdir.assert_called_once()
+
+        # Verify both files were staged with correct arguments
+        expected_calls = [
+            mock.call(self.overrides_file, self.expected_destination),
+            mock.call(self.backup_file, self.expected_path / self.backup_file.name),
+        ]
+        self.mock_os_link.assert_has_calls(expected_calls)
+        self.assertEqual(self.mock_os_link.call_count, 2)
+
+        self.assertEqual(result, str(self.expected_path))
+
+
+class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
+    """Test class for testing _restore_subcloud_backup method"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+
+        # Common mocks
+        self.mock_create_inventory = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+        )
+        self.mock_create_inventory.return_value = "inventory_file.yml"
+
+        self.mock_create_overrides = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+        )
+        self.mock_create_overrides.return_value = "overrides_file.yml"
+
+        self.mock_run_playbook = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+        )
+        self.mock_run_playbook.return_value = True
+
+        self.mock_compose_restore = self._mock_object(
+            subcloud_manager.SubcloudManager, "compose_backup_restore_command"
+        )
+        self.mock_compose_restore.return_value = ["ansible-playbook", "restore.yml"]
+
+        # Mocks needed for with_install path
+        self.mock_run_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_run_install.return_value = True
+
+        self.mock_stage_files = self._mock_object(
+            subcloud_manager.SubcloudManager, "_stage_auto_restore_files"
+        )
+        self.mock_stage_files.return_value = "/tmp/staged_files"
+
+        self.mock_get_vault = self._mock_object(cutils, "get_vault_load_files")
+        self.mock_get_vault.return_value = ("test.iso", None)
+
+        self.mock_compose_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "compose_install_command"
+        )
+        self.mock_compose_install.return_value = ["ansible-playbook", "install.yml"]
+
+        self.mock_central_backup = self._mock_object(
+            cutils, "find_central_subcloud_backup"
+        )
+        self.mock_central_backup.return_value = Path(
+            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
+        )
+
+        # Setup subcloud in initial state
+        self.subcloud = db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
+        )
+
+    def _create_payload(
+        self, restore_mode="factory", ipmi_sel_monitoring=True, with_install=True
+    ):
+        payload = {
+            "override_values": {"ipmi_sel_event_monitoring": ipmi_sel_monitoring},
+            "sysadmin_password": "testpass",
+        }
+
+        if restore_mode == "factory":
+            payload["factory"] = True
+        elif restore_mode == "auto":
+            payload["auto"] = True
+
+        if with_install:
+            payload["with_install"] = True
+            payload["software_version"] = "25.09"
+
+        return payload
+
+    def test_restore_subcloud_backup_ipmi_sel_monitoring_disabled_factory(self):
+        """Test factory restore with ipmi_sel_event_monitoring disabled"""
+        payload = self._create_payload(
+            restore_mode="factory", ipmi_sel_monitoring=False
+        )
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify compose_backup_restore_command was called with correct arguments
+        self.mock_compose_restore.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "factory",
+            True,  # with_install
+            False,  # ipmi_sel_event_monitoring
+        )
+
+        # Verify compose_install_command was called with skip_install_monitoring=True
+        self.mock_compose_install.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "25.09",
+            False,  # bmc_access_only
+            False,  # skip_install_monitoring
+        )
+
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_ipmi_sel_monitoring_enabled_factory(self):
+        """Test factory restore with ipmi_sel_event_monitoring enabled (default)"""
+        payload = self._create_payload(restore_mode="factory")
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify compose_backup_restore_command was called with correct arguments
+        self.mock_compose_restore.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "factory",  # auto_restore_mode
+            True,  # with_install
+            True,  # ipmi_sel_event_monitoring
+        )
+
+        # Verify compose_install_command was called with skip_install_monitoring=False
+        self.mock_compose_install.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "25.09",
+            True,  # bmc_access_only
+            False,  # skip_install_monitoring
+        )
+
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_ipmi_sel_monitoring_disabled_auto_without_install(
+        self,
+    ):
+        """Test auto restore without install with ipmi_sel_event_monitoring disabled"""
+        mock_generate_seed_iso = self._mock_object(
+            subcloud_manager.SubcloudManager, "_generate_auto_restore_seed_iso"
+        )
+        mock_generate_seed_iso.return_value = "/tmp/seed.iso"
+
+        mock_cleanup_seed_iso = self._mock_object(
+            subcloud_manager.SubcloudManager, "_cleanup_auto_restore_seed_iso"
+        )
+
+        self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_rvmc_config_for_seed_iso"
+        )
+
+        payload = self._create_payload(
+            restore_mode="auto", ipmi_sel_monitoring=False, with_install=False
+        )
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify compose_backup_restore_command was called with correct arguments
+        self.mock_compose_restore.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "auto",  # auto_restore_mode
+            None,  # with_install
+            False,  # ipmi_sel_event_monitoring
+        )
+
+        # Verify compose_install_command was not called
+        self.mock_compose_install.assert_not_called()
+
+        # Verify seed ISO generation was called
+        mock_generate_seed_iso.assert_called_once()
+
+        # Verify cleanup was called
+        mock_cleanup_seed_iso.assert_called_once()
+
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_auto_with_install_ipmi_sel_disabled(self):
+        """Test auto restore with install when ipmi_sel_event_monitoring is disabled"""
+        payload = self._create_payload(
+            restore_mode="auto", ipmi_sel_monitoring=False, with_install=True
+        )
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify _stage_auto_restore_files was called with correct arguments
+        self.mock_stage_files.assert_called_once_with(
+            mock.ANY,
+            Path("overrides_file.yml"),
+            payload,
+            self.subcloud,
+            "auto",  # auto_restore_mode
+            False,  # ipmi_sel_event_monitoring
+        )
+
+        # Verify compose_install_command was called with skip_install_monitoring=True
+        self.mock_compose_install.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "25.09",
+            True,  # bmc_access_only
+            True,  # skip_install_monitoring
+        )
+
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_prep_failure(self):
+        """Test that prep failures are handled correctly"""
+        self.mock_create_inventory.side_effect = Exception("Prep failed")
+
+        payload = self._create_payload()
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify failure is returned
+        self.assertEqual(result, (self.subcloud, False))
+
+        # Verify deploy status was updated to DEPLOY_STATE_RESTORE_PREP_FAILED
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_PREP_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_restore_subcloud_backup_ipmi_sel_default_value(self):
+        """Test that ipmi_sel_event_monitoring defaults to True when not specified"""
+        payload = self._create_payload()
+        payload["override_values"] = {}  # ipmi_sel_event_monitoring not specified
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify compose_backup_restore_command was called with
+        # ipmi_sel_event_monitoring=True (default)
+        self.mock_compose_restore.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "factory",
+            True,  # with_install
+            True,  # ipmi_sel_event_monitoring (default)
+        )
+
+        self.assertEqual(result, (self.subcloud, True))
 
 
 class TestSubcloudMigrate(BaseTestSubcloudManager):

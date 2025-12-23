@@ -317,6 +317,7 @@ class SubcloudManager(manager.Manager):
         ansible_subcloud_inventory_file,
         software_version=None,
         bmc_access_only=None,
+        skip_monitoring=None,
     ):
         install_command = [
             "ansible-playbook",
@@ -348,6 +349,9 @@ class SubcloudManager(manager.Manager):
 
         if bmc_access_only:
             install_command += ["-e", f"bmc_access_only={bmc_access_only}"]
+
+        if skip_monitoring:
+            install_command += ["-e", f"skip_monitoring={skip_monitoring}"]
 
         return install_command
 
@@ -514,6 +518,7 @@ class SubcloudManager(manager.Manager):
         ansible_subcloud_inventory_file,
         auto_restore_mode=None,
         with_install=False,
+        ipmi_sel_event_monitoring=None,
     ):
         backup_command = [
             "ansible-playbook",
@@ -548,6 +553,8 @@ class SubcloudManager(manager.Manager):
             # seed iso to transfer the central backup and overrides to the subcloud
             if auto_restore_mode == "auto" and not with_install:
                 backup_command += ["-e", "mount_seed_iso=true"]
+            if ipmi_sel_event_monitoring is not None:
+                backup_command += ["-e", f"{ipmi_sel_event_monitoring=}"]
 
         return backup_command
 
@@ -2432,7 +2439,12 @@ class SubcloudManager(manager.Manager):
 
     @staticmethod
     def _stage_auto_restore_files(
-        stage_dir: Path, overrides_file: Path, payload: dict, subcloud: Subcloud
+        stage_dir: Path,
+        overrides_file: Path,
+        payload: dict,
+        subcloud: Subcloud,
+        auto_restore_mode=None,
+        ipmi_sel_event_monitoring=None,
     ) -> str:
         """Stage auto-restore files in a directory for subcloud auto-restore.
 
@@ -2449,8 +2461,21 @@ class SubcloudManager(manager.Manager):
             f"{target_path}"
         )
 
-        # Stage the restore overrides file
         destination_file = target_path / "backup_restore_values.yml"
+
+        # For factory restore without SEL events, we just need to include the
+        # auto_restore_mode so the kickstart can select the proper factory
+        # prestage dir
+        if auto_restore_mode == "factory" and not ipmi_sel_event_monitoring:
+            with open(destination_file, "w", encoding="utf-8") as f:
+                yaml.dump(
+                    {"auto_restore_mode": auto_restore_mode},
+                    f,
+                    default_flow_style=False,
+                )
+            return os.fspath(target_path)
+
+        # Stage the restore overrides file
         os.link(overrides_file, destination_file)
         os.chmod(destination_file, 0o600)
 
@@ -2720,6 +2745,7 @@ class SubcloudManager(manager.Manager):
         )
 
         bmc_access_only = True
+        skip_install_monitoring = False
         seed_iso_path = None
 
         if payload.get("factory"):
@@ -2788,11 +2814,28 @@ class SubcloudManager(manager.Manager):
                 subcloud_region_name=subcloud.region_name,
             )
 
+            ipmi_sel_event_monitoring = payload.get("override_values").get(
+                "ipmi_sel_event_monitoring", True
+            )
+
+            # For factory restore, when ipmi_sel_event_monitoring is set to false
+            # we want the install to wait for the SSH port to become open instead
+            # of waiting for the IPMI sel events
+            if auto_restore_mode == "factory" and not ipmi_sel_event_monitoring:
+                bmc_access_only = False
+
+            # For auto restore, when ipmi_sel_event_monitoring is set to false
+            # we need to skip monitoring the install progress as the subcloud will
+            # only be reachable after the restore is complete
+            if auto_restore_mode == "auto" and not ipmi_sel_event_monitoring:
+                skip_install_monitoring = True
+
             restore_command = self.compose_backup_restore_command(
                 subcloud.name,
                 subcloud_inventory_file,
                 auto_restore_mode,
                 payload.get("with_install"),
+                ipmi_sel_event_monitoring,
             )
 
             # Handle auto-restore without install using seed ISO
@@ -2817,6 +2860,15 @@ class SubcloudManager(manager.Manager):
 
                 self._create_rvmc_config_for_seed_iso(subcloud, payload)
 
+            auto_restore_context = (
+                tempfile.TemporaryDirectory(
+                    prefix=f".{subcloud.name}",
+                    dir=self._get_auto_restore_temp_dir_location(subcloud, payload),
+                )
+                if auto_restore_mode
+                else nullcontext()
+            )
+
         except Exception:
             db_api.subcloud_update(
                 context,
@@ -2836,6 +2888,7 @@ class SubcloudManager(manager.Manager):
                 subcloud_inventory_file,
                 software_version,
                 bmc_access_only,
+                skip_install_monitoring,
             )
             # Update data_install with missing data
             matching_iso, _ = utils.get_vault_load_files(software_version)
@@ -2849,15 +2902,6 @@ class SubcloudManager(manager.Manager):
                 self.dcorch_rpc_client.update_subcloud_version(
                     context, subcloud.region_name, software_version
                 )
-
-            auto_restore_context = (
-                tempfile.TemporaryDirectory(
-                    prefix=f".{subcloud.name}",
-                    dir=self._get_auto_restore_temp_dir_location(subcloud, payload),
-                )
-                if auto_restore_mode
-                else nullcontext()
-            )
 
             kickstart_uri = None
             if auto_restore_mode == "factory":
@@ -2874,7 +2918,12 @@ class SubcloudManager(manager.Manager):
                 if temp_dir:
                     include_paths = [
                         self._stage_auto_restore_files(
-                            temp_dir, Path(overrides_file), payload, subcloud
+                            temp_dir,
+                            Path(overrides_file),
+                            payload,
+                            subcloud,
+                            auto_restore_mode,
+                            ipmi_sel_event_monitoring,
                         )
                     ]
 
@@ -3077,6 +3126,36 @@ class SubcloudManager(manager.Manager):
                 payload["override_values"]["images_archive_dir"] = payload[
                     "override_values"
                 ]["initial_backup_dir"]
+
+                if not payload.get("override_values").get(
+                    "ipmi_sel_event_monitoring", True
+                ):
+                    # The following parameters are used by the wrapper restore
+                    # playbook when ipmi_sel_event_monitoring is set to False
+                    payload["override_values"][
+                        "default_local_backup_dir"
+                    ] = consts.SUBCLOUD_FACTORY_BACKUP_DIR
+                    payload["override_values"][
+                        "default_backup_prefix"
+                    ] = consts.FACTORY_BACKUP_PREFIX
+                    payload["override_values"][
+                        "default_registry_filesystem_backup_prefix"
+                    ] = consts.FACTORY_BACKUP_REGISTRY_FILESYSTEM_PREFIX
+
+                    # After factory install, the OAM must be reconfigured so that
+                    # the system controller is able to connect to the subcloud
+                    bootstrap_values = utils.load_yaml_file(
+                        psd_common.get_config_file_path(subcloud_name)
+                    )
+                    payload["override_values"]["external_oam_subnet"] = (
+                        bootstrap_values["external_oam_subnet"].split(",")[0]
+                    )
+                    payload["override_values"]["external_oam_gateway_address"] = (
+                        bootstrap_values["external_oam_gateway_address"].split(",")[0]
+                    )
+                    payload["override_values"]["external_oam_floating_address"] = (
+                        bootstrap_values["external_oam_floating_address"].split(",")[0]
+                    )
 
         return self._create_backup_overrides_file(payload, subcloud_name, suffix)
 

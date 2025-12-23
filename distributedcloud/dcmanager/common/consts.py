@@ -439,6 +439,9 @@ SUBCLOUD_LOCAL_BACKUP_DIR = "/opt/platform-backup/backups"
 SUBCLOUD_AUTO_RESTORE_DIR = "/opt/platform-backup/auto-restore"
 SUBCLOUD_FACTORY_BACKUP_DIR = "/opt/platform-backup/factory"
 
+FACTORY_BACKUP_PREFIX = "factory_backup"
+FACTORY_BACKUP_REGISTRY_FILESYSTEM_PREFIX = "localhost_image_registry_backup"
+
 # Maximum allowed size of subcloud home directory for central backups
 DEFAULT_SUBCLOUD_CENTRAL_BACKUP_MAX_HOME_DIR_SIZE_MB = 100
 
