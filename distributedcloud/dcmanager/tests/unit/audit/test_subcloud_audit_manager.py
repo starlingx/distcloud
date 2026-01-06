@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,6 +14,7 @@
 #    under the License.
 #
 
+import os
 import sys
 
 import mock
@@ -21,43 +22,11 @@ import mock
 from dccommon import consts as dccommon_consts
 from dcmanager.audit import rpcapi
 from dcmanager.audit import subcloud_audit_manager
-from dcmanager.common import consts
-from dcmanager.db.sqlalchemy import api as db_api
-from dcmanager.tests import base
+from dcmanager.db import api as db_api
+from dcmanager.tests.base import DCManagerTestCase
+from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
 
 sys.modules["fm_core"] = mock.Mock()
-
-
-class FakeAuditWorkerAPI(object):
-
-    def __init__(self):
-        self.audit_subclouds = mock.MagicMock()
-        self.update_subcloud_endpoints = mock.MagicMock()
-
-
-class FakePatchAudit(object):
-
-    def __init__(self):
-        self.get_regionone_audit_data = mock.MagicMock()
-        self.get_software_regionone_audit_data = mock.MagicMock()
-
-
-class FakeFirmwareAudit(object):
-
-    def __init__(self):
-        self.get_regionone_audit_data = mock.MagicMock()
-
-
-class FakeKubernetesAudit(object):
-
-    def __init__(self):
-        self.get_regionone_audit_data = mock.MagicMock()
-
-
-class FakeKubeRootcaUpdateAudit(object):
-
-    def __init__(self):
-        self.get_regionone_audit_data = mock.MagicMock()
 
 
 class FakeServiceGroup(object):
@@ -246,142 +215,119 @@ class FakeOpenStackDriver(object):
         self.fm_client = FakeFmClient()
 
 
-class TestAuditManager(base.DCManagerTestCase):
+class TestSubcloudAuditManager(DCManagerTestCase):
     def setUp(self):
-        super(TestAuditManager, self).setUp()
+        super().setUp()
 
         # Mock the Audit Worker API
         self.mock_audit_worker_api = self._mock_object(
             rpcapi, "ManagerAuditWorkerClient"
         )
-        self.mock_audit_worker_api.return_value = FakeAuditWorkerAPI()
 
         # Mock the context
         self.mock_context = self._mock_object(subcloud_audit_manager, "context")
         self.mock_context.get_admin_context.return_value = self.ctx
 
-        # Mock patch audit
-        self.mock_patch_audit = self._mock_object(subcloud_audit_manager, "patch_audit")
-        self.mock_patch_audit.PatchAudit.return_value = FakePatchAudit()
-
-        # Mock firmware audit
         self.mock_firmware_audit = self._mock_object(
             subcloud_audit_manager, "firmware_audit"
         )
-        self.mock_firmware_audit.FirmwareAudit.return_value = FakeFirmwareAudit()
-
-        # Mock kubernetes audit
         self.mock_kubernetes_audit = self._mock_object(
             subcloud_audit_manager, "kubernetes_audit"
         )
-        self.mock_kubernetes_audit.KubernetesAudit.return_value = FakeKubernetesAudit()
-
-        # Mock kube rootca update audit
         self.mock_kube_rootca_update_audit = self._mock_object(
             subcloud_audit_manager, "kube_rootca_update_audit"
         )
-        self.mock_kubernetes_audit.KubeRootcaUpdateAudit.return_value = (
-            FakeKubeRootcaUpdateAudit()
+        self.mock_software_audit = self._mock_object(
+            subcloud_audit_manager, "software_audit"
         )
 
-    @staticmethod
-    def create_subcloud_static(ctxt, **kwargs):
-        values = {
-            "name": "subcloud1",
-            "description": "This is a subcloud",
-            "location": "This is the location of the subcloud",
-            "software_version": "10.04",
-            "management_subnet": "192.168.101.0/24",
-            "management_gateway_ip": "192.168.101.1",
-            "management_start_ip": "192.168.101.2",
-            "management_end_ip": "192.168.101.50",
-            "systemcontroller_gateway_ip": "192.168.204.101",
-            "external_oam_subnet_ip_family": "4",
-            "deploy_status": "not-deployed",
-            "error_description": "No errors present",
-            "region_name": base.SUBCLOUD_1["region_name"],
-            "openstack_installed": False,
-            "group_id": 1,
-        }
-        values.update(kwargs)
-        return db_api.subcloud_create(ctxt, **values)
+        self.mock_os_path = self._mock_object(os, "path")
+        self.mock_eventlet = self._mock_object(subcloud_audit_manager, "eventlet")
+        self.mock_db = self._mock_object(
+            subcloud_audit_manager, "db_api", subcloud_audit_manager.db_api
+        )
 
-    def test_init(self):
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        self.assertIsNotNone(am)
-        self.assertEqual("subcloud_audit_manager", am.service_name)
-        self.assertEqual("localhost", am.host)
-        self.assertEqual(self.ctx, am.context)
+        self.subcloud_audit_manager = subcloud_audit_manager.SubcloudAuditManager()
 
-    def test_periodic_subcloud_audit(self):
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am._periodic_subcloud_audit_loop()
+        self.subcloud = create_fake_subcloud(self.ctx)
 
-    @mock.patch.object(
-        subcloud_audit_manager.db_api, "subcloud_audits_bulk_update_audit_finished_at"
-    )
-    def test_skip_subcloud_audit(
-        self, mock_subcloud_audits_bulk_update_audit_finished_at
-    ):
-        subcloud = self.create_subcloud_static(self.ctx)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        subcloud = db_api.subcloud_update(
+    def _test_trigger_and_reset_audit(self, audit_name, mock):
+        """Test triggering and resetting a force audit flag
+
+        The method is dynamically retrieved and called, checking the resulting value
+        in the flag.
+        """
+
+        suffix = f"{audit_name}_audit"
+
+        for action in ["trigger", "reset_force"]:
+            method = getattr(self.subcloud_audit_manager, f"{action}_{suffix}")
+
+            if action == "trigger":
+                method(self.ctx)
+                expected = True
+            else:
+                method()
+                expected = False
+
+            flag = getattr(self.subcloud_audit_manager, f"force_{suffix}")
+            self.assertEqual(expected, flag)
+
+    def test_force_firmware_audit(self):
+        self._test_trigger_and_reset_audit("firmware", self.mock_firmware_audit)
+
+    def test_force_kubernets_audit(self):
+        self._test_trigger_and_reset_audit("kubernetes", self.mock_kubernetes_audit)
+
+    def test_force_kube_rootca_update_audit(self):
+        self._test_trigger_and_reset_audit(
+            "kube_rootca_update", self.mock_kube_rootca_update_audit
+        )
+
+    def test_force_software_audit(self):
+        self._test_trigger_and_reset_audit("software", self.mock_software_audit)
+
+    def test_skip_subcloud_audit(self):
+        self.subcloud = db_api.subcloud_update(
             self.ctx,
-            subcloud.id,
+            self.subcloud.id,
             management_state="unmanaged",
             availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
-            deploy_status=consts.DEPLOY_STATE_CREATED,
         )
-        am._periodic_subcloud_audit_loop()
-        # Verify that the audit is skipped
-        mock_subcloud_audits_bulk_update_audit_finished_at.assert_called_once()
+        self.subcloud_audit_manager.trigger_firmware_audit(self.ctx)
 
-    def test_audit_one_subcloud(self):
-        subcloud = self.create_subcloud_static(self.ctx)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.trigger_subcloud_audits(self.ctx, subcloud.id, None)
+        self.subcloud_audit_manager._periodic_subcloud_audit_loop()
+
+        # Verify that the audit is called
+        self.mock_db.subcloud_audits_bulk_update_audit_finished_at.assert_called_once()
+
+    def test_trigger_subcloud_audits_without_exclusion(self):
+        self.subcloud_audit_manager.trigger_subcloud_audits(
+            self.ctx, self.subcloud.id, None
+        )
+
         # Subaudits should be requested.
-        result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
-        self.assertEqual(result["patch_audit_requested"], True)
-        self.assertEqual(result["firmware_audit_requested"], True)
-        self.assertEqual(result["load_audit_requested"], True)
-        self.assertEqual(result["kubernetes_audit_requested"], True)
-        self.assertEqual(result["kube_rootca_update_audit_requested"], True)
+        result = db_api.subcloud_audits_get(self.ctx, self.subcloud.id)
 
-    def test_audit_one_subcloud_exclude_endpoints(self):
-        subcloud = self.create_subcloud_static(self.ctx)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        exclude_endpoints = [
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
-            dccommon_consts.ENDPOINT_TYPE_LOAD,
-        ]
-        am.trigger_subcloud_audits(self.ctx, subcloud.id, exclude_endpoints)
-        # Verify subaudits be requested.
-        result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
-        self.assertEqual(result["patch_audit_requested"], False)
-        self.assertEqual(result["firmware_audit_requested"], True)
-        self.assertEqual(result["load_audit_requested"], False)
-        self.assertEqual(result["kubernetes_audit_requested"], True)
-        self.assertEqual(result["kube_rootca_update_audit_requested"], True)
+        for audit_requested in dccommon_consts.ENDPOINT_AUDIT_REQUESTS.values():
+            self.assertTrue(result[audit_requested])
 
-    def test_trigger_load_audit(self):
-        subcloud = self.create_subcloud_static(self.ctx)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.trigger_load_audit(self.ctx)
-        # Load audit should be requested.
-        result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
-        self.assertEqual(result["patch_audit_requested"], False)
-        self.assertEqual(result["load_audit_requested"], True)
+    def test_trigger_subcloud_audits_with_exclusion(self):
+        self.subcloud_audit_manager.trigger_subcloud_audits(
+            self.ctx,
+            self.subcloud.id,
+            [
+                dccommon_consts.ENDPOINT_TYPE_IDENTITY,
+                dccommon_consts.ENDPOINT_TYPE_FIRMWARE,
+            ],
+        )
 
-    def test_trigger_one_subcloud_patch_load_audits(self):
-        subcloud = self.create_subcloud_static(self.ctx)
-        am = subcloud_audit_manager.SubcloudAuditManager()
-        am.trigger_subcloud_patch_load_audits(self.ctx, subcloud.id)
-        # Subcloud patch and load audits should be requested.
-        result = db_api.subcloud_audits_get(self.ctx, subcloud.id)
-        self.assertEqual(result["patch_audit_requested"], True)
-        self.assertEqual(result["load_audit_requested"], True)
-        # Other audits should not be requested
-        self.assertEqual(result["firmware_audit_requested"], False)
-        self.assertEqual(result["kubernetes_audit_requested"], False)
-        self.assertEqual(result["kube_rootca_update_audit_requested"], False)
+        # Subaudits should be requested.
+        result = db_api.subcloud_audits_get(self.ctx, self.subcloud.id)
+
+        for endpoint, audit in dccommon_consts.ENDPOINT_AUDIT_REQUESTS.items():
+            if endpoint == dccommon_consts.ENDPOINT_TYPE_FIRMWARE:
+                self.assertFalse(result[audit])
+                continue
+
+            self.assertTrue(result[audit])

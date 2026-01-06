@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -127,7 +127,7 @@ class SysinvClient(base.DriverBase):
         region: str,
         session: keystone_session,
         timeout: float = consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
-        endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
+        endpoint_type: str = None,
         endpoint: str = None,
         token: str = None,
     ):
@@ -135,16 +135,23 @@ class SysinvClient(base.DriverBase):
 
         kwargs = {}
 
+        if not endpoint:
+            if not endpoint_type:
+                endpoint_type = (
+                    consts.KS_ENDPOINT_INTERNAL
+                    if utils.is_system_controller_region(region)
+                    else consts.KS_ENDPOINT_ADMIN
+                )
+            endpoint = session.get_endpoint(
+                service_type=consts.ENDPOINT_TYPE_PLATFORM,
+                region_name=region,
+                interface=endpoint_type,
+            )
+
         # If the token is specified, use it instead of using the session
         if token:
             kwargs["token"] = token
             kwargs["timeout"] = timeout
-            if not endpoint:
-                endpoint = session.get_endpoint(
-                    service_type=consts.ENDPOINT_TYPE_PLATFORM,
-                    region_name=region,
-                    interface=endpoint_type,
-                )
         else:
             session.timeout = timeout
             kwargs["session"] = session
@@ -567,7 +574,9 @@ class SysinvClient(base.DriverBase):
 
         return iuser
 
-    def update_user(self, passwd_hash, root_sig, passwd_expiry_days):
+    def update_user(
+        self, passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
+    ):
         """Update the user passwd for this region
 
         :param: passwd_hash
@@ -579,18 +588,28 @@ class SysinvClient(base.DriverBase):
                 LOG.warn("iuser not found %s" % self.region_name)
                 return iuser
 
+            # The "passwd_last_change" attribute may not be implemented in the subcloud
+            # TODO(rdossant): Remove this hasattr() check and the conditional logic
+            # below once all supported subcloud versions include the attribute.
+            has_last_change = hasattr(iuser, "passwd_last_change")
+
             if (
                 iuser.passwd_hash != passwd_hash
                 or iuser.passwd_expiry_days != passwd_expiry_days
+                or (has_last_change and iuser.passwd_last_change != passwd_last_change)
             ):
-                patch = make_sysinv_patch(
-                    {
-                        "passwd_hash": passwd_hash,
-                        "passwd_expiry_days": passwd_expiry_days,
-                        "root_sig": root_sig,
-                        "action": "apply",
-                    }
-                )
+                patch_data = {
+                    "passwd_hash": passwd_hash,
+                    "passwd_expiry_days": passwd_expiry_days,
+                    "root_sig": root_sig,
+                    "action": "apply",
+                }
+
+                # Do not send "passwd_last_change" if the subcloud does not support it
+                if has_last_change:
+                    patch_data["passwd_last_change"] = passwd_last_change
+
+                patch = make_sysinv_patch(patch_data)
                 LOG.info(
                     "region={} user update uuid={} patch={}".format(
                         self.region_name, iuser.uuid, patch
@@ -619,11 +638,7 @@ class SysinvClient(base.DriverBase):
         # [{"id": 0, "key": "GgDAOfmyr19u0hXdm5r_zMgaMLjglVFpp5qn_N4GBJQ="},
         # {"id": 1, "key": "7WfL_z54p67gWAkOmQhLA9P0ZygsbbJcKgff0uh28O8="},
         # {"id": 2, "key": ""5gsUQeOZ2FzZP58DN32u8pRKRgAludrjmrZFJSOHOw0="}]
-        LOG.info(
-            "post_fernet_repo driver region={} fernet_repo_list={}".format(
-                self.region_name, key_list
-            )
-        )
+        LOG.info(f"Add fernet keys to region {self.region_name}")
         try:
             self.sysinv_client.fernet.create(key_list)
         except Exception as e:
@@ -636,11 +651,7 @@ class SysinvClient(base.DriverBase):
         :param: key list payload
         :return: Nothing
         """
-        LOG.info(
-            "put_fernet_repo driver region={} fernet_repo_list={}".format(
-                self.region_name, key_list
-            )
-        )
+        LOG.info(f"Update fernet keys of region {self.region_name}")
         try:
             self.sysinv_client.fernet.put(key_list)
         except Exception as e:

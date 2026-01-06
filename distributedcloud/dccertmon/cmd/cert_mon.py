@@ -13,7 +13,6 @@ eventlet.monkey_patch()
 
 # pylint: disable=wrong-import-position
 from oslo_config import cfg  # noqa: E402
-from oslo_i18n import _lazy  # noqa: E402
 from oslo_log import log as logging  # noqa: E402
 from oslo_service import service  # noqa: E402
 
@@ -21,8 +20,6 @@ from dccertmon.common import config  # noqa: E402
 from dcmanager.common import messaging  # noqa: E402
 
 # pylint: enable=wrong-import-position
-
-_lazy.enable_lazy()
 
 LOG = logging.getLogger("dccertmon")
 CONF = cfg.CONF

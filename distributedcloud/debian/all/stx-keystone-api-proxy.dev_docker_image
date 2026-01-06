@@ -1,0 +1,26 @@
+BUILDER=loci
+DIST_REPOS="OS"
+LABEL=stx-keystone-api-proxy
+PROJECT=infra
+PROJECT_REPO=nil
+PIP_PACKAGES="
+        distributedcloud \
+        tsconfig \
+        eventlet \
+        pecan \
+        SQLAlchemy \
+        pycrypto \
+        psycopg2 \
+        fmclient \
+        python-barbicanclient \
+        oslo.concurrency \
+        oslo.config \
+        oslo.db \
+        oslo.log \
+        oslo.messaging \
+        oslo.middleware \
+        oslo.policy \
+        oslo.service \
+        oslo.versionedobjects \
+        keystonemiddleware \
+        "

@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,6 +11,7 @@ import requests
 from dccommon import consts
 from dccommon.drivers import base
 from dccommon import exceptions
+from dccommon import utils
 
 LOG = log.getLogger(__name__)
 
@@ -38,14 +39,24 @@ class SoftwareClient(base.DriverBase):
         session: keystone_session,
         region: str = None,
         endpoint: str = None,
-        endpoint_type: str = consts.KS_ENDPOINT_ADMIN,
+        endpoint_type: str = None,
         token: str = None,
     ):
+        if not (endpoint or region):
+            error = "Either endpoint or region must be provided"
+            raise exceptions.ClientException(client="Software", error=error)
+
         self.session = session
         self.endpoint = endpoint
         self.token = token
 
         if not self.endpoint:
+            if not endpoint_type:
+                endpoint_type = (
+                    consts.KS_ENDPOINT_INTERNAL
+                    if utils.is_system_controller_region(region)
+                    else consts.KS_ENDPOINT_ADMIN
+                )
             self.endpoint = session.get_endpoint(
                 service_type=consts.ENDPOINT_TYPE_USM,
                 region_name=region,
@@ -95,6 +106,18 @@ class SoftwareClient(base.DriverBase):
         url = self.endpoint + "/deploy"
         response = self.request(url, "GET", timeout)
         return self._handle_response(response, operation="Show deploy")
+
+    def deploy_delete(self, timeout=REST_DEFAULT_TIMEOUT):
+        """Deploy delete
+
+        This is the equivalent of 'software deploy delete' command.
+        It will remove the current deployment and change the release from
+        'deploying' to 'deployed'. If this is executed, the rollback
+        procedure will not be available.
+        """
+        url = self.endpoint + "/deploy"
+        response = self.request(url, "DELETE", timeout)
+        return self._handle_response(response, operation="Deploy delete")
 
     def commit_patch(self, releases, timeout=REST_DEFAULT_TIMEOUT):
         """Commit patch"""

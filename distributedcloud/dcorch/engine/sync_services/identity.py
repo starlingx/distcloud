@@ -19,7 +19,7 @@ from collections import namedtuple
 import json
 
 from keystoneauth1 import exceptions as keystone_exceptions
-from keystoneclient import client as keystoneclient
+from keystoneclient.v3 import client as keystoneclient
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 
@@ -188,7 +188,9 @@ class IdentitySyncThread(SyncThread):
             wrapped_record = {obj.resource_name: obj_dict}
         return json.dumps(wrapped_record).encode("utf-8")
 
-    def get_resource_record(self, resource_type, resource_id, resource_name, operation):
+    def get_resource_record(
+        self, resource_type, resource_id, resource_name, operation, cache_retry=1
+    ):
         """Get a specific resource from master cloud
 
         Retrieves a resource from the cached master resources, transforms it to the
@@ -249,6 +251,25 @@ class IdentitySyncThread(SyncThread):
             "master resources."
         )
         if not resource_record:
+            # If the resource was created using dcorch proxy, it's possible that the
+            # cache doesn't have it if the audit ran less than 300 seconds ago, which
+            # is the condition to clear audit. In this case, we will clear the cache
+            # and retry
+            if cache_retry > 0:
+                LOG.warning(
+                    f"Resource {resource_name} with id {resource_id} not found in "
+                    "cached master resources, clearing the master cache "
+                    "and retrying...",
+                    extra=self.log_extra,
+                )
+                SyncThread.reset_master_resources_cache(force_reset=True)
+                return self.get_resource_record(
+                    resource_type,
+                    resource_id,
+                    resource_name,
+                    operation,
+                    cache_retry - 1,
+                )
             LOG.error(
                 no_data_err_msg,
                 extra=self.log_extra,
@@ -1452,6 +1473,8 @@ class IdentitySyncThread(SyncThread):
             raise exceptions.SyncRequestFailed
 
         # Create role assignment
+        role_ref = None
+        sc_rid = None
         if sc_user:
             self.get_sc_ks_client().roles.grant(sc_role, user=sc_user, project=sc_proj)
             role_ref = self.get_sc_ks_client().role_assignments.list(

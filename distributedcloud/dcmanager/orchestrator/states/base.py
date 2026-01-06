@@ -14,7 +14,6 @@ from oslo_log import log as logging
 from dccommon.drivers.openstack.barbican import BarbicanClient
 from dccommon.drivers.openstack.fm import FmClient
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
-from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
@@ -36,13 +35,13 @@ CLIENT_CACHE_SIZE = 1
 
 class BaseState(object, metaclass=abc.ABCMeta):
 
-    def __init__(self, next_state, region_name):
+    def __init__(self, next_state, region_name, strategy=None):
         super(BaseState, self).__init__()
         self.next_state = next_state
         self.context = context.get_admin_context()
         self._stop = None
         self.region_name = region_name
-        self._shared_caches = None
+        self.strategy = strategy
 
     def override_next_state(self, next_state):
         self.next_state = next_state
@@ -209,12 +208,6 @@ class BaseState(object, metaclass=abc.ABCMeta):
         return FmClient(region_name, keystone_client.session, endpoint=endpoint)
 
     @lru_cache(maxsize=CLIENT_CACHE_SIZE)
-    def get_patching_client(self, region_name: str = None) -> PatchingClient:
-        """Get the Patching client for the given region."""
-        keystone_client = self.get_keystone_client(region_name)
-        return PatchingClient(keystone_client.region_name, keystone_client.session)
-
-    @lru_cache(maxsize=CLIENT_CACHE_SIZE)
     def get_software_client(self, region_name: str = None) -> SoftwareClient:
         """Get the Software client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
@@ -230,7 +223,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
     def get_vim_client(self, region_name: str) -> vim.VimClient:
         """Get the Vim client for the given region."""
         keystone_client = self.get_keystone_client(region_name)
-        return vim.VimClient(region_name, keystone_client.session)
+        return vim.VimClient(keystone_client.session, region=region_name)
 
     @property
     def local_sysinv(self) -> SysinvClient:
@@ -242,13 +235,9 @@ class BaseState(object, metaclass=abc.ABCMeta):
         """Return the subcloud Sysinv client."""
         return self.get_sysinv_client(self.region_name)
 
-    def add_shared_caches(self, shared_caches):
-        # Shared caches not required by all states, so instantiate only if necessary
-        self._shared_caches = shared_caches
-
     def _read_from_cache(self, cache_type, **filter_params):
-        if self._shared_caches is not None:
-            return self._shared_caches.read(cache_type, **filter_params)
+        if getattr(self.strategy, "_shared_caches", None):
+            return self.strategy._shared_caches.read(cache_type, **filter_params)
         else:
             raise exceptions.InvalidParameterValue(
                 err="Specified cache type '%s' not present" % cache_type
@@ -261,4 +250,3 @@ class BaseState(object, metaclass=abc.ABCMeta):
         Returns the next state in the state machine on success.
         Any exceptions raised by this method set the strategy to FAILED.
         """
-        pass

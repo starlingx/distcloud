@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -29,9 +29,6 @@ class CreatingVIMStrategyStageMixin(object):
         self.state = state
         self.on_success_state = success_state
 
-        # Add the subcloud being processed by this unit test
-        self.subcloud = self.setup_subcloud()
-
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(self.subcloud.id, self.state)
 
@@ -55,7 +52,9 @@ class CreatingVIMStrategyStageMixin(object):
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Successful promotion to next state
         self.assert_step_updated(self.strategy_step.subcloud_id, self.on_success_state)
@@ -72,7 +71,9 @@ class CreatingVIMStrategyStageMixin(object):
         )
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -89,7 +90,9 @@ class CreatingVIMStrategyStageMixin(object):
         self.vim_client.create_strategy.return_value = STRATEGY_FAILED_BUILDING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -110,7 +113,9 @@ class CreatingVIMStrategyStageMixin(object):
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # Failure case
         self.assert_step_updated(
@@ -132,7 +137,9 @@ class CreatingVIMStrategyStageMixin(object):
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # verify the max number of queries was attempted (plus 1)
         self.assertEqual(
@@ -161,7 +168,9 @@ class CreatingVIMStrategyStageMixin(object):
         self.vim_client.create_strategy.return_value = STRATEGY_BUILDING
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # delete API should have been invoked
         self.assertEqual(1, self.vim_client.delete_strategy.call_count)
@@ -181,7 +190,9 @@ class CreatingVIMStrategyStageMixin(object):
         ]
 
         # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self.worker._perform_state_action(
+            self.strategy_type, self.subcloud.region_name, self.strategy_step
+        )
 
         # create API call should never be invoked
         self.vim_client.create_strategy.assert_not_called()

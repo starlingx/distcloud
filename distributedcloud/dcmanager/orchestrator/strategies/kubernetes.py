@@ -43,9 +43,8 @@ class KubernetesStrategy(BaseStrategy):
         APPLY_VIM_STRATEGY: ApplyingVIMKubeUpgradeStrategyState,
     }
 
-    def __init__(self, audit_rpc_client):
+    def __init__(self):
         super().__init__(
-            audit_rpc_client,
             consts.SW_UPDATE_TYPE_KUBERNETES,
             vim.STRATEGY_NAME_KUBE_UPGRADE,
             consts.STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK,
@@ -53,20 +52,13 @@ class KubernetesStrategy(BaseStrategy):
 
         # Initialize shared cache instances for the states that require them
         self._shared_caches = SharedCacheRepository(self.update_type)
-        self._shared_caches.initialize_caches()
 
-    def trigger_audit(self):
-        """Trigger an audit for kubernetes"""
-        self.audit_rpc_client.trigger_kubernetes_audit(self.context)
-
-    def pre_apply_setup(self):
-        # Restart caches for next strategy so that we always have the
-        # latest RegionOne data at the moment the strategy is applied
+    def pre_apply_setup(self, strategy):
+        # Start caches for the strategy
+        self.debug_log("Starting caches")
         self._shared_caches.initialize_caches()
-        super().pre_apply_setup()
+        super().pre_apply_setup(strategy)
 
     def determine_state_operator(self, region_name, strategy_step):
         state = super().determine_state_operator(region_name, strategy_step)
-        # Share the cache with the state object
-        state.add_shared_caches(self._shared_caches)
         return state

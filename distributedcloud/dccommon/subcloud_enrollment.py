@@ -1,12 +1,13 @@
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import crypt
-import json
 import os
+import tarfile
 import tempfile
+import time
 import yaml
 
 from eventlet.green import subprocess
@@ -130,28 +131,45 @@ class SubcloudEnrollmentInit(object):
 
         return True
 
-    def create_enroll_override_file(self, override_path, payload):
+    def create_enroll_override_file(self, override_path, payload, cloud_init_tarball):
         enroll_override_file = os.path.join(override_path, "enroll_overrides.yml")
 
+        # Build final content as a single dict and dump it once to avoid mis-indentation
+        enroll_overrides = (
+            payload.get("install_values", {}).get("enroll_overrides") or {}
+        )
+
+        content = {
+            "enroll_reconfigured_oam": payload.get(
+                "external_oam_floating_address"
+            ).split(",")[0]
+        }
+
+        # If no custom cloud-init provided, default ipmi_sel_event_monitoring to False
+        if (
+            cloud_init_tarball is None
+            and "ipmi_sel_event_monitoring" not in enroll_overrides
+        ):
+            enroll_overrides["ipmi_sel_event_monitoring"] = False
+
+        # Merge user overrides
+        content.update(enroll_overrides)
+
         with open(enroll_override_file, "w") as f_out_override_file:
-            f_out_override_file.write(
-                "---"
-                "\nenroll_reconfigured_oam: "
-                + payload.get("external_oam_floating_address").split(",")[0]
-                + "\n"
+            yaml.safe_dump(
+                content, f_out_override_file, default_flow_style=False, sort_keys=False
             )
-
-            enroll_overrides = payload["install_values"].get("enroll_overrides", {})
-
-            if enroll_overrides:
-                for k, v in enroll_overrides.items():
-                    f_out_override_file.write(f"{k}: {json.dumps(v)}")
 
     def _build_seed_user_config(self, path, iso_values):
         if not os.path.isdir(path):
             msg = f"No directory exists: {path}"
             raise exceptions.EnrollInitExecutionFailed(reason=msg)
 
+        # Generate /cloud-init-config/scripts directory
+        scripts_dir = os.path.join(path, "cloud-init-config", "scripts")
+        os.makedirs(scripts_dir, exist_ok=True)
+
+        # Create 10-platform-reconfig script for enroll-init-reconfigure
         hashed_password = crypt.crypt(
             iso_values["sysadmin_password"], crypt.mksalt(crypt.METHOD_SHA512)
         )
@@ -159,6 +177,12 @@ class SubcloudEnrollmentInit(object):
         enroll_utils = "/usr/local/bin/"
         reconfig_script = os.path.join(enroll_utils, "enroll-init-reconfigure")
         extern_oam_gw_ip = iso_values["external_oam_gateway_address"].split(",")[0]
+
+        # Compute the epoch time only if we are updating the subcloud clock
+        enroll_timestamp_int = None
+        enroll_overrides = iso_values["install_values"].get("enroll_overrides", {})
+        if enroll_overrides.get("update_subcloud_clock") is True:
+            enroll_timestamp_int = int(time.time())
 
         reconfig_command = (
             f"{reconfig_script}"
@@ -176,10 +200,48 @@ class SubcloudEnrollmentInit(object):
                 f"{iso_values['external_oam_node_1_address'].split(',')[0]}"
             )
 
-        runcmd = [reconfig_command]
+        if enroll_timestamp_int is not None:
+            reconfig_command += f" --enroll-timestamp {enroll_timestamp_int}"
 
+        platform_script = os.path.join(
+            scripts_dir,
+            consts.PLATFORM_RECONFIGURE_FILE_NAME,
+        )
+        with open(platform_script, "w") as f:
+            f.write("#!/bin/bash\n")
+            f.write(f"{reconfig_command}\n")
+        os.chmod(platform_script, 0o755)
+
+        # Create a completion event script that runs last. It will send an IPMI SEL
+        # event to indicate that all custom scripts executed before it ran successfully.
+        # If any of the scripts fail, this one won't be executed and the Ansible
+        # monitoring task will time out.
+        if enroll_overrides.get("ipmi_sel_event_monitoring", True) is not False:
+            completion_script = os.path.join(scripts_dir, "99-completion-event")
+            with open(completion_script, "w") as f:
+                f.write(
+                    f"""#!/bin/bash
+        echo "$(date '+%F %H:%M:%S'): INFO: All custom scripts completed successfully"
+        tmp_file=$(mktemp /tmp/ipmi_event_XXXXXX.txt)
+        echo "{consts.IPMI_CUSTOM_COMPLETE_EVENT}" > "$tmp_file"
+        ipmitool sel add "$tmp_file" 2>/dev/null
+        rm -f "$tmp_file"
+        """
+                )
+            os.chmod(completion_script, 0o755)
+
+        # Write user-data with runcmd
         user_data_file = os.path.join(path, "user-data")
-        with open(user_data_file, "w") as f_out_user_data_file:
+        runcmd = [
+            ["/bin/bash", "-c", "echo $(date): Initiating enroll-init sequence"],
+            "mkdir -p /opt/nocloud",
+            "mount LABEL=CIDATA /opt/nocloud",
+            "run-parts --verbose --exit-on-error "
+            "/opt/nocloud/cloud-init-config/scripts",
+            "eject /opt/nocloud",
+        ]
+
+        with open(user_data_file, "w") as f:
             # Cloud-init module frequency for runcmd and scripts-user
             # must be set to 'always'. This ensures that the
             # cloud config is applied on an enroll-init retry, since the
@@ -191,29 +253,52 @@ class SubcloudEnrollmentInit(object):
                 "cloud_final_modules": [["scripts-user", "always"]],
                 "runcmd": runcmd,
             }
-            f_out_user_data_file.writelines("#cloud-config\n")
-            f_out_user_data_file.write(
-                yaml.dump(
-                    contents,
-                    default_flow_style=False,
-                    sort_keys=False,
-                    width=float("inf"),
-                )
+
+            f.writelines("#cloud-config\n")
+            yaml.dump(
+                contents,
+                f,
+                default_flow_style=None,
+                sort_keys=False,
+                width=float("inf"),
             )
 
         return True
 
-    def _generate_seed_iso(self, payload):
+    def _get_cloud_init_config(self):
+        cloud_init_tarball_name = f"{self.name}_{consts.CLOUD_INIT_CONFIG}.tar"
+        cloud_init_tarball = os.path.join(
+            consts.ANSIBLE_OVERRIDES_PATH, cloud_init_tarball_name
+        )
+        if os.path.isfile(cloud_init_tarball):
+            LOG.info(f"Detected {cloud_init_tarball} tarball")
+            return cloud_init_tarball
+        return None
+
+    def _generate_seed_iso(self, payload, cloud_init_tarball):
         LOG.info(f"Preparing seed iso generation for {self.name}")
 
         with tempfile.TemporaryDirectory(prefix="seed_") as temp_seed_data_dir:
             # TODO(srana): After integration, extract required bootstrap and install
             # into iso_values. For now, pass in payload.
             try:
-                # Generate seed cloud-config files
+                # Untar cloud_init_config if present
+                if cloud_init_tarball:
+                    with tarfile.open(cloud_init_tarball, "r") as tar:
+                        tar.extractall(path=temp_seed_data_dir)
+                    LOG.info(
+                        f"Extracted cloud-init-data for {self.name} "
+                        f"to {temp_seed_data_dir}"
+                    )
+                else:
+                    LOG.debug(
+                        f"No valid cloud-init-data tarball provided for {self.name}"
+                    )
+
                 self._build_seed_network_config(temp_seed_data_dir, payload)
                 self._build_seed_meta_data(temp_seed_data_dir, payload)
                 self._build_seed_user_config(temp_seed_data_dir, payload)
+
             except Exception as e:
                 LOG.exception(
                     f"Unable to generate seed config files for {self.name}: {e}"
@@ -295,7 +380,9 @@ class SubcloudEnrollmentInit(object):
             )
             os.remove(self.seed_iso_path)
 
-        self._generate_seed_iso(payload)
+        cloud_init_tarball = self._get_cloud_init_config()
+
+        self._generate_seed_iso(payload, cloud_init_tarball)
 
         # get the boot image url for bmc
         image_base_url = SubcloudInstall.get_image_base_url(
@@ -317,7 +404,7 @@ class SubcloudEnrollmentInit(object):
 
         SubcloudInstall.create_rvmc_config_file(override_path, bmc_values)
 
-        self.create_enroll_override_file(override_path, payload)
+        self.create_enroll_override_file(override_path, payload, cloud_init_tarball)
 
         return True
 
@@ -335,7 +422,8 @@ class SubcloudEnrollmentInit(object):
                 f"Failed to enroll init {self.name}, check individual logs at "
                 f"{log_file}. Run {dcmanager_consts.ERROR_DESC_CMD} for details."
             )
-            raise Exception(msg)
+            LOG.error(msg)
+            raise
 
     def cleanup(self):
         if os.path.exists(self.seed_iso_path):

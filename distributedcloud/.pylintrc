@@ -65,7 +65,8 @@ disable=R,fixme,
         import-outside-toplevel,
         too-many-lines,
         consider-iterating-dictionary,
-        unnecessary-lambda-assignment
+        unnecessary-lambda-assignment,
+        broad-exception-raised
 
 [REPORTS]
 # Set the output format. Available formats are text, parseable, colorized, msvs
@@ -110,10 +111,20 @@ indent-string='    '
 # mixin class is detected if its name ends with "mixin" (case insensitive).
 ignore-mixin-members=yes
 
-# List of module names for which member attributes should not be checked
-# (useful for modules/projects where namespaces are manipulated during runtime
-# and thus existing member attributes cannot be deduced by static analysis
-ignored-modules=distutils,eventlet.green.subprocess
+# List of module names for which member attributes should not be checked and
+# will not be imported (useful for modules/projects where namespaces are
+# manipulated during runtime and thus existing member attributes cannot be
+# deduced by static analysis). It supports qualified module names, as well as
+# Unix pattern matching.
+ignored-modules = cgcs_patch.patch_functions,
+                  cgtsclient,
+                  distutils,
+                  eventlet.green.subprocess,
+                  fmclient,
+                  fm_api,
+                  nfv_client.openstack,
+                  software.utils,
+                  tsconfig,
 
 # List of classes names for which member attributes should not be checked
 # (useful for classes with attributes dynamically set).

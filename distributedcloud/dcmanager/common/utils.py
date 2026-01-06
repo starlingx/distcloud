@@ -15,11 +15,13 @@
 #    under the License.
 #
 
+import base64 as b64
 import datetime
 import grp
 import itertools
 import json
 import os
+from pathlib import Path
 import pwd
 import re
 import resource as sys_resource
@@ -31,7 +33,6 @@ import uuid
 import xml.etree.ElementTree as ElementTree
 
 from keystoneauth1 import exceptions as keystone_exceptions
-from keystoneclient.v3.client import Client as KeystoneClient
 import netaddr
 from oslo_concurrency import lockutils
 from oslo_config import cfg
@@ -44,10 +45,10 @@ import tsconfig.tsconfig as tsc
 import yaml
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.drivers.openstack import vim
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import kubeoperator
 from dccommon import utils as cutils
@@ -56,7 +57,9 @@ from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
+from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import models
 
 LOG = logging.getLogger(__name__)
 
@@ -105,8 +108,40 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
     return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 
+def validate_bool_param(param_name: str, value) -> bool:
+    """Validate and convert a parameter to bool.
+
+    Args:
+        param_name: Name of the parameter being validated
+        value: The value to validate and convert (bool or str)
+
+    Returns:
+        bool: Converted boolean value
+
+    Raises:
+        pecan.abort: 400 Bad Request if value is invalid
+    """
+    if value is not None:
+        if isinstance(value, bool):
+            return value
+
+        if isinstance(value, str):
+            val_lower = value.strip().lower()
+            if val_lower in ("true", "false"):
+                return val_lower == "true"
+
+        msg = (
+            f"Invalid value '{value}' for {param_name} "
+            "- must be True/False or 'true'/'false'"
+        )
+        pecan.abort(400, _(msg))
+
+
 def validate_address_str(ip_address_str, networks):
     """Determine whether an dual-stack address is valid."""
+    if not ip_address_str:
+        raise exceptions.ValidateFail("Invalid address - IP address not specified")
+
     address_values = ip_address_str.split(",")
 
     if len(address_values) > 2:
@@ -276,23 +311,6 @@ def validate_quota_limits(payload):
             not isinstance(payload[resource], int) or payload[resource] <= 0
         ):
             raise exceptions.InvalidInputError
-
-
-def get_sw_update_strategy_extra_args(context, update_type=None):
-    """Query an existing sw_update_strategy for its extra_args.
-
-    :param context: request context object.
-    :param update_type: filter the update strategy (defaults to None)
-    :returns dict (returns an empty dictionary if no strategy exists)
-    """
-    try:
-        sw_update_strategy = db_api.sw_update_strategy_get(
-            context, update_type=update_type
-        )
-        return sw_update_strategy.extra_args
-    except exceptions.NotFound:
-        # return an empty dictionary if there is no strategy
-        return {}
 
 
 def get_sw_update_opts(context, for_sw_update=False, subcloud_id=None):
@@ -666,14 +684,17 @@ def subcloud_db_list_to_dict(subclouds):
     }
 
 
-def get_oam_floating_ip_primary(subcloud, sc_ks_client):
+def get_oam_floating_ip_primary(subcloud, admin_session):
     """Get the subcloud's oam primary floating ip"""
 
     # First need to retrieve the Subcloud's Keystone session
     try:
-        endpoint = sc_ks_client.endpoint_cache.get_endpoint("sysinv")
         sysinv_client = SysinvClient(
-            subcloud.region_name, sc_ks_client.session, endpoint=endpoint
+            region=subcloud.region_name,
+            session=admin_session,
+            endpoint=cutils.build_subcloud_endpoint(
+                subcloud.management_start_ip, dccommon_consts.ENDPOINT_NAME_SYSINV
+            ),
         )
         # We don't want to call sysinv_client.get_oam_address_pools()
         # here, as the subcloud's software version could be < 24.09.
@@ -800,7 +821,9 @@ def get_region_from_subcloud_address(payload):
             REGION_VALUE_CMD,
         ]
 
-        task = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8")
+        task = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=5).decode(
+            "utf-8"
+        )
         if len(task) < 1:
             err_cause = "Malformed subcloud region"
             return subcloud_region, err_cause
@@ -853,6 +876,53 @@ def get_region_name(
         msg = f"GET region_name from {url} FAILED WITH RC {response.status_code}"
         LOG.error(msg)
         raise exceptions.ServiceUnavailable
+
+
+def find_and_save_ansible_error_msg(
+    context, subcloud, log_file, exception, stage, operation=None, **kwargs
+):
+    """Find and save ansible error message
+
+    Find Ansible error from logs and save it to error_description field
+    of the subcloud record.
+    The error message is extracted from the Ansible log file if Ansible
+    execution failed. If the exception is an Ansible timeout, a timeout
+    message is saved instead.
+
+    Params:
+        context: The request context.
+        subcloud: The subcloud object.
+        log_file: The path to the Ansible log file.
+        exception: The exception raised during Ansible execution.
+        stage: The stage of the operation.
+        operation: The operation being performed. If provided, it takes
+                   precedence over stage in timeout message and Exception.
+        **kwargs: Additional fields to update the subcloud record.
+
+    Returns:
+        - Timeout message if the exception is a timeout.
+        - Error message extracted from Ansible logs if the exception
+          is an Ansible failure.
+        - If the exception is neither a timeout nor an Ansible failure,
+          returns the string representation of the exception.
+
+    """
+    if isinstance(exception, dccommon_exceptions.PlaybookExecutionTimeout):
+        stage = operation if operation else stage
+        msg = f"Timeout occurred while {stage} subcloud {subcloud.name}"
+    elif isinstance(exception, dccommon_exceptions.PlaybookExecutionFailed):
+        msg = find_ansible_error_msg(subcloud.name, log_file, stage)
+    else:
+        stage = operation if operation else stage
+        msg = f"Error occurred while {stage} subcloud {subcloud.name}: {str(exception)}"
+
+    db_api.subcloud_update(
+        context,
+        subcloud.id,
+        error_description=msg[0 : consts.ERROR_DESCRIPTION_LENGTH],
+        **kwargs,
+    )
+    return msg
 
 
 def find_ansible_error_msg(subcloud_name, log_file, stage=None):
@@ -1025,14 +1095,18 @@ def summarize_message(error_msg):
     return brief_message
 
 
-def is_valid_for_backup_operation(operation, subcloud, bootstrap_address_dict=None):
+def is_valid_for_backup_operation(
+    operation, subcloud, bootstrap_address_dict=None, auto_restore_mode=None
+):
 
     if operation == "create":
         return _is_valid_for_backup_create(subcloud)
     elif operation == "delete":
         return _is_valid_for_backup_delete(subcloud)
     elif operation == "restore":
-        return _is_valid_for_backup_restore(subcloud, bootstrap_address_dict)
+        return _is_valid_for_backup_restore(
+            subcloud, bootstrap_address_dict, auto_restore_mode
+        )
     else:
         msg = "Invalid operation %s" % operation
         LOG.error(msg)
@@ -1069,7 +1143,15 @@ def _is_valid_for_backup_delete(subcloud):
     return True
 
 
-def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
+def get_bootstrap_values(subcloud: models.Subcloud) -> dict:
+    filename = psd_common.get_config_file_path(subcloud.name)
+    LOG.info(f"Loading bootstrap values from: {filename}")
+    return load_yaml_file(filename)
+
+
+def _is_valid_for_backup_restore(
+    subcloud, bootstrap_address_dict=None, auto_restore_mode=None
+):
 
     msg = None
     ansible_subcloud_inventory_file = get_ansible_filename(
@@ -1103,10 +1185,53 @@ def _is_valid_for_backup_restore(subcloud, bootstrap_address_dict=None):
                 f"Subcloud {subcloud.name} must have a valid bootstrap address: "
                 f"{bootstrap_address_dict[subcloud.name]}"
             )
+    elif auto_restore_mode:
+        bootstrap_values = None
+        try:
+            bootstrap_values = get_bootstrap_values(subcloud)
+        except FileNotFoundError:
+            msg = (
+                f"Bootstrap values for subcloud {subcloud.name} was not found, "
+                "unable to determine subcloud system mode."
+            )
+
+        if bootstrap_values is not None:
+            system_mode = bootstrap_values.get("system_mode")
+            if not system_mode:
+                msg = (
+                    f"Unable to determine subcloud {subcloud.name} system mode "
+                    "from the bootstrap values."
+                )
+            elif system_mode != consts.SYSTEM_MODE_SIMPLEX:
+                msg = (
+                    f"{subcloud.name} is a {system_mode} subcloud. "
+                    f"{auto_restore_mode.capitalize()} restore is only supported "
+                    f"for {consts.SYSTEM_MODE_SIMPLEX} subclouds."
+                )
     if msg:
         raise exceptions.ValidateFail(msg)
 
     return True
+
+
+def find_central_subcloud_backup(subcloud_name: str, software_version: str) -> Path:
+    """Find the central backup file for a subcloud, to be used by auto-restore.
+
+    Raises:
+        FileNotFoundError: If backup directory or files don't exist.
+    """
+    search_dir = Path(consts.CENTRAL_BACKUP_DIR) / subcloud_name / software_version
+
+    if not search_dir.exists():
+        raise FileNotFoundError(f"Backup directory does not exist: {search_dir}")
+
+    pattern = f"{subcloud_name}_platform_backup_*.tgz"
+    backup_files = list(search_dir.glob(pattern))
+
+    if not backup_files:
+        raise FileNotFoundError(f"No backup files found in {search_dir}")
+
+    return backup_files[0]
 
 
 def get_matching_iso(software_version=None):
@@ -1127,21 +1252,15 @@ def get_matching_iso(software_version=None):
         return None, str(e)
 
 
-def is_subcloud_healthy(subcloud_region, management_ip: str = None):
+def is_subcloud_healthy(subcloud_region, subcloud_ip: str = None):
 
     system_health = ""
     try:
-        os_client = OpenStackDriver(
-            region_name=subcloud_region,
-            region_clients=None,
-            fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-            subcloud_management_ip=management_ip,
+        subcloud_ks_endpoint = cutils.build_subcloud_endpoint(
+            subcloud_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
         )
-        keystone_client = os_client.keystone_client
-        endpoint = keystone_client.endpoint_cache.get_endpoint("sysinv")
-        sysinv_client = SysinvClient(
-            subcloud_region, keystone_client.session, endpoint=endpoint
-        )
+        admin_session = EndpointCache.get_admin_session(subcloud_ks_endpoint)
+        sysinv_client = SysinvClient(subcloud_region, admin_session)
         system_health = sysinv_client.get_system_health()
     except Exception as e:
         LOG.exception(e)
@@ -1165,7 +1284,7 @@ def is_subcloud_healthy(subcloud_region, management_ip: str = None):
     return False
 
 
-def get_system_controller_software_list(region_name: str = None) -> list[dict]:
+def _get_system_controller_software_list() -> list[dict]:
     """Get software list from USM API
 
     This function is responsible for querying the USM API for the list of releases
@@ -1174,27 +1293,17 @@ def get_system_controller_software_list(region_name: str = None) -> list[dict]:
     The node is determined from the parameter region_name, whose default value
     represents the region one.
 
-    Args:
-        region_name (str): The name of the region to be consulted. Default is
-        RegionOne.
-
     Returns:
         list of dict: each dict item contains the parameters that identify
         the release from API response
     """
-    if not region_name:
-        region_name = cutils.get_region_one_name()
+    region_name = cutils.get_region_one_name()
 
     try:
-        os_client = OpenStackDriver(
-            region_name=region_name,
-            region_clients=None,
-            fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-        )
-        ks_client = os_client.keystone_client
+        admin_session = EndpointCache.get_admin_session()
         software_client = software_v1.SoftwareClient(
-            ks_client.session,
-            endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
+            admin_session,
+            region=region_name,
         )
         return software_client.list()
 
@@ -1206,8 +1315,10 @@ def get_system_controller_software_list(region_name: str = None) -> list[dict]:
         raise
 
 
-def get_systemcontroller_deployed_releases(
-    software_list: List[dict], key: str = "sw_version"
+def get_systemcontroller_installed_releases_ids(
+    software_list: List[dict],
+    key: str = "sw_version",
+    state: Optional[List[str]] = None,
 ) -> List[str]:
     """Get a list of deployed software releases on the SystemController using the key.
 
@@ -1215,28 +1326,113 @@ def get_systemcontroller_deployed_releases(
     using the key provided. For example, the key can be "sw_version" or "release_id",
     this will return ["10.0.0", "10.0.2", ...] or ["stx-10.0.0", "stx-10.0.1", ...]
     respectively. Other keys can be used as well, like "state", "description", etc.
+    Additionally, it is possible to filter the releases by their state, for example,
+    only the deployed releases. By default it will return all releases regardless of
+    their state.
 
     Args:
         software_list (list): The software list provided by USM API
         key (str): (default 'sw_version') The key to extract information from each
         deployed release.
+        state (list): (default []) List of states to filter the releases. If empty,
+        it will return all releases regardless of their state.
 
     Returns:
-        List[str]: Values of the given key from all deployed software releases.
+        List[str]: Values of the given key from software releases that match the state
+        filter. If state is empty, it will return all releases.
 
     """
-    deployed_releases = [
+
+    state = state or []
+
+    releases = [
         release[key]
         for release in software_list
-        if release["state"] == software_v1.DEPLOYED
+        if not state or release["state"] in state
     ]
 
-    return deployed_releases
+    return releases
 
 
-def get_systemcontroller_installed_releases_ids() -> List[str]:
-    software_list = get_system_controller_software_list()
-    return get_systemcontroller_deployed_releases(software_list, key="release_id")
+def check_version_for_sw_deploy_strategy(version: str) -> bool:
+    """Check if version is valid for sw_deploy strategy
+
+    This function checks if a given release version is valid to be deployed
+    using the sw_deploy strategy. To determine if the release is valid for
+    sw_deploy, it is compared to the release of the System Controller.
+    If the release is lower than the System Controller release, it is
+    assumed that the release is valid and no further checks are required.
+    For releases equal to or greater than the System Controller release,
+    the state should be deployed.
+
+    Args:
+        version (str): The requested software version
+
+    Returns:
+        bool: `True` if software version is lower than System Controller
+        release or if the software version is deployed on System Controller,
+        otherwise `False`
+
+    """
+    software_list = _get_system_controller_software_list()
+    major_release = get_major_release(version)
+    # For N release the state must be deployed
+    state_filter = [software_v1.DEPLOYED]
+
+    # Remove the state restriction for releases lower than System Controller
+    if major_release < tsc.SW_VERSION:
+        state_filter = []
+
+    installed_releases = get_systemcontroller_installed_releases_ids(
+        software_list, key="release_id", state=state_filter
+    )
+
+    # Check if the requested version is in the list of installed releases
+    return version in installed_releases
+
+
+def check_version_for_prestage(
+    version: str, software_list: Optional[List[str]] = None
+) -> bool:
+    """Check if version is valid for prestage
+
+    This function checks if a given release version is valid to be prestaged.
+    To determine if the release is valid for prestage, it is compared to the
+    release of the System Controller.
+    If the release is lower than the System Controller release, it is
+    assumed that the release is valid and no further checks are required.
+    For releases equal to or greater than the System Controller release,
+    the state should be deployed.
+
+    Args:
+        version (str): The requested software version
+        software_list (list[dict]): The software list from USM API. If not
+        provided, it will be fetched from the System Controller.
+
+    Returns:
+        bool: `True` if software version is lower than System Controller
+        release or if the software version is deployed on System Controller,
+        otherwise `False`
+
+    """
+
+    # For N release the state must be deployed
+    state_filter = [software_v1.DEPLOYED]
+
+    software_list = software_list or _get_system_controller_software_list()
+
+    major_release = get_major_release(version)
+
+    # Remove the state restriction for releases lower than System Controller
+    if major_release < tsc.SW_VERSION:
+        state_filter = []
+
+    installed_releases = get_major_releases(
+        get_systemcontroller_installed_releases_ids(software_list, state=state_filter)
+    )
+
+    # Return False if the version is not found or state is not valid
+    return version in installed_releases
 
 
 def is_software_ready_to_be_prestaged_for_install(software_list, software_version):
@@ -1249,9 +1445,8 @@ def is_software_ready_to_be_prestaged_for_install(software_list, software_versio
     To determine if the release is valid for install, it is initially compared
     to the release of the system controller. If matches, it is assumed that the
     release is already deployed and it is not required to check the
-    software list. Otherwise, the query will be made in the list of software
-    for the available status, since those releases that have not yet been
-    deployed must be considered.
+    software list. For all other releases, the state must be queried via software
+    list API, which should be deployed, available, or unavailable.
 
     Args:
         software_list (list[dict]): The software list from USM API
@@ -1270,8 +1465,7 @@ def is_software_ready_to_be_prestaged_for_install(software_list, software_versio
     # whose status must be available, unavailable or deployed to be
     # able to install it
     return any(
-        is_base_release(release["sw_version"])
-        and get_major_release(release["sw_version"]) == software_version
+        get_major_release(release["sw_version"]) == software_version
         and release["state"]
         in (software_v1.AVAILABLE, software_v1.DEPLOYED, software_v1.UNAVAILABLE)
         for release in software_list
@@ -1351,12 +1545,7 @@ def get_validated_sw_version_for_prestage(
 
     # Query to the USM API to get the software list
     if system_controller_sw_list is None:
-        system_controller_sw_list = get_system_controller_software_list()
-
-    # Gets only the list of deployed major releases.
-    deployed_releases = get_major_releases(
-        get_systemcontroller_deployed_releases(system_controller_sw_list)
-    )
+        system_controller_sw_list = _get_system_controller_software_list()
 
     # Check for deploy release param
     if for_sw_deploy:
@@ -1368,11 +1557,21 @@ def get_validated_sw_version_for_prestage(
             )
 
         # Ensures that the requested release version exists within the
-        # list of deployed releases
-        if software_version not in deployed_releases:
+        # System Controller software list according to the deploy criteria.
+        if not check_version_for_prestage(
+            software_version, software_list=system_controller_sw_list
+        ):
             return None, (
-                "The requested software version was not installed in the "
-                "system controller, cannot prestage for software deploy."
+                "The requested software version not found or not deployed in "
+                "the system controller, cannot prestage for software deploy."
+            )
+
+        # for-sw-deploy prestage we don't want to prestage an N-1 release to an N
+        # subcloud
+        if subcloud and software_version < subcloud.software_version:
+            return None, (
+                f"The requested software version ({software_version}) is lower than "
+                f"the current subcloud software version ({subcloud.software_version})."
             )
 
     else:
@@ -1860,73 +2059,52 @@ def is_minor_release(version):
     return 0 <= MM <= 99 and 0 <= mm <= 99 and 1 <= pp <= 99
 
 
-def is_base_release(version):
-    """Check if a given version is a valid base release
-
-    The third value in a release format representation,
-    for example MM.mm.p, is considered a base release.
-
-    Both the MM part and the mm part must have two digits.
-    The p part represents the base release digit, which is always 0.
+def get_major_release(version: str) -> str:
+    """Returns the YY.MM portion of the given release version or ID string
 
     Args:
-        version (str): The requested version value
-
-    Returns:
-        bool: `True` if the version value is a valid base release.
-        `False` if the version is a not valid base release.
-
-    """
-
-    if version < consts.SOFTWARE_VERSION_24_09:
-        return is_major_release(version)
-
-    pattern = r"^\d{2}\.\d{2}\.\d{1}$"
-    if not re.match(pattern, version):
-        return False
-
-    MM, mm, p = version.split(".")
-    MM = int(MM)
-    mm = int(mm)
-    p = int(p)
-    return 0 <= MM <= 99 and 0 <= mm <= 99 and 0 == p
-
-
-def extract_version(release_id: str) -> str:
-    """Extract the MM.mm part of a release_id.
-
-    Args:
-        release_id: The release_id. Example: stx-10.0.1
+        version: The release version: 25.09.0 or release ID: stx-25.09.0
 
     Returns:
         str: The extracted major.minor version in the format MM.mm, or
              None if not found.
     """
-    # Regular expression to match the MM.mm part of the version
-    pattern = r"(\d{1,2}\.\d{1,2})"
-
-    # Search for the MM.mm pattern in the version_string
-    match = re.search(pattern, release_id)
-
-    # Return the MM.mm part if found, otherwise return None
-    if match:
-        return match.group(1)
-    return None
-
-
-def get_major_release(version):
-    """Returns the YY.MM portion of the given version string"""
     if "-" in version:
         version = version.split("-")[1]
     split_version = version.split(".")
     return ".".join(split_version[0:2])
 
 
+def get_minor_release(release_id: str) -> str:
+    """Returns the YY.MM.pp portion of the given release_id string"""
+    # Pattern for stx-YY.MM.pp like formats
+    match = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{1,3})", release_id)
+    if match:
+        return f"{match.group(1)}-{match.group(2)}.{match.group(3)}"
+
+    # Pattern for stx_YY.MM_PATCH_pp like formats
+    match = re.search(r"(\d{1,2})\.(\d{1,2}).*?(\d{1,4})", release_id)
+    if match:
+        return f"{match.group(1)}.{match.group(2)}.{match.group(3)}"
+
+    return None
+
+
+def get_latest_minor_release(releases: list[str]) -> str:
+    """Returns the maximum YY.MM.pp portion from the given release list"""
+    minor_releases = []
+    for release in releases:
+        minor_release = get_minor_release(release)
+        if minor_release:
+            minor_releases.append(minor_release)
+    return max(minor_releases, default=None)
+
+
 def get_software_version(releases):
     """Returns the maximum YY.MM portion from the given release list"""
     versions = []
     for release in releases:
-        version = extract_version(release)
+        version = get_major_release(release)
         if version:
             versions.append(version)
     return max(versions, default=None)
@@ -1973,6 +2151,58 @@ def get_major_releases(releases):
             major_releases.append(major_release)
 
     return major_releases
+
+
+def get_formatted_release_list(
+    software_list: list = None, software_version: str = None
+) -> list:
+    """Get formatted release list.
+
+    This function filters and formats the software list based on the provided
+    software version. It removes state restrictions for N-1 releases and formats
+    the output to match the CLI format.
+
+    :param software_list: list of software releases. If None, returns an empty list.
+    :param software_version: software version to filter releases. If None, uses
+                             the current system controller software version.
+
+    :returns: list of formatted software releases if software_list is provided,
+              otherwise an empty list. The output format is similar to the CLI
+              software list command output:
+              |release_id|reboot_required|state|
+
+              For example:
+              |starlingx-25.09.0|True|deployed|
+              |starlingx-25.09.1|False|available|
+    """
+    state_filter = None
+    filtered_software_list = []
+
+    software_version = software_version if software_version else tsc.SW_VERSION
+
+    # Return empty list if no software list is provided
+    if not software_list:
+        return []
+
+    # Remove state restriction for N-1 release
+    state_filter = None if software_version < tsc.SW_VERSION else software_v1.DEPLOYED
+
+    for release in software_list:
+        # Filter software list by state if state_filter is set, and prestaged sw version
+        if (state_filter is None or release["state"] == state_filter) and (
+            get_major_release(release["sw_version"]) == software_version
+        ):
+            # The output format is similar to the one used in the CLI:
+            # |release_id|reboot_required|state|
+            release_info = "|{}|{}|{}|".format(
+                release["release_id"],
+                release["reboot_required"],
+                release["state"],
+            )
+
+            filtered_software_list.append(release_info)
+
+    return filtered_software_list
 
 
 # Feature: Subcloud Name Reconfiguration
@@ -2080,14 +2310,9 @@ def validate_name(
 
 
 def get_local_system():
-    m_ks_client = OpenStackDriver(
-        region_clients=None,
-        fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-    ).keystone_client
-    endpoint = m_ks_client.endpoint_cache.get_endpoint("sysinv")
-    sysinv_client = SysinvClient(
-        m_ks_client.region_name, m_ks_client.session, endpoint=endpoint
-    )
+    admin_session = EndpointCache.get_admin_session()
+    region_name = cutils.get_region_one_name()
+    sysinv_client = SysinvClient(region_name, admin_session)
     system = sysinv_client.get_system()
     return system
 
@@ -2192,89 +2417,272 @@ def format_address(ip_address: str) -> str:
         raise
 
 
-def validate_patch_strategy(payload: dict):
-    patch_id = payload.get("patch_id")
-    if not patch_id:
-        message = (
-            "patch_id parameter is required for "
-            f"{consts.SW_UPDATE_TYPE_PATCH} strategy."
-        )
+def validate_software_strategy(payload: dict):
+    release_id = payload.get(consts.EXTRA_ARGS_RELEASE_ID)
+    snapshot = payload.get(consts.EXTRA_ARGS_SNAPSHOT)
+    rollback = payload.get(consts.EXTRA_ARGS_ROLLBACK)
+    with_delete = payload.get(consts.EXTRA_ARGS_WITH_DELETE)
+    delete_only = payload.get(consts.EXTRA_ARGS_DELETE_ONLY)
+    with_prestage = payload.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
+    sysadmin_password = payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD)
+
+    validate_bool_param(consts.EXTRA_ARGS_SNAPSHOT, snapshot)
+    validate_bool_param(consts.EXTRA_ARGS_ROLLBACK, rollback)
+    validate_bool_param(consts.EXTRA_ARGS_WITH_DELETE, with_delete)
+    validate_bool_param(consts.EXTRA_ARGS_DELETE_ONLY, delete_only)
+    validate_bool_param(consts.EXTRA_ARGS_WITH_PRESTAGE, with_prestage)
+
+    if sysadmin_password and not with_prestage:
+        message = "The with_prestage option is required when using sysadmin_password"
         pecan.abort(400, _(message))
 
-    patch_file = (
-        f"{consts.PATCH_VAULT_DIR}/{consts.PATCHING_SW_VERSION}/{patch_id}.patch"
-    )
-    if not os.path.isfile(patch_file):
-        message = f"Patch file {patch_file} is missing in DC Vault patches."
-        pecan.abort(400, _(message))
-
-    remove = payload.get("remove", "").lower() == "true"
-    upload_only = payload.get("upload-only", "").lower() == "true"
-
-    if remove and upload_only:
-        message = "Both remove and upload-only parameters cannot be used together."
-        pecan.abort(400, _(message))
-
-
-def validate_software_strategy(release_id: str):
-    if not release_id:
-        message = (
-            "Release ID is required for strategy type: "
-            f"{consts.SW_UPDATE_TYPE_SOFTWARE}."
-        )
-        pecan.abort(400, _(message))
-    elif release_id not in get_systemcontroller_installed_releases_ids():
-        message = f"Release ID: {release_id} not deployed in the SystemController"
-        pecan.abort(400, _(message))
-
-
-def has_usm_service(
-    subcloud_region: str, keystone_client: KeystoneClient = None
-) -> bool:
-
-    # Lookup keystone client session if not specified
-    if not keystone_client:
-        try:
-            keystone_client = OpenStackDriver(
-                region_name=subcloud_region,
-                region_clients=None,
-                fetch_subcloud_ips=fetch_subcloud_mgmt_ips,
-            ).keystone_client.keystone_client
-        except Exception as e:
-            LOG.exception(
-                f"Failed to get keystone client for subcloud_region: {subcloud_region}"
+    if not (rollback or delete_only):
+        if not release_id:
+            message = (
+                "Release ID is required for strategy type: "
+                f"{consts.SW_UPDATE_TYPE_SOFTWARE}."
             )
-            raise exceptions.InternalError() from e
+            pecan.abort(400, _(message))
+        elif not check_version_for_sw_deploy_strategy(release_id):
+            message = (
+                f"Release ID: {release_id} not found or not deployed in "
+                "the SystemController"
+            )
+            pecan.abort(400, _(message))
+
+    if snapshot and (rollback or delete_only):
+        message = (
+            "Option snapshot cannot be used with any of the following options: "
+            "rollback or delete_only."
+        )
+        pecan.abort(400, _(message))
+
+    if with_delete and (rollback or delete_only):
+        message = (
+            "Option with_delete cannot be used with any of the following options: "
+            "rollback or delete_only."
+        )
+        pecan.abort(400, _(message))
+
+    if rollback and (release_id or delete_only or with_prestage):
+        message = (
+            "Option rollback cannot be used with any of the following options: "
+            "release_id, delete_only or with_prestage."
+        )
+        pecan.abort(400, _(message))
+
+    if delete_only and (release_id or with_prestage):
+        message = (
+            "Option delete_only cannot be used with any of the following options: "
+            "release_id or with_prestage."
+        )
+        pecan.abort(400, _(message))
+
+    if with_prestage:
+        validate_prestage(payload)
+
+
+def validate_prestage(payload):
+    """Global prestage validation (not subcloud-specific)"""
+
+    if is_system_controller_deploying():
+        msg = _(
+            "Prestage operations are not allowed while system "
+            "controller has a software deployment in progress."
+        )
+        pecan.abort(400, msg)
+
+    validate_sysadmin_password(payload, update_payload=False)
+
+
+def validate_sysadmin_password(payload: dict, update_payload: bool = True):
+    sysadmin_password = payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD)
+    if not sysadmin_password:
+        pecan.abort(400, _("subcloud sysadmin_password required"))
     try:
-        # Try to get the USM service for the subcloud.
-        keystone_client.services.find(name=dccommon_consts.ENDPOINT_NAME_USM)
-        return True
-    except keystone_exceptions.NotFound:
-        LOG.warning("USM service not found for subcloud_region: %s", subcloud_region)
-        return False
+        validated_password = b64.b64decode(sysadmin_password).decode("utf-8")
+        if update_payload:
+            payload["sysadmin_password"] = validated_password
+    except Exception:
+        msg = _(
+            "Failed to decode subcloud sysadmin_password, verify the password is "
+            "base64 encoded"
+        )
+        LOG.exception(msg)
+        pecan.abort(400, msg)
+
+
+def validate_subcloud_apply_type(apply_type: str):
+    """Validate that the subcloud apply type is valid.
+
+    This function checks if the provided apply_type matches one of the allowed values:
+    - 'parallel': Apply updates to multiple subclouds simultaneously
+    - 'serial': Apply updates to one subcloud at a time
+
+    Args:
+        apply_type (str): The subcloud apply type to validate
+
+    Raises:
+        PecanAbort: If the apply_type is not one of the allowed values
+
+    Example:
+        >>> validate_subcloud_apply_type('parallel')  # Valid
+        >>> validate_subcloud_apply_type('serial')    # Valid
+        >>> validate_subcloud_apply_type('invalid')   # Raises PecanAbort
+    """
+    if apply_type not in [
+        consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+        consts.SUBCLOUD_APPLY_TYPE_SERIAL,
+    ]:
+        pecan.abort(400, _("subcloud-apply-type invalid"))
+
+
+def validate_subcloud_group_exclusivity(subcloud_group, cloud_name: str):
+    """Validate that subcloud_group and cloud_name parameters are mutually exclusive.
+
+    Args:
+        subcloud_group: The subcloud group parameter
+        cloud_name: The cloud name parameter
+
+    Raises:
+        PecanAbort: If both parameters are provided, since they are mutually exclusive
+    """
+    if subcloud_group and cloud_name:
+        pecan.abort(400, _("cloud_name and subcloud_group are mutually exclusive"))
+
+
+def validate_subcloud_group_exists(context, subcloud_group):
+    """Validate that the subcloud group exists.
+
+    Args:
+        subcloud_group: The subcloud group name
+
+    Returns:
+        group: The subcloud group object
+
+    Raises:
+        PecanAbort: If the subcloud group does not exist
+    """
+    group = subcloud_group_get_by_ref(context, subcloud_group)
+    if not group:
+        pecan.abort(400, _("Invalid group_id"))
+    return group
+
+
+def validate_max_parallel_value(value, payload: dict):
+    """Validate the maximum number of parallel subclouds for orchestration.
+
+    This function validates that the maximum parallel subclouds value is within
+    acceptable limits. For regular orchestration, the value must be between 1 and
+    MAX_PARALLEL_SUBCLOUDS_LIMIT. For prestage orchestration, there is a lower limit
+    of MAX_PARALLEL_PRESTAGE_LIMIT.
+
+    Args:
+        value (int): The maximum parallel subclouds value to validate
+        payload (dict): Dictionary containing strategy parameters including:
+            - type: The strategy type
+            - with_prestage: Whether this is a prestage operation
+
+    Raises:
+        PecanAbort: If value is invalid or exceeds limits
+
+    Examples:
+        # Valid for regular orchestration
+        >>> validate_max_parallel_value(500, {"type": "software"})
+        # Invalid for prestage
+        >>> validate_max_parallel_value(500, {"type": "prestage"})
+    """
+    strategy_type = payload.get("type")
+    with_prestage = payload.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
+
+    # Determine which limit applies
+    is_prestage = with_prestage or strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE
+    max_parallel_limit = (
+        consts.MAX_PARALLEL_SUBCLOUDS_LIMIT
+        if not is_prestage
+        else consts.MAX_PARALLEL_PRESTAGE_LIMIT
+    )
+
+    if value < 1 or value > max_parallel_limit:
+        limit_type = "prestage" if is_prestage else f"{strategy_type} strategy"
+        abort_msg = (
+            f"Invalid max-parallel-subclouds value: {value}. "
+            f"For {limit_type}, the value must be between 1 and {max_parallel_limit}."
+        )
+        pecan.abort(400, _(abort_msg))
+
+
+def validate_strategy_payload(context, payload: dict):
+    """Validate strategy payload parameters.
+
+    This function validates the following strategy parameters:
+    - subcloud_group: Validates group exists and is mutually exclusive with cloud_name
+    - subcloud-apply-type: Must be 'parallel' or 'serial' if specified
+    - max-parallel-subclouds: Must be between 1 and MAX_PARALLEL_SUBCLOUDS_LIMIT
+
+    If subcloud_group is provided, its update_apply_type and max_parallel_subclouds
+    values are used instead of the request parameters.
+
+    For serial apply type, max_parallel_subclouds is set to 1.
+
+    :param context: request context object
+    :param payload: request payload containing strategy parameters
+    :raises PecanAbort: if validation fails
+    """
+
+    subcloud_group = payload.get("subcloud_group")
+    subcloud_apply_type = payload.get("subcloud-apply-type")
+    max_parallel_str = payload.get("max-parallel-subclouds")
+    cloud_name = payload.get("cloud_name")
+    force = payload.get(consts.EXTRA_ARGS_FORCE)
+
+    validate_bool_param(consts.EXTRA_ARGS_FORCE, force)
+
+    if subcloud_apply_type:
+        validate_subcloud_apply_type(subcloud_apply_type)
+
+    if subcloud_group:
+        validate_subcloud_group_exclusivity(subcloud_group, cloud_name)
+        if subcloud_apply_type or max_parallel_str:
+            pecan.abort(
+                400,
+                _(
+                    "subcloud-apply-type and max-parallel-subclouds are not allowed "
+                    "when subcloud_group is provided"
+                ),
+            )
+        group = validate_subcloud_group_exists(context, subcloud_group)
+        subcloud_apply_type = group.update_apply_type
+        max_parallel_subclouds = group.max_parallel_subclouds
+        payload["group_id"] = group.id
+    else:
+        try:
+            max_parallel_subclouds = int(max_parallel_str) if max_parallel_str else None
+        except ValueError:
+            abort_msg = (
+                f"max-parallel-subclouds invalid value. Value: {max_parallel_str}"
+            )
+            pecan.abort(400, _(abort_msg))
+
+    # Apply serial constraint
+    if subcloud_apply_type == consts.SUBCLOUD_APPLY_TYPE_SERIAL:
+        max_parallel_subclouds = 1
+
+    # Apply default value for max-parallel-subclouds if None
+    if max_parallel_subclouds is None:
+        max_parallel_subclouds = consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS
+
+    validate_max_parallel_value(max_parallel_subclouds, payload)
+
+    # Update payload with validated values
+    payload["subcloud-apply-type"] = subcloud_apply_type
+    payload["max-parallel-subclouds"] = max_parallel_subclouds
 
 
 def get_system_controller_deploy() -> Optional[dict]:
-    # get a cached keystone client (and token)
-    try:
-        os_client = OpenStackDriver(
-            region_name=dccommon_consts.SYSTEM_CONTROLLER_NAME, region_clients=None
-        )
-    except Exception:
-        LOG.exception(
-            "Failed to get keystone client for %s",
-            dccommon_consts.SYSTEM_CONTROLLER_NAME,
-        )
-        raise
-
-    ks_client = os_client.keystone_client
-    software_client = software_v1.SoftwareClient(
-        ks_client.session,
-        dccommon_consts.SYSTEM_CONTROLLER_NAME,
-        endpoint=ks_client.endpoint_cache.get_endpoint(
-            dccommon_consts.ENDPOINT_NAME_USM
-        ),
-    )
+    admin_session = EndpointCache.get_admin_session()
+    region_name = cutils.get_region_one_name()
+    software_client = software_v1.SoftwareClient(admin_session, region=region_name)
     # Show deploy always returns either an empty list when there's no deploy
     # or a list with a single element when there's a deploy
     deploy_list = software_client.show_deploy()
@@ -2321,3 +2729,7 @@ def verify_ongoing_subcloud_strategy(context, subcloud):
         return True
 
     return False
+
+
+def is_active_controller(host):
+    return host.capabilities.get("Personality") == consts.PERSONALITY_CONTROLLER_ACTIVE

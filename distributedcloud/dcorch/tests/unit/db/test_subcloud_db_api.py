@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -23,13 +23,12 @@ from oslo_db import options
 from dccommon import consts as dccommon_consts
 from dcorch.common import config
 from dcorch.common import exceptions
-from dcorch.db import api
-from dcorch.db.sqlalchemy import api as db_api
+from dcorch.db import api as db_api
 from dcorch.tests import base
 from dcorch.tests import utils
 
 config.register_options()
-get_engine = api.get_engine
+get_engine = db_api.get_engine
 
 
 class DBAPISubcloudTest(base.OrchestratorTestCase):

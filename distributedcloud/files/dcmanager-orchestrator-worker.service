@@ -1,0 +1,12 @@
+[Unit]
+Description=DC Manager Orchestrator Worker Service
+After=syslog-ng.service network-online.target dcmanager-manager.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/dcmanager-orchestrator-worker --config-file /etc/dcmanager/dcmanager.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

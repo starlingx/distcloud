@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,8 +21,10 @@ DEFAULT_SLEEP_DURATION = 10
 class CreatingVIMStrategyState(BaseState):
     """State for creating the VIM strategy."""
 
-    def __init__(self, next_state, region_name, strategy_name):
-        super().__init__(next_state=next_state, region_name=region_name)
+    def __init__(self, next_state, region_name, strategy, strategy_name):
+        super().__init__(
+            next_state=next_state, region_name=region_name, strategy=strategy
+        )
         self.strategy_name = strategy_name
         # max time to wait for the strategy to be built (in seconds)
         # is: sleep_duration * max_queries
@@ -39,18 +41,43 @@ class CreatingVIMStrategyState(BaseState):
 
         # Get release parameter data for sw-deploy strategy
         if self.strategy_name == vim.STRATEGY_NAME_SW_USM:
-            extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
-            opts_dict["release_id"] = release_id
-            # Create rollback = False since DC orchestration do not support rollback
-            opts_dict["rollback"] = False
-            # Create delete = True to enable VIM Orch to perform `sofware deploy delete`
-            opts_dict["delete"] = True
+            extra_args = self.strategy.extra_args
+            opts_dict[consts.EXTRA_ARGS_RELEASE_ID] = extra_args.get(
+                consts.EXTRA_ARGS_RELEASE_ID
+            )
+            rollback = extra_args.get(consts.EXTRA_ARGS_ROLLBACK)
+            opts_dict[consts.EXTRA_ARGS_ROLLBACK] = rollback
+            if not rollback:
+                opts_dict[consts.EXTRA_ARGS_SNAPSHOT] = extra_args.get(
+                    consts.EXTRA_ARGS_SNAPSHOT
+                )
+                opts_dict[consts.EXTRA_ARGS_DELETE] = extra_args.get(
+                    consts.EXTRA_ARGS_WITH_DELETE
+                )
 
         try:
+            release_id = opts_dict.get(consts.EXTRA_ARGS_RELEASE_ID)
+            strategy_params = {
+                "release": release_id,
+                "snapshot": opts_dict.get(consts.EXTRA_ARGS_SNAPSHOT),
+                "rollback": opts_dict.get(consts.EXTRA_ARGS_ROLLBACK),
+                "delete": opts_dict.get(consts.EXTRA_ARGS_DELETE),
+            }
+
+            # Remove the snapshot parameter for releases < 25.09
+            # as it is not supported by the N-1 API and will cause
+            # the strategy creation to fail.
+            if release_id:
+                major_release = utils.get_major_release(release_id)
+                if (
+                    major_release < consts.SNAPSHOT_SUPPORTED_VERSION
+                    and not strategy_params[consts.EXTRA_ARGS_SNAPSHOT]
+                ):
+                    strategy_params.pop("snapshot", None)
+
             # Call the API to build the VIM strategy
-            # release, rollback and delete will be sent as a **kwargs value
-            # for sw-deploy strategy
+            # release, snapshot, rollback and delete will be sent as a
+            # **kwargs value for sw-deploy strategy
             subcloud_strategy = self.get_vim_client(region).create_strategy(
                 self.strategy_name,
                 opts_dict["storage-apply-type"],
@@ -58,9 +85,7 @@ class CreatingVIMStrategyState(BaseState):
                 opts_dict["max-parallel-workers"],
                 opts_dict["default-instance-action"],
                 opts_dict["alarm-restriction-type"],
-                release=opts_dict.get("release_id"),
-                rollback=opts_dict.get("rollback"),
-                delete=opts_dict.get("delete"),
+                **strategy_params,
             )
         except vim_exc.VIMClientException as exc:
             details = "Failed to create VIM strategy."

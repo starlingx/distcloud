@@ -1,6 +1,8 @@
 ---
 stx_master_repo: "https://mirror.starlingx.windriver.com/mirror/starlingx/master/debian/monolithic/latest_build/outputs/std/packages"
 
+stx_master_repo_file: "/etc/apt/sources.list.d/stx_master_repo.list"
+
 stx_master_tag: stxmaster
 
 stx_master_deps:

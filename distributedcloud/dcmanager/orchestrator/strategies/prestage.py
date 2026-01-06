@@ -31,26 +31,27 @@ class PrestageStrategy(BaseStrategy):
         consts.STRATEGY_STATE_PRESTAGE_IMAGES: states.PrestageImagesState,
     }
 
-    def __init__(self, audit_rpc_client):
+    def __init__(self):
         super().__init__(
-            audit_rpc_client,
             consts.SW_UPDATE_TYPE_PRESTAGE,
             None,
             consts.STRATEGY_STATE_PRESTAGE_PRE_CHECK,
         )
         # Initialize shared cache instances for the states that require them
         self._shared_caches = SharedCacheRepository(consts.SW_UPDATE_TYPE_SOFTWARE)
-        self._shared_caches.initialize_caches()
+        self.oam_floating_ip_dict = dict()
+        self.system_controller_sw_list = list()
 
-    def pre_apply_setup(self):
-        # Restart caches for next strategy
+    def pre_apply_setup(self, strategy):
+        # Start caches for the strategy
+        self.debug_log("Starting caches")
         self._shared_caches.initialize_caches()
-        super().pre_apply_setup()
+        super().pre_apply_setup(strategy)
+
+    def teardown(self):
+        self.oam_floating_ip_dict.clear()
+        return super().teardown()
 
     def determine_state_operator(self, region_name, strategy_step):
         state = super().determine_state_operator(region_name, strategy_step)
-        state.add_shared_caches(self._shared_caches)
         return state
-
-    def trigger_audit(self):
-        """Trigger an audit"""

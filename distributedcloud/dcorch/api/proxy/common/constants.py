@@ -1,4 +1,4 @@
-# Copyright 2017-2024 Wind River
+# Copyright 2017-2025 Wind River
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -158,112 +158,6 @@ NEUTRON_PATH_MAP = {
     consts.RESOURCE_TYPE_QOS_POLICY: NEUTRON_QOS_PATHS,
 }
 
-
-# Software
-SOFTWARE_ACTION_QUERY = "query"
-SOFTWARE_ACTION_QUERY_DEPENDENCIES = "query_dependencies"
-SOFTWARE_ACTION_COMMIT_PATCH = "commit-patch"
-SOFTWARE_ACTION_SHOW = "show"
-
-
-SOFTWARE_QUERY_PATHS = [
-    "/v1/query",
-    "/v1/software/query",
-]
-
-SOFTWARE_SHOW_PATHS = [
-    "/v1/show/{release_id}",
-    "/v1/software/show/{release_id:.*?}",
-]
-
-SOFTWARE_COMMIT_PATCH_PATHS = [
-    "/v1/software/commit_dry_run/{release_id:.*?}",
-    "/v1/software/commit_patch/{release_id:.*?}",
-]
-
-SOFTWARE_QUERY_DEPENDENCIES_PATHS = [
-    "/v1/software/query_dependencies/{release_id:.*?}",
-]
-
-SOFTWARE_PATH_MAP = {
-    SOFTWARE_ACTION_QUERY: SOFTWARE_QUERY_PATHS,
-    SOFTWARE_ACTION_SHOW: SOFTWARE_SHOW_PATHS,
-    SOFTWARE_ACTION_COMMIT_PATCH: SOFTWARE_COMMIT_PATCH_PATHS,
-    SOFTWARE_ACTION_QUERY_DEPENDENCIES: SOFTWARE_QUERY_DEPENDENCIES_PATHS,
-}
-
-# Patching
-# allow version request
-PATCH_ACTION_GET_VERSION = "version"
-PATCH_ACTION_UPLOAD = "upload"
-PATCH_ACTION_UPLOAD_DIR = "upload_dir"
-PATCH_ACTION_APPLY = "apply"
-PATCH_ACTION_REMOVE = "remove"
-PATCH_ACTION_DELETE = "delete"
-PATCH_ACTION_QUERY = "query"
-PATCH_ACTION_SHOW = "show"
-PATCH_ACTION_COMMIT = "commit"
-PATCH_ACTION_WHAT_REQS = "what_requires"
-PATCH_ACTION_QUERY_DEPS = "query_dependencies"
-
-PATCH_API_VERSION = ["/"]
-
-PATCH_UPLOAD_PATHS = [
-    "/v1/upload",
-    "/patch/upload",
-]
-
-# upload_dir is not supported for REST API access
-PATCH_UPLOAD_DIR_PATHS = ["/patch/upload_dir"]
-
-PATCH_APPLY_PATHS = [
-    "/v1/apply/{patch_id}",
-    "/patch/apply/{patch_id:.*?}",
-]
-
-PATCH_REMOVE_PATHS = [
-    "/v1/remove/{patch_id}",
-    "/patch/remove/{patch_id:.*?}",
-]
-
-PATCH_DELETE_PATHS = [
-    "/v1/delete/{patch_id}",
-    "/patch/delete/{patch_id:.*?}",
-]
-
-PATCH_QUERY_PATHS = [
-    "/v1/query",
-    "/patch/query",
-]
-
-PATCH_SHOW_PATHS = [
-    "/v1/show/{patch_id}",
-    "/patch/show/{patch_id:.*?}",
-]
-
-PATCH_COMMIT_PATHS = [
-    "/patch/commit_dry_run/{patch_id:.*?}",
-    "/patch/commit/{patch_id:.*?}",
-]
-
-PATCH_WHAT_REQS_PATHS = ["/patch/what_requires/{patch_id:.*?}"]
-
-PATCH_QUERY_DEPS_PATHS = ["/patch/query_dependencies/{patch_id:.*?}"]
-
-PATCH_PATH_MAP = {
-    PATCH_ACTION_GET_VERSION: PATCH_API_VERSION,
-    PATCH_ACTION_UPLOAD: PATCH_UPLOAD_PATHS,
-    PATCH_ACTION_UPLOAD_DIR: PATCH_UPLOAD_DIR_PATHS,
-    PATCH_ACTION_APPLY: PATCH_APPLY_PATHS,
-    PATCH_ACTION_REMOVE: PATCH_REMOVE_PATHS,
-    PATCH_ACTION_DELETE: PATCH_DELETE_PATHS,
-    PATCH_ACTION_QUERY: PATCH_QUERY_PATHS,
-    PATCH_ACTION_SHOW: PATCH_SHOW_PATHS,
-    PATCH_ACTION_COMMIT: PATCH_COMMIT_PATHS,
-    PATCH_ACTION_WHAT_REQS: PATCH_WHAT_REQS_PATHS,
-    PATCH_ACTION_QUERY_DEPS: PATCH_QUERY_DEPS_PATHS,
-}
-
 # Identity
 IDENTITY_USERS_PATH = [
     "/v3/users",
@@ -332,23 +226,6 @@ ROUTE_METHOD_MAP = {
         consts.RESOURCE_TYPE_NETWORK_SECURITY_GROUP_RULE: ["POST", "DELETE"],
         consts.RESOURCE_TYPE_NETWORK_QUOTA_SET: ["PUT", "DELETE"],
         consts.RESOURCE_TYPE_QOS_POLICY: ["POST", "PUT", "DELETE"],
-    },
-    dccommon_consts.ENDPOINT_TYPE_PATCHING: {
-        PATCH_ACTION_GET_VERSION: ["GET"],
-        PATCH_ACTION_UPLOAD: ["POST"],
-        PATCH_ACTION_UPLOAD_DIR: ["POST"],
-        PATCH_ACTION_APPLY: ["POST"],
-        PATCH_ACTION_REMOVE: ["POST"],
-        PATCH_ACTION_DELETE: ["POST"],
-        PATCH_ACTION_QUERY: ["GET"],
-        PATCH_ACTION_SHOW: ["POST", "GET"],
-        PATCH_ACTION_COMMIT: ["POST"],
-        PATCH_ACTION_WHAT_REQS: ["GET"],
-        PATCH_ACTION_QUERY_DEPS: ["GET"],
-        SOFTWARE_ACTION_QUERY: ["GET"],
-        SOFTWARE_ACTION_SHOW: ["GET"],
-        SOFTWARE_ACTION_QUERY_DEPENDENCIES: ["GET"],
-        SOFTWARE_ACTION_COMMIT_PATCH: ["POST"],
     },
     dccommon_consts.ENDPOINT_TYPE_IDENTITY: {
         consts.RESOURCE_TYPE_IDENTITY_USERS: ["POST", "PATCH", "DELETE"],

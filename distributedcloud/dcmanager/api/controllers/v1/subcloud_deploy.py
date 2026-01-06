@@ -12,12 +12,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import os
+import shutil
+import zipfile
 
 import http.client as httpclient
 from oslo_config import cfg
@@ -38,6 +40,7 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 LOCK_NAME = "SubcloudDeployController"
+APPLICATION_ZIP_FILETYPE = "application/zip"
 
 
 class SubcloudDeployController(object):
@@ -46,7 +49,7 @@ class SubcloudDeployController(object):
         super(SubcloudDeployController, self).__init__()
 
     @staticmethod
-    def _upload_files(dir_path, file_option, file_item, binary):
+    def _upload_files(dir_path, file_option, file_item):
 
         prefix = file_option + "_"
         # create the version directory if it does not exist
@@ -60,14 +63,17 @@ class SubcloudDeployController(object):
 
         # upload the new file
         file_item.file.seek(0, os.SEEK_SET)
-        contents = file_item.file.read()
         fn = os.path.join(dir_path, prefix + os.path.basename(file_item.filename))
-        if binary:
-            dst = open(fn, "wb")
-            dst.write(contents)
+        if file_item.type == APPLICATION_ZIP_FILETYPE:
+            with zipfile.ZipFile(file_item.file, "r") as zf:
+                zf.extractall(dir_path)
+            # add the prefix to the original file
+            shutil.move(
+                os.path.join(dir_path, os.path.basename(file_item.filename)), fn
+            )
         else:
-            dst = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
-            os.write(dst, contents)
+            with open(fn, "wb") as dst:
+                shutil.copyfileobj(file_item.file, dst)
 
     @expose(generic=True, template="json")
     def index(self):
@@ -82,28 +88,22 @@ class SubcloudDeployController(object):
             {},
             restcomm.extract_credentials_for_policy(),
         )
+
+        user_options = set(consts.DEPLOY_COMMON_FILE_OPTIONS).intersection(request.POST)
+        missing_options = set(consts.REQUIRED_DEPLOY_FILE_OPTIONS).difference(
+            user_options
+        )
+
+        if consts.DEPLOY_PRESTAGE in user_options and len(user_options) == 1:
+            pass
+        elif not missing_options:
+            pass
+        else:
+            missing_str = "".join([f"--{m}" for m in missing_options])
+            error_msg = f"error: argument {missing_str.rstrip()} is required"
+            pecan.abort(httpclient.BAD_REQUEST, error_msg)
+
         deploy_dicts = dict()
-        missing_options = set()
-        for f in consts.DEPLOY_COMMON_FILE_OPTIONS:
-            if f not in request.POST:
-                missing_options.add(f)
-
-        # The API will only accept three types of input scenarios:
-        # 1. DEPLOY_PLAYBOOK, DEPLOY_OVERRIDES, and DEPLOY_CHART
-        # 2. DEPLOY_PLAYBOOK, DEPLOY_OVERRIDES, DEPLOY_CHART, and DEPLOY_PRESTAGE
-        # 3. DEPLOY_PRESTAGE
-        size = len(missing_options)
-        if len(missing_options) > 0:
-            if (consts.DEPLOY_PRESTAGE in missing_options and size != 1) or (
-                consts.DEPLOY_PRESTAGE not in missing_options and size != 3
-            ):
-                missing_str = str()
-                for missing in missing_options:
-                    if missing is not consts.DEPLOY_PRESTAGE:
-                        missing_str += "--%s " % missing
-                error_msg = "error: argument %s is required" % missing_str.rstrip()
-                pecan.abort(httpclient.BAD_REQUEST, error_msg)
-
         deploy_dicts["software_version"] = utils.get_sw_version(
             request.POST.get("release")
         )
@@ -120,11 +120,8 @@ class SubcloudDeployController(object):
             if not filename:
                 pecan.abort(httpclient.BAD_REQUEST, _("No %s file uploaded" % f))
 
-            binary = False
-            if f == consts.DEPLOY_CHART:
-                binary = True
             try:
-                self._upload_files(dir_path, f, file_item, binary)
+                self._upload_files(dir_path, f, file_item)
             except Exception as e:
                 pecan.abort(
                     httpclient.INTERNAL_SERVER_ERROR,

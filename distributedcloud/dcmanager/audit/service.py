@@ -128,20 +128,6 @@ class DCManagerAuditService(service.Service):
         return self.subcloud_audit_manager.trigger_kubernetes_audit(context)
 
     @request_context
-    def trigger_patch_audit(self, context):
-        """Used to force a patch audit on the next interval"""
-
-        LOG.info("Trigger patch audit.")
-        return self.subcloud_audit_manager.trigger_patch_audit(context)
-
-    @request_context
-    def trigger_load_audit(self, context):
-        """Used to force a load audit on the next interval"""
-
-        LOG.info("Trigger load audit.")
-        return self.subcloud_audit_manager.trigger_load_audit(context)
-
-    @request_context
     def trigger_software_audit(self, context):
         """Used to force a software audit on the next interval"""
 
@@ -157,14 +143,6 @@ class DCManagerAuditService(service.Service):
         )
         return self.subcloud_audit_manager.trigger_subcloud_audits(
             context, subcloud_id, exclude_endpoints
-        )
-
-    @request_context
-    def trigger_subcloud_patch_load_audits(self, context, subcloud_id):
-        """Trigger patch and load audits for one subcloud."""
-        LOG.info("Trigger patch and load audits for subcloud %s", subcloud_id)
-        return self.subcloud_audit_manager.trigger_subcloud_patch_load_audits(
-            context, subcloud_id
         )
 
     @request_context
@@ -235,10 +213,8 @@ class DCManagerAuditWorkerService(service.Service):
         self,
         context,
         subcloud_ids,
-        patch_audit_data,
         firmware_audit_data,
         kubernetes_audit_data,
-        do_openstack_audit,
         kube_rootca_update_audit_data,
         software_audit_data,
         use_cache,
@@ -247,10 +223,8 @@ class DCManagerAuditWorkerService(service.Service):
         self.subcloud_audit_worker_manager.audit_subclouds(
             context,
             subcloud_ids,
-            patch_audit_data,
             firmware_audit_data,
             kubernetes_audit_data,
-            do_openstack_audit,
             kube_rootca_update_audit_data,
             software_audit_data,
             use_cache,

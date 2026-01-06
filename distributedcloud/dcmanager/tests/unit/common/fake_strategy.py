@@ -1,18 +1,18 @@
 #
-# Copyright (c) 2020, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 from dcmanager.common import consts
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 
 
 def create_fake_strategy(
     ctxt,
     strategy_type,
-    subcloud_apply_type=consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
     state=consts.SW_UPDATE_STATE_INITIAL,
+    subcloud_apply_type=consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
     max_parallel_subclouds=2,
     stop_on_failure=True,
     extra_args=None,
@@ -28,10 +28,21 @@ def create_fake_strategy(
     return db_api.sw_update_strategy_create(ctxt, **values)
 
 
+def update_fake_strategy(
+    ctxt,
+    state=None,
+    update_type=None,
+    additional_args=None,
+):
+    return db_api.sw_update_strategy_update(
+        ctxt, state=state, update_type=update_type, additional_args=additional_args
+    )
+
+
 def create_fake_strategy_step(
     ctxt,
-    state=consts.STRATEGY_STATE_INITIAL,
     subcloud_id=1,
+    state=consts.STRATEGY_STATE_INITIAL,
     stage=1,
     details="Dummy details",
 ):

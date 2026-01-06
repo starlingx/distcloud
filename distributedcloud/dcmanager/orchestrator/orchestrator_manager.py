@@ -21,9 +21,9 @@ import shutil
 import threading
 
 import eventlet
+from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import timeutils
-from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dccommon import ostree_mount
@@ -36,6 +36,7 @@ from dcmanager.common import prestage
 from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.orchestrator import rpcapi as orchestrator_rpc_api
 from dcmanager.orchestrator.validators.firmware_validator import (
     FirmwareStrategyValidator,
 )
@@ -45,36 +46,44 @@ from dcmanager.orchestrator.validators.kube_root_ca_validator import (
 from dcmanager.orchestrator.validators.kubernetes_validator import (
     KubernetesStrategyValidator,
 )
-from dcmanager.orchestrator.validators.patch_validator import PatchStrategyValidator
 from dcmanager.orchestrator.validators.prestage_validator import (
     PrestageStrategyValidator,
 )
 from dcmanager.orchestrator.validators.sw_deploy_validator import (
     SoftwareDeployStrategyValidator,
 )
-from dcmanager.orchestrator.orchestrator_worker import OrchestratorWorker
 
 LOG = logging.getLogger(__name__)
-ORCHESTRATION_STRATEGY_MONITORING_INTERVAL = 30
+CONF = cfg.CONF
 
 
-# TODO(rlima): do not replace the class name while the service is not created. It should
-# be set as a placeholder for now to use the current orchestrator service just by
-# replacing the files
-class SwUpdateManager(manager.Manager):
+class OrchestratorManager(manager.Manager):
     """Manages tasks related to software updates."""
 
     def __init__(self, *args, **kwargs):
-        LOG.debug("SwUpdateManager initialization...")
+        LOG.debug("Orchestrator manager initialization...")
 
-        super().__init__(service_name="sw_update_manager", *args, **kwargs)
+        super().__init__(service_name="orchestrator_manager", *args, **kwargs)
         self.context = context.get_admin_context()
 
         # Used to protect strategies when an atomic read/update is required.
         self.strategy_lock = threading.Lock()
+        self.sleep_time = consts.ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
 
-        # Used to notify dcmanager-audit
-        self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
+        # Software and kubernetes are audited every loop and don't need to be triggered
+        audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
+        self.audit_trigger = {
+            consts.SW_UPDATE_TYPE_SOFTWARE: lambda context: None,
+            consts.SW_UPDATE_TYPE_FIRMWARE: audit_rpc_client.trigger_firmware_audit,
+            consts.SW_UPDATE_TYPE_KUBERNETES: lambda context: None,
+            consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE: (
+                audit_rpc_client.trigger_kube_rootca_update_audit
+            ),
+            consts.SW_UPDATE_TYPE_PRESTAGE: lambda context: None,
+        }
+        self.orchestrator_worker_rpc_client = (
+            orchestrator_rpc_api.ManagerOrchestratorWorkerClient()
+        )
 
         # Used to determine the continuous execution of the strategy monitoring
         self._monitor_strategy = False
@@ -85,12 +94,12 @@ class SwUpdateManager(manager.Manager):
             consts.SW_UPDATE_TYPE_FIRMWARE: FirmwareStrategyValidator(),
             consts.SW_UPDATE_TYPE_KUBERNETES: KubernetesStrategyValidator(),
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE: KubeRootCaStrategyValidator(),
-            consts.SW_UPDATE_TYPE_PATCH: PatchStrategyValidator(),
             consts.SW_UPDATE_TYPE_PRESTAGE: PrestageStrategyValidator(),
         }
+        self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=1)
 
-        self.orchestrator_worker = OrchestratorWorker(self.audit_rpc_client)
-        self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=10)
+        # Stores the time in which the strategy deletion started
+        self.delete_start_at = None
 
         # When starting the manager service, it is necessary to confirm if there
         # are any strategies in a state different from initial, because that means
@@ -106,63 +115,98 @@ class SwUpdateManager(manager.Manager):
                 consts.SW_UPDATE_STATE_FAILED,
             ]:
                 LOG.info(
-                    f"An active {strategy.type} strategy was found, restarting "
+                    f"({strategy.type}) An active strategy was found, restarting "
                     "its monitoring"
                 )
-                self.periodic_strategy_monitoring(strategy.type)
+
+                # Set the delete start time when the strategy is deleting
+                if strategy.state == consts.SW_UPDATE_STATE_DELETING:
+                    self.delete_start_at = timeutils.utcnow()
+
+                # The steps will only start processing after the orchestration interval
+                # This is done to avoid sending the steps to the workers in cases
+                # where only the manager service was restarted
+                self.thread_group_manager.start(
+                    self.periodic_strategy_monitoring, strategy.type
+                )
         except exceptions.StrategyNotFound:
             LOG.debug(
                 "There isn't an active strategy to orchestrate, skipping monitoring"
             )
 
+    def stop_strategy(self, strategy_type):
+        LOG.info(f"({strategy_type}) A request to stop the strategy was performed")
+
+        # Once a strategy with stop on failure has a failed step in any of the
+        # workers, it needs to be set to failed and the workers must stop executing
+        # new steps
+        with self.strategy_lock:
+            db_api.sw_update_strategy_update(
+                self.context,
+                update_type=strategy_type,
+                state=consts.SW_UPDATE_STATE_FAILED,
+            )
+        self.orchestrator_worker_rpc_client.stop_processing(self.context)
+
+    # In order to avoid concurrency issues, the worker does not update the strategy
+    # since their execution is based on the strategy's state and, if a worker updates
+    # it while another is running, the change would not be identified until the
+    # worker's loop restarted for the subsequent execution
+    # Because of that, the manager is responsible for updating the sw_update_strategy
+    # table while the worker is responsible for the strategy steps.
     def periodic_strategy_monitoring(self, strategy_type):
         # Reset the flag to start the monitoring
+        LOG.debug(f"({strategy_type}) Starting periodic monitoring")
         self._monitor_strategy = True
 
         while self._monitor_strategy:
             try:
-                eventlet.greenthread.sleep(ORCHESTRATION_STRATEGY_MONITORING_INTERVAL)
+                eventlet.greenthread.sleep(self.sleep_time)
                 self._periodic_strategy_monitoring_loop(strategy_type)
             except eventlet.greenlet.GreenletExit:
                 # Exit the execution
                 return
+            except exceptions.StrategyNotFound:
+                LOG.exception(
+                    f"({strategy_type}) The strategy does not exist anymore, "
+                    "stopping monitoring"
+                )
+                return
             except Exception:
-                LOG.exception("An error occurred in the strategy monitoring loop")
+                LOG.exception(
+                    f"({strategy_type}) An error occurred in the strategy "
+                    "monitoring loop"
+                )
 
     def _create_and_send_step_batches(self, strategy_type, steps):
-        steps_to_orchestrate = list()
-        # chunksize = (len(steps) + CONF.orchestrator_worker_workers) // (
-        #    CONF.orchestrator_workers
-        # )
+        steps_data = {step.subcloud.name: step.id for step in steps}
 
-        for step in steps:
-            steps_to_orchestrate.append(step.id)
+        chunksize = (len(steps) + CONF.orch_worker_workers) // (
+            CONF.orch_worker_workers
+        )
 
-            # if len(steps_to_orchestrate) == chunksize:
-            #    self.orchestrator_worker_rpc_client.orchestrate(
-            #        self.context, steps_to_orchestrate
-            #    )
-            # LOG.info(f"Sent steps to orchestrate: {steps_to_orchestrate}")
-            # steps_to_orchestrate = []
+        steps_to_orchestrate = list(steps_data.items())
+        for i in range(0, len(steps_to_orchestrate), chunksize):
+            chunk = steps_to_orchestrate[i : (i + chunksize)]
 
-        if steps_to_orchestrate:
-            self.thread_group_manager.start(
-                self.periodic_strategy_monitoring, strategy_type
+            LOG.info(f"({strategy_type}) Sending {len(chunk)} steps to orchestrate")
+
+            self.orchestrator_worker_rpc_client.orchestrate(
+                self.context, dict(chunk), strategy_type
             )
-            self.thread_group_manager.start(
-                self.orchestrator_worker.orchestrate,
-                steps_to_orchestrate,
-                strategy_type,
-            )
-            #   self.orchestrator_worker_rpc_client.orchestrate(
-            #   self.context, steps_to_orchestrate
-            # )
-        LOG.info(f"Sent final steps to orchestrate: {steps_to_orchestrate}")
 
-        if steps:
-            LOG.info("Finished sending steps to orchestrate")
+        # Reset the update_at field for all subclouds that were sent for processing to
+        # avoid having them identified by the manager in its next loop.
+        db_api.strategy_step_update_all(
+            self.context,
+            {},
+            {"updated_at": timeutils.utcnow()},
+            steps_data.values(),
+        )
 
-    def _verify_pending_steps(self, strategy_type):
+        LOG.info(f"({strategy_type}) Finished sending steps to orchestrate")
+
+    def _verify_pending_steps(self, strategy_type, max_parallel_subclouds):
         """Verifies if there are any steps that were not updated in the threshold
 
         If there is, send them to be processed in the workers.
@@ -171,15 +215,20 @@ class SwUpdateManager(manager.Manager):
         :return: True if there are pending steps and False otherwise
         """
 
-        # TODO(rlima): create a configuration variable for the seconds once the
-        # threashold is set
-        last_update_threshold = timeutils.utcnow() - datetime.timedelta(seconds=120)
-
-        steps_to_process = db_api.strategy_step_get_all(
-            self.context, last_update_threshold=last_update_threshold
+        last_update_threshold = timeutils.utcnow() - datetime.timedelta(
+            seconds=CONF.scheduler.orchestration_interval
+        )
+        steps_to_process = db_api.strategy_step_get_all_to_process(
+            self.context,
+            last_update_threshold=last_update_threshold,
+            max_parallel_subclouds=max_parallel_subclouds,
         )
 
         if steps_to_process:
+            LOG.info(
+                f"({strategy_type}) {len(steps_to_process)} pending steps were found, "
+                "start processing"
+            )
             self._create_and_send_step_batches(strategy_type, steps_to_process)
             return True
 
@@ -188,11 +237,16 @@ class SwUpdateManager(manager.Manager):
     def _periodic_strategy_monitoring_loop(self, strategy_type):
         """Verifies strategy and subcloud states"""
 
+        LOG.debug(f"({strategy_type}) Running periodic monitoring")
+
         strategy = db_api.sw_update_strategy_get(self.context, strategy_type)
 
-        if (
-            strategy.state == consts.SW_UPDATE_STATE_APPLYING
-            and self._verify_pending_steps(strategy_type)
+        if strategy.state in [
+            consts.SW_UPDATE_STATE_APPLYING,
+            consts.SW_UPDATE_STATE_ABORTING,
+            consts.SW_UPDATE_STATE_ABORT_REQUESTED,
+        ] and self._verify_pending_steps(
+            strategy_type, strategy.max_parallel_subclouds
         ):
             return
 
@@ -203,13 +257,26 @@ class SwUpdateManager(manager.Manager):
         )
         total_steps = steps_count["total"]
 
-        if strategy.state in [
+        # When a strategy has a stop on failure and it reaches a failed state, it
+        # is necesary to monitor the completion of the steps that were already
+        # processing
+        if strategy.state == consts.SW_UPDATE_STATE_FAILED and strategy.stop_on_failure:
+            initial_steps = steps_count[consts.STRATEGY_STATE_INITIAL]
+            failed_steps = steps_count[consts.STRATEGY_STATE_FAILED]
+            complete_steps = steps_count[consts.STRATEGY_STATE_COMPLETE]
+
+            # A strategy, when stopped on failure, does not have steps aborted, so
+            # the audit can only be triggered once all applying steps have finished.
+            if total_steps == initial_steps + failed_steps + complete_steps:
+                self.audit_trigger[strategy_type](self.context)
+                self._monitor_strategy = False
+        elif strategy.state in [
             consts.SW_UPDATE_STATE_APPLYING,
             consts.SW_UPDATE_STATE_ABORTING,
         ]:
             LOG.debug(
-                f"The {strategy.type} strategy is not complete, verifying "
-                "possible state update"
+                f"({strategy_type}) The strategy is not complete, verifying possible "
+                "state update"
             )
 
             new_state = None
@@ -236,21 +303,62 @@ class SwUpdateManager(manager.Manager):
                         update_type=strategy_type,
                         state=new_state,
                     )
+                self.audit_trigger[strategy_type](self.context)
                 self._monitor_strategy = False
         elif strategy.state == consts.SW_UPDATE_STATE_ABORT_REQUESTED:
             # When the strategy is set to abort requested, it needs to have all of
             # the steps in initial state updated to aborted before proceeding
             if steps_count[consts.STRATEGY_STATE_INITIAL] == 0:
-                new_state = consts.SW_UPDATE_STATE_ABORTING
-        elif strategy.state == consts.SW_UPDATE_STATE_DELETING:
-            # If all steps were deleted, delete the strategy
-            if total_steps == 0:
                 with self.strategy_lock:
-                    db_api.sw_update_strategy_destroy(self.context, strategy_type)
-                self._monitor_strategy = False
+                    db_api.sw_update_strategy_update(
+                        self.context,
+                        update_type=strategy_type,
+                        state=consts.SW_UPDATE_STATE_ABORTING,
+                    )
+                self.sleep_time = consts.ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
+        elif strategy.state == consts.SW_UPDATE_STATE_DELETING:
+            if total_steps != 0:
+                # In the worker process, the deletion step has a wait of up to 180
+                # seconds, which is greater than the orchestration interval. Because
+                # of that, the threshold needs to be higher to ensure a step that is
+                # still being process is not identified as idle.
+                last_update_threshold = timeutils.utcnow() - datetime.timedelta(
+                    seconds=(
+                        consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
+                        * (consts.ORCHESTRATION_DELETE_COUNTER + 1)
+                    )
+                )
+
+                # If there are steps that were not deleted yet, verify if there is
+                # any that needs to be sent to the workers.
+                steps = db_api.strategy_step_get_all_to_delete(
+                    self.context,
+                    self.delete_start_at,
+                    last_update_threshold,
+                    strategy.max_parallel_subclouds,
+                )
+
+                if steps:
+                    LOG.info(
+                        f"({strategy_type}) {len(steps)} pending steps were found, "
+                        "start processing"
+                    )
+                    self._create_and_send_step_batches(strategy_type, steps)
+
+                return
+
+            # If all steps were deleted, delete the strategy
+            with self.strategy_lock:
+                db_api.sw_update_strategy_destroy(self.context, strategy_type)
+
+            LOG.info(f"({strategy_type}) Subcloud strategy deleted")
+            self._monitor_strategy = False
+            self.delete_start_at = None
+            self.sleep_time = consts.ORCHESTRATION_STRATEGY_MONITORING_INTERVAL
 
     def stop(self):
         self.thread_group_manager.stop()
+        self.thread_group_manager = None
 
     # todo(abailey): dc-vault actions are normally done by dcorch-api-proxy
     # However this situation is unique since the strategy drives vault contents
@@ -339,21 +447,7 @@ class SwUpdateManager(manager.Manager):
             )
             raise exceptions.BadRequest(resource="strategy", msg=msg)
 
-        single_group = None
         subcloud_group = payload.get("subcloud_group")
-
-        if subcloud_group:
-            single_group = utils.subcloud_group_get_by_ref(context, subcloud_group)
-            subcloud_apply_type = single_group.update_apply_type
-            max_parallel_subclouds = single_group.max_parallel_subclouds
-        else:
-            subcloud_apply_type = payload.get("subcloud-apply-type")
-            max_parallel_subclouds_str = payload.get("max-parallel-subclouds")
-
-            if not max_parallel_subclouds_str:
-                max_parallel_subclouds = None
-            else:
-                max_parallel_subclouds = int(max_parallel_subclouds_str)
 
         stop_on_failure = payload.get("stop-on-failure") in ["true"]
         force = payload.get(consts.EXTRA_ARGS_FORCE) in ["true"]
@@ -361,30 +455,27 @@ class SwUpdateManager(manager.Manager):
         # Has the user specified a specific subcloud?
         cloud_name = payload.get("cloud_name")
         strategy_type = payload.get("type")
-        prestage_global_validated = False
 
         # Has the user specified for_sw_deploy flag for prestage strategy?
         if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
             for_sw_deploy = payload.get(consts.PRESTAGE_FOR_SW_DEPLOY) in ["true"]
 
         if cloud_name:
-            # Make sure subcloud exists
             try:
                 subcloud = db_api.subcloud_get_by_name(context, cloud_name)
             except exceptions.SubcloudNameNotFound:
                 msg = f"Subcloud {cloud_name} does not exist"
                 LOG.error(
-                    "Failed creating software update strategy of type "
-                    f"{payload['type']}. {msg}"
+                    "Failed creating software update strategy of type: "
+                    f"{strategy_type}. {msg}"
                 )
                 raise exceptions.BadRequest(resource="strategy", msg=msg)
-
             # TODO(rlima): move prestage to its validator
-            if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
+            if strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE or payload.get(
+                consts.EXTRA_ARGS_WITH_PRESTAGE
+            ):
                 # Do initial validation for subcloud
                 try:
-                    prestage.global_prestage_validate(payload)
-                    prestage_global_validated = True
                     prestage.initial_subcloud_validate(subcloud)
                 except exceptions.PrestagePreCheckFailedException as ex:
                     raise exceptions.BadRequest(resource="strategy", msg=str(ex))
@@ -405,7 +496,7 @@ class SwUpdateManager(manager.Manager):
             count_invalid_subclouds = db_api.subcloud_count_invalid_for_strategy_type(
                 context,
                 self.strategy_validators[strategy_type].endpoint_type,
-                single_group.id if subcloud_group else None,
+                payload["group_id"] if subcloud_group else None,
                 cloud_name,
             )
             if count_invalid_subclouds > 0:
@@ -422,70 +513,37 @@ class SwUpdateManager(manager.Manager):
         # handle extra_args processing such as staging to the vault
         self._process_extra_args_creation(strategy_type, extra_args)
 
-        if consts.SUBCLOUD_APPLY_TYPE_SERIAL == subcloud_apply_type:
-            max_parallel_subclouds = 1
-
-        if max_parallel_subclouds is None:
-            max_parallel_subclouds = (
-                consts.DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS
-            )
-
         valid_subclouds = db_api.subcloud_get_all_valid_for_strategy_step_creation(
             context,
             self.strategy_validators[strategy_type].endpoint_type,
-            single_group.id if subcloud_group else None,
+            payload["group_id"] if subcloud_group else None,
             cloud_name,
             self.strategy_validators[strategy_type].build_availability_status_filter(),
             self.strategy_validators[strategy_type].build_sync_status_filter(force),
         )
 
-        # TODO(rlima): move this step to validators
-        if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-            # TODO(nicodemos): Remove the support for patch strategy in stx-11
-            for subcloud, _ in valid_subclouds:
-                # We need to check the software version of the subcloud and
-                # the system controller. If the software versions are the same, we
-                # cannot apply the patch.
-                if subcloud.software_version == SW_VERSION:
-                    msg = (
-                        f"Subcloud {subcloud.name} has the same software version as "
-                        f"the system controller. The {strategy_type} strategy can "
-                        "only be used for subclouds running the previous release."
-                    )
-                    LOG.error(
-                        "Failed creating software update strategy of type "
-                        f"{payload['type']}. {msg}"
-                    )
-                    raise exceptions.BadRequest(resource="strategy", msg=msg)
-        elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+        if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
             filtered_valid_subclouds = list()
 
             for subcloud, sync_status in valid_subclouds:
                 if sync_status == dccommon_consts.SYNC_STATUS_OUT_OF_SYNC:
                     filtered_valid_subclouds.append((subcloud, sync_status))
 
-            if filtered_valid_subclouds:
-                software_version = utils.get_major_release(
-                    payload.get(consts.EXTRA_ARGS_RELEASE_ID)
-                )
+            release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+            if filtered_valid_subclouds and release_id:
+                software_version = utils.get_major_release(release_id)
                 ostree_mount.validate_ostree_iso_mount(software_version)
 
             valid_subclouds = filtered_valid_subclouds
 
         elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
-            if not prestage_global_validated:
-                try:
-                    prestage.global_prestage_validate(payload)
-                except exceptions.PrestagePreCheckFailedException as ex:
-                    raise exceptions.BadRequest(resource="strategy", msg=str(ex))
-
             extra_args = {
                 consts.EXTRA_ARGS_SYSADMIN_PASSWORD: payload.get(
                     consts.EXTRA_ARGS_SYSADMIN_PASSWORD
                 ),
                 consts.EXTRA_ARGS_FORCE: force,
-                consts.PRESTAGE_SOFTWARE_VERSION: (
-                    payload.get(consts.PRESTAGE_REQUEST_RELEASE)
+                consts.PRESTAGE_SOFTWARE_VERSION: payload.get(
+                    consts.PRESTAGE_REQUEST_RELEASE
                 ),
                 consts.PRESTAGE_FOR_SW_DEPLOY: for_sw_deploy,
             }
@@ -506,10 +564,13 @@ class SwUpdateManager(manager.Manager):
             self._process_extra_args_deletion(strategy_type, extra_args)
             msg = "Strategy has no steps to apply"
             LOG.error(
-                "Failed creating software update strategy of type "
-                f"{payload['type']}. {msg}"
+                "Failed creating software update strategy of type: "
+                f"{strategy_type}. {msg}"
             )
             raise exceptions.BadRequest(resource="strategy", msg=msg)
+
+        max_parallel_subclouds = payload.get("max-parallel-subclouds")
+        subcloud_apply_type = payload.get("subcloud-apply-type")
 
         # Create the strategy
         strategy = db_api.sw_update_strategy_create(
@@ -577,20 +638,46 @@ class SwUpdateManager(manager.Manager):
                 context, state=consts.SW_UPDATE_STATE_DELETING, update_type=update_type
             )
 
-        # Trigger the orchestration
-        steps = db_api.strategy_step_get_all(context)
-        self._create_and_send_step_batches(sw_update_strategy.type, steps)
+        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
 
-        LOG.info(
-            f"Subcloud orchestration delete triggered for {sw_update_strategy.type}"
+        # Because the strategy steps in initial and aborted state does not have a vim
+        # strategy created in the subcloud, they can just be deleted from the database
+        # directly
+        db_api.strategy_step_destroy_all(
+            context,
+            states=[consts.STRATEGY_STATE_INITIAL, consts.STRATEGY_STATE_ABORTED],
         )
+
+        # Trigger the orchestration for complete and failed steps
+        steps = db_api.strategy_step_get_all(
+            context, limit=sw_update_strategy.max_parallel_subclouds
+        )
+
+        if not steps:
+            db_api.sw_update_strategy_destroy(context, sw_update_strategy.type)
+
+            LOG.info(f"({sw_update_strategy.type}) Subcloud orchestration deleted")
+            return strategy_dict
+
+        # Set the start time for delete
+        self.delete_start_at = timeutils.utcnow()
+
+        # Reduce the sleep time since the deletion is faster than apply
+        self.sleep_time = self.sleep_time / 6
+
+        # Send steps to be processed and start monitoring
+        self._create_and_send_step_batches(sw_update_strategy.type, steps)
+        self.thread_group_manager.start(
+            self.periodic_strategy_monitoring, sw_update_strategy.type
+        )
+
+        LOG.info(f"({sw_update_strategy.type}) Subcloud orchestration delete triggered")
 
         # handle extra_args processing such as removing from the vault
         self._process_extra_args_deletion(
             sw_update_strategy.type, sw_update_strategy.extra_args
         )
 
-        strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
         return strategy_dict
 
     def apply_sw_update_strategy(self, context, update_type=None):
@@ -622,12 +709,15 @@ class SwUpdateManager(manager.Manager):
             )
 
         # Trigger the orchestration
-        steps = db_api.strategy_step_get_all(context)
-        self._create_and_send_step_batches(sw_update_strategy.type, steps)
-
-        LOG.info(
-            f"Subcloud orchestration apply triggered for {sw_update_strategy.type}"
+        steps = db_api.strategy_step_get_all(
+            context, limit=sw_update_strategy.max_parallel_subclouds
         )
+        self._create_and_send_step_batches(sw_update_strategy.type, steps)
+        self.thread_group_manager.start(
+            self.periodic_strategy_monitoring, sw_update_strategy.type
+        )
+
+        LOG.info(f"({sw_update_strategy.type}) Subcloud orchestration apply triggered")
 
         strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
         return strategy_dict
@@ -660,5 +750,16 @@ class SwUpdateManager(manager.Manager):
             sw_update_strategy = db_api.sw_update_strategy_update(
                 context, state=consts.SW_UPDATE_STATE_ABORT_REQUESTED
             )
+
+            # Because the workers are only handling the steps up to
+            # max_parallel_subclouds, it is necessary to retrieve the remaining
+            # steps and set them as aborted, otherwise the strategy will be stuck
+            db_api.strategy_step_abort_all_not_processing(
+                context, sw_update_strategy.max_parallel_subclouds
+            )
+
+            # Reduce the sleep time since the abortion is faster than apply
+            self.sleep_time = self.sleep_time / 3
+
         strategy_dict = db_api.sw_update_strategy_db_model_to_dict(sw_update_strategy)
         return strategy_dict

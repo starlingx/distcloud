@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -16,11 +16,12 @@ from dcmanager.orchestrator.states.creating_vim_strategy import CreatingVIMStrat
 class CreatingVIMKubeUpgradeStrategyState(CreatingVIMStrategyState):
     """State for creating the VIM upgrade strategy."""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         next_state = consts.STRATEGY_STATE_KUBE_APPLYING_VIM_KUBE_UPGRADE_STRATEGY
         super(CreatingVIMKubeUpgradeStrategyState, self).__init__(
             next_state=next_state,
             region_name=region_name,
+            strategy=strategy,
             strategy_name=vim.STRATEGY_NAME_KUBE_UPGRADE,
         )
 
@@ -40,9 +41,7 @@ class CreatingVIMKubeUpgradeStrategyState(CreatingVIMStrategyState):
 
             # The following chooses to_version using the same logic as in
             # KubeUpgradePreCheckState.perform_state_action()
-            extra_args = dcmanager_utils.get_sw_update_strategy_extra_args(
-                self.context, update_type=consts.SW_UPDATE_TYPE_KUBERNETES
-            )
+            extra_args = self.strategy.extra_args
             if extra_args is None:
                 extra_args = {}
             to_version = extra_args.get("to-version", None)

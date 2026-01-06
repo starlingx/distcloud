@@ -1,0 +1,13 @@
+[Unit]
+Description=Automatically executes the subcloud restore playbook on first boot
+After=multi-user.target
+Wants=multi-user.target
+ConditionPathExists=/opt/platform-backup/auto-restore
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/execute-restore.sh
+
+[Install]
+WantedBy=multi-user.target

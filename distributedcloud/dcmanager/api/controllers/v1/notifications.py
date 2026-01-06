@@ -1,4 +1,4 @@
-# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -47,10 +47,10 @@ class NotificationsController(object):
         events = request.json_body["events"]
         if "platform-upgrade-completed" in events:
             # We're being notified that a platform upgrade has completed,
-            # so we want to trigger a load audit of all subclouds on the
+            # so we want to trigger a software audit of all subclouds on the
             # next audit cycle.
             context = restcomm.extract_context_from_environ()
-            self.audit_rpc_client.trigger_load_audit(context)
+            self.audit_rpc_client.trigger_software_audit(context)
         if "k8s-upgrade-completed" in events:
             # We're being notified that a kubernetes upgrade has completed,
             # so we want to trigger a kubernetes audit of all subclouds on

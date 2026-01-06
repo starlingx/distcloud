@@ -15,12 +15,10 @@
 #    under the License.
 #
 
-import abc
 
 from oslo_log import log as logging
 
 from dccommon.drivers.openstack.keystone_v3 import KeystoneClient
-from dccommon.drivers.openstack.patching_v1 import PatchingClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
@@ -44,15 +42,12 @@ class BaseStrategy(object):
 
     def __init__(
         self,
-        audit_rpc_client,
         update_type,
         vim_strategy_name,
         starting_state,
     ):
         # Context object for RPC queries
         self.context = context.get_admin_context()
-        # Used to notify dcmanager-audit to trigger an audit
-        self.audit_rpc_client = audit_rpc_client
         # The update type for the orch thread
         self.update_type = update_type
         # The vim strategy name for the orch thread
@@ -61,33 +56,40 @@ class BaseStrategy(object):
         self.starting_state = starting_state
         # Track if the strategy setup function was executed
         self._setup = False
+        # Extra arguments
+        self.extra_args = None
 
-    @abc.abstractmethod
-    def trigger_audit(self):
-        """Subclass MUST override this method"""
-        LOG.warn(
-            "(%s) BaseStrategy subclass must override trigger_audit" % self.update_type
-        )
-
-    def _pre_apply_setup(self):
+    def base_apply_setup(self, strategy):
         """Setup performed once before a strategy starts to apply"""
+        self.debug_log("BaseStrategy Pre-Apply Setup")
         if not self._setup:
             LOG.info("(%s) BaseStrategy Pre-Apply Setup" % self.update_type)
             self._setup = True
-            self.pre_apply_setup()
+            self.pre_apply_setup(strategy)
 
-    def pre_apply_setup(self):
-        """Subclass can override this method"""
+    def pre_apply_setup(self, strategy):
+        """Initialize strategy extra_args"""
+        self.extra_args = getattr(strategy, "extra_args", {})
+        self.debug_log("Extra Args set")
 
-    def _post_delete_teardown(self):
-        """Cleanup code executed once after deleting a strategy"""
+    def teardown(self):
+        """Cleanup code executed once after finishing a strategy"""
+        self.debug_log("BaseStrategy Teardown")
         if self._setup:
-            LOG.info("(%s) BaseStrategy Post-Delete Teardown" % self.update_type)
+            LOG.info("(%s) BaseStrategy Teardown" % self.update_type)
             self._setup = False
-            self.post_delete_teardown()
 
-    def post_delete_teardown(self):
-        """Subclass can override this method"""
+    def debug_log(self, details):
+        LOG.debug(
+            "Type: %s, VIM Strategy: %s, Setup: %s, Extra_Args: %s, Details: %s"
+            % (
+                self.update_type,
+                self.vim_strategy_name,
+                self._setup,
+                self.extra_args,
+                details,
+            )
+        )
 
     @staticmethod
     def get_ks_client(region_name: str = None) -> KeystoneClient:
@@ -108,7 +110,7 @@ class BaseStrategy(object):
             region_name = cutils.get_region_one_name()
 
         ks_client = BaseStrategy.get_ks_client(region_name)
-        return vim.VimClient(region_name, ks_client.session)
+        return vim.VimClient(ks_client.session, region=region_name)
 
     @staticmethod
     def get_sysinv_client(region_name: str = None) -> SysinvClient:
@@ -130,17 +132,9 @@ class BaseStrategy(object):
             endpoint=ks_client.endpoint_cache.get_endpoint("usm"),
         )
 
-    @staticmethod
-    def get_patching_client(region_name: str = None) -> PatchingClient:
-        if not region_name:
-            region_name = cutils.get_region_one_name()
-
-        ks_client = BaseStrategy.get_ks_client(region_name)
-        return PatchingClient(region_name, ks_client.session)
-
     def determine_state_operator(self, region_name, strategy_step):
         """Return the state operator for the current state"""
 
         state_operator = self.STATE_OPERATORS.get(strategy_step.state)
         # instantiate and return the state_operator class
-        return state_operator(region_name=region_name)
+        return state_operator(region_name=region_name, strategy=self)

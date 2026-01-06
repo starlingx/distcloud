@@ -5,6 +5,7 @@ source =
     dcmanager
     dcorch
     dccommon
+    dccertmon
     dcagent
     dcdbsync
 omit =

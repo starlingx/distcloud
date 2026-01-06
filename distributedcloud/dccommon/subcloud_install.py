@@ -30,12 +30,11 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from dccommon import consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon import endpoint_cache
 from dccommon import exceptions
 from dccommon import ostree_mount
-from dccommon import utils as dccommon_utils
-
+from dccommon import utils as cutils
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import utils
 
@@ -116,15 +115,10 @@ class SubcloudInstall(object):
 
     @staticmethod
     def get_sysinv_client():
-        region_name = dccommon_utils.get_region_one_name()
-        ks_client = OpenStackDriver(
-            region_name=region_name,
-            region_clients=None,
-            fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-        ).keystone_client
-        session = ks_client.session
-        endpoint = ks_client.endpoint_cache.get_endpoint("sysinv")
-        return SysinvClient(region_name, session, endpoint=endpoint)
+        admin_session = endpoint_cache.EndpointCache.get_admin_session()
+        region_name = cutils.get_region_one_name()
+        sysinv_client = SysinvClient(region_name, admin_session)
+        return cutils.CachingWrapper(sysinv_client)
 
     @staticmethod
     def format_address(ip_address):
@@ -213,7 +207,14 @@ class SubcloudInstall(object):
             for k, v in payload.items():
                 f_out_override_file.write("%s: %s\n" % (k, json.dumps(v)))
 
-    def update_iso(self, override_path, values, subcloud_primary_oam_ip_family):
+    def update_iso(
+        self,
+        override_path,
+        values,
+        subcloud_primary_oam_ip_family,
+        include_paths=None,
+        kickstart_uri=None,
+    ):
         if not os.path.isdir(self.www_iso_root):
             os.mkdir(self.www_iso_root, 0o755)
         LOG.debug(
@@ -274,6 +275,13 @@ class SubcloudInstall(object):
             "--release",
             software_version,
         ]
+
+        if include_paths:
+            for path in include_paths:
+                update_iso_cmd += ["--include-path", path]
+
+        if kickstart_uri:
+            update_iso_cmd += ["--kickstart-uri", kickstart_uri]
 
         for key, _ in consts.GEN_ISO_OPTIONS.items():
             if key in values:
@@ -472,7 +480,14 @@ class SubcloudInstall(object):
     def is_serial_console(install_type):
         return install_type is not None and install_type in SERIAL_CONSOLE_INSTALL_TYPES
 
-    def prep(self, override_path, payload, subcloud_primary_oam_ip_family):
+    def prep(
+        self,
+        override_path,
+        payload,
+        subcloud_primary_oam_ip_family,
+        include_paths=None,
+        kickstart_uri=None,
+    ):
         """Update the iso image and create the config files for the subcloud"""
         LOG.info("Prepare for %s remote install" % (self.name))
 
@@ -517,7 +532,13 @@ class SubcloudInstall(object):
 
         # Update the default iso image based on the install values
         # Runs gen-bootloader-iso.sh
-        self.update_iso(override_path, iso_values, subcloud_primary_oam_ip_family)
+        self.update_iso(
+            override_path,
+            iso_values,
+            subcloud_primary_oam_ip_family,
+            include_paths,
+            kickstart_uri,
+        )
 
         # remove the iso values from the payload
         for k in iso_values:
@@ -557,7 +578,7 @@ class SubcloudInstall(object):
         try:
             # Since this is a long-running task we want to register
             # for cleanup on process restart/SWACT.
-            ansible = dccommon_utils.AnsiblePlaybook(self.name)
+            ansible = cutils.AnsiblePlaybook(self.name)
             aborted = ansible.run_playbook(playbook_log_file, install_command)
             # Returns True if the playbook was aborted and False otherwise
             return aborted
@@ -569,7 +590,8 @@ class SubcloudInstall(object):
             if self.ipmi_logger:
                 msg += f"Console log files are available at {console_log_file}. "
             msg += f"Run {dcmanager_consts.ERROR_DESC_CMD} for details"
-            raise Exception(msg)
+            LOG.error(msg)
+            raise
         finally:
             if self.ipmi_logger:
                 self.ipmi_logger.stop_logging()

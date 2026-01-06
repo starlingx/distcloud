@@ -1,19 +1,19 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import http.client
-import uuid
 
 import mock
 from oslo_db import exception as db_exc
 from oslo_messaging import RemoteError
 
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.api.controllers.v1 import subcloud_peer_group
 from dcmanager.common import consts
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.base import FakeException
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
@@ -150,7 +150,7 @@ class BaseTestSubcloudPeerGroupController(DCManagerApiTest, SubcloudPeerGroupAPI
         self.url = API_PREFIX
 
         self.mock_rpc_client = self._mock_object(rpc_client, "ManagerClient")
-        self._mock_object(subcloud_peer_group, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_sysinv_client = self._mock_object(subcloud_peer_group, "SysinvClient")
 
     def _create_subcloud(self):
@@ -1210,15 +1210,8 @@ class TestSubcloudPeerGroupControllerDelete(BaseTestSubcloudPeerGroupController)
         """Test delete fails when association exists"""
 
         self._create_subcloud()
-        system_peer = db_api.system_peer_create(
-            self.ctx,
-            str(uuid.uuid4()),
-            "SystemPeer1",
-            "http://127.0.0.1:5000",
-            "admin",
-            "password",
-            "128.128.128.1",
-        )
+        system_peer_fields = fake_subcloud.get_test_system_peer_dict("db")
+        system_peer = db_api.system_peer_create(self.ctx, **system_peer_fields)
         db_api.peer_group_association_create(
             self.ctx,
             self.subcloud.peer_group_id,

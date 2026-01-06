@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022,2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -79,6 +79,8 @@ class SubcloudBackupController(object):
                 "restore_values": dict,
                 "subcloud": str,
                 "group": str,
+                "auto": str,
+                "factory": str,
             }
         else:
             pecan.abort(400, _("Unexpected verb received"))
@@ -180,7 +182,9 @@ class SubcloudBackupController(object):
                 payload[param_name] = default
 
     @staticmethod
-    def _validate_subclouds(request_entity, operation, bootstrap_address_dict=None):
+    def _validate_subclouds(
+        request_entity, operation, bootstrap_address_dict=None, auto_restore_mode=None
+    ):
         """Validate the subcloud according to the operation
 
         Create/Delete: The subcloud is managed, online and in complete state.
@@ -190,6 +194,8 @@ class SubcloudBackupController(object):
         - Restore values with bootstrap_address information
         - Install values
         - Previous inventory
+
+        If it's an auto-restore, the subcloud must be aio-simplex.
 
         If none of the subclouds are valid, the operation will be aborted.
 
@@ -204,7 +210,7 @@ class SubcloudBackupController(object):
         for subcloud in subclouds:
             try:
                 is_valid = utils.is_valid_for_backup_operation(
-                    operation, subcloud, bootstrap_address_dict
+                    operation, subcloud, bootstrap_address_dict, auto_restore_mode
                 )
 
                 if operation == "create":
@@ -292,12 +298,8 @@ class SubcloudBackupController(object):
         """Create a new subcloud backup."""
         context = restcomm.extract_context_from_environ()
         payload = self._get_payload(pecan_request, "create")
+        context.is_admin = self.authorize_user("create")
 
-        policy.authorize(
-            subcloud_backup_policy.POLICY_ROOT % "create",
-            {},
-            restcomm.extract_credentials_for_policy(),
-        )
         self._validate_and_decode_sysadmin_password(payload, "sysadmin_password")
 
         if not payload.get("local_only") and payload.get("registry_images"):
@@ -334,14 +336,9 @@ class SubcloudBackupController(object):
         """
         context = restcomm.extract_context_from_environ()
         payload = self._get_payload(pecan_request, verb)
+        context.is_admin = self.authorize_user(verb)
 
         if verb == "delete":
-            policy.authorize(
-                subcloud_backup_policy.POLICY_ROOT % "delete",
-                {},
-                restcomm.extract_credentials_for_policy(),
-            )
-
             if not release_version:
                 pecan.abort(400, _("Release version required"))
 
@@ -380,11 +377,6 @@ class SubcloudBackupController(object):
                 LOG.exception("Unable to delete subcloud backups")
                 pecan.abort(500, _("Unable to delete subcloud backups"))
         elif verb == "restore":
-            policy.authorize(
-                subcloud_backup_policy.POLICY_ROOT % "restore",
-                {},
-                restcomm.extract_credentials_for_policy(),
-            )
 
             if not payload:
                 pecan.abort(400, _("Body required"))
@@ -392,7 +384,8 @@ class SubcloudBackupController(object):
             self._validate_and_decode_sysadmin_password(payload, "sysadmin_password")
 
             self._convert_param_to_bool(
-                payload, ["local_only", "with_install", "registry_images"]
+                payload,
+                ("local_only", "with_install", "registry_images", "auto", "factory"),
             )
 
             if not payload["local_only"] and payload["registry_images"]:
@@ -404,10 +397,15 @@ class SubcloudBackupController(object):
                     ),
                 )
 
-            if not payload["with_install"] and payload.get("release"):
+            if payload.get("release") and not (
+                payload["with_install"] or payload["factory"]
+            ):
                 pecan.abort(
                     400,
-                    _("Option release cannot be used without with_install option."),
+                    _(
+                        "Option release cannot be used without 'with_install' "
+                        "or 'factory' options."
+                    ),
                 )
 
             request_entity = self._read_entity_from_request_params(context, payload)
@@ -431,13 +429,24 @@ class SubcloudBackupController(object):
                     ),
                 )
 
+            if payload.get("factory"):
+                auto_restore_mode = "factory"
+            elif payload.get("auto"):
+                auto_restore_mode = "auto"
+            else:
+                auto_restore_mode = None
+
             restore_subclouds = self._validate_subclouds(
-                request_entity, verb, bootstrap_address_dict
+                request_entity, verb, bootstrap_address_dict, auto_restore_mode
             )
 
             payload[request_entity.type] = request_entity.id
 
-            if payload.get("with_install"):
+            if (
+                payload.get("with_install")
+                or payload.get("auto")
+                or payload.get("factory")
+            ):
                 subclouds_without_install_values = [
                     subcloud.name
                     for subcloud in request_entity.subclouds
@@ -448,9 +457,9 @@ class SubcloudBackupController(object):
                     pecan.abort(
                         400,
                         _(
-                            "The restore operation was requested with_install, "
-                            "but the following subcloud(s) does not contain "
-                            "install values: %s" % subclouds_str
+                            "The restore operation was requested with with_install, "
+                            "auto or factory, but the following subcloud(s) does "
+                            "not contain install values: %s" % subclouds_str
                         ),
                     )
                 # Confirm the requested or active load is still in dc-vault
@@ -468,6 +477,13 @@ class SubcloudBackupController(object):
                     % matching_iso
                 )
 
+            # An auto or factory restore implies registry-images
+            if payload.get("auto") or payload.get("factory"):
+                payload["registry_images"] = True
+            if payload.get("factory"):
+                payload["with_install"] = True
+                payload["local_only"] = True
+
             try:
                 # local update to deploy_status - this is just for CLI response
                 # pylint: disable-next=consider-using-enumerate
@@ -484,3 +500,16 @@ class SubcloudBackupController(object):
                 pecan.abort(500, _("Unable to restore subcloud"))
         else:
             pecan.abort(400, _("Invalid request"))
+
+    def authorize_user(self, verb):
+        """check the user has access to the API call
+
+        :param verb: None,delete,restore,create
+        :request: True or False
+        """
+
+        rule = subcloud_backup_policy.POLICY_ROOT % verb
+        has_api_access = policy.authorize(
+            rule, {}, restcomm.extract_credentials_for_policy()
+        )
+        return has_api_access

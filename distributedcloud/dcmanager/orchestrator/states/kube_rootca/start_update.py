@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,10 +17,11 @@ from dcmanager.orchestrator.states.base import BaseState
 class KubeRootcaUpdateStartState(BaseState):
     """Start a new kube rootca update so that the cert can be uploaded"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super(KubeRootcaUpdateStartState, self).__init__(
             next_state=STRATEGY_STATE_KUBE_ROOTCA_UPDATE_UPLOAD_CERT,
             region_name=region_name,
+            strategy=strategy,
         )
 
     def _start_kube_rootca_update(self, strategy_step):

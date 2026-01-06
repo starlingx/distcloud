@@ -1,5 +1,5 @@
 # Copyright 2016 Ericsson AB
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -14,10 +14,8 @@
 #
 
 from functools import wraps
-import json
 
 from keystoneauth1 import session as ks_session
-from nfv_client.openstack import rest_api
 from nfv_client.openstack import sw_update
 from oslo_log import log
 
@@ -30,7 +28,6 @@ LOG = log.getLogger(__name__)
 STRATEGY_NAME_FW_UPDATE = "fw-update"
 STRATEGY_NAME_KUBE_ROOTCA_UPDATE = "kube-rootca-update"
 STRATEGY_NAME_KUBE_UPGRADE = "kube-upgrade"
-STRATEGY_NAME_SW_PATCH = "sw-patch"
 # TODO(nicodemos): Change this to 'sw-deploy' once the new strategy is created
 STRATEGY_NAME_SW_USM = "sw-upgrade"
 STRATEGY_NAME_SYS_CONFIG_UPDATE = "system-config-update"
@@ -114,19 +111,24 @@ class VimClient(base.DriverBase):
         # The property is used to guarantee we always get the most recent token
         return self.session.get_token()
 
-    def __init__(self, region: str, session: ks_session.Session, endpoint: str = None):
+    def __init__(
+        self, session: ks_session.Session, region: str = None, endpoint: str = None
+    ):
+        if not (endpoint or region):
+            error = "Either endpoint or region must be provided"
+            raise exceptions.ClientException(client="VIM", error=error)
+
         self.session = session
+        self.endpoint = endpoint
 
         # The nfv_client doesn't support a session, so we need to
         # get an endpoint and token.
-        if endpoint is None:
+        if not self.endpoint:
             self.endpoint = session.get_endpoint(
                 service_type="nfv",
                 region_name=region,
                 interface=consts.KS_ENDPOINT_ADMIN,
             )
-        else:
-            self.endpoint = endpoint
 
         # session.get_user_id() returns a UUID
         # that always corresponds to 'dcmanager'
@@ -154,18 +156,6 @@ class VimClient(base.DriverBase):
         url = self.endpoint
 
         try:
-            # TODO(nicodemos): Remove once sw-patch is deprecated
-            # Use the REST Api directly to the subcloud to create the strategy for
-            # legacy patch orchestration
-            if strategy_name == STRATEGY_NAME_SW_PATCH:
-                return self._create_strategy_sw_patch(
-                    default_instance_action,
-                    storage_apply_type,
-                    worker_apply_type,
-                    max_parallel_worker_hosts,
-                    alarm_restrictions,
-                )
-
             strategy = sw_update.create_strategy(
                 self.token,
                 url,
@@ -192,47 +182,12 @@ class VimClient(base.DriverBase):
         LOG.debug("Strategy created: %s" % strategy)
         return strategy
 
-    # TODO(nicodemos): Delete this method once sw-patch is deprecated
-    def _create_strategy_sw_patch(
-        self,
-        default_instance_action,
-        storage_apply_type,
-        worker_apply_type,
-        max_parallel_worker_hosts,
-        alarm_restrictions,
-    ):
-        """Create strategy for legacy SW patch orchestration"""
-
-        api_cmd_payload = {
-            "controller-apply-type": APPLY_TYPE_SERIAL,
-            "swift-apply-type": APPLY_TYPE_IGNORE,
-            "default-instance-action": default_instance_action,
-            "storage-apply-type": storage_apply_type,
-            "worker-apply-type": worker_apply_type,
-            "alarm-restrictions": alarm_restrictions,
-        }
-
-        if max_parallel_worker_hosts is not None:
-            api_cmd_payload["max-parallel-worker-hosts"] = max_parallel_worker_hosts
-
-        response = self._send_api_request(
-            "POST",
-            f"/api/orchestration/{STRATEGY_NAME_SW_PATCH}/strategy",
-            api_cmd_payload,
-        )
-        return self._add_strategy_response(response)
-
     @retry_on_auth_failure()
     def get_strategy(self, strategy_name, raise_error_if_missing=True):
         """Get VIM orchestration strategy"""
 
         url = self.endpoint
         try:
-            # TODO(nicodemos): Remove once sw-patch is deprecated
-            # Use the REST Api directly to the subcloud to get the strategy for
-            # legacy patch orchestration
-            if strategy_name == STRATEGY_NAME_SW_PATCH:
-                return self._get_strategy_sw_patch()
             strategy = sw_update.get_strategies(
                 self.token,
                 url,
@@ -251,15 +206,6 @@ class VimClient(base.DriverBase):
 
         LOG.debug("Strategy: %s" % strategy)
         return strategy
-
-    # # TODO(nicodemos): Delete this method once sw-patch is deprecated
-    def _get_strategy_sw_patch(self):
-        """Get legacy SW patch strategy"""
-
-        response = self._send_api_request(
-            "GET", f"/api/orchestration/{STRATEGY_NAME_SW_PATCH}/strategy"
-        )
-        return self._add_strategy_response(response)
 
     @retry_on_auth_failure()
     def get_current_strategy(self):
@@ -303,11 +249,6 @@ class VimClient(base.DriverBase):
 
         url = self.endpoint
         try:
-            # TODO(nicodemos): Remove once sw-patch is deprecated
-            # Use the REST Api directly to the subcloud to apply the strategy for
-            # legacy patch orchestration
-            if strategy_name == STRATEGY_NAME_SW_PATCH:
-                return self._apply_strategy_sw_patch()
             strategy = sw_update.apply_strategy(
                 self.token,
                 url,
@@ -325,45 +266,6 @@ class VimClient(base.DriverBase):
 
         LOG.debug("Strategy applied: %s" % strategy)
         return strategy
-
-    # # TODO(nicodemos): Delete this method once sw-patch is deprecated
-    def _apply_strategy_sw_patch(self):
-        """Apply strategy for legacy SW patch orchestration"""
-
-        api_cmd_payload = {"action": "apply-all"}
-        response = self._send_api_request(
-            "POST",
-            f"/api/orchestration/{STRATEGY_NAME_SW_PATCH}/strategy/actions",
-            api_cmd_payload,
-        )
-        return self._add_strategy_response(response)
-
-    # # TODO(nicodemos): Delete this method once sw-patch is deprecated
-    def _send_api_request(self, method, api_path, payload=None):
-        """Helper to send an API request to the VIM orchestration system"""
-        api_cmd = f"{self.endpoint}{api_path}"
-
-        headers = {
-            "Content-Type": "application/json",
-            "X-User": self.username,
-            "X-Tenant": self.tenant,
-            "X-User-Domain-Name": self.user_domain_name,
-            "X-Auth-Token": self.token,
-        }
-
-        if method == "POST" and payload:
-            payload = json.dumps(payload)
-
-        return rest_api.request(self.token, method, api_cmd, headers, payload)
-
-    # # TODO(nicodemos): Delete this method once sw-patch is deprecated
-    def _add_strategy_response(self, response):
-        """Add response for all strategy phases"""
-        if response.get("strategy"):
-            for phase in ["build-phase", "apply-phase", "abort-phase"]:
-                response["strategy"][phase]["response"] = "success"
-
-        return sw_update._get_strategy_object_from_response(response)
 
     @retry_on_auth_failure()
     def abort_strategy(self, strategy_name):

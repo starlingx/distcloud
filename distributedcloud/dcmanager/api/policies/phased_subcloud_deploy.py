@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,13 +14,13 @@ POLICY_ROOT = "dc_api:phased_subcloud_deploy:%s"
 phased_subcloud_deploy_rules = [
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "create",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Create a subcloud",
         operations=[{"method": "POST", "path": "/v1.0/phased-subcloud-deploy"}],
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "modify",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Modify the subcloud deployment.",
         operations=[
             {

@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -23,13 +23,12 @@ from dccommon import consts as dccommon_consts
 from dcmanager.common import config
 from dcmanager.common import consts
 from dcmanager.common import exceptions
-from dcmanager.db import api
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.tests import base
 from dcmanager.tests import utils
 
 config.register_options()
-get_engine = api.get_engine
+get_engine = db_api.get_engine
 
 
 @event.listens_for(Engine, "connect")
@@ -95,7 +94,7 @@ class DBAPISubcloudTest(base.DCManagerTestCase):
     @staticmethod
     def create_sw_update_strategy(ctxt, **kwargs):
         values = {
-            "type": consts.SW_UPDATE_TYPE_PATCH,
+            "type": consts.SW_UPDATE_TYPE_FIRMWARE,
             "state": consts.SW_UPDATE_STATE_INITIAL,
             "subcloud_apply_type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
             "max_parallel_subclouds": 10,

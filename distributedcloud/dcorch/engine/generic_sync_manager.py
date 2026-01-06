@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,10 +28,6 @@ from dcorch.rpc import client
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-CHECK_AUDIT_INTERVAL = 300  # frequency to check for audit work
-CHECK_SYNC_INTERVAL = 5  # frequency to check for sync work
-AUDIT_INTERVAL = 1200  # Default audit interval
-
 
 class GenericSyncManager(object):
     """Manages tasks related to resource management."""
@@ -46,7 +42,7 @@ class GenericSyncManager(object):
         while True:
             try:
                 self.sync_subclouds()
-                eventlet.greenthread.sleep(CHECK_SYNC_INTERVAL)
+                eventlet.greenthread.sleep(dco_consts.CHECK_SYNC_INTERVAL)
             except eventlet.greenlet.GreenletExit:
                 # We have been told to exit
                 return
@@ -59,7 +55,7 @@ class GenericSyncManager(object):
         while True:
             try:
                 self.run_sync_audit()
-                eventlet.greenthread.sleep(CHECK_AUDIT_INTERVAL)
+                eventlet.greenthread.sleep(dco_consts.CHECK_AUDIT_INTERVAL)
             except eventlet.greenlet.GreenletExit:
                 # We have been told to exit
                 return
@@ -120,7 +116,7 @@ class GenericSyncManager(object):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             initial_sync_state=dco_consts.INITIAL_SYNC_STATE_COMPLETED,
-            audit_interval=AUDIT_INTERVAL,
+            audit_interval=dco_consts.AUDIT_INTERVAL,
         )
 
         if subcloud_sync_list:

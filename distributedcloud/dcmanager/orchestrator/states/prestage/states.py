@@ -1,9 +1,8 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import abc
 
 from oslo_log import log as logging
 
@@ -11,7 +10,6 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.common import utils
-from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.cache.cache_specifications import (
     REGION_ONE_RELEASE_USM_CACHE_TYPE,
@@ -20,73 +18,21 @@ from dcmanager.orchestrator.cache.cache_specifications import (
 LOG = logging.getLogger(__name__)
 
 
-class PrestageState(BaseState):
-    """Perform prepare operation"""
-
-    def __init__(self, next_state, region_name):
-        super(PrestageState, self).__init__(
-            next_state=next_state, region_name=region_name
-        )
-
-    @abc.abstractmethod
-    def _do_state_action(self, strategy_step):
-        pass
-
-    def perform_state_action(self, strategy_step):
-        """Wrapper to ensure proper error handling"""
-        try:
-            self._do_state_action(strategy_step)
-        except exceptions.StrategySkippedException:
-            # Move prestage_status back to None (nothing has changed)
-            db_api.subcloud_update(
-                self.context, strategy_step.subcloud.id, prestage_status=None
-            )
-            raise
-        except Exception:
-            prestage.prestage_fail(self.context, strategy_step.subcloud.id)
-            raise
-
-        # state machine can proceed to the next state
-        return self.next_state
-
-
-class PrestagePreCheckState(PrestageState):
+class PrestagePreCheckState(BaseState):
     """Perform pre check operations"""
 
-    def __init__(self, region_name):
-        super(PrestagePreCheckState, self).__init__(
-            next_state=consts.STRATEGY_STATE_PRESTAGE_PACKAGES, region_name=region_name
+    def __init__(self, region_name, strategy):
+        super().__init__(
+            next_state=consts.STRATEGY_STATE_PRESTAGE_PACKAGES,
+            region_name=region_name,
+            strategy=strategy,
         )
 
-    @utils.synchronized("prestage-update-extra-args", external=True)
-    def _update_oam_floating_ip(self, strategy_step, oam_floating_ip):
-        # refresh the extra_args
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-        if "oam_floating_ip_dict" in extra_args:
-            LOG.debug(
-                "Updating oam_floating_ip_dict: %s: %s",
-                strategy_step.subcloud.name,
-                oam_floating_ip,
-            )
-            oam_floating_ip_dict = extra_args["oam_floating_ip_dict"]
-            oam_floating_ip_dict[strategy_step.subcloud.name] = oam_floating_ip
-        else:
-            LOG.debug(
-                "Creating oam_floating_ip_dict: %s: %s",
-                strategy_step.subcloud.name,
-                oam_floating_ip,
-            )
-            oam_floating_ip_dict = {strategy_step.subcloud.name: oam_floating_ip}
-        db_api.sw_update_strategy_update(
-            self.context,
-            state=None,
-            update_type=None,
-            additional_args={"oam_floating_ip_dict": oam_floating_ip_dict},
-        )
+    def perform_state_action(self, strategy_step):
+        extra_args = self.strategy.extra_args
+        oam_floating_ip_dict = self.strategy.oam_floating_ip_dict
 
-    def _do_state_action(self, strategy_step):
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
-        if extra_args is None:
+        if not extra_args:
             message = "Prestage pre-check: missing all mandatory arguments"
             self.error_log(strategy_step, message)
             raise Exception(message)
@@ -95,17 +41,13 @@ class PrestagePreCheckState(PrestageState):
             "sysadmin_password": extra_args["sysadmin_password"],
             "force": extra_args["force"],
         }
-        if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
-            payload.update(
-                {
-                    consts.PRESTAGE_REQUEST_RELEASE: extra_args.get(
-                        consts.PRESTAGE_SOFTWARE_VERSION
-                    )
-                }
-            )
+        prestage_software_version = extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION)
+        if prestage_software_version:
+            payload.update({consts.PRESTAGE_REQUEST_RELEASE: prestage_software_version})
         # Taking the for_sw_deploy parameter if it was specified when the
         # strategy was created
-        if extra_args.get(consts.PRESTAGE_FOR_SW_DEPLOY):
+        for_sw_deploy = extra_args.get(consts.PRESTAGE_FOR_SW_DEPLOY)
+        if for_sw_deploy:
             payload.update(
                 {
                     consts.PRESTAGE_FOR_SW_DEPLOY: extra_args.get(
@@ -118,12 +60,19 @@ class PrestagePreCheckState(PrestageState):
             system_controller_sw_list = self._read_from_cache(
                 REGION_ONE_RELEASE_USM_CACHE_TYPE
             )
-            oam_floating_ip = prestage.validate_prestage(
+            oam_floating_ip = prestage.validate_prestage_subcloud(
                 strategy_step.subcloud, payload, system_controller_sw_list
             )
-            self._update_oam_floating_ip(strategy_step, oam_floating_ip)
+            oam_floating_ip_dict[strategy_step.subcloud.name] = oam_floating_ip
 
-            prestage.prestage_start(self.context, strategy_step.subcloud.id)
+            # Get and save formatted system controller sw list for provided prestage
+            # software version if for_sw_deploy is set.
+            if for_sw_deploy:
+                self.strategy.system_controller_sw_list = (
+                    utils.get_formatted_release_list(
+                        system_controller_sw_list, prestage_software_version
+                    )
+                )
 
         except exceptions.PrestagePreCheckFailedException as ex:
             # We've either failed precheck or we want to skip this subcloud.
@@ -137,22 +86,31 @@ class PrestagePreCheckState(PrestageState):
         else:
             self.info_log(strategy_step, "Pre-check pass")
 
+        return self.next_state
 
-class PrestagePackagesState(PrestageState):
+
+class PrestagePackagesState(BaseState):
     """Perform prestage packages operation"""
 
-    def __init__(self, region_name):
-        super(PrestagePackagesState, self).__init__(
-            next_state=consts.STRATEGY_STATE_PRESTAGE_IMAGES, region_name=region_name
+    def __init__(self, region_name, strategy):
+        super().__init__(
+            next_state=consts.STRATEGY_STATE_PRESTAGE_IMAGES,
+            region_name=region_name,
+            strategy=strategy,
         )
 
-    def _do_state_action(self, strategy_step):
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+    def perform_state_action(self, strategy_step):
+        extra_args = self.strategy.extra_args
+        oam_floating_ip_dict = self.strategy.oam_floating_ip_dict
+        oam_floating_ip = oam_floating_ip_dict.get(strategy_step.subcloud.name)
+        system_controller_sw_list = self.strategy.system_controller_sw_list
+
+        if not oam_floating_ip:
+            oam_floating_ip = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
+
         payload = {
             "sysadmin_password": extra_args["sysadmin_password"],
-            "oam_floating_ip": extra_args["oam_floating_ip_dict"][
-                strategy_step.subcloud.name
-            ],
+            "oam_floating_ip": oam_floating_ip,
             "force": extra_args["force"],
         }
         if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
@@ -166,36 +124,41 @@ class PrestagePackagesState(PrestageState):
 
         prestage_reason = utils.get_prestage_reason(extra_args)
 
+        # Add system controller sw list to payload if software data is present
+        if system_controller_sw_list and len(system_controller_sw_list) > 0:
+            payload.update(
+                {consts.PRESTAGE_SYSTEM_CONTROLLER_SW_LIST: system_controller_sw_list}
+            )
+
         prestage.prestage_packages(
             self.context, strategy_step.subcloud, payload, prestage_reason
         )
         self.info_log(strategy_step, "Packages finished")
 
+        return self.next_state
 
-class PrestageImagesState(PrestageState):
+
+class PrestageImagesState(BaseState):
     """Perform prestage images operation"""
 
-    def __init__(self, region_name):
-        super(PrestageImagesState, self).__init__(
-            next_state=consts.STRATEGY_STATE_COMPLETE, region_name=region_name
+    def __init__(self, region_name, strategy):
+        super().__init__(
+            next_state=consts.STRATEGY_STATE_COMPLETE,
+            region_name=region_name,
+            strategy=strategy,
         )
 
-    def _do_state_action(self, strategy_step):
-        log_file = utils.get_subcloud_ansible_log_file(strategy_step.subcloud.name)
-        # Get the prestage versions from the ansible playbook logs
-        # generated by the previous step - prestage packages.
-        prestage_versions = utils.get_msg_output_info(
-            log_file,
-            prestage.PRINT_PRESTAGE_VERSIONS_TASK,
-            prestage.PRESTAGE_VERSIONS_KEY_STR,
-        )
+    def perform_state_action(self, strategy_step):
+        extra_args = self.strategy.extra_args
+        oam_floating_ip_dict = self.strategy.oam_floating_ip_dict
+        oam_floating_ip = oam_floating_ip_dict.get(strategy_step.subcloud.name)
 
-        extra_args = utils.get_sw_update_strategy_extra_args(self.context)
+        if not oam_floating_ip:
+            oam_floating_ip = prestage.get_subcloud_oam_ip(strategy_step.subcloud)
+
         payload = {
             "sysadmin_password": extra_args["sysadmin_password"],
-            "oam_floating_ip": extra_args["oam_floating_ip_dict"][
-                strategy_step.subcloud.name
-            ],
+            "oam_floating_ip": oam_floating_ip,
             "force": extra_args["force"],
         }
         if extra_args.get(consts.PRESTAGE_SOFTWARE_VERSION):
@@ -214,6 +177,14 @@ class PrestageImagesState(PrestageState):
         )
 
         self.info_log(strategy_step, "Images finished")
-        prestage.prestage_complete(
-            self.context, strategy_step.subcloud.id, prestage_versions
-        )
+
+        if self.strategy.update_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+            # We should skip the install_license state if it's a minor release.
+            if strategy_step.subcloud.software_version == utils.get_major_release(
+                extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+            ):
+                self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
+            else:
+                self.override_next_state(consts.STRATEGY_STATE_SW_INSTALL_LICENSE)
+
+        return self.next_state

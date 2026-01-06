@@ -24,9 +24,9 @@ TOPIC_DC_MANAGER_AUDIT = "dcmanager-audit"
 TOPIC_DC_MANAGER_AUDIT_WORKER = "dcmanager-audit-worker"
 TOPIC_DC_MANAGER_ORCHESTRATOR = "dcmanager-orchestrator"
 TOPIC_DC_NOTIFICATION = "DCMANAGER-NOTIFICATION"
+TOPIC_DC_MANAGER_ORCHESTRATOR_WORKER = "dcmanager-orchestrator-worker"
 
 CERTS_VAULT_DIR = "/opt/dc-vault/certs"
-PATCH_VAULT_DIR = "/opt/dc-vault/patches"
 
 BOOTSTRAP_VALUES = "bootstrap_values"
 BOOTSTRAP_ADDRESS = "bootstrap-address"
@@ -78,7 +78,6 @@ AVAIL_FAIL_COUNT_MAX = 9999
 SW_UPDATE_TYPE_FIRMWARE = "firmware"
 SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE = "kube-rootca-update"
 SW_UPDATE_TYPE_KUBERNETES = "kubernetes"
-SW_UPDATE_TYPE_PATCH = "patch"
 SW_UPDATE_TYPE_PRESTAGE = "prestage"
 SW_UPDATE_TYPE_SOFTWARE = "sw-deploy"
 
@@ -119,19 +118,17 @@ DEFAULT_SUBCLOUD_GROUP_DESCRIPTION = "Default Subcloud Group"
 DEFAULT_SUBCLOUD_GROUP_UPDATE_APPLY_TYPE = SUBCLOUD_APPLY_TYPE_PARALLEL
 DEFAULT_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS = 2
 
+# Orchestrator sleep time
+ORCHESTRATION_SLEEP_TIME_IN_SECONDS = 10
+ORCHESTRATION_DELETE_COUNTER = 18
+ORCHESTRATION_STRATEGY_MONITORING_INTERVAL = 30
+
 # Common strategy step states
 STRATEGY_STATE_INITIAL = "initial"
 STRATEGY_STATE_COMPLETE = "complete"
 STRATEGY_STATE_ABORTED = "aborted"
 STRATEGY_STATE_FAILED = "failed"
-
-# Patch orchestrations states
 STRATEGY_STATE_PRE_CHECK = "pre check"
-STRATEGY_STATE_UPDATING_PATCHES = "updating patches"
-STRATEGY_STATE_CREATING_VIM_PATCH_STRATEGY = "creating VIM patch strategy"
-STRATEGY_STATE_DELETING_VIM_PATCH_STRATEGY = "deleting VIM patch strategy"
-STRATEGY_STATE_APPLYING_VIM_PATCH_STRATEGY = "applying VIM patch strategy"
-STRATEGY_STATE_FINISHING_PATCH_STRATEGY = "finishing patch strategy"
 
 # Software orchestration states
 STRATEGY_STATE_SW_PRE_CHECK = "sw-deploy pre-check"
@@ -207,6 +204,9 @@ DEPLOY_STATE_PRE_RESTORE = "pre-restore"
 DEPLOY_STATE_RESTORE_PREP_FAILED = "restore-prep-failed"
 DEPLOY_STATE_RESTORING = "restoring"
 DEPLOY_STATE_RESTORE_FAILED = "restore-failed"
+# TODO(gherzmann): Add support for enrolling an existing subcloud
+# that is in the DEPLOY_STATE_FACTORY_RESTORE_COMPLETE state.
+DEPLOY_STATE_FACTORY_RESTORE_COMPLETE = "factory-restore-complete"
 DEPLOY_STATE_PRE_REHOME = "pre-rehome"
 DEPLOY_STATE_PRE_ENROLL = "pre-enroll"
 DEPLOY_STATE_PRE_ENROLL_FAILED = "pre-enroll-failed"
@@ -281,13 +281,15 @@ BACKUP_STATE_COMPLETE_LOCAL = "complete-local"
 BACKUP_STATE_COMPLETE_CENTRAL = "complete-central"
 
 # Prestage States
-PRESTAGE_STATE_PACKAGES = STRATEGY_STATE_PRESTAGE_PACKAGES
-PRESTAGE_STATE_IMAGES = STRATEGY_STATE_PRESTAGE_IMAGES
+PRESTAGE_STATE_PRESTAGING = "prestaging"
 PRESTAGE_STATE_FAILED = "failed"
 PRESTAGE_STATE_COMPLETE = "complete"
 
 # States to indicate if a prestage operation is currently in progress
-STATES_FOR_ONGOING_PRESTAGE = [PRESTAGE_STATE_PACKAGES, PRESTAGE_STATE_IMAGES]
+STATES_FOR_ONGOING_PRESTAGE = [
+    STRATEGY_STATE_PRESTAGE_PACKAGES,
+    STRATEGY_STATE_PRESTAGE_IMAGES,
+]
 
 # Alarm aggregation
 ALARMS_DISABLED = "disabled"
@@ -301,6 +303,10 @@ DEPLOY_CHART = "deploy_chart"
 DEPLOY_CONFIG = "deploy_config"
 DEPLOY_PRESTAGE = "prestage_images"
 
+REQUIRED_DEPLOY_FILE_OPTIONS = [
+    DEPLOY_PLAYBOOK,
+    DEPLOY_CHART,
+]
 DEPLOY_COMMON_FILE_OPTIONS = [
     DEPLOY_PLAYBOOK,
     DEPLOY_OVERRIDES,
@@ -318,33 +324,35 @@ SYSTEM_MODE_DUPLEX = "duplex"
 SYSTEM_MODE_SIMPLEX = "simplex"
 SYSTEM_MODE_DUPLEX_DIRECT = "duplex-direct"
 
+# common extra_args
+EXTRA_ARGS_FORCE = "force"
+
 # extra_args for kube upgrade
 EXTRA_ARGS_TO_VERSION = "to-version"
+
 # extra_args for kube rootca update
 EXTRA_ARGS_CERT_FILE = "cert-file"
 EXTRA_ARGS_EXPIRY_DATE = "expiry-date"
 EXTRA_ARGS_SUBJECT = "subject"
 EXTRA_ARGS_SYSADMIN_PASSWORD = "sysadmin_password"
-EXTRA_ARGS_FORCE = "force"
-
-# TODO(nicodemos): Remove after patching is no longer supported
-# extra_args for patching
-EXTRA_ARGS_UPLOAD_ONLY = "upload-only"
-EXTRA_ARGS_PATCH_ID = "patch_id"
-EXTRA_ARGS_REMOVE = "remove"
-
-# TODO(nicodemos): Remove after patching is no longer supported
-# sw_version supported for patching legacy
-PATCHING_SW_VERSION = "22.12"
 
 # extra_args for software
+EXTRA_ARGS_DELETE_ONLY = "delete_only"
+EXTRA_ARGS_DELETE = "delete"
 EXTRA_ARGS_RELEASE_ID = "release_id"
+EXTRA_ARGS_ROLLBACK = "rollback"
+EXTRA_ARGS_SNAPSHOT = "snapshot"
+EXTRA_ARGS_WITH_DELETE = "with_delete"
+EXTRA_ARGS_WITH_PRESTAGE = "with_prestage"
 
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = "prestage-software-version"
 PRESTAGE_REQUEST_RELEASE = "release"
 PRESTAGE_FOR_INSTALL = "for_install"
 PRESTAGE_FOR_SW_DEPLOY = "for_sw_deploy"
+# extra-vars to pass the system controller cached sw list to
+# prestage packages playbook
+PRESTAGE_SYSTEM_CONTROLLER_SW_LIST = "system_controller_sw_list"
 
 # Device Image Bitstream Types
 BITSTREAM_TYPE_ROOT_KEY = "root-key"
@@ -422,12 +430,22 @@ CERT_NAMESPACE_PLATFORM_CA_CERTS = "cert-manager"
 # The ansible playbook base directories
 ANSIBLE_CURRENT_VERSION_BASE_PATH = "/usr/share/ansible/stx-ansible/playbooks"
 ANSIBLE_PREVIOUS_VERSION_BASE_PATH = "/opt/dc-vault/playbooks"
+ANSIBLE_SUBCLOUD_PLAYBOOK = "/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml"
+
+# Subcloud backup locations
+CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
+SUBCLOUD_LOCAL_BACKUP_DIR = "/opt/platform-backup/backups"
+SUBCLOUD_AUTO_RESTORE_DIR = "/opt/platform-backup/auto-restore"
+SUBCLOUD_FACTORY_BACKUP_DIR = "/opt/platform-backup/factory"
+
+FACTORY_BACKUP_PREFIX = "factory_backup"
+FACTORY_BACKUP_REGISTRY_FILESYSTEM_PREFIX = "localhost_image_registry_backup"
+
+# Maximum allowed size of subcloud home directory for central backups
+DEFAULT_SUBCLOUD_CENTRAL_BACKUP_MAX_HOME_DIR_SIZE_MB = 100
 
 # The deployment manager artifacts usr directories
 ALTERNATE_DEPLOY_FILES_DIR = "/usr/local/share/applications"
-
-ALTERNATE_HELM_CHART_OVERRIDES_DIR = ALTERNATE_DEPLOY_FILES_DIR + "/overrides"
-HELM_CHART_OVERRIDES_POSTFIX = "-overrides-subcloud.yaml"
 
 ALTERNATE_HELM_CHART_DIR = ALTERNATE_DEPLOY_FILES_DIR + "/helm"
 HELM_CHART_POSTFIX = "deployment-manager"
@@ -474,6 +492,12 @@ ASSOCIATION_SYNC_STATUS_UNKNOWN = "unknown"
 HEARTBEAT_FAILURE_POLICY_ALARM = "alarm"
 
 SOFTWARE_VERSION_24_09 = "24.09"
+SNAPSHOT_SUPPORTED_VERSION = "25.09"
 
 # The maximum number of parallel subclouds in an orchestration process
 MAX_PARALLEL_SUBCLOUDS_LIMIT = 5000
+MAX_PARALLEL_PRESTAGE_LIMIT = 250
+
+# The minimal amount of addresses the mgmt and/or admin subnets require
+MIN_SUBNET_HOST_ADDRESSES = 3
+MIN_AIO_SX_SUBNET_HOST_ADDRESSES = 1

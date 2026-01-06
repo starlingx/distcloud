@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -22,9 +22,10 @@ from oslo_messaging import RemoteError
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
 from dcmanager.common import utils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator import rpcapi as rpc_client
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
+from dcmanager.tests.unit.common import consts as fake_consts
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
 
@@ -75,11 +76,11 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
         super().setUp()
 
         self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, consts.SW_UPDATE_TYPE_PATCH
+            self.ctx, consts.SW_UPDATE_TYPE_FIRMWARE
         )
 
     def _assert_response_payload(self, response):
-        self.assertEqual(response.json["type"], consts.SW_UPDATE_TYPE_PATCH)
+        self.assertEqual(response.json["type"], consts.SW_UPDATE_TYPE_FIRMWARE)
         self.assertEqual(response.json["state"], consts.SW_UPDATE_STATE_INITIAL)
 
     def test_get_succeeds(self):
@@ -93,7 +94,7 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
     def test_get_succeeds_with_type(self):
         """Test get succeeds with type"""
 
-        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_PATCH}"
+        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_FIRMWARE}"
 
         response = self._send_request()
 
@@ -128,7 +129,7 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
     def test_get_fails_with_type_and_db_api_not_found_exception(self):
         """Test get fails with db api not found exception"""
 
-        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_PATCH}"
+        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_FIRMWARE}"
 
         db_api.sw_update_strategy_destroy(self.ctx)
 
@@ -137,7 +138,7 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
         self._assert_pecan_and_response(
             response,
             http.client.NOT_FOUND,
-            f"Strategy of type '{consts.SW_UPDATE_TYPE_PATCH}' not found",
+            f"Strategy of type '{consts.SW_UPDATE_TYPE_FIRMWARE}' not found",
         )
 
 
@@ -151,7 +152,7 @@ class TestSwUpdateStrategyGetSteps(BaseTestSwUpdateStrategyGet):
 
         self.subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
         self.strategy = fake_strategy.create_fake_strategy_step(
-            self.ctx, consts.STRATEGY_STATE_INITIAL
+            self.ctx, state=consts.STRATEGY_STATE_INITIAL
         )
 
     def test_get_steps_succeeds(self):
@@ -205,19 +206,12 @@ class BaseTestSwUpdateStrategyPost(BaseTestSwUpdateStrategyController):
 
         self.method = self.app.post_json
 
-
-class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
-    """Test class for post requests"""
-
-    def setUp(self):
-        super().setUp()
-
         self.params = {
             "type": consts.SW_UPDATE_TYPE_SOFTWARE,
             "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
             "max-parallel-subclouds": "10",
             "stop-on-failure": "true",
-            "release_id": "stx-10.0.0",
+            "release_id": fake_consts.RELEASE_ID,
         }
 
         self.mock_rpc_orchestrator_client().create_sw_update_strategy.return_value = (
@@ -227,24 +221,25 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self.create_update_strategy = (
             self.mock_rpc_orchestrator_client().create_sw_update_strategy
         )
-        self.mock_get_sc_installed_releases_id = self._mock_object(
-            utils, "get_systemcontroller_installed_releases_ids"
+        self.mock_check_version_for_sw_deploy_strategy = self._mock_object(
+            utils, "check_version_for_sw_deploy_strategy"
         )
-        self.mock_get_sc_installed_releases_id.return_value = ["stx-10.0.0"]
+        self.mock_get_system_controller_deploy = self._mock_object(
+            utils, "get_system_controller_deploy"
+        )
+        self.mock_get_validated_sw_version_for_prestage = self._mock_object(
+            utils, "get_validated_sw_version_for_prestage"
+        )
+        self.mock_check_version_for_sw_deploy_strategy.return_value = [
+            True,
+        ]
+
+
+class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
+    """Test class for post requests"""
 
     def test_post_succeeds(self):
         """Test post succeeds"""
-
-        response = self._send_request()
-
-        self._assert_response(response)
-        self.create_update_strategy.assert_called_once()
-
-    def test_post_succeeds_with_force_option(self):
-        """Test post succeeds with force option"""
-
-        self.params["force"] = "true"
-        self.params["cloud_name"] = "subcloud1"
 
         response = self._send_request()
 
@@ -278,19 +273,102 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
     def test_post_fails_with_invalid_max_parallel_subclouds(self):
         """Test post fails with invalid max parallel subclouds"""
 
-        invalid_values = ["fake", 0, 5001, -2]
+        invalid_values = ["fake", 5001, -2]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
             self.params["max-parallel-subclouds"] = invalid_value
 
             response = self._send_request()
+            default_error_msg = (
+                f"Invalid max-parallel-subclouds value: {invalid_value}. "
+                f"For {self.params.get('type')} strategy, the value must be between 1 "
+                f"and {consts.MAX_PARALLEL_SUBCLOUDS_LIMIT}."
+            )
+            value_error_msg = (
+                f"max-parallel-subclouds invalid value. Value: {invalid_value}"
+            )
 
             self._assert_pecan_and_response(
                 response,
                 http.client.BAD_REQUEST,
-                "max-parallel-subclouds invalid",
+                default_error_msg if invalid_value != "fake" else value_error_msg,
                 call_count=index,
             )
+
+        self.create_update_strategy.assert_not_called()
+
+    def test_post_fails_with_invalid_max_parallel_subclouds_prestage(self):
+        """Test post fails with invalid max parallel subclouds"""
+
+        invalid_value = 251
+
+        self.params["max-parallel-subclouds"] = invalid_value
+        self.params["with_prestage"] = True
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            (
+                f"Invalid max-parallel-subclouds value: {invalid_value}. For prestage, "
+                f"the value must be between 1 and {consts.MAX_PARALLEL_PRESTAGE_LIMIT}."
+            ),
+        )
+
+        self.create_update_strategy.assert_not_called()
+
+    def test_post_fails_with_invalid_force_or_sysadmin_password(self):
+        """Test post fails with invalid max parallel subclouds"""
+
+        self.params["sysadmin_password"] = "fake_password"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            ("The with_prestage option is required when using sysadmin_password"),
+        )
+
+        self.create_update_strategy.assert_not_called()
+
+    def test_prestage_strategy_create_fails_without_password(self):
+        """Test create strategy fails for prestage without password"""
+
+        self.params["sysadmin_password"] = ""
+        self.params["type"] = consts.SW_UPDATE_TYPE_PRESTAGE
+        self.mock_get_system_controller_deploy.return_value = None
+        self.mock_get_validated_sw_version_for_prestage.return_value = ("25.09", "")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "subcloud sysadmin_password required",
+        )
+
+        self.create_update_strategy.assert_not_called()
+
+    def test_prestage_strategy_create_fails_release_deploying(self):
+        """Test create strategy fails when software deployment is in progress"""
+
+        self.params["sysadmin_password"] = ""
+        self.params["type"] = consts.SW_UPDATE_TYPE_PRESTAGE
+        self.mock_get_system_controller_deploy.return_value = "starlingx-25.09.1"
+        self.mock_get_validated_sw_version_for_prestage.return_value = ("25.09", "")
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            (
+                "Prestage operations are not allowed while system controller "
+                "has a software deployment in progress."
+            ),
+        )
 
         self.create_update_strategy.assert_not_called()
 
@@ -323,33 +401,26 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "force invalid"
-        )
-        self.create_update_strategy.assert_not_called()
-
-    def test_post_fails_with_force_without_cloud_name(self):
-        """Test post fails with force without cloud name"""
-
-        self.params["force"] = "true"
-
-        response = self._send_request()
-
-        self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            "The --force option can only be "
-            "applied for a single subcloud. Please specify the subcloud name.",
+            (
+                f"Invalid value '{self.params['force']}' for force "
+                "- must be True/False or 'true'/'false'"
+            ),
         )
         self.create_update_strategy.assert_not_called()
 
-    def test_post_succeeds_with_force_all_types(self):
-        """Test post succeeds with force all types
+    def test_succeed_using_subcloud_group_no_apply_type_and_max_parallel(self):
+        """Test succeeds using subcloud group without apply type and max parallel"""
 
-        Some strategy types defined in FORCE_ALL_TYPES allow the use of
-        the force parameter for all subclouds (without specifying the cloud_name)
-        """
+        self.params["subcloud_group"] = fake_subcloud.create_fake_subcloud_group(
+            self.ctx, name="Group1", max_parallel_subclouds=5
+        )
 
-        self.params["type"] = consts.SW_UPDATE_TYPE_KUBERNETES
+        del self.params["subcloud-apply-type"]
+        del self.params["max-parallel-subclouds"]
+
+        self.params["subcloud_group"] = "2"
 
         response = self._send_request()
 
@@ -413,8 +484,10 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
             self._assert_pecan_and_response(
                 response,
                 http.client.BAD_REQUEST,
-                "subcloud-apply-type and max-parallel-subclouds "
-                "are not supported when subcloud_group is applied",
+                (
+                    "subcloud-apply-type and max-parallel-subclouds are not allowed "
+                    "when subcloud_group is provided"
+                ),
                 call_count=index,
             )
             self.create_update_strategy.assert_not_called()
@@ -471,12 +544,189 @@ class TestSwUpdateStrategyPost(BaseTestSwUpdateStrategyPost):
         self.create_update_strategy.assert_called_once()
 
 
-class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
+class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
+    """Test class for post requests with software strategy"""
+
+    RELEASE_ID_ERROR = "Release ID is required for strategy type: sw-deploy."
+    SNAPSHOT_ERROR = (
+        "Option snapshot cannot be used with any of the following options: "
+        "rollback or delete_only."
+    )
+    WITH_DELETE_ERROR = (
+        "Option with_delete cannot be used with any of the following options: "
+        "rollback or delete_only."
+    )
+    ROLLBACK_ERROR = (
+        "Option rollback cannot be used with any of the following options: "
+        "release_id, delete_only or with_prestage."
+    )
+
+    def base_post_software_succeeds_extra_args(
+        self,
+        release_id=None,
+        snapshot=None,
+        rollback=None,
+        with_delete=None,
+        delete_only=None,
+    ):
+        """Base post test case of software strategy succeeds with extra args"""
+
+        self.params = {
+            "type": consts.SW_UPDATE_TYPE_SOFTWARE,
+            "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+            "max-parallel-subclouds": "10",
+            "stop-on-failure": "true",
+            consts.EXTRA_ARGS_RELEASE_ID: release_id,
+            consts.EXTRA_ARGS_WITH_DELETE: with_delete,
+            consts.EXTRA_ARGS_SNAPSHOT: snapshot,
+            consts.EXTRA_ARGS_DELETE_ONLY: delete_only,
+            consts.EXTRA_ARGS_ROLLBACK: rollback,
+        }
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.create_update_strategy.assert_called_once()
+
+    def base_post_software_fails_extra_args(
+        self,
+        error_msg,
+        release_id=None,
+        snapshot=None,
+        rollback=None,
+        with_delete=None,
+        delete_only=None,
+        with_prestage=None,
+    ):
+        """Base post test case of software strategy fails with extra args"""
+
+        self.params = {
+            "type": consts.SW_UPDATE_TYPE_SOFTWARE,
+            "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+            "max-parallel-subclouds": "10",
+            "stop-on-failure": "true",
+            consts.EXTRA_ARGS_RELEASE_ID: release_id,
+            consts.EXTRA_ARGS_WITH_DELETE: with_delete,
+            consts.EXTRA_ARGS_SNAPSHOT: snapshot,
+            consts.EXTRA_ARGS_DELETE_ONLY: delete_only,
+            consts.EXTRA_ARGS_ROLLBACK: rollback,
+            consts.EXTRA_ARGS_WITH_PRESTAGE: with_prestage,
+        }
+        response = self._send_request()
+        self._assert_pecan_and_response(response, http.client.BAD_REQUEST, error_msg)
+        self.create_update_strategy.assert_not_called()
+
+    def test_post_software_succeeds_with_delete(self):
+        """Test post of software strategy succeeds with delete"""
+
+        self.base_post_software_succeeds_extra_args(
+            release_id=fake_consts.RELEASE_ID, with_delete=True
+        )
+
+    def test_post_software_succeeds_snapshot(self):
+        """Test post of software strategy succeeds with snapshot"""
+
+        self.base_post_software_succeeds_extra_args(
+            release_id=fake_consts.RELEASE_ID, snapshot=True
+        )
+
+    def test_post_software_succeeds_with_delete_and_snapshot(self):
+        """Test post of software strategy succeeds with_delete and snapshot"""
+
+        self.base_post_software_succeeds_extra_args(
+            release_id=fake_consts.RELEASE_ID,
+            snapshot=True,
+            with_delete=True,
+        )
+
+    def test_post_software_succeeds_rollback(self):
+        """Test post of software strategy succeeds with rollback"""
+
+        self.base_post_software_succeeds_extra_args(rollback=True)
+
+    def test_post_software_succeeds_delete_only(self):
+        """Test post of software strategy succeeds with delete_only"""
+
+        self.base_post_software_succeeds_extra_args(delete_only=True)
+
+    def test_post_software_fails_without_extra_args(self):
+        """Test post of software strategy fails without extra args"""
+
+        self.base_post_software_fails_extra_args(self.RELEASE_ID_ERROR)
+
+    def test_post_software_fails_snapshot_and_rollback(self):
+        """Test post of software strategy fails with snapshot and rollback"""
+
+        self.base_post_software_fails_extra_args(
+            self.SNAPSHOT_ERROR,
+            release_id=fake_consts.RELEASE_ID,
+            snapshot=True,
+            rollback=True,
+        )
+
+    def test_post_software_fails_snapshot_and_delete_only(self):
+        """Test post of software strategy fails with snapshot and delete_only"""
+
+        self.base_post_software_fails_extra_args(
+            self.SNAPSHOT_ERROR,
+            release_id=fake_consts.RELEASE_ID,
+            snapshot=True,
+            delete_only=True,
+        )
+
+    def test_post_software_fails_with_delete_and_rollback(self):
+        """Test post of software strategy fails with rollback and with_delete"""
+
+        self.base_post_software_fails_extra_args(
+            self.WITH_DELETE_ERROR,
+            rollback=True,
+            with_delete=True,
+        )
+
+    def test_post_software_fails_with_delete_and_delete_only(self):
+        """Test post of software strategy fails with_delete and delete_only"""
+
+        self.base_post_software_fails_extra_args(
+            self.WITH_DELETE_ERROR,
+            release_id=fake_consts.RELEASE_ID,
+            with_delete=True,
+            delete_only=True,
+        )
+
+    def test_post_software_fails_rollback_and_release(self):
+        """Test post of software strategy fails with rollback and release"""
+
+        self.base_post_software_fails_extra_args(
+            self.ROLLBACK_ERROR,
+            release_id=fake_consts.RELEASE_ID,
+            rollback=True,
+        )
+
+    def test_post_software_fails_rollback_and_delete_only(self):
+        """Test post of software strategy fails with rollback and delete_only"""
+
+        self.base_post_software_fails_extra_args(
+            self.ROLLBACK_ERROR,
+            rollback=True,
+            delete_only=True,
+        )
+
+    def test_post_software_fails_rollback_and_with_prestage(self):
+        """Test post of software strategy fails with rollback and with_prestage"""
+
+        self.base_post_software_fails_extra_args(
+            self.ROLLBACK_ERROR,
+            rollback=True,
+            with_prestage=True,
+        )
+
+
+class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyController):
     """Test class for post requests with actions verb"""
 
     def setUp(self):
         super().setUp()
 
+        self.method = self.app.post_json
         self.url = f"{self.url}/actions"
 
         self.mock_rpc_orchestrator_client().apply_sw_update_strategy.return_value = (
@@ -512,7 +762,7 @@ class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyPost):
     def test_post_actions_succeeds_with_type(self):
         """Test post actions succeeds with type"""
 
-        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_PATCH}"
+        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_FIRMWARE}"
 
         actions = [consts.SW_UPDATE_ACTION_APPLY, consts.SW_UPDATE_ACTION_ABORT]
 
@@ -627,7 +877,7 @@ class TestSwUpdateStrategyDelete(BaseTestSwUpdateStrategyController):
     def test_delete_succeeds_with_type(self):
         """Test delete succeeds with type"""
 
-        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_PATCH}"
+        self.url = f"{self.url}?type={consts.SW_UPDATE_TYPE_FIRMWARE}"
 
         response = self._send_request()
 

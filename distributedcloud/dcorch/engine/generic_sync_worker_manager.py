@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -80,6 +80,7 @@ class GenericSyncWorkerManager(object):
             f"{len(subcloud_sync_list)} (subcloud, endpoint_type) pairs."
         )
         LOG.debug(f"Engine id:({self.engine_id}) Start to sync {subcloud_sync_list}.")
+        SyncThread.reset_master_resources_cache()
 
         for (
             sc_region_name,
@@ -397,8 +398,7 @@ class GenericSyncWorkerManager(object):
         )
 
     def run_sync_audit(self, context, subcloud_sync_list):
-        # Clear the master resource cache
-        SyncThread.reset_master_resources_cache()
+        SyncThread.reset_master_resources_cache(force_reset=True)
 
         LOG.info(
             f"Engine id:({self.engine_id}) Start to audit "

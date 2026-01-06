@@ -1,4 +1,4 @@
-# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -29,8 +29,6 @@ LOG = logging.getLogger(__name__)
 def request_subcloud_audits(
     context,
     update_subcloud_state=False,
-    audit_patch=False,
-    audit_load=False,
     audit_firmware=False,
     audit_kubernetes=False,
     audit_kube_rootca=False,
@@ -39,10 +37,6 @@ def request_subcloud_audits(
     values = {}
     if update_subcloud_state:
         values["state_update_requested"] = True
-    if audit_patch:
-        values["patch_audit_requested"] = True
-    if audit_load:
-        values["load_audit_requested"] = True
     if audit_firmware:
         values["firmware_audit_requested"] = True
     if audit_kubernetes:
@@ -50,7 +44,7 @@ def request_subcloud_audits(
     if audit_kube_rootca:
         values["kube_rootca_update_audit_requested"] = True
     if audit_software:
-        values["spare_audit_requested"] = True
+        values["software_audit_requested"] = True
     if values:
         db_api.subcloud_audits_update_all(context, values)
 

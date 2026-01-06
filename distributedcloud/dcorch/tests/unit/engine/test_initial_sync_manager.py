@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -18,7 +18,7 @@ import mock
 from oslo_config import cfg
 
 from dcorch.common import consts
-from dcorch.db.sqlalchemy import api as db_api
+from dcorch.db import api as db_api
 from dcorch.engine import initial_sync_manager
 from dcorch.rpc import client
 from dcorch.tests import base

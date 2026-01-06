@@ -3,15 +3,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
 from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import service
 
 from dccertmon.common.certificate_monitor_manager import CertificateMonitorManager
-from dccertmon.common import utils
-from dcmanager.common import consts
+from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import messaging as rpc_messaging
 
 CONF = cfg.CONF
@@ -23,34 +21,29 @@ class CertificateMonitorService(service.Service):
 
     def __init__(self):
         super(CertificateMonitorService, self).__init__()
-        self.rpc_api_version = consts.RPC_API_VERSION
-        self.topic = consts.TOPIC_DC_NOTIFICATION
-        # TODO(srana): Refactor DC role usage due to deprecation.
-        self.dc_role = utils.DC_ROLE_UNDETECTED
+        self.rpc_api_version = dcmanager_consts.RPC_API_VERSION
+        self.topic = dcmanager_consts.TOPIC_DC_NOTIFICATION
         self.manager = CertificateMonitorManager()
         self._rpc_server = None
         self.target = None
 
     def start(self):
-        LOG.info("Starting %s", self.__class__.__name__)
+        LOG.info(f"Starting {self.__class__.__name__}")
         super(CertificateMonitorService, self).start()
-        self._get_dc_role()
 
         self.manager.start_cert_watcher()
         self.manager.start_task_executor()
 
-        if self.dc_role == utils.DC_ROLE_SYSTEMCONTROLLER:
-            self.target = oslo_messaging.Target(
-                version=self.rpc_api_version, server=CONF.host, topic=self.topic
-            )
-            self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
-            self._rpc_server.start()
+        self.target = oslo_messaging.Target(
+            version=self.rpc_api_version, server=CONF.host, topic=self.topic
+        )
+        self._rpc_server = rpc_messaging.get_rpc_server(self.target, self)
+        self._rpc_server.start()
 
     def stop(self):
-        LOG.info("Stopping %s", self.__class__.__name__)
+        LOG.info(f"Stopping {self.__class__.__name__}")
 
-        if self.dc_role == utils.DC_ROLE_SYSTEMCONTROLLER:
-            self._stop_rpc_server()
+        self._stop_rpc_server()
 
         self.manager.stop_cert_watcher()
         self.manager.stop_task_executor()
@@ -63,21 +56,27 @@ class CertificateMonitorService(service.Service):
                 self._rpc_server.wait()
                 LOG.info("Engine service stopped successfully")
             except Exception as ex:
-                LOG.error("Failed to stop engine service: %s" % ex)
+                LOG.error(f"Failed to stop engine service: {ex}")
                 LOG.exception(ex)
 
-    def _get_dc_role(self):
-        # TODO(srana): Update after migrating from certmon
-        return utils.DC_ROLE_SYSTEMCONTROLLER
-
+    # TODO(gherzman): verify if it's possible to add the subcloud management IP
+    # as a parameter as a way to further optimize the audit request during
+    # subcloud deployment. Might require passing the parameter to the audit
+    # enqueue method as well.
     def subcloud_online(self, context, subcloud_name=None):
-        """TODO(srana): Trigger a subcloud online audit"""
-        LOG.info("%s is online." % subcloud_name)
+        """Trigger a subcloud online audit."""
+        LOG.info(f"{subcloud_name} is online. An online audit is queued")
+        # Enqueue the subcloud into the dedicated notification queue
+        # to trigger an immediate certificate audit, independent from
+        # the periodic audit queue.
+        self.manager.audit_subcloud(subcloud_name, self.manager.sc_notify_audit_queue)
 
     def subcloud_managed(self, context, subcloud_name=None):
-        """TODO(srana): Trigger a subcloud audit"""
-        LOG.info("%s is managed." % subcloud_name)
+        """Trigger a subcloud audit."""
+        LOG.info(f"{subcloud_name} is managed. An audit is queued")
+        self.manager.audit_subcloud(subcloud_name, self.manager.sc_audit_queue)
 
     def subcloud_sysinv_endpoint_update(self, ctxt, subcloud_name, endpoint):
-        """TODO(srana): Update sysinv endpoint of dc token cache"""
-        LOG.info("Update subcloud: %s sysinv endpoint" % subcloud_name)
+        """Update sysinv endpoint of dc token cache."""
+        LOG.info(f"Update subcloud: {subcloud_name} sysinv endpoint")
+        self.manager.subcloud_sysinv_endpoint_update(subcloud_name, endpoint)

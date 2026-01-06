@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2022,2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -102,7 +102,7 @@ class RequestContext(base_context.RequestContext):
         # Check user is admin or not
         if is_admin is None:
             self.is_admin = policy.authorize(
-                base_policy.ADMIN_IN_SYSTEM_PROJECTS, {}, self.to_dict(), do_raise=False
+                base_policy.ADMIN_OR_CONFIGURATOR, {}, self.to_dict(), do_raise=False
             )
         else:
             self.is_admin = is_admin

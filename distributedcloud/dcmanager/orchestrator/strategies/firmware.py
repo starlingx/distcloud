@@ -42,14 +42,9 @@ class FirmwareStrategy(BaseStrategy):
         consts.STRATEGY_STATE_FINISHING_FW_UPDATE: FinishingFwUpdateState,
     }
 
-    def __init__(self, audit_rpc_client):
+    def __init__(self):
         super().__init__(
-            audit_rpc_client,
             consts.SW_UPDATE_TYPE_FIRMWARE,
             vim.STRATEGY_NAME_FW_UPDATE,
             consts.STRATEGY_STATE_IMPORTING_FIRMWARE,
         )
-
-    def trigger_audit(self):
-        """Trigger an audit for firmware"""
-        self.audit_rpc_client.trigger_firmware_audit(self.context)

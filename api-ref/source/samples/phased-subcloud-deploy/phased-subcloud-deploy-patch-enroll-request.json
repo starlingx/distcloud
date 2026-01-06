@@ -1,0 +1,8 @@
+{
+    "bootstrap-address": "10.10.10.12",
+    "sysadmin_password": "<base64_encoded_sysadmin_password>",
+    "bootstrap_values":  "content of bootstrap_values file",
+    "install_values":    "content of install_value file",
+    "bmc_password":      "<base64_encoded_bmc_password>",
+    "cloud_init_config": "content of cloud_init_config file"
+}

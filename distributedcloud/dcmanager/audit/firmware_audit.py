@@ -18,12 +18,10 @@
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
-from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import utils as cutils
 from dcmanager.common import consts
-from dcmanager.common import utils
-
 
 LOG = logging.getLogger(__name__)
 
@@ -90,18 +88,12 @@ class FirmwareAudit(object):
 
         """
         try:
-            m_os_ks_client = OpenStackDriver(
-                region_clients=None,
-                fetch_subcloud_ips=utils.fetch_subcloud_mgmt_ips,
-            ).keystone_client
-            endpoint = m_os_ks_client.endpoint_cache.get_endpoint("sysinv")
+            admin_session = EndpointCache.get_admin_session()
             sysinv_client = SysinvClient(
-                m_os_ks_client.region_name,
-                m_os_ks_client.session,
-                endpoint=endpoint,
+                region=cutils.get_region_one_name(), session=admin_session
             )
         except Exception:
-            LOG.exception("Failure initializing OS Client, skip firmware audit.")
+            LOG.exception("Failure initializing Sysinv Client, skip firmware audit.")
             return None
 
         filtered_images = []
@@ -359,26 +351,3 @@ class FirmwareAudit(object):
                 return dccommon_consts.SYNC_STATUS_OUT_OF_SYNC
 
         return dccommon_consts.SYNC_STATUS_IN_SYNC
-
-    def subcloud_firmware_audit(
-        self,
-        sysinv_client: SysinvClient,
-        subcloud_name: str,
-        audit_data: list[FirmwareAuditData],
-    ):
-        LOG.info(f"Triggered firmware audit for: {subcloud_name}.")
-
-        if not audit_data:
-            LOG.debug("No RegionOne images to audit, exiting firmware audit")
-            return dccommon_consts.SYNC_STATUS_IN_SYNC
-
-        sync_status = self.get_subcloud_sync_status(
-            sysinv_client, audit_data, subcloud_name
-        )
-
-        if sync_status:
-            LOG.info(
-                f"Firmware audit completed for: {subcloud_name}, requesting sync_status"
-                f"update to {sync_status}"
-            )
-            return sync_status

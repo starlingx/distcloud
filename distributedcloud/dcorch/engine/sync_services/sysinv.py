@@ -29,6 +29,7 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
 from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
+from dccommon.endpoint_cache import EndpointCache
 from dccommon import exceptions as dccommon_exceptions
 from dccommon import utils as dccommon_utils
 from dcorch.common import consts
@@ -37,7 +38,6 @@ from dcorch.engine.fernet_key_manager import FERNET_REPO_MASTER_ID
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_EXTRA
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_MISSING
-from dcorch.engine.sync_thread import get_master_os_client
 from dcorch.engine.sync_thread import SyncThread
 
 LOG = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ class SysinvSyncThread(SyncThread):
         super().initialize_sc_clients()
 
         sc_sysinv_url = dccommon_utils.build_subcloud_endpoint(
-            self.management_ip, "sysinv"
+            self.management_ip, dccommon_consts.ENDPOINT_NAME_SYSINV
         )
         LOG.debug(
             f"Built sc_sysinv_url {sc_sysinv_url} for subcloud {self.subcloud_name}"
@@ -118,7 +118,7 @@ class SysinvSyncThread(SyncThread):
                 self.region_name,
                 self.sc_admin_session,
                 endpoint=dccommon_utils.build_subcloud_endpoint(
-                    self.management_ip, "dcagent"
+                    self.management_ip, dccommon_consts.ENDPOINT_NAME_DCAGENT
                 ),
             )
         self.sc_sysinv_client = SysinvClient(
@@ -126,9 +126,6 @@ class SysinvSyncThread(SyncThread):
             session=self.sc_admin_session,
             endpoint=sc_sysinv_url,
         )
-
-    def get_master_sysinv_client(self):
-        return get_master_os_client(["sysinv"]).sysinv_client
 
     def get_sc_sysinv_client(self):
         if self.sc_sysinv_client is None:
@@ -217,35 +214,42 @@ class SysinvSyncThread(SyncThread):
         """
         certificate = None
         metadata = {}
-        content_disposition = "Content-Disposition"
         try:
             content_type = certificate_dict.get("content_type")
             payload = certificate_dict.get("payload")
-            multipart_data = MultipartDecoder(payload, content_type)
+            # Encode the payload to bytes, as MultipartDecoder expects bytes input
+            multipart_data = MultipartDecoder(payload.encode("utf-8"), content_type)
             for part in multipart_data.parts:
-                if 'name="passphrase"' in part.headers.get(content_disposition):
-                    metadata.update({"passphrase": part.content})
-                elif 'name="mode"' in part.headers.get(content_disposition):
-                    metadata.update({"mode": part.content})
-                elif 'name="file"' in part.headers.get(content_disposition):
-                    certificate = part.content
+                cd = part.headers.get(b"Content-Disposition", b"").decode()
+                if 'name="passphrase"' in cd:
+                    metadata["passphrase"] = part.content.decode("utf-8")
+                elif 'name="mode"' in cd:
+                    metadata["mode"] = part.content.decode("utf-8")
+                elif 'name="file"' in cd:
+                    certificate = part.content.decode("utf-8")
         except Exception as e:
-            LOG.warn("No certificate decode e={}".format(e))
+            LOG.warning(f"No certificate decode e={e}")
 
-        LOG.info("_decode_certificate_payload metadata={}".format(metadata))
+        LOG.info(f"_decode_certificate_payload metadata={metadata}")
         return certificate, metadata
 
     def create_certificate(self, sysinv_client, request, rsrc):
         LOG.info(
-            "create_certificate resource_info={}".format(
-                request.orch_job.resource_info
-            ),
+            f"create_certificate resource_info={request.orch_job.resource_info}",
             extra=self.log_extra,
         )
         certificate_dict = jsonutils.loads(request.orch_job.resource_info)
         payload = certificate_dict.get("payload")
 
-        if payload and "expiry_date" in payload:
+        if not payload:
+            LOG.info(
+                "create_certificate No payload found in resource_info"
+                f" {request.orch_job.resource_info}",
+                extra=self.log_extra,
+            )
+            return
+
+        elif "expiry_date" in payload:
             expiry_datetime = timeutils.normalize_time(
                 timeutils.parse_isotime(payload["expiry_date"])
             )
@@ -256,13 +260,6 @@ class SysinvSyncThread(SyncThread):
                     % (payload["signature"], str(expiry_datetime))
                 )
                 raise exceptions.CertificateExpiredException
-        else:
-            LOG.info(
-                "create_certificate No payload found in resource_info"
-                "{}".format(request.orch_job.resource_info),
-                extra=self.log_extra,
-            )
-            return
 
         certificate, metadata = self._decode_certificate_payload(certificate_dict)
 
@@ -370,14 +367,25 @@ class SysinvSyncThread(SyncThread):
             LOG.exception(e)
             raise exceptions.SyncRequestFailedRetry
 
-    def update_user(self, sysinv_client, passwd_hash, root_sig, passwd_expiry_days):
+    def update_user(
+        self,
+        sysinv_client,
+        passwd_hash,
+        root_sig,
+        passwd_expiry_days,
+        passwd_last_change,
+    ):
         LOG.info(
-            "update_user={} {} {}".format(passwd_hash, root_sig, passwd_expiry_days),
+            "update_user={} {} {} {}".format(
+                passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
+            ),
             extra=self.log_extra,
         )
 
         try:
-            iuser = sysinv_client.update_user(passwd_hash, root_sig, passwd_expiry_days)
+            iuser = sysinv_client.update_user(
+                passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
+            )
             return iuser
         except (AttributeError, TypeError) as e:
             LOG.info("update_user error {} region_name".format(e), extra=self.log_extra)
@@ -393,6 +401,9 @@ class SysinvSyncThread(SyncThread):
         payload = user_dict.get("payload")
 
         passwd_hash = None
+        root_sig = None
+        passwd_expiry_days = None
+        passwd_last_change = None
         if isinstance(payload, list):
             for ipayload in payload:
                 if ipayload.get("path") == "/passwd_hash":
@@ -401,14 +412,19 @@ class SysinvSyncThread(SyncThread):
                     root_sig = ipayload.get("value")
                 elif ipayload.get("path") == "/passwd_expiry_days":
                     passwd_expiry_days = ipayload.get("value")
+                elif ipayload.get("path") == "/passwd_last_change":
+                    passwd_last_change = ipayload.get("value")
         else:
             passwd_hash = payload.get("passwd_hash")
             root_sig = payload.get("root_sig")
             passwd_expiry_days = payload.get("passwd_expiry_days")
+            passwd_last_change = payload.get("passwd_last_change")
 
         LOG.info(
             "sync_user from dict passwd_hash={} root_sig={} "
-            "passwd_expiry_days={}".format(passwd_hash, root_sig, passwd_expiry_days),
+            "passwd_expiry_days={} passwd_last_change={}".format(
+                passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
+            ),
             extra=self.log_extra,
         )
 
@@ -422,7 +438,7 @@ class SysinvSyncThread(SyncThread):
             return
 
         iuser = self.update_user(
-            sysinv_client, passwd_hash, root_sig, passwd_expiry_days
+            sysinv_client, passwd_hash, root_sig, passwd_expiry_days, passwd_last_change
         )
 
         # Ensure subcloud resource is persisted to the DB for later
@@ -489,9 +505,7 @@ class SysinvSyncThread(SyncThread):
 
     def update_fernet_repo(self, sysinv_client, request, rsrc):
         LOG.info(
-            "update_fernet_repo region {} resource_info={}".format(
-                self.region_name, request.orch_job.resource_info
-            ),
+            f"Update fernet repo of region {self.region_name}",
             extra=self.log_extra,
         )
         resource_info = jsonutils.loads(request.orch_job.resource_info)
@@ -509,8 +523,9 @@ class SysinvSyncThread(SyncThread):
             raise exceptions.SyncRequestFailedRetry
 
         LOG.info(
-            "fernet_repo {} {} {} update".format(
-                rsrc.id, subcloud_rsrc_id, resource_info
+            (
+                "Fernet keys updated. "
+                f"Id: {rsrc.id} Subcloud Resource Id: {subcloud_rsrc_id}"
             ),
             extra=self.log_extra,
         )
@@ -524,12 +539,16 @@ class SysinvSyncThread(SyncThread):
             extra=self.log_extra,
         )
         try:
+            admin_session = EndpointCache.get_admin_session()
+            sysinv_client = SysinvClient(
+                region=dccommon_utils.get_region_one_name(), session=admin_session
+            )
             if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
-                return self.get_certificates_resources(self.get_master_sysinv_client())
+                return self.get_certificates_resources(sysinv_client)
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_USER:
-                return [self.get_user_resource(self.get_master_sysinv_client())]
+                return [self.get_user_resource(sysinv_client)]
             elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
-                return [self.get_fernet_resources(self.get_master_sysinv_client())]
+                return [self.get_fernet_resources(sysinv_client)]
             else:
                 LOG.error(
                     "Wrong resource type {}".format(resource_type), extra=self.log_extra
@@ -866,9 +885,7 @@ class SysinvSyncThread(SyncThread):
             return dumps
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
             LOG.info(
-                "get_resource_info resource_type={} resource={}".format(
-                    resource_type, resource
-                ),
+                f"get_resource_info of {resource_type}",
                 extra=self.log_extra,
             )
             return jsonutils.dumps(resource)

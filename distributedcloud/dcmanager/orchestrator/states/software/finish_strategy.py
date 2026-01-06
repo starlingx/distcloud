@@ -19,10 +19,11 @@ from dcorch.rpc import client as dcorch_rpc_client
 class FinishStrategyState(BaseState):
     """Finish Software Strategy software orchestration state"""
 
-    def __init__(self, region_name):
+    def __init__(self, region_name, strategy):
         super().__init__(
             next_state=consts.STRATEGY_STATE_COMPLETE,
             region_name=region_name,
+            strategy=strategy,
         )
 
     @staticmethod
@@ -46,7 +47,7 @@ class FinishStrategyState(BaseState):
                 self.context, self.region_name, software_version
             )
 
-        # Update the database with the software version and deploy status to complete
+        # Update the database with the software version, deploy status to complete
         db_api.subcloud_update(
             self.context,
             strategy_step.subcloud_id,
@@ -61,20 +62,30 @@ class FinishStrategyState(BaseState):
 
         self.info_log(strategy_step, "Finishing software strategy")
 
-        regionone_deployed_releases = self._read_from_cache(
-            REGION_ONE_RELEASE_USM_CACHE_TYPE, state=software_v1.DEPLOYED
-        )
-
-        self.debug_log(
-            strategy_step,
-            f"regionone_deployed_releases: {regionone_deployed_releases}",
-        )
+        if self._handle_extra_args_delete_only(
+            strategy_step, self.get_software_client(self.region_name)
+        ):
+            return self.next_state
 
         try:
+            # Retrieve deployed releases id from RegionOne cache
+            regionone_deployed_releases_id = [
+                release["release_id"]
+                for release in self._read_from_cache(
+                    REGION_ONE_RELEASE_USM_CACHE_TYPE, state=software_v1.DEPLOYED
+                )
+            ]
+            self.debug_log(
+                strategy_step,
+                f"regionone_deployed_releases_id: {regionone_deployed_releases_id}",
+            )
+
+            # Retrieve subcloud releases
             software_client = self.get_software_client(self.region_name)
             subcloud_releases = software_client.list()
+            self.debug_log(strategy_step, f"Releases for subcloud: {subcloud_releases}")
         except Exception as exc:
-            details = "Cannot retrieve subcloud releases."
+            details = "Failed to retrieve necessary release information."
             self.handle_exception(
                 strategy_step,
                 details,
@@ -82,14 +93,15 @@ class FinishStrategyState(BaseState):
                 exc=exc,
             )
 
-        self.debug_log(strategy_step, f"Releases for subcloud: {subcloud_releases}")
-
-        # For this subcloud, determine which releases should be committed,
-        # which should be deleted and which should finish the deploy.
+        # Determine which releases should be deleted
         releases_to_delete = [
             release["release_id"]
             for release in subcloud_releases
-            if release["state"] in (software_v1.AVAILABLE, software_v1.UNAVAILABLE)
+            if release["state"] == software_v1.UNAVAILABLE
+            or (
+                release["state"] == software_v1.AVAILABLE
+                and release["release_id"] not in regionone_deployed_releases_id
+            )
         ]
 
         # TODO(nicodemos): Update releases_to_commit and handle it after
@@ -128,3 +140,26 @@ class FinishStrategyState(BaseState):
 
     def _handle_deploy_commit(self, strategy_step, software_client, releases_to_commit):
         raise NotImplementedError()
+
+    def _handle_extra_args_delete_only(
+        self, strategy_step: str, software_client: software_v1.SoftwareClient
+    ) -> bool:
+        """Handle the delete_only extra args for software deploy strategies."""
+        extra_args = self.strategy.extra_args
+        if extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
+            self.info_log(
+                strategy_step,
+                "Executing 'software deploy delete' operation on the subcloud: "
+                f"{strategy_step.subcloud.name} (delete_only requested).",
+            )
+            try:
+                software_client.deploy_delete()
+            except Exception as exc:
+                details = "Cannot delete release from subcloud."
+                self.handle_exception(
+                    strategy_step,
+                    details,
+                    exceptions.SoftwareFinishStrategyException,
+                    exc=exc,
+                )
+            return True

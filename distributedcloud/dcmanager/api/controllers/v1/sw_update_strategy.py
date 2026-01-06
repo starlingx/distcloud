@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,6 +15,7 @@
 #    under the License.
 #
 
+import json
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_messaging import RemoteError
@@ -40,16 +41,8 @@ SUPPORTED_STRATEGY_TYPES = [
     consts.SW_UPDATE_TYPE_FIRMWARE,
     consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
     consts.SW_UPDATE_TYPE_KUBERNETES,
-    consts.SW_UPDATE_TYPE_PATCH,
     consts.SW_UPDATE_TYPE_PRESTAGE,
     consts.SW_UPDATE_TYPE_SOFTWARE,
-]
-
-# some strategies allow force for all subclouds
-FORCE_ALL_TYPES = [
-    consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE,
-    consts.SW_UPDATE_TYPE_KUBERNETES,
-    consts.SW_UPDATE_TYPE_PRESTAGE,
 ]
 
 
@@ -150,102 +143,40 @@ class SwUpdateStrategyController(object):
         """Create a new software update strategy."""
         context = restcomm.extract_context_from_environ()
 
-        payload = eval(request.body)
+        payload = json.loads(request.body.decode("utf-8"))
         if not payload:
             pecan.abort(400, _("Body required"))
 
         if actions is None:
-            policy.authorize(
+            context.is_admin = policy.authorize(
                 sw_update_strat_policy.POLICY_ROOT % "create",
                 {},
                 restcomm.extract_credentials_for_policy(),
             )
 
+            # Validate strategy parameters
+            utils.validate_strategy_payload(context, payload)
             # Validate any options that were supplied
             strategy_type = payload.get("type")
             if not strategy_type:
                 pecan.abort(400, _("type required"))
             if strategy_type not in SUPPORTED_STRATEGY_TYPES:
                 pecan.abort(400, _("type invalid"))
-
-            subcloud_apply_type = payload.get("subcloud-apply-type")
-            if subcloud_apply_type is not None:
-                if subcloud_apply_type not in [
-                    consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
-                    consts.SUBCLOUD_APPLY_TYPE_SERIAL,
-                ]:
-                    pecan.abort(400, _("subcloud-apply-type invalid"))
-
-            # TODO(nicodemos): Remove once sw-patch is deprecated
-            if strategy_type == consts.SW_UPDATE_TYPE_PATCH:
-                utils.validate_patch_strategy(payload)
-            elif strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
-                utils.validate_software_strategy(payload.get("release_id"))
+            if strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE:
+                utils.validate_software_strategy(payload)
             elif strategy_type == consts.SW_UPDATE_TYPE_PRESTAGE:
                 prestaged_sw_version, message = (
                     utils.get_validated_sw_version_for_prestage(payload)
                 )
+                utils.validate_prestage(payload)
                 if not prestaged_sw_version:
                     pecan.abort(400, _(message))
                 payload.update({consts.PRESTAGE_REQUEST_RELEASE: prestaged_sw_version})
-
-            max_parallel_subclouds_str = payload.get("max-parallel-subclouds")
-            if max_parallel_subclouds_str is not None:
-                max_parallel_subclouds = None
-                try:
-                    max_parallel_subclouds = int(max_parallel_subclouds_str)
-                except ValueError:
-                    pecan.abort(400, _("max-parallel-subclouds invalid"))
-                if (
-                    max_parallel_subclouds < 1
-                    or max_parallel_subclouds > consts.MAX_PARALLEL_SUBCLOUDS_LIMIT
-                ):
-                    pecan.abort(400, _("max-parallel-subclouds invalid"))
 
             stop_on_failure = payload.get("stop-on-failure")
             if stop_on_failure is not None:
                 if stop_on_failure not in ["true", "false"]:
                     pecan.abort(400, _("stop-on-failure invalid"))
-
-            force_flag = payload.get("force")
-            if force_flag is not None:
-                if force_flag not in ["true", "false"]:
-                    pecan.abort(400, _("force invalid"))
-                elif strategy_type not in FORCE_ALL_TYPES:
-                    if payload.get("cloud_name") is None:
-                        pecan.abort(
-                            400,
-                            _(
-                                "The --force option can only be applied for a single "
-                                "subcloud. Please specify the subcloud name."
-                            ),
-                        )
-
-            subcloud_group = payload.get("subcloud_group")
-            # prevents passing both cloud_name and subcloud_group options
-            # from REST APIs and checks if the group exists
-            if subcloud_group is not None:
-                if payload.get("cloud_name") is not None:
-                    pecan.abort(
-                        400,
-                        _("cloud_name and subcloud_group are mutually exclusive"),
-                    )
-
-                if (
-                    subcloud_apply_type is not None
-                    or max_parallel_subclouds_str is not None
-                ):
-                    pecan.abort(
-                        400,
-                        _(
-                            "subcloud-apply-type and max-parallel-subclouds are not "
-                            "supported when subcloud_group is applied"
-                        ),
-                    )
-
-                group = utils.subcloud_group_get_by_ref(context, subcloud_group)
-                if group is None:
-                    pecan.abort(400, _("Invalid group_id"))
 
             # Not adding validation for extra args. Passing them through.
             try:
@@ -270,7 +201,7 @@ class SwUpdateStrategyController(object):
             if not action:
                 pecan.abort(400, _("action required"))
             if action == consts.SW_UPDATE_ACTION_APPLY:
-                policy.authorize(
+                context.is_admin = policy.authorize(
                     sw_update_strat_policy.POLICY_ROOT % "apply",
                     {},
                     restcomm.extract_credentials_for_policy(),
@@ -291,7 +222,7 @@ class SwUpdateStrategyController(object):
                     LOG.exception(e)
                     pecan.abort(500, _("Unable to apply strategy"))
             elif action == consts.SW_UPDATE_ACTION_ABORT:
-                policy.authorize(
+                context.is_admin = policy.authorize(
                     sw_update_strat_policy.POLICY_ROOT % "abort",
                     {},
                     restcomm.extract_credentials_for_policy(),
@@ -315,12 +246,13 @@ class SwUpdateStrategyController(object):
     @index.when(method="delete", template="json")
     def delete(self):
         """Delete the software update strategy."""
-        policy.authorize(
+
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = policy.authorize(
             sw_update_strat_policy.POLICY_ROOT % "delete",
             {},
             restcomm.extract_credentials_for_policy(),
         )
-        context = restcomm.extract_context_from_environ()
 
         # If 'type' is in the request params, filter the update_type
         update_type_filter = request.params.get("type", None)

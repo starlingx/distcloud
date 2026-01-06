@@ -12,6 +12,7 @@ import mock
 from dcagent.common import utils
 from dcagent.tests.api.test_root_controller import DCAgentApiTest
 from dccommon import consts as dccommon_consts
+from dccommon.endpoint_cache import EndpointCache
 from dcmanager.audit.alarm_aggregation import AlarmAggregation
 from dcmanager.audit import base_audit
 from dcmanager.audit.firmware_audit import FirmwareAudit
@@ -29,8 +30,8 @@ class BaseTestAudit(DCAgentApiTest):
 
         self._mock_object(utils, "CachedSysinvClient")
         self._mock_object(utils, "CachedFmClient")
-        self._mock_object(utils, "KeystoneCache")
         self._mock_object(utils, "CachedSoftwareClient")
+        self._mock_object(EndpointCache, "get_admin_session")
 
 
 class TestAuditController(BaseTestAudit):

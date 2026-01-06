@@ -63,9 +63,7 @@ class ManagerRpcAuditAPITestCase(base.DCManagerTestCase):
         rpcapi.audit_subclouds(
             self.context,
             ["subcloud1", "subcloud2"],
-            True,
             False,
-            True,
             True,
             False,
             False,
@@ -76,10 +74,8 @@ class ManagerRpcAuditAPITestCase(base.DCManagerTestCase):
             "method": "audit_subclouds",
             "args": {
                 "subcloud_ids": ["subcloud1", "subcloud2"],
-                "patch_audit_data": True,
                 "firmware_audit_data": False,
                 "kubernetes_audit_data": True,
-                "do_openstack_audit": True,
                 "kube_rootca_update_audit_data": False,
                 "software_audit_data": False,
                 "use_cache": True,

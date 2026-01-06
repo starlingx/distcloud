@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,7 +9,7 @@ from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
 from dcorch.common import consts
-from dcorch.db.sqlalchemy import api as db_api
+from dcorch.db import api as db_api
 from dcorch.engine import generic_sync_worker_manager
 from dcorch.engine.scheduler import ThreadGroupManager
 from dcorch.tests import base

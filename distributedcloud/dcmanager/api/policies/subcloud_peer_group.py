@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,13 +15,13 @@ _subcloud_peer_groups_rules = [
     # CRUD of subcloud-peer-groups entity
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "create",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Create subcloud peer group.",
         operations=[{"method": "POST", "path": "/v1.0/subcloud-peer-groups"}],
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "delete",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Delete subcloud peer group.",
         operations=[
             {
@@ -32,7 +32,7 @@ _subcloud_peer_groups_rules = [
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "get",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Get Subcloud Peer Group data",
         operations=[
             {"method": "GET", "path": "/v1.0/subcloud-peer-groups/"},
@@ -56,7 +56,7 @@ _subcloud_peer_groups_rules = [
     # Update a Subcloud Peer Group with specified configuration
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % "modify",
-        check_str="rule:" + base.ADMIN_IN_SYSTEM_PROJECTS,
+        check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Update a Subcloud Peer Group with specified configuration",
         operations=[
             {

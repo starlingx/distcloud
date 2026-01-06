@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (c) 2017-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,11 +19,13 @@
 DC Manager Engine Server.
 """
 
+# pylint: disable=wrong-import-position
 import eventlet
 
 eventlet.monkey_patch()
 
-# pylint: disable=wrong-import-position
+import multiprocessing  # noqa: E402  # pylint: disable=wrong-import-order
+
 from oslo_config import cfg  # noqa: E402
 from oslo_i18n import _lazy  # noqa: E402
 from oslo_log import log as logging  # noqa: E402
@@ -47,6 +49,13 @@ def main():
     cfg.CONF(project="dcmanager", prog="dcmanager-engine")
     logging.setup(cfg.CONF, "dcmanager-engine")
     logging.set_defaults()
+
+    # If processes are spawned using 'fork', then the child process
+    # inherits the parent's connections. This can cause problems with
+    # oslo.messaging connections as only one connection with RabbitMQ
+    # is used. Using 'spawn' ensures a fresh python interpreter is started.
+    multiprocessing.set_start_method("spawn")
+
     messaging.setup()
     dcorch_messaging.setup()
 

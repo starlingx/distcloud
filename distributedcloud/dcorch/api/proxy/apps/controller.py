@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2025 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -109,6 +109,25 @@ class APIController(Middleware):
             LOG.info("Response status: (%d)", self.get_status_code(response))
         handler = self.response_hander_map[CONF.type]
         return handler(environ, request_body, response)
+
+    def _mask_sensitive_info(self, data):
+        "Recursively mask sensitive information in data."
+        if isinstance(data, dict):
+            return {
+                key: (
+                    "******"
+                    if "password" in str(key).lower()
+                    else (
+                        self._mask_sensitive_info(value)
+                        if isinstance(value, (dict, list))
+                        else value
+                    )
+                )
+                for key, value in data.items()
+            }
+        elif isinstance(data, list):
+            return [self._mask_sensitive_info(item) for item in data]
+        return data
 
     def _update_response(self, environ, request_body, response):
         # overwrite the usage numbers with the aggregated usage
@@ -270,7 +289,7 @@ class ComputeAPIController(APIController):
                 resource_info["id"] = resource_id
             resource_info = json.dumps(resource_info)
             LOG.info("Resource id: (%s)", resource_id)
-            LOG.info("Resource info: (%s)", resource_info)
+            LOG.info("Resource info: (%s)", self._mask_sensitive_info(resource_info))
         elif operation_type == consts.OPERATION_TYPE_DELETE:
             resource_id = self.get_resource_id_from_link(kwargs.get("request_header"))
             LOG.info(
@@ -289,7 +308,7 @@ class ComputeAPIController(APIController):
             "Operation:(%s), resource_id:(%s), resource_info:(%s)",
             consts.OPERATION_TYPE_ACTION,
             resource_id,
-            resource_info,
+            self._mask_sensitive_info(resource_info),
         )
         return consts.OPERATION_TYPE_ACTION, resource_id, resource_info
 
@@ -307,7 +326,7 @@ class ComputeAPIController(APIController):
             "Operation:(%s), resource_id:(%s), resource_info:(%s)",
             operation_type,
             resource_id,
-            resource_info,
+            self._mask_sensitive_info(resource_info),
         )
         return consts.OPERATION_TYPE_ACTION, resource_id, resource_info
 
@@ -346,7 +365,7 @@ class ComputeAPIController(APIController):
             "Operation:(%s), resource_id:(%s), resource_info:(%s)",
             operation_type,
             resource_id,
-            resource_info,
+            self._mask_sensitive_info(resource_info),
         )
         return operation_type, resource_id, resource_info
 
@@ -373,7 +392,7 @@ class ComputeAPIController(APIController):
             "Operation:(%s), resource_id:(%s), resource_info:(%s)",
             operation_type,
             resource_id,
-            resource_info,
+            self._mask_sensitive_info(resource_info),
         )
         return operation_type, resource_id, resource_info
 
@@ -631,7 +650,8 @@ class SysinvAPIController(APIController):
                 resource_id = json.loads(response.body)["signature"]
                 resource_ids = [resource_id]
             else:
-                resource_info["payload"] = request_body
+                # Decode the request body so it can be stored as a JSON formatted str
+                resource_info["payload"] = request_body.decode("utf-8")
                 resource_info["content_type"] = environ.get("CONTENT_TYPE")
                 resource = json.loads(response.body)[resource_type]
                 # For ssl_ca cert, the resource in response is a list
@@ -651,7 +671,7 @@ class SysinvAPIController(APIController):
                 "Resource id: (%s), type: (%s), info: (%s)",
                 resource_id,
                 resource_type,
-                p_resource_info,
+                self._mask_sensitive_info(p_resource_info),
             )
             try:
                 utils.enqueue_work(
@@ -1212,7 +1232,7 @@ class IdentityAPIController(APIController):
             operation_type,
             resource_id,
             resource_type,
-            resource_info,
+            self._mask_sensitive_info(resource_info),
         )
 
         if resource_id:
@@ -1274,7 +1294,7 @@ class CinderAPIController(APIController):
             "Operation:(%s), resource_id:(%s), resource_info:(%s)",
             operation_type,
             resource_id,
-            resource_info,
+            self._mask_sensitive_info(resource_info),
         )
         try:
             utils.enqueue_work(
@@ -1345,7 +1365,7 @@ class NeutronAPIController(APIController):
             "Operation:(%s), resource_id:(%s), resource_info:(%s)",
             operation_type,
             resource_id,
-            resource_info,
+            self._mask_sensitive_info(resource_info),
         )
         try:
             utils.enqueue_work(

@@ -1,10 +1,8 @@
 #
-# Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020, 2022, 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
-import mock
 
 from dcmanager.common.consts import DEPLOY_STATE_DONE
 from dcmanager.common.consts import STRATEGY_STATE_COMPLETE
@@ -13,7 +11,7 @@ from dcmanager.common.consts import (
     STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
 )
 from dcmanager.common.consts import STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.states.fakes import FakeAlarm
@@ -91,31 +89,25 @@ KUBE_VERSION_LIST_2 = [
 
 
 class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
-
     def setUp(self):
-        super(TestKubeUpgradePreCheckStage, self).setUp()
+        super().setUp()
 
-        # Add the subcloud being processed by this unit test
-        # The subcloud is online, managed with deploy_state 'installed'
-        self.subcloud = self.setup_subcloud()
+        self.on_success_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
+        self.current_state = STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK
 
         # Add the strategy_step state being processed by this unit test
         self.strategy_step = self.setup_strategy_step(
-            self.subcloud.id, STRATEGY_STATE_KUBE_UPGRADE_PRE_CHECK
+            self.subcloud.id, self.current_state
         )
 
         # mock there not being a kube upgrade in progress
-        self.sysinv_client.get_kube_upgrades = mock.MagicMock()
         self.sysinv_client.get_kube_upgrades.return_value = []
 
-        self.fm_client.get_alarms = mock.MagicMock()
-        self.sysinv_client.get_kube_upgrade_health = mock.MagicMock()
         self.sysinv_client.get_kube_upgrade_health.return_value = (
             KUBERNETES_UPGRADE_HEALTH_RESPONSE_SUCCESS
         )
 
         # mock the get_kube_versions calls
-        self.sysinv_client.get_kube_versions = mock.MagicMock()
         self.sysinv_client.get_kube_versions.return_value = []
         # mock the cached get_kube_versions calls
         self.mock_read_from_cache = self._mock_object(BaseState, "_read_from_cache")
@@ -135,7 +127,6 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         next step, which is 'create the vim kube upgrade strategy'
         """
 
-        next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -148,22 +139,13 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
             ),
         ]
 
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self._setup_and_assert(self.on_success_state)
 
         # Verify the single query (for the system controller)
         self.mock_read_from_cache.assert_called_once()
 
-        # Verify the transition to the  expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
-
     def test_pre_check_succeeds_with_strategy_without_extra_args(self):
         """Test pre-check succeeds with strategy without extra args"""
-
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE
-        )
-        next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
 
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -176,11 +158,9 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
             )
         ]
 
-        self.worker.perform_state_action(self.strategy_step)
+        self._setup_and_assert(self.on_success_state)
 
         self.mock_read_from_cache.assert_called_once()
-
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
     def test_pre_check_subcloud_failed_health_check_with_management_alarms(self):
         """Test pre check step where subcloud has management affecting alarms"""
@@ -202,9 +182,16 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                 obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state="active"
             ),
         ]
-        self.worker.perform_state_action(self.strategy_step)
+
+        self._setup_and_assert(STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Kubernetes upgrade health check failed due to "
+            "alarm 100.101. Please run 'system health-query-kube-upgrade' command on "
+            "the subcloud or dcmanager subcloud errors <subcloud-name> on central for "
+            "details."
+        )
+
         self.sysinv_client.get_kube_upgrade_health.assert_called_once()
-        self.assert_step_updated(self.strategy_step.subcloud_id, STRATEGY_STATE_FAILED)
 
     def test_pre_check_subcloud_failed_health_check_with_mgmt_and_kubernetes_alarm(
         self,
@@ -222,10 +209,14 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
             KUBERNETES_UPGRADE_HEALTH_RESPONSE_MGMT_AFFECTING_AND_KUBERNETES_ALARM
         )
 
-        self.worker.perform_state_action(self.strategy_step)
+        self._setup_and_assert(STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Kubernetes upgrade health check failed. Please run "
+            "'system health-query-kube-upgrade' command on the subcloud or dcmanager "
+            "subcloud errors <subcloud-name> on central for details"
+        )
 
         self.sysinv_client.get_kube_upgrade_health.assert_called_once()
-        self.assert_step_updated(self.strategy_step.subcloud_id, STRATEGY_STATE_FAILED)
 
     def test_pre_check_subcloud_failed_health_check_with_allowed_management_alarms(
         self,
@@ -249,12 +240,10 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                 obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state="active"
             ),
         ]
-        self.worker.perform_state_action(self.strategy_step)
+
+        self._setup_and_assert(self.on_success_state)
+
         self.sysinv_client.get_kube_upgrade_health.assert_called_once()
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
-        )
 
     def test_pre_check_subcloud_failed_health_check_with_non_management_alarms(self):
         """Test pre check step where subcloud has non-management affecting alarms"""
@@ -272,13 +261,10 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                 obj_id=1, version=UPGRADED_KUBE_VERSION, target=True, state="active"
             ),
         ]
-        self.worker.perform_state_action(self.strategy_step)
-        self.sysinv_client.get_kube_upgrade_health.assert_called_once()
 
-        self.assert_step_updated(
-            self.strategy_step.subcloud_id,
-            STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY,
-        )
+        self._setup_and_assert(self.on_success_state)
+
+        self.sysinv_client.get_kube_upgrade_health.assert_called_once()
 
     def test_pre_check_no_sys_controller_active_version(self):
         """Test pre check step where system controller has no active version
@@ -289,7 +275,6 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         to query that version should fail orchestration.
         """
 
-        next_state = STRATEGY_STATE_FAILED
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -310,11 +295,11 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
                 state="unavailable",
             ),
         ]
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
 
-        # Verify the expected next state happened
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+        self._setup_and_assert(STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: System Controller has no active target kube version"
+        )
 
     def test_pre_check_no_subcloud_available_version(self):
         """Test pre check step where subcloud has no available version
@@ -363,16 +348,12 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
             ],
         ]
         # fully upgraded subcloud.  Next state will be complete.
-        next_state = STRATEGY_STATE_COMPLETE
+        self.on_success_state = STRATEGY_STATE_COMPLETE
 
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self._setup_and_assert(self.on_success_state)
 
         # cached get_kube_versions gets called (more than once)
         self.mock_read_from_cache.assert_called()
-
-        # Verify the expected next state happened
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
     def test_pre_check_subcloud_existing_upgrade_resumable(self):
         """Test pre check step where the subcloud has lower kube upgrade
@@ -381,7 +362,6 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         if less than its version.  This test should not skip the subcloud.
         """
 
-        next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -398,20 +378,16 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         # existing upgrade in the subcloud, so the subcloud upgrade should
         # continue
         extra_args = {"to-version": high_partial_version}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self._setup_and_assert(self.on_success_state)
 
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
         # and pre-existing upgrade is used for subcloud
         self.mock_read_from_cache.assert_not_called()
-
-        # Verify the transition to the  expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
     def _test_pre_check_subcloud_existing_upgrade_skip(
         self, target_version, subcloud_version
@@ -424,7 +400,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         it should not be resumed and the skip should occur.
         """
 
-        next_state = STRATEGY_STATE_COMPLETE
+        self.on_success_state = STRATEGY_STATE_COMPLETE
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -435,20 +411,16 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         ]
 
         extra_args = {"to-version": target_version}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self._setup_and_assert(self.on_success_state)
 
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
         # and pre-existing upgrade is used for subcloud
         self.mock_read_from_cache.assert_not_called()
-
-        # Verify the transition to the  expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
     def test_pre_check_subcloud_existing_upgrade_too_high(self):
         target_version = "v1.2.1"
@@ -481,7 +453,6 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
         Test supports partial values for target_version and subcloud_version
         """
 
-        next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -494,20 +465,16 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": target_version}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
+        self._setup_and_assert(self.on_success_state)
 
         # Do not need to mock query kube versions since extra args will be
         # queried to get the info for the system controller
         # and pre-existing upgrade is used for subcloud
         self.mock_read_from_cache.assert_not_called()
-
-        # Verify the transition to the  expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
 
     def test_pre_check_subcloud_existing_upgrade_match(self):
         target_version = "v1.2.3"
@@ -535,7 +502,7 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
     def test_pre_check_skip_when_target_version_is_greater_than_to_version(self):
         """Test creating pre check when target version is greater than to_version."""
 
-        next_state = STRATEGY_STATE_COMPLETE
+        self.on_success_state = STRATEGY_STATE_COMPLETE
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -546,20 +513,16 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.4"}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
-
-        # Verify the transition to the  expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+        self._setup_and_assert(self.on_success_state)
 
     def test_pre_check_skip_when_there_is_no_version_available(self):
         """Test creating pre check when there is no version available."""
 
-        next_state = STRATEGY_STATE_COMPLETE
+        self.on_success_state = STRATEGY_STATE_COMPLETE
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -570,20 +533,15 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.4"}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
-
-        # Verify the transition to the  expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+        self._setup_and_assert(self.on_success_state)
 
     def test_pre_check_skip_when_there_are_multiple_available_versions(self):
         """Test creating pre check when there are multiple_available_versions."""
 
-        next_state = STRATEGY_STATE_KUBE_CREATING_VIM_KUBE_UPGRADE_STRATEGY
         # Update the subcloud to have deploy state as "complete"
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, deploy_status=DEPLOY_STATE_DONE
@@ -595,12 +553,8 @@ class TestKubeUpgradePreCheckStage(TestKubeUpgradeState):
 
         # Setup a fake kube upgrade strategy with the to-version specified
         extra_args = {"to-version": "v1.2.6"}
-        self.strategy = fake_strategy.create_fake_strategy(
-            self.ctx, self.DEFAULT_STRATEGY_TYPE, extra_args=extra_args
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, self.strategy_type, additional_args=extra_args
         )
 
-        # invoke the strategy state operation on the orch thread
-        self.worker.perform_state_action(self.strategy_step)
-
-        # Verify the transition to the  expected next state
-        self.assert_step_updated(self.strategy_step.subcloud_id, next_state)
+        self._setup_and_assert(self.on_success_state)

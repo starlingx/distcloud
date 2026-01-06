@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -33,12 +33,13 @@ class ApplyingVIMStrategyState(BaseState):
         self,
         next_state,
         region_name,
+        strategy,
         strategy_name,
         wait_attempts=DEFAULT_MAX_WAIT_ATTEMPTS,
         wait_interval=WAIT_INTERVAL,
     ):
         super(ApplyingVIMStrategyState, self).__init__(
-            next_state=next_state, region_name=region_name
+            next_state=next_state, region_name=region_name, strategy=strategy
         )
         self.strategy_name = strategy_name
         self.max_failed_queries = DEFAULT_MAX_FAILED_QUERIES
@@ -116,6 +117,7 @@ class ApplyingVIMStrategyState(BaseState):
     def _wait_for_strategy_apply(self, vim_client, strategy_step, subcloud_strategy):
         """Monitor the progress of the VIM strategy application."""
         wait_count = 0
+        # Counts the wait to update the updated_at field from step
         get_fail_count = 0
         last_details = ""
 
@@ -175,7 +177,11 @@ class ApplyingVIMStrategyState(BaseState):
                     strategy_name=self.strategy_name,
                 )
             if subcloud_strategy.state == vim.STATE_APPLYING:
-                self._log_apply_progress(strategy_step, subcloud_strategy, last_details)
+                last_details = self._log_apply_progress(
+                    strategy_step,
+                    subcloud_strategy,
+                    last_details,
+                )
             elif subcloud_strategy.state == vim.STATE_APPLIED:
                 self.info_log(
                     strategy_step,
@@ -191,12 +197,16 @@ class ApplyingVIMStrategyState(BaseState):
             f"{subcloud_strategy.current_phase} phase is "
             f"{subcloud_strategy.current_phase_completion_percentage}% complete"
         )
+
         if new_details != last_details:
             self.info_log(strategy_step, new_details)
-            last_details = new_details
             db_api.strategy_step_update(
-                self.context, strategy_step.subcloud_id, details=new_details
+                self.context,
+                strategy_step.subcloud_id,
+                details=new_details,
             )
+
+        return new_details
 
     def perform_state_action(self, strategy_step):
         """Apply a VIM strategy using VIM REST API

@@ -35,7 +35,6 @@ def is_space_available(partition, size):
     return False if available_space < size else True
 
 
-# TODO(nicodemos): Remove patching when is no longer supported
 def get_host_port_options(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.bind_host, cfg.compute.bind_port
@@ -45,8 +44,6 @@ def get_host_port_options(cfg):
         return cfg.network.bind_host, cfg.network.bind_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_USM:
         return cfg.usm.bind_host, cfg.usm.bind_port
-    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-        return cfg.patching.bind_host, cfg.patching.bind_port
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.bind_host, cfg.volume.bind_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
@@ -56,7 +53,6 @@ def get_host_port_options(cfg):
         return None, None
 
 
-# TODO(nicodemos): Remove patching when is no longer supported
 def get_remote_host_port_options(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.remote_host, cfg.compute.remote_port
@@ -66,8 +62,6 @@ def get_remote_host_port_options(cfg):
         return cfg.network.remote_host, cfg.network.remote_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_USM:
         return cfg.usm.remote_host, cfg.usm.remote_port
-    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-        return cfg.patching.remote_host, cfg.patching.remote_port
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.remote_host, cfg.volume.remote_port
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:
@@ -77,7 +71,6 @@ def get_remote_host_port_options(cfg):
         return None, None
 
 
-# TODO(nicodemos): Remove patching when is no longer supported
 def get_sync_endpoint(cfg):
     if cfg.type == consts.ENDPOINT_TYPE_COMPUTE:
         return cfg.compute.sync_endpoint
@@ -85,8 +78,6 @@ def get_sync_endpoint(cfg):
         return cfg.platform.sync_endpoint
     elif cfg.type == consts.ENDPOINT_TYPE_NETWORK:
         return cfg.network.sync_endpoint
-    elif cfg.type == dccommon_consts.ENDPOINT_TYPE_PATCHING:
-        return cfg.patching.sync_endpoint
     elif cfg.type == consts.ENDPOINT_TYPE_VOLUME:
         return cfg.volume.sync_endpoint
     elif cfg.type == dccommon_consts.ENDPOINT_TYPE_IDENTITY:

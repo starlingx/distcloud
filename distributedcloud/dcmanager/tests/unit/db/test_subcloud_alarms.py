@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -18,11 +18,10 @@ from oslo_db import exception as db_exception
 
 from dcmanager.common import consts
 from dcmanager.common import exceptions as exception
-from dcmanager.db import api
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.tests import base
 
-get_engine = api.get_engine
+get_engine = db_api.get_engine
 
 
 class DBAPISubcloudAlarm(base.DCManagerTestCase):

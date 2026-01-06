@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024-2025 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -54,10 +54,6 @@ def main():
     srv = orchestrator.DCManagerOrchestratorService()
     launcher = service.launch(CONF, srv, workers=cfg.CONF.orch_workers)
 
-    # Override values from /etc/dcmanager/dcmanager.conf specific
-    # to dcmanager-orchestrator:
-    cfg.CONF.set_override("max_pool_size", 5, group="database")
-    cfg.CONF.set_override("max_overflow", 2500, group="database")
     LOG.info("Starting...")
     LOG.debug("Configuration:")
     CONF.log_opt_values(LOG, logging.DEBUG)

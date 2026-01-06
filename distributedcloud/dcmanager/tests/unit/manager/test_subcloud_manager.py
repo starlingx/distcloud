@@ -23,6 +23,7 @@ import filecmp
 import json
 import os
 from os import path as os_path
+from pathlib import Path
 import shutil
 import sys
 import tempfile
@@ -42,7 +43,9 @@ from tsconfig.tsconfig import SW_VERSION
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
+from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import PlaybookExecutionFailed
+from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon import kubeoperator
 from dccommon import ostree_mount
 from dccommon import subcloud_enrollment
@@ -53,7 +56,7 @@ from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
-from dcmanager.db.sqlalchemy import api as db_api
+from dcmanager.db import api as db_api
 from dcmanager.manager import subcloud_manager
 from dcmanager.manager import system_peer_manager
 from dcmanager.rpc import client as rpc_client
@@ -125,11 +128,6 @@ FAKE_SERVICES = [
         dccommon_consts.ENDPOINT_TYPE_IDENTITY,
         2,
     ),
-    FakeService(
-        dccommon_consts.ENDPOINT_TYPE_PATCHING,
-        dccommon_consts.ENDPOINT_TYPE_PATCHING,
-        3,
-    ),
     FakeService(dccommon_consts.ENDPOINT_NAME_FM, dccommon_consts.ENDPOINT_TYPE_FM, 4),
     FakeService(
         dccommon_consts.ENDPOINT_NAME_VIM, dccommon_consts.ENDPOINT_TYPE_NFV, 5
@@ -144,7 +142,6 @@ class FakeKeystoneClient(object):
     def __init__(self):
         self.user_list = FAKE_USERS
         self.project_list = FAKE_PROJECTS
-        self.services_list = FAKE_SERVICES
         self.keystone_client = mock.MagicMock()
         self.session = mock.MagicMock()
         self.endpoint_cache = mock.MagicMock()
@@ -309,18 +306,22 @@ FAKE_BACKUP_CREATE_LOAD_1 = {
     "registry_images": False,
 }
 
-FAKE_BACKUP_RESTORE_LOAD = {"sysadmin_password": "testpasswd", "subcloud": 1}
+FAKE_BACKUP_RESTORE_LOAD = {
+    "sysadmin_password": "testpasswd",
+    "subcloud": 1,
+    "override_values": {},
+}
 
 FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL = {
     "sysadmin_password": "testpasswd",
     "subcloud": 1,
     "install_values": fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES,
+    "override_values": {},
 }
 
 SERVICE_ENDPOINTS = [
     dccommon_consts.ENDPOINT_TYPE_PLATFORM,
     dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-    dccommon_consts.ENDPOINT_TYPE_PATCHING,
     dccommon_consts.ENDPOINT_TYPE_FM,
     dccommon_consts.ENDPOINT_TYPE_NFV,
     dccommon_consts.AUDIT_TYPE_SOFTWARE,
@@ -362,7 +363,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
 
         self.mock_audit_rpc_client = self._mock_object(rpcapi, "ManagerAuditClient")
         self._mock_object(rpc_client, "SubcloudStateClient")
-        self._mock_object(subcloud_install, "OpenStackDriver")
+        self._mock_object(EndpointCache, "get_admin_session")
         self.mock_subcloud_install_sysinv_client = self._mock_object(
             subcloud_install, "SysinvClient"
         )
@@ -478,16 +479,6 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         values.update(kwargs)
         return db_api.subcloud_create(ctxt, **values)
 
-    def create_simplified_subcloud(self, subcloud):
-        return {
-            "id": subcloud.id,
-            "name": subcloud.name,
-            "availability_status": subcloud.availability_status,
-            "management_state": subcloud.management_state,
-            "deploy_status": subcloud.deploy_status,
-            "region_name": subcloud.region_name,
-        }
-
     @staticmethod
     def create_subcloud_peer_group_static(ctxt, **kwargs):
         values = {
@@ -563,7 +554,8 @@ class TestSubcloudManager(BaseTestSubcloudManager):
                 f'{base.SUBCLOUD_1["region_name"]}'
             )
         self.assertEqual(
-            self.mock_dcmanager_api().subcloud_sysinv_endpoint_update.call_count, 6
+            self.mock_dcmanager_api().subcloud_sysinv_endpoint_update.call_count,
+            len(FAKE_SERVICES),
         )
 
     @mock.patch.object(kubeoperator, "KubeOperator")
@@ -789,6 +781,50 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             "/subcloud1_playbook_output.log for detailed output"
         )
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+            updated_subcloud.deploy_status,
+        )
+
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_run_network_reconfiguration_find_and_save_playbook_error(
+        self, mock_find_msg
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+
+        self.sm._run_network_reconfiguration(
+            self.subcloud.name, mock.ANY, None, self.payload, self.ctx, self.subcloud
+        )
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, mock.ANY, consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+            updated_subcloud.deploy_status,
+        )
+
+    def test_run_network_reconfiguration_find_and_save_playbook_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+
+        self.sm._run_network_reconfiguration(
+            self.subcloud.name, mock.ANY, None, self.payload, self.ctx, self.subcloud
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(self.subcloud.name, updated_subcloud.error_description)
         self.assertEqual(
             consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
             updated_subcloud.deploy_status,
@@ -1122,6 +1158,58 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
             "fake_subcloud1_playbook_output.log for detailed output"
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_subcloud_deploy_bootstrap_find_and_save_playbook_error(
+        self, mock_find_msg
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_INSTALLED,
+            data_install=json.dumps(self.fake_install_values),
+        )
+
+        self.sm.subcloud_deploy_bootstrap(self.ctx, subcloud.id, self.payload)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            subcloud.name, mock.ANY, consts.DEPLOY_STATE_BOOTSTRAPPING
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_BOOTSTRAP_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_subcloud_deploy_bootstrap_find_and_save_playbook_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_INSTALLED,
+            data_install=json.dumps(self.fake_install_values),
+        )
+
+        self.sm.subcloud_deploy_bootstrap(self.ctx, subcloud.id, self.payload)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_BOOTSTRAP_FAILED, updated_subcloud.deploy_status
+        )
+
     @mock.patch.object(subcloud_manager.SubcloudManager, "_deploy_bootstrap_prep")
     def test_subcloud_deploy_bootstrap_failed(self, mock_bootstrap_prep):
         mock_bootstrap_prep.side_effect = Exception("boom")
@@ -1174,6 +1262,72 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_CONFIG_FAILED, updated_subcloud.deploy_status
         )
         self.mock_create_subcloud_inventory.assert_called_once()
+
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_configure_subcloud_find_and_save_playbook_error(self, mock_find_msg):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_PRE_CONFIG,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+        )
+        self.fake_payload.update(
+            {
+                "user_uploaded_artifacts": "fake_files",
+                consts.BOOTSTRAP_ADDRESS: fake_subcloud.FAKE_BOOTSTRAP_VALUE[
+                    consts.BOOTSTRAP_ADDRESS
+                ],
+            }
+        )
+
+        self.sm.subcloud_deploy_config(
+            self.ctx, self.subcloud.id, payload=self.fake_payload
+        )
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud["name"], mock.ANY, consts.DEPLOY_STATE_CONFIGURING
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud["name"])
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_CONFIG_FAILED, updated_subcloud.deploy_status
+        )
+        self.mock_create_subcloud_inventory.assert_called_once()
+
+    def test_configure_subcloud_find_and_save_playbook_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_PRE_CONFIG
+        self.fake_payload.update(
+            {
+                "user_uploaded_artifacts": "fake_files",
+                consts.BOOTSTRAP_ADDRESS: fake_subcloud.FAKE_BOOTSTRAP_VALUE[
+                    consts.BOOTSTRAP_ADDRESS
+                ],
+            }
+        )
+
+        self.sm.subcloud_deploy_config(
+            self.ctx, self.subcloud.id, payload=self.fake_payload
+        )
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud["name"])
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(self.subcloud["name"], updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_CONFIG_FAILED, updated_subcloud.deploy_status
+        )
 
     def test_configure_subcloud_pre_config_failed(self):
 
@@ -1388,6 +1542,76 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
             "fake_subcloud1_playbook_output.log for detailed output"
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit, "prep")
+    @mock.patch.object(subcloud_enrollment.SubcloudEnrollmentInit, "enroll_init")
+    @mock.patch.object(cutils, "get_region_name")
+    def test_subcloud_deploy_enroll_find_and_save_ansible_error(
+        self,
+        mock_get_region_name,
+        mock_subcloud_enrollment_enroll_init,
+        mock_subcloud_enrollment_prep,
+        mock_find_msg,
+    ):
+
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+        mock_get_region_name.return_value = "11111"
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_COMPLETE,
+            data_install=json.dumps(self.fake_payload_enroll["install_values"]),
+        )
+
+        self.sm.subcloud_deploy_enroll(self.ctx, subcloud.id, self.fake_payload_enroll)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            subcloud.name, mock.ANY, consts.DEPLOY_STATE_ENROLLING
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.payload["name"])
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_ENROLL_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertFalse(updated_subcloud.rehomed)
+
+    @mock.patch.object(cutils, "get_region_name")
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "subcloud_init_enroll", return_value=True
+    )
+    def test_subcloud_deploy_enroll_find_and_save_ansible_timeout(
+        self, mock_init_enroll, mock_get_region_name
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+        mock_get_region_name.return_value = "11111"
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_COMPLETE,
+            data_install=json.dumps(self.fake_payload_enroll["install_values"]),
+        )
+
+        self.sm.subcloud_deploy_enroll(self.ctx, subcloud.id, self.fake_payload_enroll)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_ENROLL_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertFalse(updated_subcloud.rehomed)
+
 
 class TestSubcloudAdd(BaseTestSubcloudManager):
     """Test class for testing subcloud add"""
@@ -1522,7 +1746,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
 
     def test_add_subcloud_create_failed(self):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
-        services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
         subcloud = self.create_subcloud_static(
@@ -1530,7 +1753,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         )
 
         self.mock_dcorch_api().add_subcloud.side_effect = Exception("boom")
-        self.mock_openstack_driver().services_list = services
 
         self.sm.add_subcloud(self.ctx, subcloud.id, payload=values)
         self.mock_get_cached_regionone_data.assert_called_once()
@@ -1543,7 +1765,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
     def test_add_subcloud_with_migrate_option_prep_failed(self):
         values = utils.create_subcloud_dict(base.SUBCLOUD_SAMPLE_DATA_0)
         values["migrate"] = "true"
-        services = FAKE_SERVICES
 
         # dcmanager add_subcloud queries the data from the db
         subcloud = self.create_subcloud_static(
@@ -1551,7 +1772,6 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         )
 
         self.mock_dcorch_api().add_subcloud.side_effect = Exception("boom")
-        self.mock_openstack_driver().services_list = services
         self.mock_keyring.get_password.return_vaue = "testpass"
 
         self.sm.add_subcloud(self.ctx, subcloud.id, payload=values)
@@ -2116,7 +2336,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2130,7 +2349,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2157,7 +2375,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2191,7 +2408,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2217,7 +2433,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
         ]:
@@ -2259,7 +2474,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
         ]:
@@ -2314,7 +2528,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2340,7 +2553,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             for endpoint in [
                 dccommon_consts.ENDPOINT_TYPE_PLATFORM,
                 dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-                dccommon_consts.ENDPOINT_TYPE_PATCHING,
                 dccommon_consts.ENDPOINT_TYPE_FM,
                 dccommon_consts.ENDPOINT_TYPE_NFV,
                 dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2381,7 +2593,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2391,7 +2602,10 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             self.assertEqual(status.sync_status, dccommon_consts.SYNC_STATUS_UNKNOWN)
 
         ssm.update_subcloud_availability(
-            self.ctx, self.subcloud.region_name, dccommon_consts.AVAILABILITY_ONLINE
+            self.ctx,
+            self.subcloud.name,
+            self.subcloud.region_name,
+            dccommon_consts.AVAILABILITY_ONLINE,
         )
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, "subcloud1")
@@ -2421,10 +2635,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             "update_state_only": False,
             "audit_fail_count": 1,
         }
-        LOAD = dccommon_consts.ENDPOINT_TYPE_LOAD
         FIRMWARE = dccommon_consts.ENDPOINT_TYPE_FIRMWARE
         endpoint_data = {
-            LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
             FIRMWARE: dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         }
         endpoints = db_api.subcloud_status_get_all(self.ctx, self.subcloud.id)
@@ -2439,7 +2651,8 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         ssm = subcloud_state_manager.SubcloudStateManager()
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             availability_data,
             endpoint_data,
         )
@@ -2473,7 +2686,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
 
         When the endpoint's status in the database is the same as the one it'll be
         updated to, ensure that, instead of validating, bulk_update_endpoint_status
-        sets the same value in the database
+        just skip it
         """
 
         db_api.subcloud_update(
@@ -2483,33 +2696,33 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             management_state=dccommon_consts.MANAGEMENT_MANAGED,
         )
 
-        LOAD = dccommon_consts.ENDPOINT_TYPE_LOAD
         FIRMWARE = dccommon_consts.ENDPOINT_TYPE_FIRMWARE
         endpoint_data = {
-            LOAD: dccommon_consts.SYNC_STATUS_IN_SYNC,
             FIRMWARE: dccommon_consts.SYNC_STATUS_OUT_OF_SYNC,
         }
 
         ssm = subcloud_state_manager.SubcloudStateManager()
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             None,
             endpoint_data,
         )
 
         self.assertEqual(mock_db.call_count, 1)
 
-        # Re-executing the method should result in the same amount of call counts
+        # Re-executing the method should result in no extra calls
         # for the database query since there are no updates
         ssm.bulk_update_subcloud_availability_and_endpoint_status(
             self.ctx,
-            self.create_simplified_subcloud(self.subcloud),
+            self.subcloud.id,
+            self.subcloud.name,
             None,
             endpoint_data,
         )
 
-        self.assertEqual(mock_db.call_count, 2)
+        self.assertEqual(mock_db.call_count, 1)
 
     @mock.patch.object(
         subcloud_state_manager.SubcloudStateManager,
@@ -2531,6 +2744,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         with mock.patch.object(db_api, "subcloud_update") as subcloud_update_mock:
             ssm.update_subcloud_availability(
                 self.ctx,
+                self.subcloud.name,
                 self.subcloud.region_name,
                 availability_status=dccommon_consts.AVAILABILITY_ONLINE,
                 update_state_only=True,
@@ -2566,7 +2780,6 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         for endpoint in [
             dccommon_consts.ENDPOINT_TYPE_PLATFORM,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY,
-            dccommon_consts.ENDPOINT_TYPE_PATCHING,
             dccommon_consts.ENDPOINT_TYPE_FM,
             dccommon_consts.ENDPOINT_TYPE_NFV,
             dccommon_consts.ENDPOINT_TYPE_DC_CERT,
@@ -2576,7 +2789,10 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
             self.assertEqual(status.sync_status, dccommon_consts.SYNC_STATUS_UNKNOWN)
 
         ssm.update_subcloud_availability(
-            self.ctx, self.subcloud.region_name, dccommon_consts.AVAILABILITY_ONLINE
+            self.ctx,
+            self.subcloud.name,
+            self.subcloud.region_name,
+            dccommon_consts.AVAILABILITY_ONLINE,
         )
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, "subcloud1")
@@ -2633,6 +2849,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         audit_fail_count = 1
         ssm.update_subcloud_availability(
             self.ctx,
+            self.subcloud.name,
             self.subcloud.region_name,
             availability_status=None,
             audit_fail_count=audit_fail_count,
@@ -2652,6 +2869,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         audit_fail_count = audit_fail_count + 1
         ssm.update_subcloud_availability(
             self.ctx,
+            self.subcloud.name,
             self.subcloud.region_name,
             dccommon_consts.AVAILABILITY_OFFLINE,
             audit_fail_count=audit_fail_count,
@@ -2959,6 +3177,15 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
             ],
         )
 
+    def test_compose_install_command_with_bmc_access_only(self):
+        install_command = self.sm.compose_install_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            FAKE_PREVIOUS_SW_VERSION,
+            bmc_access_only=True,
+        )
+        self.assertIn("bmc_access_only=True", install_command)
+
     @mock.patch("os.path.isfile")
     def test_compose_bootstrap_command(self, mock_isfile):
         mock_isfile.return_value = True
@@ -3025,15 +3252,15 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
             rehome_command,
             [
                 "ansible-playbook",
-                cutils.get_playbook_for_software_version(
-                    subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK, SW_VERSION
-                ),
+                subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
                 "-i",
                 f"{ANS_PATH}/subcloud1_inventory.yml",
                 "--limit",
                 subcloud_name,
                 "--timeout",
                 subcloud_manager.REHOME_PLAYBOOK_TIMEOUT,
+                "-e",
+                f"install_release_version={SW_VERSION}",
                 "-e",
                 str("override_files_dir='%s' region_name=%s")
                 % (ANS_PATH, subcloud_region),
@@ -3102,9 +3329,14 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
 
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_CREATED
         self.fake_install_values["software_version"] = SW_VERSION
+        # Change management start and end addresses to be the same as in self.subcloud
+        # to avoid network reconfiguration.
+        bootstrap_file_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_file_data["management_start_address"] = "192.168.101.2"
+        bootstrap_file_data["management_end_address"] = "192.168.101.50"
         fake_payload_bootstrap = {
             **fake_subcloud.FAKE_BOOTSTRAP_VALUE,
-            **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
+            **bootstrap_file_data,
         }
         fake_payload_bootstrap["sysadmin_password"] = "testpass"
         fake_payload = {
@@ -3139,9 +3371,14 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_CREATED
         self.fake_install_values["software_version"] = SW_VERSION
 
+        # Change management start and end addresses to be the same as in self.subcloud
+        # to avoid network reconfiguration.
+        bootstrap_file_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_file_data["management_start_address"] = "192.168.101.2"
+        bootstrap_file_data["management_end_address"] = "192.168.101.50"
         fake_payload_bootstrap = {
             **fake_subcloud.FAKE_BOOTSTRAP_VALUE,
-            **fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA,
+            **bootstrap_file_data,
         }
         fake_payload_bootstrap["sysadmin_password"] = "testpass"
         fake_payload = {**self.fake_payload_install, **fake_payload_bootstrap}
@@ -3305,6 +3542,70 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             f"FAILED backing-up playbook of ({self.subcloud.name}).\ncheck individual "
             "log at subcloud1_fake_file.yml_playbook_output.log for detailed output"
         )
+
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    @mock.patch.object(os.path, "join")
+    def test_backup_create_find_and_save_playbook_error(
+        self,
+        mock_os_path_join,
+        mock_create_inventory_file,
+        mock_is_healthy,
+        mock_find_msg,
+    ):
+        mock_os_path_join.return_value = "subcloud1_fake_file.yml"
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        self.backup_values["local_only"] = True
+        self.backup_values["registry_images"] = True
+
+        self.sm.create_subcloud_backups(self.ctx, payload=self.backup_values)
+
+        mock_create_inventory_file.assert_called_once()
+        mock_is_healthy.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, mock.ANY, consts.BACKUP_STATE_IN_PROGRESS
+        )
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(consts.BACKUP_STATE_FAILED, updated_subcloud.backup_status)
+
+    @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    @mock.patch.object(os.path, "join")
+    def test_backup_create_find_and_save_playbook_timeout(
+        self, mock_os_path_join, mock_create_inventory_file, mock_is_healthy
+    ):
+        mock_os_path_join.return_value = "subcloud1_fake_file.yml"
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.backup_values["local_only"] = True
+        self.backup_values["registry_images"] = True
+
+        self.sm.create_subcloud_backups(self.ctx, payload=self.backup_values)
+
+        mock_create_inventory_file.assert_called_once()
+        mock_is_healthy.assert_called_once()
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(self.subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(consts.BACKUP_STATE_FAILED, updated_subcloud.backup_status)
 
     def test_backup_create_managed_online_backup_state_in_progess(self):
         self.backup_values["local_only"] = False
@@ -3655,6 +3956,81 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         self.mock_ansible_run_playbook.assert_called_once()
         self.mock_create_subcloud_inventory.assert_not_called()
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "compose_backup_delete_command"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
+    )
+    def test_delete_subcloud_backup_find_and_save_ansible_error(
+        self,
+        mock_create_backup_overrides_file,
+        mock_compose_backup_delete_command,
+        mock_find_msg,
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
+        )
+
+        self.sm._delete_subcloud_backup(
+            self.ctx,
+            payload=self.values,
+            release_version=FAKE_SW_VERSION,
+            subcloud=self.subcloud,
+        )
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, mock.ANY, consts.BACKUP_STATE_FAILED
+        )
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+
+        mock_create_backup_overrides_file.assert_called_once()
+        mock_compose_backup_delete_command.assert_called_once()
+        self.mock_ansible_run_playbook.assert_called_once()
+        self.mock_create_subcloud_inventory.assert_not_called()
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "compose_backup_delete_command"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
+    )
+    def test_delete_subcloud_backup_find_and_save_ansible_timeout(
+        self, mock_create_backup_overrides_file, mock_compose_backup_delete_command
+    ):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
+        )
+
+        self.sm._delete_subcloud_backup(
+            self.ctx,
+            payload=self.values,
+            release_version=FAKE_SW_VERSION,
+            subcloud=self.subcloud,
+        )
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+
+        mock_create_backup_overrides_file.assert_called_once()
+        mock_compose_backup_delete_command.assert_called_once()
+        self.mock_ansible_run_playbook.assert_called_once()
+        self.mock_create_subcloud_inventory.assert_not_called()
+
 
 class TestSubcloudPrestage(BaseTestSubcloudManager):
     """Test class for testing subcloud prestage"""
@@ -3744,8 +4120,8 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 1)
 
         # Verify the prestage request release was passed to the playbooks
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5]
         )
 
     @mock.patch.object(cutils, "get_filename_by_prefix")
@@ -3777,15 +4153,13 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 2)
         # Verify the "image_list_file" was passed to the prestage image playbook
         # for the local prestage
-        self.assertTrue(
-            "image_list_file" in mock_run_ansible.call_args_list[1].args[1][5]
-        )
+        self.assertIn("image_list_file", mock_run_ansible.call_args_list[1].args[1][5])
         # Verify the prestage request release was passed to the playbooks
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[0].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[0].args[1][5]
         )
-        self.assertTrue(
-            FAKE_PRESTAGE_RELEASE in mock_run_ansible.call_args_list[1].args[1][5]
+        self.assertIn(
+            FAKE_PRESTAGE_RELEASE, mock_run_ansible.call_args_list[1].args[1][5]
         )
 
     @mock.patch.object(cutils, "get_filename_by_prefix")
@@ -3817,8 +4191,8 @@ class TestSubcloudPrestage(BaseTestSubcloudManager):
         self.assertEqual(mock_run_ansible.call_count, 2)
         # Verify the "image_list_file" was not passed to the prestage image playbook
         # for the local prestage
-        self.assertTrue(
-            "image_list_file" not in mock_run_ansible.call_args_list[1].args[1][5]
+        self.assertNotIn(
+            "image_list_file", mock_run_ansible.call_args_list[1].args[1][5]
         )
         # Verify the prestage request release was passed to the playbooks
         self.assertIn(
@@ -4042,6 +4416,163 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
         )
 
+    @mock.patch.object(subcloud_manager.SubcloudManager, "_stage_auto_restore_files")
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_restore_with_auto_and_factory_restore(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_run_restore_playbook,
+        mock_stage_auto_restore_files,
+    ):
+        self.mock_run_subcloud_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+        self.mock_run_subcloud_install.return_value = True
+        mock_run_restore_playbook.return_value = True
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
+        values["factory"] = True
+        values["auto"] = True
+        values["with_install"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=self.data_install,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        # Assert that we called the _create_overrides_for_backup_or_restore and
+        # compose_install_command with auto_restore_mode = "factory"
+        mock_create_overrides.assert_called_once_with(
+            "restore",
+            values,
+            self.subcloud.name,
+            "factory",
+            mock.ANY,
+            subcloud_region_name=self.subcloud.region_name,
+        )
+
+        mock_stage_auto_restore_files.assert_called_once()
+
+        mock_run_restore_playbook.assert_called_once_with(
+            mock.ANY, mock.ANY, mock.ANY, mock.ANY, "factory"
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
+        )
+
+    def test_compose_backup_restore_command_with_ipmi_sel_monitoring(self):
+        inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
+
+        restore_command = self.sm.compose_backup_restore_command(
+            subcloud_name=self.subcloud.name,
+            ansible_subcloud_inventory_file=inventory_file,
+            auto_restore_mode="factory",
+            with_install=True,
+            ipmi_sel_event_monitoring=True,
+        )
+
+        # Verify the ipmi_sel_event_monitoring parameter is in the command
+        self.assertIn("ipmi_sel_event_monitoring=True", restore_command)
+
+    def test_compose_backup_restore_command_without_ipmi_sel_monitoring(self):
+        inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
+
+        restore_command = self.sm.compose_backup_restore_command(
+            subcloud_name=self.subcloud.name,
+            ansible_subcloud_inventory_file=inventory_file,
+            auto_restore_mode="factory",
+            with_install=True,
+            ipmi_sel_event_monitoring=None,
+        )
+
+        # Verify the ipmi_sel_event_monitoring parameter is NOT in the command
+        self.assertNotIn("ipmi_sel_event_monitoring", " ".join(restore_command))
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_restore_with_install_wipe_osds(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_run_restore_playbook,
+    ):
+        self.mock_run_subcloud_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+        self.mock_run_subcloud_install.return_value = True
+        mock_run_restore_playbook.return_value = True
+
+        # Set the wipe_osds to True in the install data
+        data_install = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        data_install["wipe_osds"] = True
+
+        # Set the values for the restore operation
+        # to include the with_install flag
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
+        values["with_install"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=json.dumps(data_install),
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        mock_create_overrides.assert_called_once_with(
+            "restore",
+            values,
+            self.subcloud.name,
+            None,
+            True,
+            subcloud_region_name=self.subcloud.region_name,
+        )
+
+        mock_run_restore_playbook.assert_called_once_with(
+            mock.ANY, mock.ANY, mock.ANY, mock.ANY, mock.ANY
+        )
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
+        )
+
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
     def test_backup_restore_with_install_failed(self, mock_prep):
         # FAILED installing playbook of (subcloud1).
@@ -4195,6 +4726,576 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_RESTORE_FAILED, updated_subcloud.deploy_status
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_backup_restore_find_and_save_ansible_error(self, mock_find_msg):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        self.values["local_only"] = True
+        self.values["registry_images"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
+        )
+
+        self.assertRaises(
+            exceptions.SubcloudBackupOperationFailed,
+            self.sm.restore_subcloud_backups,
+            self.ctx,
+            payload=self.values,
+        )
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, mock.ANY, consts.DEPLOY_STATE_RESTORING
+        )
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_backup_restore_find_and_save_ansible_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.values["local_only"] = True
+        self.values["registry_images"] = True
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
+        )
+
+        self.assertRaises(
+            exceptions.SubcloudBackupOperationFailed,
+            self.sm.restore_subcloud_backups,
+            self.ctx,
+            payload=self.values,
+        )
+
+        # Verify that subcloud has the correct backup status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertIn(self.subcloud.name, updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_compose_backup_restore_command_basic(self):
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1", f"{ANS_PATH}/subcloud1_inventory.yml"
+        )
+        expected = [
+            "ansible-playbook",
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+        ]
+        self.assertEqual(restore_command, expected)
+
+    def test_compose_backup_restore_command_with_auto_restore_mode(self):
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1", f"{ANS_PATH}/subcloud1_inventory.yml", auto_restore_mode="auto"
+        )
+        expected = [
+            "ansible-playbook",
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+            "-e",
+            "auto_restore_mode=auto",
+            "-e",
+            f"rvmc_config_file={ANS_PATH}/subcloud1/"
+            f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
+            "-e",
+            "mount_seed_iso=true",
+        ]
+        self.assertEqual(restore_command, expected)
+
+    def test_compose_backup_restore_command_with_factory_restore_mode(self):
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            auto_restore_mode="factory",
+        )
+        expected = [
+            "ansible-playbook",
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+            "-e",
+            "auto_restore_mode=factory",
+            "-e",
+            f"rvmc_config_file={ANS_PATH}/subcloud1/"
+            f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
+        ]
+        self.assertEqual(restore_command, expected)
+
+    def test_compose_backup_restore_command_with_auto_and_with_install(self):
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            auto_restore_mode="auto",
+            with_install=True,
+        )
+        expected = [
+            "ansible-playbook",
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+            "-e",
+            "auto_restore_mode=auto",
+            "-e",
+            f"rvmc_config_file={ANS_PATH}/subcloud1/"
+            f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
+        ]
+        self.assertEqual(restore_command, expected)
+
+
+class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
+    """Test class for testing _stage_auto_restore_files method"""
+
+    def setUp(self):
+        super().setUp()
+        self.mock_path_mkdir = self._mock_object(Path, "mkdir")
+        self.mock_os_link = self._mock_object(os, "link")
+        self.mock_os_chmod = self._mock_object(os, "chmod")
+
+        self.stage_dir = Path("/tmp/test_stage_dir")
+        self.overrides_file = Path("/tmp/test_overrides.yml")
+        self.backup_file = Path(
+            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
+        )
+        self.expected_path = self.stage_dir / "auto-restore"
+        self.expected_destination = self.expected_path / "backup_restore_values.yml"
+
+    @mock.patch("builtins.open", new_callable=mock.mock_open)
+    @mock.patch("yaml.dump")
+    def test_stage_auto_restore_files_factory_without_sel_events(
+        self, mock_yaml_dump, mock_open
+    ):
+        """Test staging files for factory restore without SEL event monitoring"""
+        payload = {"local_only": False, "factory": True}
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode="factory",
+            ipmi_sel_event_monitoring=False,
+        )
+
+        # Verify auto-restore directory creation was attempted
+        self.mock_path_mkdir.assert_called_once()
+
+        # Verify only the auto_restore_mode was written to the file
+        mock_yaml_dump.assert_called_once_with(
+            {"auto_restore_mode": "factory"},
+            mock_open.return_value,
+            default_flow_style=False,
+        )
+
+        # Verify no hard links were created
+        self.mock_os_link.assert_not_called()
+
+        self.assertEqual(result, str(self.expected_path))
+
+    def test_stage_auto_restore_files_factory_with_sel_events(self):
+        """Test staging files for factory restore with SEL event monitoring"""
+        payload = {"local_only": True, "factory": True}
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode="factory",
+            ipmi_sel_event_monitoring=True,
+        )
+
+        # Verify auto-restore directory creation was attempted
+        self.mock_path_mkdir.assert_called_once()
+
+        # With SEL monitoring, it should stage the overrides file
+        self.mock_os_link.assert_called_once_with(
+            self.overrides_file, self.expected_destination
+        )
+        self.mock_os_chmod.assert_called_once_with(self.expected_destination, 0o600)
+
+        self.assertEqual(result, str(self.expected_path))
+
+    def test_stage_auto_restore_files_local_only(self):
+        """Test staging files for local-only auto restore"""
+        payload = {"local_only": True, "factory": False}
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode=None,
+            ipmi_sel_event_monitoring=None,
+        )
+
+        # Verify auto-restore directory creation
+        self.mock_path_mkdir.assert_called_once()
+
+        # Verify hard link was created for overrides file
+        self.mock_os_link.assert_called_once_with(
+            self.overrides_file, self.expected_destination
+        )
+
+        # Verify chmod was called to set permissions to 0o600
+        self.mock_os_chmod.assert_called_once_with(self.expected_destination, 0o600)
+
+        self.assertEqual(result, str(self.expected_path))
+
+    @mock.patch.object(cutils, "find_central_subcloud_backup")
+    def test_stage_auto_restore_files_central_restore(self, mock_find_backup):
+        """Test staging files for central (non-local) auto restore"""
+        mock_find_backup.return_value = self.backup_file
+
+        payload = {
+            "local_only": False,
+            "factory": False,
+            "software_version": "25.09",
+        }
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode="auto",
+            ipmi_sel_event_monitoring=None,
+        )
+
+        # Verify auto-restore directory creation
+        self.mock_path_mkdir.assert_called_once()
+
+        # Verify find_central_subcloud_backup was called
+        mock_find_backup.assert_called_once_with(self.subcloud.name, "25.09")
+
+        # Verify hard links were created for both files
+        expected_calls = [
+            mock.call(self.overrides_file, self.expected_destination),
+            mock.call(self.backup_file, self.expected_path / self.backup_file.name),
+        ]
+        self.mock_os_link.assert_has_calls(expected_calls)
+        self.assertEqual(self.mock_os_link.call_count, 2)
+
+        # Verify chmod was called once for overrides file
+        self.mock_os_chmod.assert_called_once_with(self.expected_destination, 0o600)
+
+        self.assertEqual(result, str(self.expected_path))
+
+    @mock.patch.object(cutils, "find_central_subcloud_backup")
+    def test_stage_auto_restore_files_auto_restore_mode(self, mock_find_backup):
+        """Test staging files with auto restore mode"""
+        mock_find_backup.return_value = self.backup_file
+
+        payload = {
+            "local_only": False,
+            "factory": False,
+            "software_version": "22.12",
+        }
+
+        result = self.sm._stage_auto_restore_files(
+            stage_dir=self.stage_dir,
+            overrides_file=self.overrides_file,
+            payload=payload,
+            subcloud=self.subcloud,
+            auto_restore_mode="auto",
+            ipmi_sel_event_monitoring=None,
+        )
+
+        # Verify auto-restore directory creation was attempted
+        self.mock_path_mkdir.assert_called_once()
+
+        # Verify both files were staged with correct arguments
+        expected_calls = [
+            mock.call(self.overrides_file, self.expected_destination),
+            mock.call(self.backup_file, self.expected_path / self.backup_file.name),
+        ]
+        self.mock_os_link.assert_has_calls(expected_calls)
+        self.assertEqual(self.mock_os_link.call_count, 2)
+
+        self.assertEqual(result, str(self.expected_path))
+
+
+class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
+    """Test class for testing _restore_subcloud_backup method"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+
+        # Common mocks
+        self.mock_create_inventory = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+        )
+        self.mock_create_inventory.return_value = "inventory_file.yml"
+
+        self.mock_create_overrides = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+        )
+        self.mock_create_overrides.return_value = "overrides_file.yml"
+
+        self.mock_run_playbook = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+        )
+        self.mock_run_playbook.return_value = True
+
+        self.mock_compose_restore = self._mock_object(
+            subcloud_manager.SubcloudManager, "compose_backup_restore_command"
+        )
+        self.mock_compose_restore.return_value = ["ansible-playbook", "restore.yml"]
+
+        # Mocks needed for with_install path
+        self.mock_run_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_run_install.return_value = True
+
+        self.mock_stage_files = self._mock_object(
+            subcloud_manager.SubcloudManager, "_stage_auto_restore_files"
+        )
+        self.mock_stage_files.return_value = "/tmp/staged_files"
+
+        self.mock_get_vault = self._mock_object(cutils, "get_vault_load_files")
+        self.mock_get_vault.return_value = ("test.iso", None)
+
+        self.mock_compose_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "compose_install_command"
+        )
+        self.mock_compose_install.return_value = ["ansible-playbook", "install.yml"]
+
+        self.mock_central_backup = self._mock_object(
+            cutils, "find_central_subcloud_backup"
+        )
+        self.mock_central_backup.return_value = Path(
+            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
+        )
+
+        # Setup subcloud in initial state
+        self.subcloud = db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
+        )
+
+    def _create_payload(
+        self, restore_mode="factory", ipmi_sel_monitoring=True, with_install=True
+    ):
+        payload = {
+            "override_values": {"ipmi_sel_event_monitoring": ipmi_sel_monitoring},
+            "sysadmin_password": "testpass",
+        }
+
+        if restore_mode == "factory":
+            payload["factory"] = True
+        elif restore_mode == "auto":
+            payload["auto"] = True
+
+        if with_install:
+            payload["with_install"] = True
+            payload["software_version"] = "25.09"
+
+        return payload
+
+    def test_restore_subcloud_backup_ipmi_sel_monitoring_disabled_factory(self):
+        """Test factory restore with ipmi_sel_event_monitoring disabled"""
+        payload = self._create_payload(
+            restore_mode="factory", ipmi_sel_monitoring=False
+        )
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify compose_backup_restore_command was called with correct arguments
+        self.mock_compose_restore.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "factory",
+            True,  # with_install
+            False,  # ipmi_sel_event_monitoring
+        )
+
+        # Verify compose_install_command was called with skip_install_monitoring=True
+        self.mock_compose_install.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "25.09",
+            False,  # bmc_access_only
+            False,  # skip_install_monitoring
+        )
+
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_ipmi_sel_monitoring_enabled_factory(self):
+        """Test factory restore with ipmi_sel_event_monitoring enabled (default)"""
+        payload = self._create_payload(restore_mode="factory")
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify compose_backup_restore_command was called with correct arguments
+        self.mock_compose_restore.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "factory",  # auto_restore_mode
+            True,  # with_install
+            True,  # ipmi_sel_event_monitoring
+        )
+
+        # Verify compose_install_command was called with skip_install_monitoring=False
+        self.mock_compose_install.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "25.09",
+            True,  # bmc_access_only
+            False,  # skip_install_monitoring
+        )
+
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_ipmi_sel_monitoring_disabled_auto_without_install(
+        self,
+    ):
+        """Test auto restore without install with ipmi_sel_event_monitoring disabled"""
+        mock_generate_seed_iso = self._mock_object(
+            subcloud_manager.SubcloudManager, "_generate_auto_restore_seed_iso"
+        )
+        mock_generate_seed_iso.return_value = "/tmp/seed.iso"
+
+        mock_cleanup_seed_iso = self._mock_object(
+            subcloud_manager.SubcloudManager, "_cleanup_auto_restore_seed_iso"
+        )
+
+        self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_rvmc_config_for_seed_iso"
+        )
+
+        payload = self._create_payload(
+            restore_mode="auto", ipmi_sel_monitoring=False, with_install=False
+        )
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify compose_backup_restore_command was called with correct arguments
+        self.mock_compose_restore.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "auto",  # auto_restore_mode
+            None,  # with_install
+            False,  # ipmi_sel_event_monitoring
+        )
+
+        # Verify compose_install_command was not called
+        self.mock_compose_install.assert_not_called()
+
+        # Verify seed ISO generation was called
+        mock_generate_seed_iso.assert_called_once()
+
+        # Verify cleanup was called
+        mock_cleanup_seed_iso.assert_called_once()
+
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_auto_with_install_ipmi_sel_disabled(self):
+        """Test auto restore with install when ipmi_sel_event_monitoring is disabled"""
+        payload = self._create_payload(
+            restore_mode="auto", ipmi_sel_monitoring=False, with_install=True
+        )
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify _stage_auto_restore_files was called with correct arguments
+        self.mock_stage_files.assert_called_once_with(
+            mock.ANY,
+            Path("overrides_file.yml"),
+            payload,
+            self.subcloud,
+            "auto",  # auto_restore_mode
+            False,  # ipmi_sel_event_monitoring
+        )
+
+        # Verify compose_install_command was called with skip_install_monitoring=True
+        self.mock_compose_install.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "25.09",
+            True,  # bmc_access_only
+            True,  # skip_install_monitoring
+        )
+
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_prep_failure(self):
+        """Test that prep failures are handled correctly"""
+        self.mock_create_inventory.side_effect = Exception("Prep failed")
+
+        payload = self._create_payload()
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify failure is returned
+        self.assertEqual(result, (self.subcloud, False))
+
+        # Verify deploy status was updated to DEPLOY_STATE_RESTORE_PREP_FAILED
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_PREP_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_restore_subcloud_backup_ipmi_sel_default_value(self):
+        """Test that ipmi_sel_event_monitoring defaults to True when not specified"""
+        payload = self._create_payload()
+        payload["override_values"] = {}  # ipmi_sel_event_monitoring not specified
+
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # Verify compose_backup_restore_command was called with
+        # ipmi_sel_event_monitoring=True (default)
+        self.mock_compose_restore.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            "factory",
+            True,  # with_install
+            True,  # ipmi_sel_event_monitoring (default)
+        )
+
+        self.assertEqual(result, (self.subcloud, True))
+
 
 class TestSubcloudMigrate(BaseTestSubcloudManager):
     """Test class for testing subcloud migrate"""
@@ -4207,9 +5308,11 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
         )
         self.saved_payload = {
             "deploy_status": consts.DEPLOY_STATE_DONE,
-            "rehome_data": '{"saved_payload": {"system_mode": "simplex",\
-            "name": "testsub", "bootstrap-address": "128.224.119.56",\
-            "admin_password": "TGk2OW51eA=="}}',
+            "rehome_data": (
+                '{"saved_payload": {"system_mode": "simplex",\
+                "name": "testsub", "bootstrap-address": "128.224.119.56",\
+                "admin_password": "TGk2OW51eA=="}}'
+            ),
         }
 
     @mock.patch.object(subcloud_manager, "db_api", side_effect=db_api)
@@ -4597,6 +5700,54 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_REHOME_FAILED, updated_subcloud.deploy_status
         )
 
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    def test_rehome_subcloud_find_and_save_ansible_error(self, mock_find_msg):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        self.mock_get_playbook_for_software_version = self._mock_object(
+            cutils, "get_playbook_for_software_version"
+        )
+        self.mock_get_playbook_for_software_version.return_value = SW_VERSION
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_NONE
+
+        self.sm.rehome_subcloud(self.ctx, self.subcloud)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud["name"], mock.ANY, consts.DEPLOY_STATE_REHOMING
+        )
+
+        # Verify that subcloud has the correct deploy status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud["name"])
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_REHOME_FAILED, updated_subcloud.deploy_status
+        )
+
+    def test_rehome_subcloud_find_and_save_ansible_timeout(self):
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
+
+        self.mock_get_playbook_for_software_version = self._mock_object(
+            cutils, "get_playbook_for_software_version"
+        )
+        self.mock_get_playbook_for_software_version.return_value = SW_VERSION
+
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_NONE
+
+        self.sm.rehome_subcloud(self.ctx, self.subcloud)
+
+        self.mock_ansible_run_playbook.assert_called_once()
+
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud["name"])
+        self.assertIn("Timeout", updated_subcloud.error_description)
+        self.assertEqual(
+            consts.DEPLOY_STATE_REHOME_FAILED, updated_subcloud.deploy_status
+        )
+
 
 class TestSubcloudInstall(BaseTestSubcloudManager):
     """Test class for testing subcloud install"""
@@ -4654,7 +5805,37 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
         ]
         self.mock_log_subcloud_manager.info.assert_has_calls(Calls)
 
-    def test_subcloud_install_prep_failed(self):
+    @mock.patch.object(request, "urlretrieve")
+    def test_subcloud_install_with_include_path(self, mock_request_urlretrieve):
+        mock_request_urlretrieve.return_value = "fake_path", "empty"
+        self.mock_ansible_run_playbook.return_value = False
+
+        self.sm._run_subcloud_install(
+            self.ctx,
+            self.subcloud,
+            self.mock_compose_install_command,
+            self.fake_log_file,
+            self.fake_install_values,
+            include_paths=["/fake/include/path"],
+        )
+
+        # Assert that at least one gen-bootloader-iso.sh call was made
+        script_calls = [
+            call
+            for call in self.mock_subprocess_run.call_args_list
+            if "/usr/local/bin/gen-bootloader-iso.sh" in call[0][0]
+        ]
+        self.assertTrue(script_calls, "No call to gen-bootloader-iso.sh was found")
+
+        # Assert that the --include-path and path are present
+        script_args = [arg for call in script_calls for arg in call[0][0]]
+        self.assertIn("--include-path", script_args)
+        self.assertIn("/fake/include/path", script_args)
+
+    @mock.patch.object(request, "urlretrieve")
+    def test_subcloud_install_prep_failed(self, mock_request_urlretrieve):
+        mock_request_urlretrieve.side_effect = Exception()
+
         install_success = self.sm._run_subcloud_install(
             self.ctx,
             self.subcloud,
@@ -4685,6 +5866,85 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
         self.assertEqual(consts.DEPLOY_STATE_INSTALLING, updated_subcloud.deploy_status)
         self.mock_ansible_run_playbook.assert_called_once()
         self.assertFalse(install_success)
+
+    @mock.patch.object(
+        cutils, "find_ansible_error_msg", return_value="Fake playbook error"
+    )
+    @mock.patch.object(request, "urlretrieve")
+    @mock.patch("dcmanager.manager.subcloud_manager.SubcloudInstall")
+    def test_subcloud_install_find_and_save_playbook_error(
+        self, mock_subcloud_install_cls, mock_request_urlretrieve, mock_find_msg
+    ):
+
+        mock_request_urlretrieve.return_value = "fake_path", "empty"
+
+        mock_install_instance = mock_subcloud_install_cls.return_value
+        mock_install_instance.install.side_effect = PlaybookExecutionFailed()
+
+        payload = {
+            "software_version": SW_VERSION,
+            "install_values": self.fake_install_values,
+        }
+
+        install_success = self.sm._run_subcloud_install(
+            self.ctx,
+            self.subcloud,
+            self.mock_compose_install_command,
+            self.fake_log_file,
+            payload,
+        )
+
+        self.assertFalse(install_success)
+
+        mock_find_msg.assert_called_once_with(
+            self.subcloud.name, self.fake_log_file, consts.DEPLOY_STATE_INSTALLING
+        )
+
+        mock_install_instance.cleanup.assert_called_once_with(
+            payload["software_version"]
+        )
+
+        # Verify that subcloud has the correct enroll status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_INSTALL_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertEqual("Fake playbook error", updated_subcloud.error_description)
+
+    @mock.patch.object(request, "urlretrieve")
+    @mock.patch("dcmanager.manager.subcloud_manager.SubcloudInstall")
+    def test_subcloud_install_find_and_save_playbook_timeout(
+        self, mock_subcloud_install_cls, mock_request_urlretrieve
+    ):
+
+        mock_request_urlretrieve.return_value = "fake_path", "empty"
+        mock_install_instance = mock_subcloud_install_cls.return_value
+        mock_install_instance.install.side_effect = PlaybookExecutionTimeout()
+
+        payload = {
+            "software_version": SW_VERSION,
+            "install_values": self.fake_install_values,
+        }
+
+        install_success = self.sm._run_subcloud_install(
+            self.ctx,
+            self.subcloud,
+            self.mock_compose_install_command,
+            self.fake_log_file,
+            payload,
+        )
+
+        self.assertFalse(install_success)
+        mock_install_instance.cleanup.assert_called_once_with(
+            payload["software_version"]
+        )
+
+        # Verify that subcloud has the correct enroll status
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_INSTALL_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertIn("Timeout", updated_subcloud.error_description)
 
 
 class TestSubcloudRename(BaseTestSubcloudManager):
@@ -4804,15 +6064,26 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             f"{self.seed_data_dir}/meta-data", "w"
         )
 
-    def test_build_seed_user_config(self):
+    @mock.patch("os.chmod")
+    def test_build_seed_user_config(self, mock_chmod):
+        scripts_dir = os.path.join(self.seed_data_dir, "cloud-init-config", "scripts")
+
         result = self.enroll_init._build_seed_user_config(
             self.seed_data_dir, self.iso_values
         )
 
         self.assertTrue(result)
-        self.mock_builtins_open.assert_called_once_with(
-            f"{self.seed_data_dir}/user-data", "w"
+        self.mock_os_makedirs.assert_any_call(scripts_dir, exist_ok=True)
+
+        # The user-data file must be created
+        self.mock_builtins_open.assert_any_call(f"{self.seed_data_dir}/user-data", "w")
+
+        # The platform script must be created
+        platform_script = os.path.join(
+            scripts_dir,
+            dccommon_consts.PLATFORM_RECONFIGURE_FILE_NAME,
         )
+        self.mock_builtins_open.assert_any_call(platform_script, "w")
 
         # Test with incomplete iso_values, expect KeyError
         copied_dict = self.iso_values.copy()
@@ -4848,9 +6119,10 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             copied_dict,
         )
 
-    def test_generate_seed_iso(self):
+    @mock.patch("os.chmod")
+    def test_generate_seed_iso(self, mock_chmod):
         with mock.patch("os.path.isdir", side_effect=self.patched_isdir):
-            self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values))
+            self.assertTrue(self.enroll_init._generate_seed_iso(self.iso_values, None))
 
             self.mock_log_subcloud_enrollment.info.assert_any_call(
                 f"Preparing seed iso generation for {self.subcloud_name}"
@@ -4870,6 +6142,19 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.mock_builtins_open.assert_any_call(
                 f"{self.seed_data_dir}/network-config", "w"
             )
+            # The scripts directory must be created
+            scripts_dir = os.path.join(
+                self.seed_data_dir,
+                "cloud-init-config",
+                "scripts",
+            )
+            self.mock_os_makedirs.assert_any_call(scripts_dir, exist_ok=True)
+            # The platform script must be created
+            platform_script = os.path.join(
+                scripts_dir,
+                dccommon_consts.PLATFORM_RECONFIGURE_FILE_NAME,
+            )
+            self.mock_builtins_open.assert_any_call(platform_script, "w")
 
     @mock.patch.object(
         subcloud_install.SubcloudInstall,
@@ -4901,7 +6186,7 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
             self.mock_os_makedirs.assert_called_once()
             self.assertEqual(self.mock_os_makedirs.call_args.args[0], self.iso_dir)
 
-            mock_generate_seed_iso.assert_called_once_with(self.iso_values)
+            mock_generate_seed_iso.assert_called_once_with(self.iso_values, None)
 
             # create rvmc config file
             self.mock_builtins_open.assert_any_call(
@@ -4922,16 +6207,18 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
                 f"{override_path}/enroll_overrides.yml", "w"
             )
 
-            self.mock_builtins_open().write.assert_any_call(
-                "---" "\nenroll_reconfigured_oam: " + "10.10.10.2" + "\n"
+            written_data = "".join(
+                call.args[0] for call in self.mock_builtins_open().write.call_args_list
             )
+            self.assertIn("enroll_reconfigured_oam: 10.10.10.2", written_data)
 
     @mock.patch.object(
         subcloud_install.SubcloudInstall,
         "get_image_base_url",
         return_value="https://10.10.10.12:8080",
     )
-    def test_enroll_prep_iso_cleanup(self, mock_validate):
+    @mock.patch("os.chmod")
+    def test_enroll_prep_iso_cleanup(self, mock_chmod, mock_validate):
         result = self.enroll_init.prep(ANS_PATH, self.iso_values, 4)
         self.assertTrue(result)
         self.mock_log_subcloud_enrollment.info.assert_any_call(
@@ -4941,8 +6228,9 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         # Previous iso file must be cleaned up
         self.mock_os_remove.assert_called_once_with(self.iso_file)
 
-        # Makedirs shouldn't be invoked, given that prev iso existed
-        self.mock_os_makedirs.assert_not_called()
+        # Now makedirs *should* be called for the scripts dir at least once
+        scripts_dir = os.path.join(self.seed_data_dir, "cloud-init-config", "scripts")
+        self.mock_os_makedirs.assert_called_once_with(scripts_dir, exist_ok=True)
 
         self.mock_log_subcloud_enrollment.info.assert_any_call(
             f"Found preexisting seed iso for subcloud {self.subcloud_name}, cleaning up"
@@ -4962,3 +6250,109 @@ class TestSubcloudEnrollment(BaseTestSubcloudManager):
         )
         expected_log_file = f"{subcloud_log_base_path}_playbook_output.log"
         self.mock_ansible_run_playbook.assert_called_with(expected_log_file, mock.ANY)
+
+
+class TestEnrollOverrides(BaseTestSubcloudManager):
+    """Test class for testing enroll override file creation methods."""
+
+    def setUp(self):
+        super().setUp()
+        self.override_path = "/test/override/path"
+        self.rel_version = "25.09"
+        self.subcloud_name = "test_subcloud"
+        self.enroll_init = subcloud_enrollment.SubcloudEnrollmentInit(
+            self.subcloud_name
+        )
+        self.fake_install_values = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        self.iso_values = {
+            "software_version": self.rel_version,
+            "external_oam_floating_address": "10.10.10.2",
+            "install_values": self.fake_install_values,
+        }
+
+        # Base variables that can be modified in individual test cases
+        self.enroll_overrides = {"key2": "value2", "key3": "value3"}
+        self.expected_content = [
+            "enroll_reconfigured_oam: 10.10.10.2",
+            "key2: value2",
+            "key3: value3",
+        ]
+
+    def _run_test_scenario(
+        self,
+        enroll_overrides,
+        cloud_init_tarball,
+        expected_content,
+        unexpected_content=None,
+    ):
+        self.mock_builtins_open.side_effect = mock.mock_open()
+        test_iso_values = self.iso_values.copy()
+        if enroll_overrides:
+            test_iso_values["install_values"]["enroll_overrides"] = enroll_overrides
+
+        self.enroll_init.create_enroll_override_file(
+            self.override_path, test_iso_values, cloud_init_tarball
+        )
+
+        expected_file_path = f"{self.override_path}/enroll_overrides.yml"
+        self.mock_builtins_open.assert_called_with(expected_file_path, "w")
+
+        write_calls = self.mock_builtins_open().write.call_args_list
+        content = "".join([call[0][0] for call in write_calls])
+
+        for expected in expected_content:
+            self.assertIn(expected, content)
+
+        if unexpected_content:
+            for unexpected in unexpected_content:
+                self.assertNotIn(unexpected, content)
+
+    def test_create_enroll_override_file_without_cloud_tarball_and_ipmi_monitoring(
+        self,
+    ):
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: false")
+        self._run_test_scenario(self.enroll_overrides, None, expected_content)
+
+    def test_create_enroll_override_file_no_cloud_tarball_with_ipmi_monitoring(
+        self,
+    ):
+        self.enroll_overrides["ipmi_sel_event_monitoring"] = True
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: true")
+        self._run_test_scenario(self.enroll_overrides, None, expected_content)
+
+    def test_create_enroll_override_file_no_cloud_tarball_ipmi_false(
+        self,
+    ):
+        self.enroll_overrides["ipmi_sel_event_monitoring"] = False
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: false")
+        self._run_test_scenario(self.enroll_overrides, None, expected_content)
+
+    def test_create_enroll_override_file_with_cloud_tarball_and_ipmi_monitoring(
+        self,
+    ):
+        self.enroll_overrides["ipmi_sel_event_monitoring"] = True
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: true")
+        self._run_test_scenario(
+            self.enroll_overrides, "/path/to/cloud_init.tar", expected_content
+        )
+
+    def test_create_enroll_override_file_with_cloud_tarball_no_ipmi_override(self):
+        unexpected_content = ["ipmi_sel_event_monitoring"]
+        self._run_test_scenario(
+            self.enroll_overrides,
+            "/path/to/cloud_init.tar",
+            self.expected_content,
+            unexpected_content,
+        )
+
+    def test_create_enroll_override_file_with_cloud_init_tarball_ipmi_false(self):
+        self.enroll_overrides["ipmi_sel_event_monitoring"] = False
+        expected_content = self.expected_content.copy()
+        expected_content.append("ipmi_sel_event_monitoring: false")
+        self._run_test_scenario(
+            self.enroll_overrides, "/path/to/cloud_init.tar", expected_content
+        )
