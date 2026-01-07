@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -2073,6 +2073,28 @@ class Connection(object):
             result.name = new_name
             result.save(session)
             return result
+
+    @require_context(admin=True)
+    def subcloud_backup_config_get(self):
+        try:
+            result = (
+                model_query(self.context, models.SubcloudBackupConfig)
+                .filter_by(deleted=0)
+                .filter_by(id=1)  # Single row with id=1
+                .one()
+            )
+        except Exception as e:
+            raise exception.BackupConfigNotFound() from e
+
+        return result
+
+    @require_context(admin=True)
+    def subcloud_backup_config_update(self, values):
+        with write_session() as session:
+            config = self.subcloud_backup_config_get()
+            config.update(values)
+            config.save(session)
+            return config
 
 
 def initialize_subcloud_group_default(engine):

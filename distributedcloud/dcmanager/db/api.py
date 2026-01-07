@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -1191,3 +1191,11 @@ def subcloud_alarms_delete(context, name):
 
 def subcloud_rename_alarms(context, subcloud_name, new_name):
     return IMPL.Connection(context).subcloud_rename_alarms(subcloud_name, new_name)
+
+
+def subcloud_backup_config_get(context) -> models.SubcloudBackupConfig:
+    return IMPL.Connection(context).subcloud_backup_config_get()
+
+
+def subcloud_backup_config_update(context, values: dict) -> models.SubcloudBackupConfig:
+    return IMPL.Connection(context).subcloud_backup_config_update(values)

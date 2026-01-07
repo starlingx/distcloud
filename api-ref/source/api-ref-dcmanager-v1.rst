@@ -1135,6 +1135,97 @@ Response Example
 .. literalinclude:: samples/subcloud-backup/subcloud-restore-backup-response.json
          :language: json
 
+------------------------------
+Subcloud Backup Configuration
+------------------------------
+
+The Subcloud Backup Configuration API allows administrators to configure global
+backup policy parameters that affect all subcloud backup operations. These
+settings control where backup files are stored and how many backup archives are
+retained per software release.
+
+Configuration parameters include:
+
+- **storage_location**: The backup storage backend location, either local
+  filesystem (dc-vault) or distributed file server (seaweedfs)
+- **retention_count**: The number of backup archives to retain per software
+  release (1-10)
+
+**********************************************
+Retrieves the current backup configuration
+**********************************************
+
+.. rest_method:: GET /v1.0/subcloud-backup-config
+
+**Normal response codes**
+
+OK (200)
+
+**Error response codes**
+
+unauthorized (401), forbidden (403), internalServerError (500)
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - storage_location: backup_config_storage_location
+  - retention_count: backup_config_retention_count
+  - updated_at: backup_config_updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup-config/subcloud-backup-config-get-response.json
+         :language: json
+
+***********************************************
+Updates the backup configuration
+***********************************************
+
+.. rest_method:: PATCH /v1.0/subcloud-backup-config
+
+Accepts Content-Type application/json.
+
+At least one parameter (storage_location or retention_count) must be provided in
+the request.
+
+**Normal response codes**
+
+OK (200)
+
+**Error response codes**
+
+badRequest (400), unauthorized (401), forbidden (403),
+HTTPUnprocessableEntity (422), internalServerError (500)
+
+**Request parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - storage_location: backup_config_storage_location_optional
+  - retention_count: backup_config_retention_count_optional
+
+Request Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup-config/subcloud-backup-config-update-request.json
+         :language: json
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - storage_location: backup_config_storage_location
+  - retention_count: backup_config_retention_count
+  - updated_at: backup_config_updated_at
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup-config/subcloud-backup-config-update-response.json
+         :language: json
+
 ----------------
 Subcloud Alarms
 ----------------

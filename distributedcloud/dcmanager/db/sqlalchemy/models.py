@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -300,3 +300,13 @@ class SubcloudAlarmSummary(BASE, DCManagerBase):
     minor_alarms = Column("minor_alarms", Integer)
     warnings = Column("warnings", Integer)
     cloud_status = Column("cloud_status", String(64))
+
+
+class SubcloudBackupConfig(BASE, DCManagerBase):
+    """Represents the global backup configuration (single row)"""
+
+    __tablename__ = "subcloud_backup_config"
+
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    storage_location = Column(String(64), nullable=False, default="dc-vault")
+    retention_count = Column(Integer, nullable=False, default=1)

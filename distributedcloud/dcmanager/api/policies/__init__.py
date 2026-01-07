@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023, 2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,6 +11,7 @@ from dcmanager.api.policies import base
 from dcmanager.api.policies import peer_group_association
 from dcmanager.api.policies import phased_subcloud_deploy
 from dcmanager.api.policies import subcloud_backup
+from dcmanager.api.policies import subcloud_backup_config
 from dcmanager.api.policies import subcloud_deploy
 from dcmanager.api.policies import subcloud_group
 from dcmanager.api.policies import subcloud_peer_group
@@ -30,6 +31,7 @@ def list_rules():
         sw_update_options.list_rules(),
         subcloud_group.list_rules(),
         subcloud_backup.list_rules(),
+        subcloud_backup_config.list_rules(),
         phased_subcloud_deploy.list_rules(),
         subcloud_peer_group.list_rules(),
         peer_group_association.list_rules(),

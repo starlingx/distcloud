@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -21,6 +21,7 @@ from dcmanager.api.controllers.v1 import notifications
 from dcmanager.api.controllers.v1 import peer_group_association
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_backup
+from dcmanager.api.controllers.v1 import subcloud_backup_config
 from dcmanager.api.controllers.v1 import subcloud_deploy
 from dcmanager.api.controllers.v1 import subcloud_group
 from dcmanager.api.controllers.v1 import subcloud_peer_group
@@ -56,6 +57,9 @@ class Controller(object):
             sub_controllers["notifications"] = notifications.NotificationsController
             sub_controllers["subcloud-backup"] = (
                 subcloud_backup.SubcloudBackupController
+            )
+            sub_controllers["subcloud-backup-config"] = (
+                subcloud_backup_config.SubcloudBackupConfigController
             )
             sub_controllers["phased-subcloud-deploy"] = (
                 phased_subcloud_deploy.PhasedSubcloudDeployController

@@ -184,6 +184,49 @@ backup_values:
   in: body
   required: false
   type: multipart
+backup_config_storage_location:
+  description: |
+    The backup storage backend location. Valid values are:
+
+    - ``dc-vault``: Local filesystem storage on the system controller (default)
+    - ``seaweedfs``: Distributed file server storage
+  in: body
+  required: true
+  type: string
+backup_config_storage_location_optional:
+  description: |
+    The backup storage backend location. Valid values are:
+
+    - ``dc-vault``: Local filesystem storage on the system controller (default)
+    - ``seaweedfs``: Distributed file server storage
+
+    Note: When switching to SeaweedFS, the service must be available and
+    accessible.
+  in: body
+  required: false
+  type: string
+backup_config_retention_count:
+  description: |
+    The number of backup archives to retain per software release.
+    Must be between 1 and 10.
+  in: body
+  required: true
+  type: integer
+backup_config_retention_count_optional:
+  description: |
+    The number of backup archives to retain per software release.
+    Must be between 1 and 10.
+  in: body
+  required: false
+  type: integer
+backup_config_updated_at:
+  description: |
+    The timestamp when the backup configuration was last updated, in ISO 8601
+    format. Returns ``null`` if the configuration has never been modified from
+    the default values.
+  in: body
+  required: true
+  type: string
 bmc_password:
   description: |
     The BMC password of the subcloud. Must be base64 encoded.

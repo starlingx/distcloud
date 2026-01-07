@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -437,6 +437,17 @@ CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
 SUBCLOUD_LOCAL_BACKUP_DIR = "/opt/platform-backup/backups"
 SUBCLOUD_AUTO_RESTORE_DIR = "/opt/platform-backup/auto-restore"
 SUBCLOUD_FACTORY_BACKUP_DIR = "/opt/platform-backup/factory"
+
+# Subcloud backup storage backends/location
+BACKUP_STORAGE_DC_VAULT = "dc-vault"
+BACKUP_STORAGE_SEAWEEDFS = "seaweedfs"
+BACKUP_STORAGE_LOCATIONS = [BACKUP_STORAGE_DC_VAULT, BACKUP_STORAGE_SEAWEEDFS]
+
+# Backup configuration defaults
+DEFAULT_BACKUP_STORAGE_LOCATION = BACKUP_STORAGE_DC_VAULT
+DEFAULT_BACKUP_RETENTION_COUNT = 1
+MIN_BACKUP_RETENTION_COUNT = 1
+MAX_BACKUP_RETENTION_COUNT = 10
 
 FACTORY_BACKUP_PREFIX = "factory_backup"
 FACTORY_BACKUP_REGISTRY_FILESYSTEM_PREFIX = "localhost_image_registry_backup"
