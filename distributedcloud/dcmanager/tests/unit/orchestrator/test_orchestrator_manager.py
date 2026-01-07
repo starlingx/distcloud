@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -338,7 +338,7 @@ class TestOrchestratorManagerKubeRootcaCreate(
     def setUp(self):
         super().setUp()
 
-        extra_args = {"cert-file": "temp.ca"}
+        extra_args = {}
         self.payload = self._create_request_payload(
             consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE, **extra_args
         )
@@ -353,18 +353,14 @@ class TestOrchestratorManagerKubeRootcaCreate(
         self.mock_os = self._mock_object(orchestrator_manager, "os")
         self._mock_object(orchestrator_manager, "shutil")
 
-    def test_kube_rootca_strategy_create_succeeds_with_cert_file(self):
-        """Test kube-rootca strategy create succeeds with cert file"""
-
-        cert_path = f"{consts.CERTS_VAULT_DIR}/{self.payload['cert-file']}"
-        self.mock_os.path.join.return_value = cert_path
+    def test_kube_rootca_strategy_create_succeeds(self):
+        """Test kube-rootca strategy create succeeds"""
 
         response = self.orchestrator_manager.create_sw_update_strategy(
             self.ctx, self.payload
         )
 
         self._assert_strategy(response, None, self.payload)
-        self.assertEqual(response["extra-args"]["cert-file"], cert_path)
         self._assert_database_calls(group=False)
 
         # Verify strategy step was created as expected
@@ -1197,7 +1193,9 @@ class TestOrchestratorManagerStrategyMonitoring(BaseTestOrchestratorManager):
 
         # When there isn't any step in initial state, the strategy is set to aborting
         db_api.strategy_step_update_all(
-            self.ctx, {}, {"state": consts.STRATEGY_STATE_KUBE_ROOTCA_UPDATE_START}
+            self.ctx,
+            {},
+            {"state": consts.STRATEGY_STATE_CREATING_VIM_KUBE_ROOTCA_UPDATE_STRATEGY},
         )
 
         self.orchestrator_manager._periodic_strategy_monitoring_loop(self.strategy.type)

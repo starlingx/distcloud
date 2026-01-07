@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -43,17 +43,8 @@ class AuditController(object):
         if not payload:
             pecan.abort(http.client.BAD_REQUEST, _("Body required"))
 
-        # TODO(vgluzrom): Remove extra_args from header and keep it only in payload
-        # once all supported dcagent versions have this possibility. If system
-        # controller sends extra_args in payload to a dcagent that doesn't support it,
-        # it will raise an UnsupportedAudit exception.
-        try:
-            headers = json.loads(request.headers.get("X-DCAGENT-HEADERS", "{}"))
-        except ValueError:
-            pecan.abort(http.client.BAD_REQUEST, _("Request headers decoding error"))
-
+        # Remove extra_args from the payload (used in previous versions)
         extra_args = payload.pop("extra_args", {})
-        extra_args = {**extra_args, **headers}
 
         LOG.debug(
             f"Payload sent by system controller: {payload}. Extra args: {extra_args}"
@@ -66,7 +57,7 @@ class AuditController(object):
             requested_audit = RequestedAudit(
                 request_token=context.auth_token, use_cache=use_cache
             )
-            return requested_audit.get_sync_status(payload, extra_args)
+            return requested_audit.get_sync_status(payload)
 
         except UnsupportedAudit as ex:
             LOG.exception(ex)

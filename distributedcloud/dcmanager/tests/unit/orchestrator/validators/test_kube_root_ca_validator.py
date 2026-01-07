@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -47,7 +47,6 @@ class TestKubeRootCaValidator(
         return {
             consts.EXTRA_ARGS_EXPIRY_DATE: "2024-06-28",
             consts.EXTRA_ARGS_SUBJECT: None,
-            consts.EXTRA_ARGS_CERT_FILE: None,
         }
 
     def test_build_sync_status_without_force(self):

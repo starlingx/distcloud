@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -25,7 +25,6 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
         self.info_log(strategy_step, "Creating (%s) VIM strategy" % self.strategy_name)
 
         # This strategy supports the following additional kwargs.
-        #     cert_file
         #     expiry_date
         #     subject
         # These kwargs are retrieved from the extra_args of the strategy
@@ -33,7 +32,6 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
         if extra_args is None:
             extra_args = {}
         # Note that extra_args use "-" and not "_" in their keys
-        cert_file = extra_args.get("cert-file", None)
         expiry_date = extra_args.get("expiry-date", None)
         subject = extra_args.get("subject", None)
 
@@ -50,7 +48,6 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
             opts_dict["max-parallel-workers"],
             opts_dict["default-instance-action"],
             opts_dict["alarm-restriction-type"],
-            cert_file=cert_file,
             expiry_date=expiry_date,
             subject=subject,
         )
