@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,6 +21,7 @@ WRONG_URL = "/v1.0/wrong"
 FAKE_SOFTWARE_VERSION = "25.09"
 
 FAKE_HEADERS = {
+    "X-Auth-Token": "fake_keystone_token",
     "X-Tenant-Id": FAKE_TENANT,
     "X_ROLE": "admin,member,reader",
     "X-Identity-Status": "Confirmed",

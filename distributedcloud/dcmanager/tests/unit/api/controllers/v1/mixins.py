@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2020-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -30,6 +30,7 @@ class APIMixin(object):
     FAKE_TENANT = utils.UUID1
 
     api_headers = {
+        "X-Auth-Token": "fake_keystone_token",
         "X-Tenant-Id": FAKE_TENANT,
         "X_ROLE": "admin,member,reader",
         "X-Identity-Status": "Confirmed",
