@@ -12,6 +12,7 @@
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-black
+        - stx-distcloud-tox-cover
     gate:
       jobs:
         - openstack-tox-linters
@@ -19,6 +20,7 @@
         - stx-distcloud-tox-py39
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-black
+        - stx-distcloud-tox-cover
     post:
       jobs:
         - stx-distcloud-upload-git-mirror
@@ -84,6 +86,25 @@
       python_version: 3.9
       tox_envlist: black
       tox_extra_args: -c distributedcloud/tox.ini
+
+- job:
+    name: stx-distcloud-tox-cover
+    parent: tox
+    description: Run coverage test for distcloud
+    nodeset: debian-bullseye
+    required-projects:
+      - starlingx/fault
+      - starlingx/nfv
+      - starlingx/update
+      - starlingx/config
+      - starlingx/root
+      - starlingx/utilities
+    vars:
+      python_version: 3.9
+      tox_envlist: cover
+      tox_extra_args: -c distributedcloud/tox.ini
+    post-run: tools/gate/playbooks/fetch-coverage.yaml
+    voting: false
 
 - job:
     name: stx-distcloud-upload-git-mirror

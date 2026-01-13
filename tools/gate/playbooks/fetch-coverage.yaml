@@ -1,0 +1,16 @@
+---
+- hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: false
+  tasks:
+    - name: Collect coverage artifacts
+      synchronize:
+        src: "{{ zuul.project.src_dir }}/distributedcloud/{{ item }}"
+        dest: "{{ zuul.executor.log_root }}/{{ item }}"
+        mode: pull
+        copy_links: true
+        verify_host: true
+      loop:
+        - cover/
+        - coverage.xml
+        - .coverage
+      ignore_errors: true
