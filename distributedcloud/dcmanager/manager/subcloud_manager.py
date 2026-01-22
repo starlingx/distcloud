@@ -2062,7 +2062,7 @@ class SubcloudManager(manager.Manager):
             install_command = self._deploy_install_prep(
                 subcloud, payload, ansible_subcloud_inventory_file, initial_deployment
             )
-            install_success = self._run_subcloud_install(
+            install_success, _ = self._run_subcloud_install(
                 context, subcloud, install_command, log_file, payload["install_values"]
             )
             if install_success:
@@ -3257,6 +3257,9 @@ class SubcloudManager(manager.Manager):
         bmc_access_only = True
         skip_install_monitoring = False
         seed_iso_path = None
+        initial_sel_event_id = None
+        install_instance = None
+        defer_install_cleanup_on_success = False
 
         if payload.get("factory"):
             auto_restore_mode = "factory"
@@ -3461,7 +3464,40 @@ class SubcloudManager(manager.Manager):
                         )
                     ]
 
-                install_success = self._run_subcloud_install(
+                # To allow both the install and restore playbooks to know which
+                # SEL event to start monitoring from without a race condition issue
+                # between the install and restore operations, we get the initial
+                # SEL event beforehand.
+                try:
+                    if bmc_access_only and not skip_install_monitoring:
+                        initial_sel_event_id = utils.get_last_sel_event_id(data_install)
+                        install_command += [
+                            "-e",
+                            f"ipmi_initial_event_id={initial_sel_event_id}",
+                        ]
+                except Exception:
+                    db_api.subcloud_update(
+                        context,
+                        subcloud.id,
+                        deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                    )
+                    LOG.exception(
+                        "Failed to get initial SEL event ID for subcloud "
+                        f"{subcloud.name}"
+                    )
+                    return subcloud, False
+
+                # For auto-restore with install and without SEL events, the install
+                # playbook only triggers the install + auto-restore, so we can't
+                # remove the miniboot.iso after the playbook is done
+                if (
+                    auto_restore_mode == "auto"
+                    and payload.get("with_install")
+                    and not ipmi_sel_event_monitoring
+                ):
+                    defer_install_cleanup_on_success = True
+
+                install_success, install_instance = self._run_subcloud_install(
                     context,
                     subcloud,
                     install_command,
@@ -3469,12 +3505,48 @@ class SubcloudManager(manager.Manager):
                     data_install,
                     include_paths,
                     kickstart_uri,
+                    defer_install_cleanup_on_success,
                 )
 
             if not install_success:
                 return subcloud, False
 
         try:
+            # We already know the initial SEL event ID,
+            # so just pass it to the restore playbook
+            if initial_sel_event_id is not None:
+                restore_command += [
+                    "-e",
+                    f"ipmi_initial_event_id={initial_sel_event_id}",
+                ]
+
+            # This could be an auto-restore without remote install,
+            # so we get the initial_sel_event_id before restore
+            elif (
+                auto_restore_mode == "auto"
+                and not payload.get("with_install")
+                and ipmi_sel_event_monitoring
+            ):
+                try:
+                    initial_sel_event_id = utils.get_last_sel_event_id(
+                        payload.get("install_values", {})
+                    )
+                    restore_command += [
+                        "-e",
+                        f"ipmi_initial_event_id={initial_sel_event_id}",
+                    ]
+                except Exception:
+                    db_api.subcloud_update(
+                        context,
+                        subcloud.id,
+                        deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                    )
+                    LOG.exception(
+                        "Failed to get initial SEL event ID for subcloud "
+                        f"{subcloud.name}"
+                    )
+                    return subcloud, False
+
             success = self._run_subcloud_backup_restore_playbook(
                 subcloud, restore_command, context, log_file, auto_restore_mode
             )
@@ -3485,6 +3557,8 @@ class SubcloudManager(manager.Manager):
             return subcloud, success
 
         finally:
+            if defer_install_cleanup_on_success and install_instance:
+                install_instance.cleanup()
             if seed_iso_path:
                 self._cleanup_auto_restore_seed_iso(seed_iso_path)
 
@@ -4008,13 +4082,31 @@ class SubcloudManager(manager.Manager):
     @staticmethod
     def _run_subcloud_install(
         context,
-        subcloud,
-        install_command,
-        log_file,
-        payload,
-        include_paths=None,
-        kickstart_uri=None,
-    ):
+        subcloud: Subcloud,
+        install_command: list[str],
+        log_file: str,
+        payload: dict,
+        include_paths: Optional[list] = None,
+        kickstart_uri: Optional[str] = None,
+        defer_cleanup_on_success: bool = False,
+    ) -> tuple[bool, Optional[SubcloudInstall]]:
+        """Execute remote installation of a subcloud.
+
+        Prepares the installation environment, runs the Ansible install playbook,
+        and handles cleanup. Updates subcloud deploy_status through PRE_INSTALL,
+        INSTALLING, and terminal states (success/failure).
+
+        :param context: Request context with authentication info
+        :param subcloud: Subcloud to install (DB model object)
+        :param install_command: Ansible playbook command to execute
+        :param log_file: Path to installation log file
+        :param payload: Installation parameters including software_version and
+        install_values
+        :param include_paths: Additional file paths to be included in the miniboot.iso
+        :param kickstart_uri: URI for kickstart file override
+        :param defer_cleanup_on_success: Skip cleanup after successful install
+        :returns: Tuple of (success boolean, SubcloudInstall instance or None)
+        """
         software_version = str(payload["software_version"])
         LOG.info(
             "Preparing remote install of %s, version: %s",
@@ -4031,6 +4123,8 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_PRE_INSTALL,
                 software_version=software_version,
             )
+
+        install = None
         try:
             install = SubcloudInstall(subcloud.name)
             subcloud_primary_oam_ip_family = utils.get_primary_oam_address_ip_family(
@@ -4052,7 +4146,7 @@ class SubcloudManager(manager.Manager):
             )
             if install:
                 install.cleanup(software_version)
-            return False
+            return False, install
 
         # Run the remote install playbook
         LOG.info("Starting remote install of %s" % subcloud.name)
@@ -4075,12 +4169,13 @@ class SubcloudManager(manager.Manager):
             )
             LOG.error(msg)
             install.cleanup(software_version)
-            return False
-        install.cleanup(software_version)
+            return False, install
+        if not defer_cleanup_on_success:
+            install.cleanup(software_version)
         if aborted:
-            return False
+            return False, install
         LOG.info("Successfully installed %s" % subcloud.name)
-        return True
+        return True, install
 
     def _run_subcloud_enroll(
         self, context, subcloud, enroll_command, log_file, region_name

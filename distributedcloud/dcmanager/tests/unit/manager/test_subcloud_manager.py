@@ -982,7 +982,7 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         self.mock_compose_install_command = self._mock_object(
             subcloud_manager.SubcloudManager, "compose_install_command"
         )
-        self.mock_run_subcloud_install.return_value = True
+        self.mock_run_subcloud_install.return_value = (True, mock.MagicMock())
         self.fake_payload_install["software_version"] = FAKE_PREVIOUS_SW_VERSION
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_PRE_INSTALL
         self.fake_install_values["software_version"] = SW_VERSION
@@ -1375,7 +1375,7 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
     def test_subcloud_deploy_resume(self, mock_update_yml, mock_prepare_for_deployment):
         self.mock_get_playbook_for_software_version.return_value = FAKE_SW_VERSION
         self.mock_ansible_run_playbook.return_value = False
-        self.mock_run_subcloud_install.return_value = True
+        self.mock_run_subcloud_install.return_value = (True, mock.MagicMock())
 
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_CREATED
 
@@ -3352,7 +3352,7 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
         )
         self.mock_get_playbook_for_software_version.return_value = FAKE_SW_VERSION
         self.mock_ansible_run_playbook.return_value = False
-        self.mock_run_subcloud_install.return_value = True
+        self.mock_run_subcloud_install.return_value = (True, mock.MagicMock())
 
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_CREATED
         self.fake_install_values["software_version"] = SW_VERSION
@@ -5000,7 +5000,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
         mock_create_inventory_file.return_value = "inventory_file.yml"
         mock_create_overrides.return_value = "overrides_file.yml"
-        self.mock_run_subcloud_install.return_value = True
+        self.mock_run_subcloud_install.return_value = (True, mock.MagicMock())
         mock_run_restore_playbook.return_value = True
 
         values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
@@ -5026,6 +5026,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
         )
 
+    @mock.patch("dcmanager.common.utils.subprocess.run")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_stage_auto_restore_files")
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
@@ -5042,6 +5043,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         mock_create_overrides,
         mock_run_restore_playbook,
         mock_stage_auto_restore_files,
+        mock_run,
     ):
         self.mock_run_subcloud_install = self._mock_object(
             subcloud_manager.SubcloudManager, "_run_subcloud_install"
@@ -5050,8 +5052,12 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
         mock_create_inventory_file.return_value = "inventory_file.yml"
         mock_create_overrides.return_value = "overrides_file.yml"
-        self.mock_run_subcloud_install.return_value = True
+        self.mock_run_subcloud_install.return_value = (True, mock.MagicMock())
         mock_run_restore_playbook.return_value = True
+        mock_run.return_value = mock.Mock(
+            stdout=json.dumps({"last_event_id": "12345"}),
+            returncode=0,
+        )
 
         values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
         values["factory"] = True
@@ -5143,7 +5149,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
         mock_create_inventory_file.return_value = "inventory_file.yml"
         mock_create_overrides.return_value = "overrides_file.yml"
-        self.mock_run_subcloud_install.return_value = True
+        self.mock_run_subcloud_install.return_value = (True, mock.MagicMock())
         mock_run_restore_playbook.return_value = True
 
         # Set the wipe_osds to True in the install data
@@ -5814,7 +5820,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
         self.mock_run_install = self._mock_object(
             subcloud_manager.SubcloudManager, "_run_subcloud_install"
         )
-        self.mock_run_install.return_value = True
+        self.mock_run_install.return_value = (True, mock.MagicMock())
 
         self.mock_stage_files = self._mock_object(
             subcloud_manager.SubcloudManager, "_stage_auto_restore_files"
@@ -5885,8 +5891,16 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
 
         self.assertEqual(result, (self.subcloud, True))
 
-    def test_restore_subcloud_backup_ipmi_sel_monitoring_enabled_factory(self):
+    @mock.patch("dcmanager.common.utils.subprocess.run")
+    def test_restore_subcloud_backup_ipmi_sel_monitoring_enabled_factory(
+        self, mock_run
+    ):
         """Test factory restore with ipmi_sel_event_monitoring enabled (default)"""
+        mock_run.return_value = mock.Mock(
+            stdout=json.dumps({"last_event_id": "12345"}),
+            returncode=0,
+        )
+
         payload = self._create_payload(restore_mode="factory")
 
         result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
@@ -6059,8 +6073,14 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_RESTORE_PREP_FAILED, updated_subcloud.deploy_status
         )
 
-    def test_restore_subcloud_backup_ipmi_sel_default_value(self):
+    @mock.patch("dcmanager.common.utils.subprocess.run")
+    def test_restore_subcloud_backup_ipmi_sel_default_value(self, mock_run):
         """Test that ipmi_sel_event_monitoring defaults to True when not specified"""
+        mock_run.return_value = mock.Mock(
+            stdout=json.dumps({"last_event_id": "12345"}),
+            returncode=0,
+        )
+
         payload = self._create_payload()
         payload["override_values"] = {}  # ipmi_sel_event_monitoring not specified
 
@@ -6565,7 +6585,7 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
         mock_request_urlretrieve.return_value = "fake_path", "empty"
         self.mock_ansible_run_playbook.return_value = False
 
-        install_success = self.sm._run_subcloud_install(
+        install_success, _ = self.sm._run_subcloud_install(
             self.ctx,
             self.subcloud,
             self.mock_compose_install_command,
@@ -6618,7 +6638,7 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
     def test_subcloud_install_prep_failed(self, mock_request_urlretrieve):
         mock_request_urlretrieve.side_effect = Exception()
 
-        install_success = self.sm._run_subcloud_install(
+        install_success, _ = self.sm._run_subcloud_install(
             self.ctx,
             self.subcloud,
             self.mock_compose_install_command,
@@ -6637,7 +6657,7 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
         self.mock_ansible_run_playbook.return_value = True
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_PRE_INSTALL_FAILED
 
-        install_success = self.sm._run_subcloud_install(
+        install_success, _ = self.sm._run_subcloud_install(
             self.ctx,
             self.subcloud,
             self.mock_compose_install_command,
@@ -6668,7 +6688,7 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
             "install_values": self.fake_install_values,
         }
 
-        install_success = self.sm._run_subcloud_install(
+        install_success, _ = self.sm._run_subcloud_install(
             self.ctx,
             self.subcloud,
             self.mock_compose_install_command,
@@ -6708,7 +6728,7 @@ class TestSubcloudInstall(BaseTestSubcloudManager):
             "install_values": self.fake_install_values,
         }
 
-        install_success = self.sm._run_subcloud_install(
+        install_success, _ = self.sm._run_subcloud_install(
             self.ctx,
             self.subcloud,
             self.mock_compose_install_command,

@@ -2740,3 +2740,38 @@ def verify_ongoing_subcloud_strategy(context, subcloud):
 
 def is_active_controller(host):
     return host.capabilities.get("Personality") == consts.PERSONALITY_CONTROLLER_ACTIVE
+
+
+def get_last_sel_event_id(install_values: dict) -> str:
+    bmc_address = install_values.get("bmc_address")
+
+    result = subprocess.run(
+        [
+            "/usr/local/bin/ipmi_sel_event_monitor.py",
+            "--bmc-address",
+            bmc_address,
+            "--bmc-username",
+            install_values.get("bmc_username"),
+            "--bmc-password",
+            install_values.get("bmc_password"),
+            "--get-last-event",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,  # Don't auto-raise to prevent password being logged
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Failed to get SEL event ID for BMC {bmc_address}: "
+            f"exit code {result.returncode}, stderr: {result.stderr}"
+        )
+
+    data = json.loads(result.stdout)
+    last_event_id = data.get("last_event_id", "")
+
+    LOG.info(
+        f"The last SEL event ID for BMC address {bmc_address} is "
+        f"{last_event_id or '<unspecified>'}"
+    )
+    return last_event_id
