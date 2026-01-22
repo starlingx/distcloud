@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
+
+import json
+import mock
 
 from dcmanager.common import utils
 from dcmanager.tests import base
@@ -84,3 +87,54 @@ class TestUtils(base.DCManagerTestCase):
         expected = "[2620:10a:a001:aa0c::128]"
         result = utils.format_address(ipv6_address)
         self.assertEqual(result, expected)
+
+    @mock.patch("dcmanager.common.utils.subprocess.run")
+    def test_get_last_sel_event_id_success(self, mock_run):
+        mock_run.return_value = mock.Mock(
+            stdout=json.dumps({"last_event_id": "12345"}),
+            returncode=0,
+        )
+        install_values = {
+            "bmc_address": "10.64.8.246",
+            "bmc_username": "sysadmin",
+            "bmc_password": "secret",
+        }
+
+        result = utils.get_last_sel_event_id(install_values)
+
+        self.assertEqual(result, "12345")
+        mock_run.assert_called_once_with(
+            [
+                "/usr/local/bin/ipmi_sel_event_monitor.py",
+                "--bmc-address",
+                "10.64.8.246",
+                "--bmc-username",
+                "sysadmin",
+                "--bmc-password",
+                "secret",
+                "--get-last-event",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    @mock.patch("dcmanager.common.utils.subprocess.run")
+    def test_get_last_sel_event_id_failure(self, mock_run):
+        mock_run.return_value = mock.Mock(
+            stdout="",
+            stderr="Connection refused",
+            returncode=1,
+        )
+        install_values = {
+            "bmc_address": "10.64.8.246",
+            "bmc_username": "sysadmin",
+            "bmc_password": "secret",
+        }
+
+        exc = self.assertRaises(
+            RuntimeError,
+            utils.get_last_sel_event_id,
+            install_values,
+        )
+        self.assertNotIn("secret", str(exc))

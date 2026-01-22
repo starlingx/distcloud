@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -161,6 +161,37 @@ class IpmiTool:
             cfg["bmc_username"],
             cfg["bmc_password"],
             cfg.get("bmc_ciphersuite"),
+        )
+
+    @classmethod
+    def from_args(
+        cls,
+        bmc_address: str,
+        bmc_username: str,
+        bmc_password: str,
+        bmc_ciphersuite: Optional[str] = None,
+    ) -> "IpmiTool":
+        """Instantiates IpmiTool using individual BMC parameters"""
+
+        logging.info(f"Using BMC credentials for {bmc_address}")
+
+        # Validate IP address
+        try:
+            netaddr.IPAddress(bmc_address)
+        except Exception as ex:
+            exit_script(False, f"Invalid bmc_address: {bmc_address} ({ex})")
+
+        # Decode base64 encoded password
+        try:
+            bmc_password = base64.b64decode(bmc_password).decode("utf-8")
+        except Exception as ex:
+            exit_script(False, f"Failed to decode base64 BMC password ({ex})")
+
+        return cls(
+            bmc_address,
+            bmc_username,
+            bmc_password,
+            bmc_ciphersuite,
         )
 
     @staticmethod
@@ -584,7 +615,14 @@ Examples:
        --config-file rvmc-config.yaml \\
        --get-last-event
 
-  2) Monitoring mode: wait for first matching event and return immediately
+  2) Query mode with individual BMC parameters:
+     ipmi_sel_event_monitor.py \\
+       --bmc-address "2620:10a:a001:d48::100" \\
+       --bmc-username "User" \\
+       --bmc-password "KWRGaWcdc3RyUXRScy==" \\
+       --get-last-event
+
+  3) Monitoring mode: wait for first matching event and return immediately
      ipmi_sel_event_monitor.py \\
        --config-file rvmc-config.yaml \\
        --sensor-type "System Event" \\
@@ -593,7 +631,7 @@ Examples:
        --interval 15 \\
        --timeout 300
 
-  3) Success/failure monitoring mode: return immediately on ANY success event
+  4) Success/failure monitoring mode: return immediately on ANY success event
      (latest one) or failure event.
      ipmi_sel_event_monitor.py \\
        --config-file rvmc-config.yaml \\
@@ -607,12 +645,31 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    # Common args
-    parser.add_argument(
+    bmc_group = parser.add_argument_group(
+        "BMC connection",
+        "Specify BMC credentials via config file OR individual parameters",
+    )
+    bmc_group.add_argument(
         "--config-file",
-        required=True,
         help="Path to BMC configuration file containing host, username, and password",
     )
+    bmc_group.add_argument(
+        "--bmc-address",
+        help="BMC IP address or hostname",
+    )
+    bmc_group.add_argument(
+        "--bmc-username",
+        help="BMC username",
+    )
+    bmc_group.add_argument(
+        "--bmc-password",
+        help="BMC password (base64-encoded)",
+    )
+    bmc_group.add_argument(
+        "--bmc-ciphersuite",
+        help="BMC cipher suite (optional)",
+    )
+
     parser.add_argument(
         "--sensor-type",
         help="Filter by sensor type (e.g., 'Unknown', 'System Event')",
@@ -665,6 +722,31 @@ Examples:
 
     args = parser.parse_args()
 
+    # Validate BMC connection parameters
+    has_config_file = args.config_file is not None
+    has_individual_params = any(
+        [args.bmc_address, args.bmc_username, args.bmc_password, args.bmc_ciphersuite]
+    )
+
+    if has_config_file and has_individual_params:
+        parser.error(
+            "Cannot specify both --config-file and individual BMC parameters "
+            "(--bmc-address, --bmc-username, --bmc-password, --bmc-ciphersuite)"
+        )
+
+    if not has_config_file and not has_individual_params:
+        parser.error(
+            "Must specify either --config-file or all of --bmc-address, "
+            "--bmc-username, and --bmc-password"
+        )
+
+    if has_individual_params:
+        if not all([args.bmc_address, args.bmc_username, args.bmc_password]):
+            parser.error(
+                "When using individual BMC parameters, all of --bmc-address, "
+                "--bmc-username, and --bmc-password are required"
+            )
+
     if args.get_last_event or args.data_values:
         # For query or monitoring mode, no extra validation is necessary
         pass
@@ -680,7 +762,15 @@ Examples:
         )
 
     try:
-        ipmi_tool = IpmiTool.from_config(args.config_file)
+        if has_config_file:
+            ipmi_tool = IpmiTool.from_config(args.config_file)
+        else:
+            ipmi_tool = IpmiTool.from_args(
+                args.bmc_address,
+                args.bmc_username,
+                args.bmc_password,
+                args.bmc_ciphersuite,
+            )
 
         if args.get_last_event:
             get_last_event_only(ipmi_tool)
