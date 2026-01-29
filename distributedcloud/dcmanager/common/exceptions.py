@@ -344,3 +344,9 @@ class StrategyStoppedException(DCManagerException):
 
 class PlaybookNotFound(NotFound):
     message = _("Playbook %(playbook_name)s not found")
+
+
+class RestorePreparationError(DCManagerException):
+    """Exception raised when restore preparation fails."""
+
+    message = "Restore preparation failed: %(details)s"

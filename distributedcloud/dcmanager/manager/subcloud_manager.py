@@ -21,6 +21,7 @@ import base64
 import collections
 from contextlib import nullcontext
 import copy
+from dataclasses import dataclass
 import datetime
 import filecmp
 import functools
@@ -33,7 +34,7 @@ import shutil
 import tempfile
 import threading
 import time
-from typing import Optional
+from typing import Optional, Any
 
 from eventlet.green import subprocess
 from eventlet import greenpool
@@ -214,6 +215,32 @@ VALUES_TO_DELETE_OVERRIDES = [
     "install_values",
     "sysadmin_password",
 ]
+
+
+@dataclass
+class RestoreMode:
+    """Flags for the restore operation mode."""
+
+    auto_restore_mode: Optional[str]  # "factory", "auto", or None
+    bmc_access_only: bool
+    skip_install_monitoring: bool = False
+    ipmi_sel_event_monitoring: bool = True
+
+
+@dataclass
+class RestoreContext:
+    """Context holding all state for a subcloud restore operation."""
+
+    restore_mode: RestoreMode
+    subcloud_inventory_file: str
+    overrides_file: str
+    log_file: str
+    restore_command: list[str]
+    seed_iso_path: Optional[str] = None
+    initial_sel_event_id: Optional[str] = None
+    install_instance: Optional[Any] = None
+    defer_install_cleanup_on_success: bool = False
+    archive: Optional[Any] = None
 
 
 class SubcloudManager(manager.Manager):
@@ -3241,6 +3268,425 @@ class SubcloudManager(manager.Manager):
         )
         return rvmc_config_path
 
+    @staticmethod
+    def _determine_restore_mode(payload: dict) -> RestoreMode:
+        """Determine the restore mode and related flags from payload
+
+        :param payload: The restore request payload
+        :return: The restore mode dataclass instance containing the flags
+        """
+        if payload.get("factory"):
+            return RestoreMode(
+                auto_restore_mode="factory",
+                bmc_access_only=True,
+            )
+        if payload.get("auto"):
+            return RestoreMode(
+                auto_restore_mode="auto",
+                bmc_access_only=True,
+            )
+        return RestoreMode(
+            auto_restore_mode=None,
+            bmc_access_only=False,
+        )
+
+    def _resolve_bootstrap_address(self, payload: dict, subcloud: Subcloud) -> str:
+        """Resolve the bootstrap address for the subcloud.
+
+        Priority order:
+        1. Use the value from restore_values if present
+        2. Use the value from install_values (data_install) if present
+        3. Use the value from the current inventory file if it exists
+
+        :param payload: The restore request payload
+        :param subcloud: The subcloud object
+        :return: The bootstrap address string
+        :raises RestorePreparationError: If resolution fails
+        """
+        try:
+            # Check restore_values first
+            bootstrap_address_dict = payload.get("restore_values", {}).get(
+                "bootstrap_address", {}
+            )
+            if bootstrap_address_dict.get(subcloud.name):
+                LOG.debug(
+                    "Using bootstrap_address from restore_values for subcloud %s",
+                    subcloud.name,
+                )
+                return bootstrap_address_dict.get(subcloud.name)
+
+            # Check data_install (install_values) second
+            if subcloud.data_install:
+                LOG.debug(
+                    "Using bootstrap_address from install_values for subcloud %s",
+                    subcloud.name,
+                )
+                data_install = json.loads(subcloud.data_install)
+                return data_install.get("bootstrap_address")
+
+            # Fall back to existing inventory file
+            LOG.debug(
+                "Using bootstrap_address from previous inventory file for subcloud %s",
+                subcloud.name,
+            )
+            return utils.get_ansible_host_ip_from_inventory(subcloud.name)
+        except Exception as e:
+            raise exceptions.RestorePreparationError(
+                details=f"Failed to resolve bootstrap address for {subcloud.name}: {e}"
+            ) from e
+
+    def _prepare_restore_files(
+        self,
+        payload: dict,
+        subcloud: Subcloud,
+        restore_mode: RestoreMode,
+        bootstrap_address: str,
+        backup_filename: Optional[str] = None,
+    ) -> RestoreContext:
+        """Prepare all files and commands needed for the restore operation.
+
+        :param context: The request context
+        :param payload: The restore request payload
+        :param subcloud: The subcloud object
+        :param restore_mode: The RestoreMode configuration
+        :param bootstrap_address: The resolved bootstrap address
+        :param backup_filename: Optional path to specific backup file
+        :return: RestoreContext with all prepared state
+        :raises RestorePreparationError: If preparation fails
+        """
+        log_file = (
+            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+            + "_playbook_output.log"
+        )
+
+        try:
+            subcloud_inventory_file = self._create_subcloud_inventory_file(
+                subcloud, bootstrap_address=bootstrap_address
+            )
+
+            # Determine if OSDs should be wiped during restore
+            install_wipe_osds = False
+            if payload.get("with_install") and subcloud.data_install:
+                data_install = json.loads(subcloud.data_install)
+                install_wipe_osds = data_install.get("wipe_osds", False)
+
+            overrides_file = self._create_overrides_for_backup_or_restore(
+                "restore",
+                payload,
+                subcloud.name,
+                restore_mode.auto_restore_mode,
+                install_wipe_osds,
+                subcloud_region_name=subcloud.region_name,
+                backup_filename=backup_filename,
+            )
+
+            # Handle the IPMI SEL event monitoring option (defaults to True)
+            ipmi_sel_event_monitoring = payload.get("override_values", {}).get(
+                "ipmi_sel_event_monitoring", True
+            )
+            restore_mode.ipmi_sel_event_monitoring = ipmi_sel_event_monitoring
+
+            # For factory restore, when ipmi_sel_event_monitoring is set to false
+            # we want the install to wait for the SSH port to become open instead
+            # of waiting for the IPMI sel events
+            if (
+                restore_mode.auto_restore_mode == "factory"
+                and not ipmi_sel_event_monitoring
+            ):
+                restore_mode.bmc_access_only = False
+
+            # For auto restore, when ipmi_sel_event_monitoring is set to false
+            # we need to skip monitoring the install progress as the subcloud will
+            # only be reachable after the restore is fully complete
+            if (
+                restore_mode.auto_restore_mode == "auto"
+                and not ipmi_sel_event_monitoring
+            ):
+                restore_mode.skip_install_monitoring = True
+
+            restore_command = self.compose_backup_restore_command(
+                subcloud.name,
+                subcloud_inventory_file,
+                restore_mode.auto_restore_mode,
+                payload.get("with_install"),
+                ipmi_sel_event_monitoring,
+            )
+
+            return RestoreContext(
+                restore_mode=restore_mode,
+                subcloud_inventory_file=subcloud_inventory_file,
+                overrides_file=overrides_file,
+                log_file=log_file,
+                restore_command=restore_command,
+            )
+        except Exception as e:
+            raise exceptions.RestorePreparationError(
+                details=(
+                    "Failed to prepare restore files "
+                    f"for subcloud {subcloud.name}: {e}"
+                )
+            ) from e
+
+    def _setup_auto_restore_without_install(
+        self,
+        payload: dict,
+        subcloud: Subcloud,
+        restore_ctx: RestoreContext,
+    ) -> None:
+        """Set up auto-restore without install using seed ISO approach.
+
+        This method generates a seed ISO and creates the RVMC config
+        for auto-restore scenarios where remote install is not used.
+
+        :param payload: The restore request payload
+        :param subcloud: The subcloud object
+        :param restore_ctx: The restore context to update
+        :raises RestorePreparationError: If seed ISO generation fails
+        """
+        LOG.info(
+            f"Preparing auto-restore without install for {subcloud.name} "
+            "using seed ISO approach"
+        )
+
+        seed_iso_path = self._generate_auto_restore_seed_iso(
+            subcloud, restore_ctx.overrides_file, payload, archive=restore_ctx.archive
+        )
+
+        if not seed_iso_path:
+            raise exceptions.RestorePreparationError(
+                details=f"Failed to generate auto-restore seed ISO for {subcloud.name}"
+            )
+
+        restore_ctx.seed_iso_path = seed_iso_path
+
+        try:
+            # Merge data_install into install_values
+            data_install = json.loads(subcloud.data_install)
+            if payload.get("install_values"):
+                payload.get("install_values").update(data_install)
+            else:
+                payload["install_values"] = data_install
+
+            self._create_rvmc_config_for_seed_iso(subcloud, payload)
+        except Exception as e:
+            raise exceptions.RestorePreparationError(
+                details=(
+                    "Failed to generate auto-restore seed ISO "
+                    f"RVMC config for {subcloud.name}"
+                )
+            ) from e
+
+    def _get_initial_sel_event_id(
+        self,
+        subcloud: Subcloud,
+        install_values: dict,
+    ) -> str:
+        """Get the initial SEL event ID for IPMI monitoring.
+
+        :param subcloud: The subcloud object
+        :param install_values: Dictionary containing BMC credentials
+        :return: The initial SEL event ID
+        :raises RestorePreparationError: If getting SEL event ID fails
+        """
+        try:
+            return utils.get_last_sel_event_id(install_values)
+        except Exception as e:
+            raise exceptions.RestorePreparationError(
+                details=f"Failed to get initial SEL event ID for {subcloud.name}: {e}"
+            ) from e
+
+    def _execute_install_pre_restore(
+        self, context, payload: dict, subcloud: Subcloud, restore_ctx: RestoreContext
+    ) -> bool:
+        """Execute the install phase for restore with install.
+
+        :param context: The request context
+        :param payload: The restore request payload
+        :param subcloud: The subcloud object
+        :param restore_ctx: The restore context
+        :return: True if install succeeded, False otherwise
+        :raises RestorePreparationError: If preparation steps fail
+        """
+
+        try:
+            restore_mode = restore_ctx.restore_mode
+
+            software_version = payload.get("software_version")
+
+            install_command = self.compose_install_command(
+                subcloud.name,
+                restore_ctx.subcloud_inventory_file,
+                software_version,
+                restore_mode.bmc_access_only,
+                restore_mode.skip_install_monitoring,
+            )
+
+            # Update data_install with required fields
+            data_install = json.loads(subcloud.data_install)
+            matching_iso, _ = utils.get_vault_load_files(software_version)
+            data_install["software_version"] = software_version
+            data_install["image"] = matching_iso
+            data_install["ansible_ssh_pass"] = payload["sysadmin_password"]
+            data_install["ansible_become_pass"] = payload["sysadmin_password"]
+
+            # Notify dcorch of the software version update
+            if subcloud.software_version != software_version:
+                self.dcorch_rpc_client.update_subcloud_version(
+                    context, subcloud.region_name, software_version
+                )
+
+            # For factory restore, the kickstart stored inside the subcloud is used
+            kickstart_uri = None
+            if restore_mode.auto_restore_mode == "factory":
+                kickstart_uri = (
+                    "partition://platform_backup:factory"
+                    f"/{software_version}/miniboot.cfg"
+                )
+
+            # Create auto-restore context used to stage auto-restore files
+            auto_restore_context = (
+                tempfile.TemporaryDirectory(
+                    prefix=f".{subcloud.name}",
+                    dir=self._get_auto_restore_temp_dir_location(
+                        payload, archive=restore_ctx.archive
+                    ),
+                )
+                if restore_mode.auto_restore_mode
+                else nullcontext()
+            )
+
+        except Exception as e:
+            raise exceptions.RestorePreparationError(
+                details="Pre-restore install preparation failed"
+            ) from e
+
+        with auto_restore_context as temp_dir:
+            try:
+                # Stage the auto-restore files so they can be copied to the
+                # miniboot ISO during subcloud installation. These files will
+                # end up in /opt/platform-backup/auto-restore on the subcloud
+                include_paths = None
+                if temp_dir:
+                    include_paths = [
+                        self._stage_auto_restore_files(
+                            temp_dir,
+                            Path(restore_ctx.overrides_file),
+                            payload,
+                            subcloud,
+                            restore_mode.auto_restore_mode,
+                            restore_mode.ipmi_sel_event_monitoring,
+                            archive=restore_ctx.archive,
+                        )
+                    ]
+
+                # To allow both the install and restore playbooks to know which
+                # SEL event to start monitoring from without a race condition issue
+                # between the install and restore operations, we get the initial
+                # SEL event beforehand.
+                if (
+                    restore_mode.bmc_access_only
+                    and not restore_mode.skip_install_monitoring
+                ):
+                    initial_sel_event_id = self._get_initial_sel_event_id(
+                        subcloud, data_install
+                    )
+                    restore_ctx.initial_sel_event_id = initial_sel_event_id
+                    install_command.extend(
+                        ["-e", f"ipmi_initial_event_id={initial_sel_event_id}"]
+                    )
+
+                # For auto-restore with install and without SEL events, the install
+                # playbook triggers both the install and auto-restore, so we can't
+                # remove the miniboot.iso after the install playbook is done
+                if (
+                    restore_mode.auto_restore_mode == "auto"
+                    and payload.get("with_install")
+                    and not restore_mode.ipmi_sel_event_monitoring
+                ):
+                    restore_ctx.defer_install_cleanup_on_success = True
+            except Exception as e:
+                raise exceptions.RestorePreparationError(
+                    details="Pre-restore install preparation failed"
+                ) from e
+
+            # Run the install
+            install_success, install_instance = self._run_subcloud_install(
+                context,
+                subcloud,
+                install_command,
+                restore_ctx.log_file,
+                data_install,
+                include_paths,
+                kickstart_uri,
+                restore_ctx.defer_install_cleanup_on_success,
+            )
+
+            restore_ctx.install_instance = install_instance
+
+        return install_success
+
+    def _execute_restore_playbook(
+        self, context, payload: dict, subcloud: Subcloud, restore_ctx: RestoreContext
+    ) -> tuple[Subcloud, bool]:
+        """Execute the restore playbook.
+
+        :param context: The request context
+        :param payload: The restore request payload
+        :param subcloud: The subcloud object
+        :param restore_ctx: The restore context
+        :return: Tuple of (subcloud, success)
+        :raises RestorePreparationError: If getting SEL event ID fails
+        """
+        restore_mode = restore_ctx.restore_mode
+        restore_command = restore_ctx.restore_command.copy()
+
+        # Add SEL event ID if we already have it from the install phase
+        if restore_ctx.initial_sel_event_id is not None:
+            restore_command.extend(
+                ["-e", f"ipmi_initial_event_id={restore_ctx.initial_sel_event_id}"]
+            )
+
+        # Get SEL event ID for auto-restore without install case
+        elif (
+            restore_mode.auto_restore_mode == "auto"
+            and not payload.get("with_install")
+            and restore_mode.ipmi_sel_event_monitoring
+        ):
+            initial_sel_event_id = self._get_initial_sel_event_id(
+                subcloud, payload.get("install_values", {})
+            )
+            restore_command.extend(
+                ["-e", f"ipmi_initial_event_id={initial_sel_event_id}"]
+            )
+
+        # Run the restore playbook
+        success = self._run_subcloud_backup_restore_playbook(
+            subcloud,
+            restore_command,
+            context,
+            restore_ctx.log_file,
+            restore_mode.auto_restore_mode,
+        )
+
+        if success:
+            utils.delete_subcloud_inventory(restore_ctx.overrides_file)
+
+        return subcloud, success
+
+    def _cleanup_restore_context(self, restore_ctx: RestoreContext) -> None:
+        """Clean up resources in the restore context.
+
+        :param restore_ctx: The restore context to clean up
+        """
+        if (
+            restore_ctx.defer_install_cleanup_on_success
+            and restore_ctx.install_instance
+        ):
+            restore_ctx.install_instance.cleanup()
+
+        if restore_ctx.seed_iso_path:
+            self._cleanup_auto_restore_seed_iso(restore_ctx.seed_iso_path)
+
     def _restore_subcloud_backup(
         self,
         context,
@@ -3248,28 +3694,25 @@ class SubcloudManager(manager.Manager):
         subcloud: Subcloud,
         archive: SubcloudBackupArchive = None,
         subcloud_backup_map: dict[int, SubcloudBackupArchive] = None,
-    ):
-        log_file = (
-            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
-            + "_playbook_output.log"
-        )
+    ) -> tuple[Subcloud, bool]:
+        """Restore a subcloud from backup.
 
-        bmc_access_only = True
-        skip_install_monitoring = False
-        seed_iso_path = None
-        initial_sel_event_id = None
-        install_instance = None
-        defer_install_cleanup_on_success = False
+        This method orchestrates the restore process which may include:
+        - Standard restore (restore playbook runs remotely from system controller)
+        - Auto-restore with install (factory or auto mode)
+        - Auto-restore without install (using seed ISO)
 
-        if payload.get("factory"):
-            auto_restore_mode = "factory"
-        elif payload.get("auto"):
-            auto_restore_mode = "auto"
-        else:
-            auto_restore_mode = None
-            bmc_access_only = False
+        Args:
+        :param context: The request context
+        :param payload: The restore request payload
+        :param subcloud: The subcloud object to restore
+        :param archive: Optional specific backup archive to restore from
+        :param subcloud_backup_map: Per-subcloud archive map for group operation
+        :return Tuple of (subcloud, success) where success is True if restore
+            completed successfully, False otherwise
+        """
 
-        # Check if this is a group operation with per-subcloud mapping
+        # Resolve archive from group map if not passed directly
         if not archive and subcloud_backup_map:
             archive = subcloud_backup_map.get(subcloud.id)
             if archive:
@@ -3289,123 +3732,43 @@ class SubcloudManager(manager.Manager):
                 backup_filename,
             )
 
-        # To get the bootstrap_address for the subcloud, we considered
-        # the following order:
-        # 1) Use the value from restore_values if present
-        # 2) Use the value from install_values if present
-        # 3) Use the value from the current inventory file if it exist
-        # To reach this part of the code, one of the above conditions is True
-        bootstrap_address_dict = payload.get("restore_values", {}).get(
-            "bootstrap_address", {}
+        restore_ctx = None
+
+        db_api.subcloud_update(
+            context,
+            subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_PRE_RESTORE,
+            error_description=consts.ERROR_DESC_EMPTY,
         )
-        if bootstrap_address_dict.get(subcloud.name):
-            LOG.debug(
-                "Using bootstrap_address from restore_values for subcloud %s"
-                % subcloud.name
-            )
-            bootstrap_address = bootstrap_address_dict.get(subcloud.name)
-        elif subcloud.data_install:
-            LOG.debug(
-                "Using bootstrap_address from install_values for subcloud %s"
-                % subcloud.name
-            )
-            data_install = json.loads(subcloud.data_install)
-            bootstrap_address = data_install.get("bootstrap_address")
-        else:
-            LOG.debug(
-                "Using bootstrap_address from previous inventory file for subcloud %s"
-                % subcloud.name
-            )
-            bootstrap_address = utils.get_ansible_host_ip_from_inventory(subcloud.name)
 
         try:
-            db_api.subcloud_update(
-                context,
-                subcloud.id,
-                deploy_status=consts.DEPLOY_STATE_PRE_RESTORE,
-                error_description=consts.ERROR_DESC_EMPTY,
-            )
-            subcloud_inventory_file = self._create_subcloud_inventory_file(
-                subcloud, bootstrap_address=bootstrap_address
-            )
+            restore_mode = self._determine_restore_mode(payload)
 
-            # Install wipe_osds parameter is required to determine if
-            # the OSDs should be wiped during restore when --with-install
-            # subcommand is provided.
-            install_wipe_osds = False
+            bootstrap_address = self._resolve_bootstrap_address(payload, subcloud)
+
+            restore_ctx = self._prepare_restore_files(
+                payload, subcloud, restore_mode, bootstrap_address, backup_filename
+            )
+            restore_ctx.archive = archive
+
+            # Handle auto-restore without install (seed ISO approach)
+            if restore_mode.auto_restore_mode == "auto" and not payload.get(
+                "with_install"
+            ):
+                self._setup_auto_restore_without_install(payload, subcloud, restore_ctx)
+
             if payload.get("with_install"):
-                data_install = json.loads(subcloud.data_install)
-                install_wipe_osds = data_install.get("wipe_osds", False)
-
-            # Prepare for restore
-            overrides_file = self._create_overrides_for_backup_or_restore(
-                "restore",
-                payload,
-                subcloud.name,
-                auto_restore_mode,
-                install_wipe_osds,
-                subcloud_region_name=subcloud.region_name,
-                backup_filename=backup_filename,
-            )
-
-            ipmi_sel_event_monitoring = payload.get("override_values").get(
-                "ipmi_sel_event_monitoring", True
-            )
-
-            # For factory restore, when ipmi_sel_event_monitoring is set to false
-            # we want the install to wait for the SSH port to become open instead
-            # of waiting for the IPMI sel events
-            if auto_restore_mode == "factory" and not ipmi_sel_event_monitoring:
-                bmc_access_only = False
-
-            # For auto restore, when ipmi_sel_event_monitoring is set to false
-            # we need to skip monitoring the install progress as the subcloud will
-            # only be reachable after the restore is complete
-            if auto_restore_mode == "auto" and not ipmi_sel_event_monitoring:
-                skip_install_monitoring = True
-
-            restore_command = self.compose_backup_restore_command(
-                subcloud.name,
-                subcloud_inventory_file,
-                auto_restore_mode,
-                payload.get("with_install"),
-                ipmi_sel_event_monitoring,
-            )
-
-            # Handle auto-restore without install using seed ISO
-            if auto_restore_mode == "auto" and not payload.get("with_install"):
-                LOG.info(
-                    f"Performing auto-restore without install for {subcloud.name} "
-                    f"using seed ISO approach"
+                install_success = self._execute_install_pre_restore(
+                    context, payload, subcloud, restore_ctx
                 )
+                if not install_success:
+                    return subcloud, False
 
-                seed_iso_path = self._generate_auto_restore_seed_iso(
-                    subcloud, overrides_file, payload, archive=archive
-                )
-
-                if not seed_iso_path:
-                    raise Exception("Failed to generate auto-restore seed ISO")
-
-                data_install = json.loads(subcloud.data_install)
-                if payload.get("install_values"):
-                    payload.get("install_values").update(data_install)
-                else:
-                    payload["install_values"] = data_install
-
-                self._create_rvmc_config_for_seed_iso(subcloud, payload)
-
-            auto_restore_context = (
-                tempfile.TemporaryDirectory(
-                    prefix=f".{subcloud.name}",
-                    dir=self._get_auto_restore_temp_dir_location(
-                        payload, archive=archive
-                    ),
-                )
-                if auto_restore_mode
-                else nullcontext()
+            return self._execute_restore_playbook(
+                context, payload, subcloud, restore_ctx
             )
 
-        except Exception:
+        except exceptions.RestorePreparationError:
             db_api.subcloud_update(
                 context,
                 subcloud.id,
@@ -3416,151 +3779,9 @@ class SubcloudManager(manager.Manager):
             )
             return subcloud, False
 
-        if payload.get("with_install"):
-            data_install = json.loads(subcloud.data_install)
-            software_version = payload.get("software_version")
-            install_command = self.compose_install_command(
-                subcloud.name,
-                subcloud_inventory_file,
-                software_version,
-                bmc_access_only,
-                skip_install_monitoring,
-            )
-            # Update data_install with missing data
-            matching_iso, _ = utils.get_vault_load_files(software_version)
-            data_install["software_version"] = software_version
-            data_install["image"] = matching_iso
-            data_install["ansible_ssh_pass"] = payload["sysadmin_password"]
-            data_install["ansible_become_pass"] = payload["sysadmin_password"]
-
-            # Notify dcorch of the software version update
-            if subcloud.software_version != software_version:
-                self.dcorch_rpc_client.update_subcloud_version(
-                    context, subcloud.region_name, software_version
-                )
-
-            kickstart_uri = None
-            if auto_restore_mode == "factory":
-                kickstart_uri = (
-                    "partition://platform_backup:factory/"
-                    f"{software_version}/miniboot.cfg"
-                )
-
-            with auto_restore_context as temp_dir:
-                # Stage the auto-restore files so they can be copied to the
-                # miniboot ISO during subcloud installation. These files will
-                # end up in /opt/platform-backup/auto-restore on the subcloud
-                include_paths = None
-                if temp_dir:
-                    include_paths = [
-                        self._stage_auto_restore_files(
-                            temp_dir,
-                            Path(overrides_file),
-                            payload,
-                            subcloud,
-                            auto_restore_mode,
-                            ipmi_sel_event_monitoring,
-                            archive=archive,
-                        )
-                    ]
-
-                # To allow both the install and restore playbooks to know which
-                # SEL event to start monitoring from without a race condition issue
-                # between the install and restore operations, we get the initial
-                # SEL event beforehand.
-                try:
-                    if bmc_access_only and not skip_install_monitoring:
-                        initial_sel_event_id = utils.get_last_sel_event_id(data_install)
-                        install_command += [
-                            "-e",
-                            f"ipmi_initial_event_id={initial_sel_event_id}",
-                        ]
-                except Exception:
-                    db_api.subcloud_update(
-                        context,
-                        subcloud.id,
-                        deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-                    )
-                    LOG.exception(
-                        "Failed to get initial SEL event ID for subcloud "
-                        f"{subcloud.name}"
-                    )
-                    return subcloud, False
-
-                # For auto-restore with install and without SEL events, the install
-                # playbook only triggers the install + auto-restore, so we can't
-                # remove the miniboot.iso after the playbook is done
-                if (
-                    auto_restore_mode == "auto"
-                    and payload.get("with_install")
-                    and not ipmi_sel_event_monitoring
-                ):
-                    defer_install_cleanup_on_success = True
-
-                install_success, install_instance = self._run_subcloud_install(
-                    context,
-                    subcloud,
-                    install_command,
-                    log_file,
-                    data_install,
-                    include_paths,
-                    kickstart_uri,
-                    defer_install_cleanup_on_success,
-                )
-
-            if not install_success:
-                return subcloud, False
-
-        try:
-            # We already know the initial SEL event ID,
-            # so just pass it to the restore playbook
-            if initial_sel_event_id is not None:
-                restore_command += [
-                    "-e",
-                    f"ipmi_initial_event_id={initial_sel_event_id}",
-                ]
-
-            # This could be an auto-restore without remote install,
-            # so we get the initial_sel_event_id before restore
-            elif (
-                auto_restore_mode == "auto"
-                and not payload.get("with_install")
-                and ipmi_sel_event_monitoring
-            ):
-                try:
-                    initial_sel_event_id = utils.get_last_sel_event_id(
-                        payload.get("install_values", {})
-                    )
-                    restore_command += [
-                        "-e",
-                        f"ipmi_initial_event_id={initial_sel_event_id}",
-                    ]
-                except Exception:
-                    db_api.subcloud_update(
-                        context,
-                        subcloud.id,
-                        deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-                    )
-                    LOG.exception(
-                        "Failed to get initial SEL event ID for subcloud "
-                        f"{subcloud.name}"
-                    )
-                    return subcloud, False
-
-            success = self._run_subcloud_backup_restore_playbook(
-                subcloud, restore_command, context, log_file, auto_restore_mode
-            )
-
-            if success:
-                utils.delete_subcloud_inventory(overrides_file)
-
-            return subcloud, success
-
         finally:
-            if defer_install_cleanup_on_success and install_instance:
-                install_instance.cleanup()
-            if seed_iso_path:
-                self._cleanup_auto_restore_seed_iso(seed_iso_path)
+            if restore_ctx:
+                self._cleanup_restore_context(restore_ctx)
 
     @staticmethod
     def _build_subcloud_operation_notice(
