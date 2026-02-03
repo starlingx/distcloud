@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -57,6 +57,8 @@ from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy.api import get_session
+from dcmanager.db.sqlalchemy import models
 from dcmanager.manager import subcloud_manager
 from dcmanager.manager import system_peer_manager
 from dcmanager.rpc import client as rpc_client
@@ -3445,6 +3447,14 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             backup_status=consts.BACKUP_STATE_UNKNOWN,
         )
 
+        with db_api.get_engine().begin():
+            backup_config = models.SubcloudBackupConfig()
+            backup_config.storage_location = consts.BACKUP_STORAGE_DC_VAULT
+            backup_config.retention_count = consts.DEFAULT_BACKUP_RETENTION_COUNT
+            session = get_session()
+            session.add(backup_config)
+            session.flush()
+
     @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_run_subcloud_backup_create_playbook"
@@ -3752,36 +3762,39 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(consts.BACKUP_STATE_UNKNOWN, updated_subcloud.backup_status)
 
-    @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
-    )
-    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager,
-        "_clear_subcloud_backup_failure_alarm_if_exists",
-    )
-    @mock.patch.object(subcloud_manager.SubcloudManager, "compose_backup_command")
-    def test_backup_create_subcloud(
-        self,
-        mock_compose_backup_command,
-        mock_clear_subcloud_failure_alarm,
-        mock_oam_address,
-        mock_create_backup_file,
-        mock_is_healthy,
-    ):
+    def _test_backup_create_subcloud_helper(self, local_only=False):
+        mock_compose_backup_command = self._mock_object(
+            subcloud_manager.SubcloudManager, "compose_backup_command"
+        )
+        mock_clear_subcloud_failure_alarm = self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "_clear_subcloud_backup_failure_alarm_if_exists",
+        )
+        mock_oam_address = self._mock_object(cutils, "get_oam_floating_ip_primary")
+        mock_create_backup_file = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
+        )
+        mock_is_healthy = self._mock_object(cutils, "is_subcloud_healthy")
+        mock_is_healthy.return_value = True
+        mock_backup_archive_record = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_backup_archive_record"
+        )
+
         db_api.subcloud_update(
             self.ctx, self.subcloud.id, backup_status=consts.BACKUP_STATE_UNKNOWN
         )
         values = copy.copy(FAKE_BACKUP_CREATE_LOAD_1)
+        if local_only:
+            values["local_only"] = True
+
         override_file = os_path.join(
             ANS_PATH, self.subcloud.name + "_backup_create_values.yml"
         )
         mock_create_backup_file.return_value = override_file
+        mock_oam_address.return_value = "2620:10a:a001:d41::260"
 
         self.sm._backup_subcloud(self.ctx, payload=values, subcloud=self.subcloud)
         self.mock_create_subcloud_inventory.assert_called_once()
-        mock_oam_address.return_value = "2620:10a:a001:d41::260"
         self.mock_keyring.get_password.assert_called()
 
         mock_create_backup_file.assert_called_once()
@@ -3793,10 +3806,21 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
 
         self.mock_delete_subcloud_inventory.assert_called_once_with(override_file)
 
+        if local_only:
+            mock_backup_archive_record.assert_not_called()
+            expected_status = consts.BACKUP_STATE_COMPLETE_LOCAL
+        else:
+            mock_backup_archive_record.assert_called_once()
+            expected_status = consts.BACKUP_STATE_COMPLETE_CENTRAL
+
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(
-            consts.BACKUP_STATE_COMPLETE_CENTRAL, updated_subcloud.backup_status
-        )
+        self.assertEqual(expected_status, updated_subcloud.backup_status)
+
+    def test_backup_create_subcloud(self):
+        self._test_backup_create_subcloud_helper(local_only=False)
+
+    def test_backup_create_subcloud_local_only(self):
+        self._test_backup_create_subcloud_helper(local_only=True)
 
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
@@ -4030,6 +4054,149 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         mock_compose_backup_delete_command.assert_called_once()
         self.mock_ansible_run_playbook.assert_called_once()
         self.mock_create_subcloud_inventory.assert_not_called()
+
+    def test_generate_backup_id(self):
+        backup_dt = datetime.datetime(2026, 2, 3, 14, 30, 45)
+        result = self.sm._generate_backup_id("subcloud1", "24.09", backup_dt)
+        self.assertEqual("subcloud1-24.09-202602031430", result)
+
+    def test_extract_backup_datetime_valid_filename(self):
+        backup_file = Path("/fake/subcloud1_platform_backup_2026_02_03_14_30_45.tgz")
+
+        result = self.sm._extract_backup_datetime(backup_file)
+
+        self.assertEqual(result.year, 2026)
+        self.assertEqual(result.month, 2)
+        self.assertEqual(result.day, 3)
+        self.assertEqual(result.hour, 14)
+        self.assertEqual(result.minute, 30)
+        self.assertEqual(result.second, 45)
+
+    def test_extract_backup_datetime_falls_back_to_mtime(self):
+        test_cases = [
+            "/fake/invalid_backup_name.tgz",
+            "/fake/subcloud1_platform_backup_9999_99_99_99_99_99.tgz",
+        ]
+
+        for backup_path in test_cases:
+            backup_file = Path(backup_path)
+            fake_mtime = datetime.datetime(
+                2026, 1, 15, 10, 30, 0, tzinfo=datetime.timezone.utc
+            ).timestamp()
+
+            with mock.patch.object(Path, "stat") as mock_stat:
+                mock_stat.return_value.st_mtime = fake_mtime
+                result = self.sm._extract_backup_datetime(backup_file)
+
+            self.assertEqual(result.year, 2026)
+            self.assertEqual(result.month, 1)
+            self.assertEqual(result.day, 15)
+            self.assertEqual(result.hour, 10)
+            self.assertEqual(result.minute, 30)
+            self.assertEqual(result.second, 0)
+
+    def test_find_latest_backup_file_returns_most_recent(self):
+        backup_dir = Path("/fake/backup")
+        old_file = backup_dir / "subcloud1_platform_backup_2026_01_01_10_00_00.tgz"
+        new_file = backup_dir / "subcloud1_platform_backup_2026_02_03_14_30_45.tgz"
+
+        def mock_stat(path):
+            stat_result = mock.MagicMock()
+            if "2026_02_03" in str(path):
+                stat_result.st_mtime = 2000.0  # newer
+            else:
+                stat_result.st_mtime = 1000.0  # older
+            return stat_result
+
+        with mock.patch.object(Path, "glob") as mock_glob, mock.patch.object(
+            Path, "stat", mock_stat
+        ):
+            mock_glob.return_value = [old_file, new_file]
+            result = self.sm._find_latest_backup_file(backup_dir, "subcloud1")
+
+        self.assertEqual(result, new_file)
+
+    def test_find_latest_backup_file_returns_none_when_no_files(self):
+        backup_dir = Path("/fake/backup")
+
+        with mock.patch.object(Path, "glob") as mock_glob:
+            mock_glob.return_value = []
+            result = self.sm._find_latest_backup_file(backup_dir, "subcloud1")
+
+        self.assertIsNone(result)
+
+    def test_find_latest_backup_file_filters_by_subcloud_name(self):
+        backup_dir = Path("/fake/backup")
+
+        with mock.patch.object(Path, "glob") as mock_glob:
+            mock_glob.return_value = []
+            self.sm._find_latest_backup_file(backup_dir, "subcloud1")
+
+        # Verify glob was called with the correct pattern
+        mock_glob.assert_called_once_with("subcloud1_platform_backup_*.tgz")
+
+    @mock.patch.object(db_api, "subcloud_backup_archive_create")
+    def test_create_backup_archive_record_success(self, mock_backup_archive_create):
+        backup_file = Path(
+            f"/dc-vault/{self.subcloud.name}/{self.subcloud.software_version}/"
+            f"{self.subcloud.name}_platform_backup_2026_02_03_14_30_45.tgz"
+        )
+
+        with mock.patch.object(
+            self.sm, "_find_latest_backup_file"
+        ) as mock_find, mock.patch.object(Path, "stat") as mock_stat:
+            mock_find.return_value = backup_file
+            mock_stat.return_value.st_size = 1024
+
+            self.sm._create_backup_archive_record(self.ctx, self.subcloud, "dc-vault")
+
+        mock_backup_archive_create.assert_called_once()
+        call_kwargs = mock_backup_archive_create.call_args[1]
+        self.assertEqual(call_kwargs["subcloud_id"], self.subcloud.id)
+        self.assertEqual(call_kwargs["release_version"], self.subcloud.software_version)
+        self.assertEqual(call_kwargs["storage_location"], "dc-vault")
+        self.assertIn("subcloud1-", call_kwargs["backup_id"])
+        self.assertIn("-202602031430", call_kwargs["backup_id"])
+        self.assertEqual(call_kwargs["size_bytes"], 1024)
+
+    @mock.patch.object(db_api, "subcloud_backup_archive_create")
+    def test_create_backup_archive_record_no_backup_file(
+        self, mock_backup_archive_create
+    ):
+        with mock.patch.object(self.sm, "_find_latest_backup_file") as mock_find:
+            mock_find.return_value = None
+
+            self.sm._create_backup_archive_record(self.ctx, self.subcloud, "dc-vault")
+
+        mock_backup_archive_create.assert_not_called()
+        self.mock_log_subcloud_manager.warning.assert_called_once_with(
+            "No backup file found for subcloud subcloud1 in "
+            "/opt/dc-vault/backups/subcloud1/18.03, skipping archive record creation"
+        )
+
+    @mock.patch.object(db_api, "subcloud_backup_archive_create")
+    def test_create_backup_archive_record_db_error_does_not_raise(
+        self, mock_backup_archive_create
+    ):
+        mock_backup_archive_create.side_effect = Exception("DB error")
+        backup_file = Path(
+            f"/dc-vault/{self.subcloud.name}/{self.subcloud.software_version}/"
+            f"{self.subcloud.name}_platform_backup_2026_02_03_14_30_45.tgz"
+        )
+
+        with mock.patch.object(
+            self.sm, "_find_latest_backup_file"
+        ) as mock_find, mock.patch.object(Path, "stat") as mock_stat:
+            mock_find.return_value = backup_file
+            mock_stat.return_value.st_size = 1024
+
+            # Errors are logged but not raised
+            self.sm._create_backup_archive_record(self.ctx, self.subcloud, "dc-vault")
+
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
+            "Failed to create backup archive record for subcloud "
+            f"subcloud1: {mock_backup_archive_create.side_effect}"
+        )
 
 
 class TestSubcloudPrestage(BaseTestSubcloudManager):

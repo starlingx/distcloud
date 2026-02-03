@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -28,6 +28,7 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import shutil
 import tempfile
 import threading
@@ -169,6 +170,13 @@ TRANSITORY_PRESTAGE_STATES = {
 MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
+
+# Backup file timestamp parsing
+BACKUP_FILENAME_TS_FORMAT = "%Y_%m_%d_%H_%M_%S"
+BACKUP_ID_TS_FORMAT = "%Y%m%d%H%M"
+BACKUP_FILENAME_RE = re.compile(
+    r"^(?P<name>.+)_platform_backup_(?P<ts>\d{4}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})\.tgz$"
+)
 
 # Values for the exponential backoff retry to get subcloud's
 # certificate secret.
@@ -1166,6 +1174,10 @@ class SubcloudManager(manager.Manager):
 
         subcloud_id = payload.get("subcloud")
         group_id = payload.get("group")
+
+        # Get the backup configuration for storage location
+        backup_config = db_api.subcloud_backup_config_get(context)
+        payload["storage_location"] = backup_config.storage_location
 
         # Retrieve either a single subcloud or all subclouds in a group
         subclouds = (
@@ -2338,6 +2350,59 @@ class SubcloudManager(manager.Manager):
 
         return failed_subclouds
 
+    @staticmethod
+    def _find_latest_backup_file(
+        backup_dir: Path, subcloud_name: str
+    ) -> Optional[Path]:
+        """Find the most recent backup file for a subcloud.
+
+        :param backup_dir: directory containing backup files
+        :param subcloud_name: name of the subcloud
+        :return: Path to the most recent backup file, or None if not found
+        """
+        pattern = f"{subcloud_name}_platform_backup_*.tgz"
+        backups = list(backup_dir.glob(pattern))
+        return max(backups, key=lambda p: p.stat().st_mtime) if backups else None
+
+    @staticmethod
+    def _extract_backup_datetime(backup_file: Path) -> datetime.datetime:
+        """Extract backup datetime from filename, falling back to mtime.
+
+        :param backup_file: Path to the backup file
+        :return: datetime of the backup
+        """
+        match = BACKUP_FILENAME_RE.match(backup_file.name)
+        if match:
+            try:
+                return datetime.datetime.strptime(
+                    match.group("ts"), BACKUP_FILENAME_TS_FORMAT
+                )
+            except ValueError:
+                LOG.warning(
+                    "Failed to parse timestamp from backup "
+                    f"filename {backup_file.name}",
+                )
+
+        return datetime.datetime.fromtimestamp(
+            backup_file.stat().st_mtime, tz=datetime.timezone.utc
+        )
+
+    @staticmethod
+    def _generate_backup_id(
+        subcloud_name: str, software_version: str, backup_dt: datetime.datetime
+    ) -> str:
+        """Generate a backup ID from subcloud info and timestamp.
+
+        :param subcloud_name: name of the subcloud
+        :param software_version: software version of the subcloud
+        :param backup_dt: datetime of the backup
+        :return: backup ID in format <name>-<version>-<YYYYMMDDHHMM>
+        """
+        return (
+            f"{subcloud_name}-{software_version}-"
+            f"{backup_dt.strftime(BACKUP_ID_TS_FORMAT)}"
+        )
+
     def _backup_subcloud(self, context, payload, subcloud):
         try:
             # Health check validation
@@ -2378,6 +2443,7 @@ class SubcloudManager(manager.Manager):
             return subcloud, False
 
         local_only = payload.get("local_only") or False
+        LOG.info(f"Running backup playbook for subcloud {subcloud.name}...")
         success = self._run_subcloud_backup_create_playbook(
             subcloud, backup_command, context, local_only
         )
@@ -2385,7 +2451,64 @@ class SubcloudManager(manager.Manager):
         if success:
             utils.delete_subcloud_inventory(overrides_file)
 
+            # Create backup archive record for centralized backups
+            if not local_only:
+                self._create_backup_archive_record(
+                    context, subcloud, payload.get("storage_location")
+                )
+
         return subcloud, success
+
+    def _create_backup_archive_record(
+        self, context, subcloud: Subcloud, storage_location: str
+    ):
+        """Create a backup archive record in the database after successful backup.
+
+        :param context: request context object
+        :param subcloud: subcloud object
+        :param storage_location: storage location (dc-vault or seaweedfs)
+        """
+        try:
+            backup_dir = (
+                Path(consts.CENTRAL_BACKUP_DIR)
+                / subcloud.name
+                / subcloud.software_version
+            )
+
+            backup_file = self._find_latest_backup_file(backup_dir, subcloud.name)
+            if not backup_file:
+                LOG.warning(
+                    f"No backup file found for subcloud {subcloud.name} in "
+                    f"{backup_dir}, skipping archive record creation",
+                )
+                return
+
+            backup_dt = self._extract_backup_datetime(backup_file)
+            backup_id = self._generate_backup_id(
+                subcloud.name, subcloud.software_version, backup_dt
+            )
+            size_bytes = backup_file.stat().st_size
+
+            db_api.subcloud_backup_archive_create(
+                context,
+                backup_id=backup_id,
+                subcloud_id=subcloud.id,
+                release_version=subcloud.software_version,
+                storage_location=storage_location,
+                storage_path=str(backup_file),
+                size_bytes=size_bytes,
+            )
+
+            LOG.info(
+                f"Created backup archive record for subcloud {subcloud.name}: "
+                f"backup_id={backup_id}, size={size_bytes} bytes, path={backup_file}",
+            )
+
+        except Exception as e:
+            LOG.error(
+                "Failed to create backup archive record for "
+                f"subcloud {subcloud.name}: {e}",
+            )
 
     def _filter_subclouds_for_backup_delete(self, context, payload, local_delete):
         subcloud_id = payload.get("subcloud")

@@ -310,3 +310,19 @@ class SubcloudBackupConfig(BASE, DCManagerBase):
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     storage_location = Column(String(64), nullable=False, default="dc-vault")
     retention_count = Column(Integer, nullable=False, default=1)
+
+
+class SubcloudBackupArchive(BASE, DCManagerBase):
+    """Represents a backup archive for a subcloud"""
+
+    __tablename__ = "subcloud_backup_archive"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    backup_id = Column(String(255), nullable=False, unique=True)
+    subcloud_id = Column(
+        Integer, ForeignKey("subclouds.id", ondelete="CASCADE"), nullable=False
+    )
+    release_version = Column(String(32), nullable=False)
+    size_bytes = Column(Integer)
+    storage_location = Column(String(64), nullable=False)
+    storage_path = Column(Text, nullable=False)

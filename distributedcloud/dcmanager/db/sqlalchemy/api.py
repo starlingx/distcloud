@@ -2096,6 +2096,38 @@ class Connection(object):
             config.save(session)
             return config
 
+    @require_context(admin=True)
+    def subcloud_backup_archive_create(
+        self,
+        backup_id: str,
+        subcloud_id: int,
+        release_version: str,
+        storage_location: str,
+        storage_path: str,
+        size_bytes: int = None,
+    ) -> models.SubcloudBackupArchive:
+        """Create a new backup archive record.
+
+        :param backup_id: Unique identifier for the backup
+        :param subcloud_id: ID of the subcloud
+        :param release_version: Software version of the subcloud
+        :param storage_location: Where the backup is stored
+        :param storage_path: Full path to the backup file
+        :param size_bytes: Size of the backup file in bytes
+        :returns SubcloudBackupArchive: The created backup archive record
+        """
+        with write_session() as session:
+            archive = models.SubcloudBackupArchive()
+            archive.backup_id = backup_id
+            archive.subcloud_id = subcloud_id
+            archive.release_version = release_version
+            archive.storage_location = storage_location
+            archive.storage_path = storage_path
+            if size_bytes is not None:
+                archive.size_bytes = size_bytes
+            session.add(archive)
+            return archive
+
 
 def initialize_subcloud_group_default(engine):
     try:

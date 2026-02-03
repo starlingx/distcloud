@@ -1199,3 +1199,33 @@ def subcloud_backup_config_get(context) -> models.SubcloudBackupConfig:
 
 def subcloud_backup_config_update(context, values: dict) -> models.SubcloudBackupConfig:
     return IMPL.Connection(context).subcloud_backup_config_update(values)
+
+
+def subcloud_backup_archive_create(
+    context,
+    backup_id: str,
+    subcloud_id: int,
+    release_version: str,
+    storage_location: str,
+    storage_path: str,
+    size_bytes: int = None,
+) -> models.SubcloudBackupArchive:
+    """Create a new backup archive record.
+
+    :param context: Request context
+    :param backup_id: Unique identifier for the backup
+    :param subcloud_id: ID of the subcloud
+    :param release_version: Software version of the subcloud
+    :param storage_location: Where the backup is stored (dc-vault or file-server)
+    :param storage_path: Full path to the backup file
+    :param size_bytes: Size of the backup file in bytes
+    :return SubcloudBackupArchive: The created backup archive record
+    """
+    return IMPL.Connection(context).subcloud_backup_archive_create(
+        backup_id,
+        subcloud_id,
+        release_version,
+        storage_location,
+        storage_path,
+        size_bytes,
+    )
