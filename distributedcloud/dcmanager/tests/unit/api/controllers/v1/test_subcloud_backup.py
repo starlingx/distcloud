@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,6 +7,7 @@
 import http.client
 import json
 import os
+import time
 
 import mock
 from oslo_messaging import RemoteError
@@ -1306,3 +1307,214 @@ class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
         self._assert_pecan_and_response(
             response, http.client.INTERNAL_SERVER_ERROR, "Unable to restore subcloud"
         )
+
+
+class TestSubcloudBackupGet(BaseTestSubcloudBackupController):
+    """Test class for get (backup list) requests"""
+
+    def setUp(self):
+        super().setUp()
+        self.method = self.app.get
+
+    def _create_backup_archive(
+        self,
+        backup_id,
+        subcloud_id=None,
+        release_version="25.09",
+        storage_location="dc-vault",
+        size_bytes=10000,
+    ):
+        return db_api.subcloud_backup_archive_create(
+            self.ctx,
+            backup_id=backup_id,
+            subcloud_id=subcloud_id or self.subcloud.id,
+            release_version=release_version,
+            storage_location=storage_location,
+            size_bytes=size_bytes,
+            storage_path=f"/path/to/backup_{backup_id}",
+        )
+
+    def _create_subcloud_and_group(self):
+        group = fake_subcloud.create_fake_subcloud_group(self.ctx, name="new-group")
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name="new-subcloud",
+            region_name="new-region",
+            group_id=group.id,
+        )
+        return subcloud, group
+
+    def test_get_succeeds_with_no_filters(self):
+        """Test get succeeds with no filters"""
+        self._create_backup_archive("backup-1")
+        self._create_backup_archive("backup-2")
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        response_data = json.loads(response.text)
+        self.assertIn("backups", response_data)
+        self.assertEqual(len(response_data["backups"]), 2)
+
+    def test_get_succeeds_with_subcloud_filter(self):
+        """Test get succeeds with subcloud filter"""
+        self._create_backup_archive("backup-1")
+
+        new_subcloud, _ = self._create_subcloud_and_group()
+        self._create_backup_archive("backup-2", new_subcloud.id)
+
+        for subcloud_ref in (self.subcloud.name, self.subcloud.id):
+            self.params = {"subcloud": str(subcloud_ref)}
+
+            response = self._send_request()
+
+            self._assert_response(response)
+            response_data = json.loads(response.text)
+            self.assertEqual(len(response_data["backups"]), 1)
+            self.assertEqual(
+                response_data["backups"][0]["subcloud"], self.subcloud.name
+            )
+
+    def test_get_succeeds_with_group_filter(self):
+        """Test get succeeds with group filter"""
+        group = fake_subcloud.create_fake_subcloud_group(self.ctx)
+        self._update_subcloud(group_id=group.id)
+        self._create_backup_archive("backup-1")
+
+        self._create_subcloud_and_group()
+
+        for group_ref in (group.name, group.id):
+            self.params = {"group": str(group_ref)}
+
+            response = self._send_request()
+
+            self._assert_response(response)
+            response_data = json.loads(response.text)
+            self.assertEqual(
+                response_data["backups"][0]["subcloud"], self.subcloud.name
+            )
+            self.assertEqual(len(response_data["backups"]), 1)
+
+    def test_get_succeeds_with_release_filter(self):
+        """Test get succeeds with release filter"""
+        self._create_backup_archive("backup-1", release_version="22.12")
+        self._create_backup_archive("backup-2", release_version="25.09")
+
+        self.params = {"release": "22.12"}
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        response_data = json.loads(response.text)
+        self.assertEqual(len(response_data["backups"]), 1)
+        self.assertEqual(response_data["backups"][0]["release"], "22.12")
+
+    def test_get_succeeds_with_storage_filter(self):
+        """Test get succeeds with storage filter"""
+        self._create_backup_archive("backup-1", storage_location="dc-vault")
+        self._create_backup_archive("backup-2", storage_location="seaweedfs")
+
+        self.params = {"storage": "seaweedfs"}
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        response_data = json.loads(response.text)
+        self.assertEqual(len(response_data["backups"]), 1)
+        self.assertEqual(response_data["backups"][0]["storage"], "seaweedfs")
+
+    def test_get_fails_with_invalid_storage_filter(self):
+        """Test get fails with invalid storage filter"""
+        self.params = {"storage": "invalid-storage"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Invalid location filter, must be one of ['dc-vault', 'seaweedfs']",
+        )
+
+    def test_get_fails_with_unknown_subcloud(self):
+        """Test get returns empty list with unknown subcloud"""
+        self._create_backup_archive("backup-1")
+        self.params = {"subcloud": "unknown-subcloud"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.NOT_FOUND,
+            "Subcloud backup filter 'unknown-subcloud' not found",
+        )
+
+    def test_get_fails_with_unknown_group(self):
+        """Test get returns empty list with unknown group"""
+        self._create_backup_archive("backup-1")
+        self.params = {"group": "unknown-group"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.NOT_FOUND,
+            "Group backup filter 'unknown-group' not found",
+        )
+
+    def test_get_fails_with_subcloud_and_group_filters(self):
+        """Test get fails when using both the group and subcloud filters"""
+        self._create_backup_archive("backup-1")
+        _, group = self._create_subcloud_and_group()
+
+        self.params = {"subcloud": self.subcloud.name, "group": group.name}
+
+        response = self._send_request()
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "The 'subcloud' and 'group' parameters are mutually exclusive",
+        )
+
+    def test_get_formats_backup_indices_correctly(self):
+        """Test get formats backup indices correctly based on creation time"""
+        subcloud2 = fake_subcloud.create_fake_subcloud(
+            self.ctx, name="subcloud2", region_name="region2"
+        )
+
+        self._create_backup_archive("old", release_version="22.12")
+        time.sleep(0.1)  # Just to make sure the created-at timestamp will be different
+        self._create_backup_archive("new", release_version="22.12")
+        self._create_backup_archive("single", release_version="23.09")
+        self._create_backup_archive("other", subcloud2.id, release_version="22.12")
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        response_data = json.loads(response.text)
+
+        self.assertEqual(len(response_data["backups"]), 4)
+
+        backups_by_id = {b["backup_id"]: b for b in response_data["backups"]}
+
+        # For subcloud1 + 22.12: backup "new" should have index 0,
+        # backup "old" should have index 1
+        self.assertEqual(backups_by_id["new"]["backup_index"], 0)
+        self.assertEqual(backups_by_id["old"]["backup_index"], 1)
+
+        # Single backups should have index 0
+        self.assertEqual(backups_by_id["single"]["backup_index"], 0)
+        self.assertEqual(backups_by_id["other"]["backup_index"], 0)
+
+
+@mock.patch("dcmanager.api.controllers.v1.subcloud_backup.policy.authorize")
+class TestSubcloudBackupPolicy(BaseTestSubcloudBackupController):
+    """Test class for policy enforcement"""
+
+    def test_get_enforces_policy(self, mock_authorize):
+        """Test GET request enforces policy"""
+
+        self.method = self.app.get
+        self._send_request()
+
+        mock_authorize.assert_called_once()
+        self.assertIn("list", mock_authorize.call_args[0][0])

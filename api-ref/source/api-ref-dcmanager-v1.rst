@@ -1055,6 +1055,36 @@ Request Example
          :language: json
 
 ***********************************************************************************
+Lists centralized subcloud backups
+***********************************************************************************
+
+.. rest_method:: GET /v1.0/subcloud-backup
+
+
+**Normal response codes**
+
+OK (200)
+
+**Error response codes**
+
+unauthorized (401), forbidden (403), notFound (404), internalServerError (500)
+
+**Response parameters**
+
+.. rest_parameters:: parameters.yaml
+
+  - subcloud: backup_list_subcloud_filter
+  - group: backup_list_group_filter
+  - storage: backup_list_storage_filter
+  - release: backup_list_release_filter
+
+Response Example
+----------------
+
+.. literalinclude:: samples/subcloud-backup/subcloud-backup-get-response.json
+         :language: json
+
+***********************************************************************************
 Restores a subcloud or a subcloud group from a backup
 ***********************************************************************************
 
