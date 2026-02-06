@@ -2745,17 +2745,22 @@ def is_active_controller(host):
 def get_last_sel_event_id(install_values: dict) -> str:
     bmc_address = install_values.get("bmc_address")
 
+    cmd = [
+        "/usr/local/bin/ipmi_sel_event_monitor.py",
+        "--bmc-address",
+        bmc_address,
+        "--bmc-username",
+        install_values.get("bmc_username"),
+        "--bmc-password",
+        install_values.get("bmc_password"),
+        "--get-last-event",
+    ]
+
+    if install_values.get("bmc_ciphersuite"):
+        cmd.extend(["--bmc-ciphersuite", str(install_values.get("bmc_ciphersuite"))])
+
     result = subprocess.run(
-        [
-            "/usr/local/bin/ipmi_sel_event_monitor.py",
-            "--bmc-address",
-            bmc_address,
-            "--bmc-username",
-            install_values.get("bmc_username"),
-            "--bmc-password",
-            install_values.get("bmc_password"),
-            "--get-last-event",
-        ],
+        cmd,
         capture_output=True,
         text=True,
         check=False,  # Don't auto-raise to prevent password being logged
