@@ -18,6 +18,7 @@
 import base64 as b64
 import datetime
 import grp
+import http.client
 import itertools
 import json
 import os
@@ -1095,14 +1096,73 @@ def summarize_message(error_msg):
     return brief_message
 
 
+def is_subcloud_in_transient_state(subcloud: models.Subcloud, should_abort=False):
+    """Check if a subcloud is in a transient state
+
+    Args:
+        subcloud: The subcloud object to check
+        should_abort: If True, abort with HTTP 409 when in transient state
+            Defaults to False
+
+    Returns:
+        A tuple containing:
+            - bool: True if subcloud is in a transient state, False otherwise
+            - str: Error message if in transient state, None otherwise
+
+    Raises:
+        pecan.abort: HTTP 409 if should_abort is True and subcloud is in
+            transient state
+    """
+    operation_in_progress = None
+    message = None
+    prestage_in_progress = subcloud.prestage_status in consts.TRANSITORY_PRESTAGE_STATES
+    backup_in_progress = subcloud.backup_status in consts.TRANSITORY_BACKUP_STATES
+    deploy_state_in_progress = subcloud.deploy_status in consts.TRANSITORY_STATES
+
+    if prestage_in_progress:
+        operation_in_progress = f"prestage_status is '{subcloud.prestage_status}'"
+    elif backup_in_progress:
+        operation_in_progress = f"backup_status is '{subcloud.backup_status}'"
+    elif deploy_state_in_progress:
+        operation_in_progress = f"deploy_status is '{subcloud.deploy_status}'"
+    if operation_in_progress:
+        message = (
+            f"Subcloud {subcloud.name} current {operation_in_progress}. "
+            "Please wait until it finishes before running this operation."
+        )
+        if should_abort:
+            pecan.abort(http.client.CONFLICT, message)
+    return operation_in_progress is not None, message
+
+
 def is_valid_for_backup_operation(
-    operation, subcloud, bootstrap_address_dict=None, auto_restore_mode=None
+    operation,
+    subcloud,
+    bootstrap_address_dict=None,
+    auto_restore_mode=None,
+    local_delete=False,
 ):
+    """Validate if a subcloud is ready for a backup operation
+
+    Args:
+        operation: The backup operation type ('create', 'delete', or 'restore')
+        subcloud: The subcloud object to validate
+        bootstrap_address_dict: Dictionary mapping subcloud names to bootstrap
+            addresses. Defaults to None
+        auto_restore_mode: The auto-restore mode if applicable. Defaults to None
+        local_delete: If True, delete operation is local_only. Defaults to False
+
+    Returns:
+        bool: True if the subcloud is valid for the operation
+
+    Raises:
+        exceptions.ValidateFail: If validation fails for the operation
+    """
 
     if operation == "create":
         return _is_valid_for_backup_create(subcloud)
     elif operation == "delete":
-        return _is_valid_for_backup_delete(subcloud)
+        return _is_valid_for_backup_delete(subcloud, local_delete)
     elif operation == "restore":
         return _is_valid_for_backup_restore(
             subcloud, bootstrap_address_dict, auto_restore_mode
@@ -1114,30 +1174,65 @@ def is_valid_for_backup_operation(
 
 
 def _is_valid_for_backup_create(subcloud):
+    """Validate if a subcloud is ready for backup creation
+
+    Args:
+        subcloud: The subcloud object to validate
+
+    Returns:
+        bool: True if validation passes
+
+    Raises:
+        exceptions.ValidateFail: If subcloud is not deployed, online, managed,
+            or is in a transient state
+    """
     if (
         subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE
         or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED
         or subcloud.deploy_status != consts.DEPLOY_STATE_DONE
-        or subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE
     ):
         msg = (
-            "Subcloud %s must be deployed, online, managed, and no ongoing prestage "
-            "for the subcloud-backup create operation." % subcloud.name
+            f"Subcloud {subcloud.name} must be deployed, online and managed "
+            "for the subcloud-backup create operation."
         )
+        raise exceptions.ValidateFail(msg)
+
+    is_in_transient_state, message = is_subcloud_in_transient_state(subcloud)
+    if is_in_transient_state:
+        msg = f"Cannot perform subcloud-backup create operation: {message}"
         raise exceptions.ValidateFail(msg)
 
     return True
 
 
-def _is_valid_for_backup_delete(subcloud):
+def _is_valid_for_backup_delete(subcloud, local_delete=False):
+    """Validate if a subcloud is ready for backup deletion
+
+    Args:
+        subcloud: The subcloud object to validate
+        local_delete: If True, requires subcloud to be online and managed
+            Defaults to False
+
+    Returns:
+        bool: True if validation passes
+
+    Raises:
+        exceptions.ValidateFail: If subcloud is in a transient state, or if
+            local_delete is True and subcloud is not online and managed
+    """
     if (
         subcloud.availability_status != dccommon_consts.AVAILABILITY_ONLINE
         or subcloud.management_state != dccommon_consts.MANAGEMENT_MANAGED
-    ):
+    ) and local_delete:
         msg = (
             "Subcloud %s must be online and managed for the subcloud-backup "
             "delete operation with --local-only option." % subcloud.name
         )
+        raise exceptions.ValidateFail(msg)
+
+    is_in_transient_state, message = is_subcloud_in_transient_state(subcloud)
+    if is_in_transient_state:
+        msg = f"Cannot perform subcloud-backup delete operation: {message}"
         raise exceptions.ValidateFail(msg)
 
     return True
@@ -1152,6 +1247,24 @@ def get_bootstrap_values(subcloud: models.Subcloud) -> dict:
 def _is_valid_for_backup_restore(
     subcloud, bootstrap_address_dict=None, auto_restore_mode=None
 ):
+    """Validate if a subcloud is ready for backup restoration.
+
+    Args:
+        subcloud: The subcloud object to validate.
+        bootstrap_address_dict: Dictionary mapping subcloud names to bootstrap
+            addresses. Defaults to None.
+        auto_restore_mode: The auto-restore mode. If specified, validates that
+            the subcloud is simplex. Defaults to None.
+
+    Returns:
+        bool: True if validation passes.
+
+    Raises:
+        exceptions.ValidateFail: If subcloud is not unmanaged, has invalid
+            deploy state, lacks bootstrap address, has invalid bootstrap address,
+            is in transient state, or if auto_restore_mode is set and subcloud
+            is not simplex.
+    """
 
     msg = None
     ansible_subcloud_inventory_file = get_ansible_filename(
@@ -1208,6 +1321,11 @@ def _is_valid_for_backup_restore(
                     f"{auto_restore_mode.capitalize()} restore is only supported "
                     f"for {consts.SYSTEM_MODE_SIMPLEX} subclouds."
                 )
+    if msg is None:
+        is_in_transient_state, message = is_subcloud_in_transient_state(subcloud)
+        if is_in_transient_state:
+            msg = f"Cannot perform subcloud-backup restore operation: {message}"
+
     if msg:
         raise exceptions.ValidateFail(msg)
 

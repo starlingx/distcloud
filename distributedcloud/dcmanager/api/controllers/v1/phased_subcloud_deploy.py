@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -341,10 +341,7 @@ class PhasedSubcloudDeployController(object):
                 400, _("Subcloud deploy status must be %s") % allowed_states_str
             )
 
-        if subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE:
-            pecan.abort(
-                400, _("Subcloud prestage is ongoing %s") % subcloud.prestage_status
-            )
+        utils.is_subcloud_in_transient_state(subcloud, should_abort=True)
 
         # If the subcloud belongs to a peer group, ensure that
         # it's not being configured in a secondary site.

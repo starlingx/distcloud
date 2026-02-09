@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -353,9 +353,9 @@ class AnsiblePlaybook(object):
                     #    - playbook_failure is True with subp_rc != 0,
                     #      aborted is True, unabortable_flag_exists is False
                     with AnsiblePlaybook.lock:
-                        aborted = AnsiblePlaybook.abort_status[self.subcloud_name][
-                            "abort"
-                        ]
+                        aborted = AnsiblePlaybook.abort_status.get(
+                            self.subcloud_name, {}
+                        ).get("abort", False)
                         unabortable_flag_exists = os.path.exists(unabortable_flag)
                     playbook_failure = subp_rc != 0 and (
                         not aborted or unabortable_flag_exists

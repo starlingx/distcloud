@@ -130,42 +130,6 @@ SC_INTERMEDIATE_CERT_DURATION = "8760h"  # 1 year = 24 hours x 365
 SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"  # 30 days
 CERT_NAMESPACE = "dc-cert"
 
-TRANSITORY_STATES = {
-    consts.DEPLOY_STATE_NONE: consts.DEPLOY_STATE_CREATE_FAILED,
-    consts.DEPLOY_STATE_CREATING: consts.DEPLOY_STATE_CREATE_FAILED,
-    consts.DEPLOY_STATE_PRE_INSTALL: consts.DEPLOY_STATE_PRE_INSTALL_FAILED,
-    consts.DEPLOY_STATE_INSTALLING: consts.DEPLOY_STATE_INSTALL_FAILED,
-    consts.DEPLOY_STATE_PRE_BOOTSTRAP: consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
-    consts.DEPLOY_STATE_BOOTSTRAPPING: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
-    consts.DEPLOY_STATE_PRE_CONFIG: consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
-    consts.DEPLOY_STATE_CONFIGURING: consts.DEPLOY_STATE_CONFIG_FAILED,
-    consts.DEPLOY_STATE_ABORTING_INSTALL: consts.DEPLOY_STATE_INSTALL_FAILED,
-    consts.DEPLOY_STATE_ABORTING_BOOTSTRAP: consts.DEPLOY_STATE_BOOTSTRAP_FAILED,
-    consts.DEPLOY_STATE_ABORTING_CONFIG: consts.DEPLOY_STATE_CONFIG_FAILED,
-    consts.DEPLOY_STATE_PRE_RESTORE: consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
-    consts.DEPLOY_STATE_RESTORING: consts.DEPLOY_STATE_RESTORE_FAILED,
-    consts.DEPLOY_STATE_PRE_REHOME: consts.DEPLOY_STATE_REHOME_PREP_FAILED,
-    consts.DEPLOY_STATE_REHOMING: consts.DEPLOY_STATE_REHOME_FAILED,
-    # The next two states are needed due to upgrade scenario:
-    # TODO(gherzman): remove states when they are no longer needed
-    consts.DEPLOY_STATE_PRE_DEPLOY: consts.DEPLOY_STATE_PRE_CONFIG_FAILED,
-    consts.DEPLOY_STATE_DEPLOYING: consts.DEPLOY_STATE_CONFIG_FAILED,
-    consts.DEPLOY_STATE_PRE_ENROLL: consts.DEPLOY_STATE_PRE_ENROLL_FAILED,
-    consts.DEPLOY_STATE_ENROLLING: consts.DEPLOY_STATE_ENROLL_FAILED,
-    consts.DEPLOY_STATE_PRE_INIT_ENROLL: consts.DEPLOY_STATE_PRE_INIT_ENROLL_FAILED,
-    consts.DEPLOY_STATE_INITIATING_ENROLL: consts.DEPLOY_STATE_INIT_ENROLL_FAILED,
-}
-
-TRANSITORY_BACKUP_STATES = {
-    consts.BACKUP_STATE_VALIDATING: consts.BACKUP_STATE_VALIDATE_FAILED,
-    consts.BACKUP_STATE_PRE_BACKUP: consts.BACKUP_STATE_PREP_FAILED,
-    consts.BACKUP_STATE_IN_PROGRESS: consts.BACKUP_STATE_FAILED,
-}
-
-TRANSITORY_PRESTAGE_STATES = {
-    consts.PRESTAGE_STATE_PRESTAGING: consts.PRESTAGE_STATE_FAILED,
-}
-
 MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
@@ -1175,7 +1139,6 @@ class SubcloudManager(manager.Manager):
         )
 
         self._filter_subclouds_with_ongoing_backup(subclouds)
-        self._update_backup_status(context, subclouds, consts.BACKUP_STATE_INITIAL)
 
         # Validate the subclouds and filter the ones applicable for backup
         self._update_backup_status(context, subclouds, consts.BACKUP_STATE_VALIDATING)
@@ -2155,7 +2118,7 @@ class SubcloudManager(manager.Manager):
         i = 0
         while i < len(subclouds):
             subcloud = subclouds[i]
-            if subcloud.backup_status in consts.STATES_FOR_ONGOING_BACKUP:
+            if subcloud.backup_status in consts.TRANSITORY_BACKUP_STATES:
                 LOG.info(
                     _(
                         "Subcloud %s already has a backup operation in progress"
@@ -2167,7 +2130,7 @@ class SubcloudManager(manager.Manager):
                 i += 1
 
     def _validate_subclouds_for_backup(
-        self, subclouds, operation, bootstrap_address_dict=None
+        self, subclouds, operation, bootstrap_address_dict=None, local_delete=False
     ):
         valid_subclouds = []
         invalid_subclouds = []
@@ -2175,7 +2138,10 @@ class SubcloudManager(manager.Manager):
             is_valid = False
             try:
                 if utils.is_valid_for_backup_operation(
-                    operation, subcloud, bootstrap_address_dict
+                    operation,
+                    subcloud,
+                    bootstrap_address_dict,
+                    local_delete=local_delete,
                 ):
                     is_valid = True
 
@@ -2399,15 +2365,12 @@ class SubcloudManager(manager.Manager):
         )
         invalid_subclouds = []
 
-        # Subcloud state validation only required for local delete
-        if local_delete:
-            # Use same criteria defined for subcloud backup create
-            subclouds_to_delete_backup, invalid_subclouds = (
-                self._validate_subclouds_for_backup(subclouds, "delete")
+        # Use same criteria defined for subcloud backup create
+        subclouds_to_delete_backup, invalid_subclouds = (
+            self._validate_subclouds_for_backup(
+                subclouds, "delete", local_delete=local_delete
             )
-        else:
-            # Otherwise, validation is unnecessary, since connection is not required
-            subclouds_to_delete_backup = subclouds
+        )
 
         return subclouds_to_delete_backup, invalid_subclouds
 
@@ -3327,6 +3290,11 @@ class SubcloudManager(manager.Manager):
         )
 
         try:
+            db_api.subcloud_update(
+                context,
+                subcloud.id,
+                backup_status=consts.BACKUP_STATE_DELETING_BACKUP,
+            )
             # Run the subcloud backup delete playbook
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
             ansible.run_playbook(log_file, delete_command)
@@ -3358,6 +3326,15 @@ class SubcloudManager(manager.Manager):
                 exception=e,
                 stage=consts.BACKUP_STATE_FAILED,
                 operation="deleting-backup",
+            )
+            if "The specified subcloud backup does not exist" in msg:
+                backup_status = consts.BACKUP_STATE_UNKNOWN
+            else:
+                backup_status = consts.BACKUP_STATE_DELETE_FAILED
+            db_api.subcloud_update(
+                context,
+                subcloud.id,
+                backup_status=backup_status,
             )
             LOG.error(msg)
             return False
@@ -4802,9 +4779,11 @@ class SubcloudManager(manager.Manager):
 
         for subcloud in subclouds:
             # Identify subclouds in transitory states
-            new_deploy_status = TRANSITORY_STATES.get(subcloud.deploy_status)
-            new_backup_status = TRANSITORY_BACKUP_STATES.get(subcloud.backup_status)
-            new_prestage_status = TRANSITORY_PRESTAGE_STATES.get(
+            new_deploy_status = consts.TRANSITORY_STATES.get(subcloud.deploy_status)
+            new_backup_status = consts.TRANSITORY_BACKUP_STATES.get(
+                subcloud.backup_status
+            )
+            new_prestage_status = consts.TRANSITORY_PRESTAGE_STATES.get(
                 subcloud.prestage_status
             )
 
