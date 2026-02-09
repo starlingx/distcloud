@@ -3422,9 +3422,9 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
     def test_handle_subcloud_operations_in_progress(self):
         # There are three types of transitory states
         state_map = {
-            "deploy_status": subcloud_manager.TRANSITORY_STATES.copy(),
-            "backup_status": subcloud_manager.TRANSITORY_BACKUP_STATES.copy(),
-            "prestage_status": subcloud_manager.TRANSITORY_PRESTAGE_STATES.copy(),
+            "deploy_status": consts.TRANSITORY_STATES.copy(),
+            "backup_status": consts.TRANSITORY_BACKUP_STATES.copy(),
+            "prestage_status": consts.TRANSITORY_PRESTAGE_STATES.copy(),
         }
 
         # Any state not defined in the transitory states should not be modified
@@ -4940,7 +4940,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         db_api.subcloud_update(
             self.ctx,
             self.subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_NONE,
+            deploy_status=consts.DEPLOY_STATE_DONE,
             availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
             data_install=self.data_install,
@@ -5505,6 +5505,13 @@ class TestSubcloudBackupRestoreWithIndex(BaseTestSubcloudManager):
         self.values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
         self.data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
             "'", '"'
+        )
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
         )
         self.mock_get_by_id = self._mock_object(
             db_api,

@@ -188,7 +188,11 @@ class SubcloudBackupController(object):
 
     @staticmethod
     def _validate_subclouds(
-        request_entity, operation, bootstrap_address_dict=None, auto_restore_mode=None
+        request_entity,
+        operation,
+        bootstrap_address_dict=None,
+        auto_restore_mode=None,
+        local_delete=False,
     ):
         """Validate the subcloud according to the operation
 
@@ -215,23 +219,15 @@ class SubcloudBackupController(object):
         for subcloud in subclouds:
             try:
                 is_valid = utils.is_valid_for_backup_operation(
-                    operation, subcloud, bootstrap_address_dict, auto_restore_mode
+                    operation,
+                    subcloud,
+                    bootstrap_address_dict,
+                    auto_restore_mode,
+                    local_delete,
                 )
-
-                if operation == "create":
-                    backup_in_progress = (
-                        subcloud.backup_status in consts.STATES_FOR_ONGOING_BACKUP
-                    )
-                    if is_valid and not backup_in_progress:
-                        has_valid_subclouds = True
-                    else:
-                        error_msg = _(
-                            "Subcloud(s) already have a backup operation in progress."
-                        )
-                else:
-                    if is_valid:
-                        valid_subclouds.append(subcloud)
-                        has_valid_subclouds = True
+                if is_valid:
+                    valid_subclouds.append(subcloud)
+                    has_valid_subclouds = True
 
             except exceptions.ValidateFail as e:
                 error_msg = e.message
@@ -383,8 +379,7 @@ class SubcloudBackupController(object):
 
             # Validate subcloud state when deleting locally
             # Not needed for centralized storage, since connection is not required
-            if local_only:
-                self._validate_subclouds(request_entity, verb)
+            self._validate_subclouds(request_entity, verb, local_delete=local_only)
 
             # Set subcloud/group ID as reference instead of name to ease processing
             payload[request_entity.type] = request_entity.id

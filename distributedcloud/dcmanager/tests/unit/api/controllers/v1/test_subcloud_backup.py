@@ -321,8 +321,8 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Subcloud {self.subcloud.name} must be deployed, online, managed, "
-            "and no ongoing prestage for the subcloud-backup create operation.",
+            f"Subcloud {self.subcloud.name} must be deployed, online and managed "
+            "for the subcloud-backup create operation.",
         )
 
     def test_post_subcloud_fails_with_unmanaged_subcloud(self):
@@ -335,8 +335,8 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Subcloud {self.subcloud.name} must be deployed, online, managed, "
-            "and no ongoing prestage for the subcloud-backup create operation.",
+            f"Subcloud {self.subcloud.name} must be deployed, online and managed "
+            "for the subcloud-backup create operation.",
         )
 
     def test_post_subcloud_fails_with_subcloud_in_invalid_deploy_state(self):
@@ -349,8 +349,8 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Subcloud {self.subcloud.name} must be deployed, online, managed, and "
-            "no ongoing prestage for the subcloud-backup create operation.",
+            f"Subcloud {self.subcloud.name} must be deployed, online and managed "
+            "for the subcloud-backup create operation.",
         )
 
     def test_post_subcloud_succeeds_with_backup_values(self):
@@ -512,15 +512,22 @@ class TestSubcloudBackupPostSubcloud(BaseTestSubcloudBackupPost):
             FAKE_GOOD_SYSTEM_HEALTH
         )
 
-        for index, state in enumerate(consts.STATES_FOR_ONGOING_BACKUP, start=1):
+        for index, state in enumerate(consts.TRANSITORY_BACKUP_STATES, start=1):
             self._update_subcloud(backup_status=state)
 
             response = self._send_request()
 
+            operation_in_progress = f"backup_status is '{state}'"
+            error_message = (
+                "Cannot perform subcloud-backup create operation: "
+                f"Subcloud {self.subcloud.name} current {operation_in_progress}. "
+                "Please wait until it finishes before running this operation."
+            )
+
             self._assert_pecan_and_response(
                 response,
                 http.client.BAD_REQUEST,
-                "Subcloud(s) already have a backup operation in progress.",
+                error_message,
                 call_count=index,
             )
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,11 +76,12 @@ def initial_subcloud_validate(subcloud):
             subcloud=subcloud.name, orch_skip=True, details="Subcloud is not managed."
         )
 
-    if subcloud.backup_status in consts.STATES_FOR_ONGOING_BACKUP:
+    is_in_transient_state, message = utils.is_subcloud_in_transient_state(subcloud)
+    if is_in_transient_state:
         raise exceptions.PrestagePreCheckFailedException(
             subcloud=subcloud.name,
             orch_skip=True,
-            details="Prestage operation is not allowed while backup is in progress.",
+            details=message,
         )
 
     # The sw-deploy-apply-strategy-failed state could be due to a missing
@@ -122,7 +123,7 @@ def validate_prestage_subcloud(subcloud, payload, system_controller_sw_list=None
       - Subcloud exists
       - Subcloud is online
       - Subcloud is managed
-      - Subcloud backup operation is not in progress
+      - Subcloud doesn't have any operation in progress (i.e. transient state)
       - Subcloud has no management-affecting alarms (unless force=true)
 
     Raises a PrestageCheckFailedException on failure.

@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -2047,8 +2047,8 @@ class TestSubcloudsPatchWithRename(BaseTestSubcloudsPatch):
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Subcloud {self.subcloud.name} must be deployed, unmanaged and "
-            "no ongoing prestage for the subcloud rename operation.",
+            f"Subcloud {self.subcloud.name} must be deployed and unmanaged "
+            "for the subcloud rename operation.",
         )
 
     def test_patch_with_rename_fails_with_invalid_name(self):
@@ -2189,6 +2189,60 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
             http.client.UNPROCESSABLE_ENTITY,
             "Management state and network reconfiguration must be updated separately",
         )
+
+    def test_patch_with_network_reconfig_fails_with_invalid_deploy_state(self):
+        """Test patch with network reconfig fails with invalid deploy state"""
+
+        for index, state in enumerate(consts.TRANSITORY_STATES, start=1):
+            self._update_subcloud(deploy_status=state)
+            response = self._send_request()
+            operation_in_progress = f"deploy_status is '{state}'"
+            error_message = (
+                f"Subcloud {self.subcloud.name} current {operation_in_progress}. "
+                "Please wait until it finishes before running this operation."
+            )
+            self._assert_pecan_and_response(
+                response,
+                http.client.CONFLICT,
+                error_message,
+                index,
+            )
+
+    def test_patch_with_network_reconfig_fails_with_invalid_backup_status(self):
+        """Test patch with network reconfig fails with invalid backup status"""
+
+        for index, state in enumerate(consts.TRANSITORY_BACKUP_STATES, start=1):
+            self._update_subcloud(backup_status=state)
+            response = self._send_request()
+            operation_in_progress = f"backup_status is '{state}'"
+            error_message = (
+                f"Subcloud {self.subcloud.name} current {operation_in_progress}. "
+                "Please wait until it finishes before running this operation."
+            )
+            self._assert_pecan_and_response(
+                response,
+                http.client.CONFLICT,
+                error_message,
+                index,
+            )
+
+    def test_patch_with_network_reconfig_fails_with_invalid_prestage_status(self):
+        """Test patch with network reconfig fails with invalid prestage status"""
+
+        for index, state in enumerate(consts.TRANSITORY_PRESTAGE_STATES, start=1):
+            self._update_subcloud(prestage_status=state)
+            response = self._send_request()
+            operation_in_progress = f"prestage_status is '{state}'"
+            error_message = (
+                f"Subcloud {self.subcloud.name} current {operation_in_progress}. "
+                "Please wait until it finishes before running this operation."
+            )
+            self._assert_pecan_and_response(
+                response,
+                http.client.CONFLICT,
+                error_message,
+                index,
+            )
 
     def test_patch_with_network_reconfig_fails_with_managed_subcloud(self):
         """Test patch with network reconfig fails with managed subcloud"""
@@ -3402,11 +3456,17 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
 
         response = self._send_request()
 
+        operation_in_progress = f"backup_status is '{self.subcloud.backup_status}'"
+        error_message = (
+            f"Prestage skipped '{self.subcloud.name}': "
+            f"Subcloud {self.subcloud.name} current {operation_in_progress}. "
+            "Please wait until it finishes before running this operation."
+        )
+
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Prestage skipped '{self.subcloud.name}': Prestage operation is not "
-            "allowed while backup is in progress.",
+            error_message,
         )
 
     def test_patch_prestage_fails_with_deploy_state_in_progress(self):
@@ -3416,11 +3476,17 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
 
         response = self._send_request()
 
+        operation_in_progress = f"deploy_status is '{self.subcloud.deploy_status}'"
+        error_message = (
+            f"Prestage skipped '{self.subcloud.name}': "
+            f"Subcloud {self.subcloud.name} current {operation_in_progress}. "
+            "Please wait until it finishes before running this operation."
+        )
+
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Prestage skipped '{self.subcloud.name}': Prestage operation is "
-            "not allowed when subcloud deploy is in progress.",
+            error_message,
         )
 
 
