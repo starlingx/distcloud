@@ -5317,6 +5317,675 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
         self.assertEqual(result, (self.subcloud, True))
 
 
+class TestDetermineRestoreMode(BaseTestSubcloudManager):
+    """Test class for testing _determine_restore_mode method"""
+
+    def _assert_restore_mode(
+        self,
+        payload,
+        expected_mode,
+        expected_bmc_access_only,
+        expected_skip_monitoring=False,
+    ):
+        result = subcloud_manager.SubcloudManager._determine_restore_mode(payload)
+
+        self.assertEqual(result.auto_restore_mode, expected_mode)
+        self.assertEqual(result.bmc_access_only, expected_bmc_access_only)
+        self.assertEqual(result.skip_install_monitoring, expected_skip_monitoring)
+        self.assertTrue(result.ipmi_sel_event_monitoring)
+
+    def test_determine_restore_mode_factory(self):
+        """Test factory restore mode detection"""
+        self._assert_restore_mode({"factory": True}, "factory", True)
+
+    def test_determine_restore_mode_auto(self):
+        """Test auto restore mode detection"""
+        self._assert_restore_mode({"auto": True}, "auto", True)
+
+    def test_determine_restore_mode_standard(self):
+        """Test standard restore mode (no factory or auto)"""
+        self._assert_restore_mode({}, None, False)
+
+    def test_determine_restore_mode_factory_takes_precedence(self):
+        """Test that factory takes precedence over auto when both are set"""
+        self._assert_restore_mode({"factory": True, "auto": True}, "factory", True)
+
+
+class TestResolveBootstrapAddress(BaseTestSubcloudManager):
+    """Test class for testing _resolve_bootstrap_address method"""
+
+    def _create_subcloud_without_data_install(self):
+        """Helper to create a subcloud without data_install"""
+        return db_api.subcloud_create(
+            self.ctx,
+            name="subcloud2",
+            description="test subcloud",
+            location="test location",
+            software_version="26.03",
+            management_subnet="192.168.22.0/24",
+            management_gateway_ip="192.168.22.1",
+            management_start_ip="192.168.22.2",
+            management_end_ip="192.168.22.50",
+            systemcontroller_gateway_ip="192.168.22.101",
+            external_oam_subnet_ip_family="4",
+            deploy_status="not-deployed",
+            error_description="No errors present",
+            region_name="Region2",
+            openstack_installed=False,
+            group_id=1,
+        )
+
+    def _setup_subcloud_with_data_install(self):
+        return db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES),
+        )
+
+    def test_resolve_bootstrap_address_from_restore_values(self):
+        """Test bootstrap address resolution from restore_values (highest priority)"""
+        self._setup_subcloud_with_data_install()
+        payload = {
+            "restore_values": {
+                "bootstrap_address": {self.subcloud.name: "192.168.1.100"}
+            }
+        }
+
+        result = self.sm._resolve_bootstrap_address(payload, self.subcloud)
+
+        self.assertEqual(result, "192.168.1.100")
+
+    def test_resolve_bootstrap_address_from_data_install(self):
+        """Test bootstrap address resolution from data_install (second priority)"""
+        self.subcloud = self._setup_subcloud_with_data_install()
+
+        result = self.sm._resolve_bootstrap_address(
+            {"restore_values": {}}, self.subcloud
+        )
+
+        self.assertEqual(
+            result, fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES["bootstrap_address"]
+        )
+
+    @mock.patch.object(subcloud_manager.utils, "get_ansible_host_ip_from_inventory")
+    def test_resolve_bootstrap_address_from_inventory(self, mock_get_inventory_ip):
+        """Test bootstrap address resolution from inventory file (lowest priority)"""
+        mock_get_inventory_ip.return_value = "192.168.1.200"
+        subcloud = self._create_subcloud_without_data_install()
+
+        result = self.sm._resolve_bootstrap_address({"restore_values": {}}, subcloud)
+
+        self.assertEqual(result, "192.168.1.200")
+        mock_get_inventory_ip.assert_called_once_with(subcloud.name)
+
+    def test_resolve_bootstrap_address_restore_values_empty_for_subcloud(self):
+        """Test fallback when restore_values exists but not for this subcloud"""
+        self.subcloud = self._setup_subcloud_with_data_install()
+        payload = {
+            "restore_values": {"bootstrap_address": {"other_subcloud": "192.168.1.100"}}
+        }
+
+        result = self.sm._resolve_bootstrap_address(payload, self.subcloud)
+
+        self.assertEqual(
+            result, fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES["bootstrap_address"]
+        )
+
+    @mock.patch.object(subcloud_manager.utils, "get_ansible_host_ip_from_inventory")
+    def test_resolve_bootstrap_address_failure_raises_exception(self, mock_get_ip):
+        """Test that failures raise RestorePreparationError"""
+        mock_get_ip.side_effect = Exception("Inventory not found")
+        subcloud = self._create_subcloud_without_data_install()
+
+        self.assertRaises(
+            exceptions.RestorePreparationError,
+            self.sm._resolve_bootstrap_address,
+            {"restore_values": {}},
+            subcloud,
+        )
+
+
+class BaseTestRestoreHelpers(BaseTestSubcloudManager):
+    """Base class with common setup and helpers for restore-related tests"""
+
+    DEFAULT_AUTO_RESTORE_MODE = "factory"
+    DEFAULT_BMC_ACCESS_ONLY = True
+
+    def setUp(self):
+        super().setUp()
+        self.subcloud = db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES),
+        )
+
+    def _create_restore_mode(
+        self, auto_restore_mode=None, bmc_access_only=None, **kwargs
+    ):
+        """Create RestoreMode with class defaults"""
+        mode = subcloud_manager.RestoreMode(
+            auto_restore_mode=(
+                auto_restore_mode
+                if auto_restore_mode is not None
+                else self.DEFAULT_AUTO_RESTORE_MODE
+            ),
+            bmc_access_only=(
+                bmc_access_only
+                if bmc_access_only is not None
+                else self.DEFAULT_BMC_ACCESS_ONLY
+            ),
+            **kwargs,
+        )
+        return mode
+
+    def _create_restore_context(self, **kwargs):
+        defaults = {
+            "restore_mode": self._create_restore_mode(),
+            "subcloud_inventory_file": "inventory_file.yml",
+            "overrides_file": "overrides_file.yml",
+            "log_file": "/tmp/log.log",
+            "restore_command": ["ansible-playbook", "restore.yml"],
+        }
+        defaults.update(kwargs)
+        return subcloud_manager.RestoreContext(**defaults)
+
+    @staticmethod
+    def _create_payload(**kwargs):
+        payload = {"override_values": {}}
+        payload.update(kwargs)
+        return payload
+
+
+class TestPrepareRestoreFiles(BaseTestRestoreHelpers):
+    """Test class for testing _prepare_restore_files method"""
+
+    def setUp(self):
+        super().setUp()
+        self.mock_create_inventory = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+        )
+        self.mock_create_inventory.return_value = "inventory_file.yml"
+
+        self.mock_create_overrides = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+        )
+        self.mock_create_overrides.return_value = "overrides_file.yml"
+
+        self.mock_compose_restore = self._mock_object(
+            subcloud_manager.SubcloudManager, "compose_backup_restore_command"
+        )
+        self.mock_compose_restore.return_value = ["ansible-playbook", "restore.yml"]
+
+    def _prepare_restore_files(
+        self, restore_mode=None, payload=None, bootstrap_address="192.168.1.100"
+    ):
+        return self.sm._prepare_restore_files(
+            payload or self._create_payload(),
+            self.subcloud,
+            restore_mode or self._create_restore_mode(),
+            bootstrap_address,
+        )
+
+    def test_prepare_restore_files_success(self):
+        """Test successful preparation of restore files"""
+        result = self._prepare_restore_files(
+            payload=self._create_payload(
+                override_values={"ipmi_sel_event_monitoring": True},
+                with_install=True,
+            )
+        )
+
+        self.assertIsInstance(result, subcloud_manager.RestoreContext)
+        self.assertEqual(result.subcloud_inventory_file, "inventory_file.yml")
+        self.assertEqual(result.overrides_file, "overrides_file.yml")
+        self.assertIn("_playbook_output.log", result.log_file)
+
+    def test_prepare_restore_files_creates_inventory_with_bootstrap_address(self):
+        """Test that inventory file is created with bootstrap address"""
+        self._prepare_restore_files(bootstrap_address="192.168.1.100")
+
+        self.mock_create_inventory.assert_called_once_with(
+            self.subcloud, bootstrap_address="192.168.1.100"
+        )
+
+    def test_prepare_restore_files_with_wipe_osds(self):
+        """Test that wipe_osds is extracted from data_install for with_install"""
+        data_install = fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES.copy()
+        data_install["wipe_osds"] = True
+        self.subcloud = db_api.subcloud_update(
+            self.ctx, self.subcloud.id, data_install=json.dumps(data_install)
+        )
+
+        self._prepare_restore_files(payload=self._create_payload(with_install=True))
+        call_args = self.mock_create_overrides.call_args
+        self.assertTrue(call_args[0][4])  # install_wipe_osds argument
+
+    def test_prepare_restore_files_ipmi_sel_monitoring_disabled_factory(self):
+        """Test bmc_access_only=False for factory without SEL monitoring"""
+        restore_mode = self._create_restore_mode()
+        self._prepare_restore_files(
+            restore_mode=restore_mode,
+            payload=self._create_payload(
+                override_values={"ipmi_sel_event_monitoring": False}
+            ),
+        )
+
+        self.assertFalse(restore_mode.bmc_access_only)
+
+    def test_prepare_restore_files_ipmi_sel_monitoring_disabled_auto(self):
+        """Test skip_install_monitoring=True for auto without SEL monitoring"""
+        restore_mode = self._create_restore_mode(auto_restore_mode="auto")
+        self._prepare_restore_files(
+            restore_mode=restore_mode,
+            payload=self._create_payload(
+                override_values={"ipmi_sel_event_monitoring": False}
+            ),
+        )
+
+        self.assertTrue(restore_mode.skip_install_monitoring)
+
+    def test_prepare_restore_files_ipmi_sel_monitoring_defaults_to_true(self):
+        """Test that ipmi_sel_event_monitoring defaults to True"""
+        restore_mode = self._create_restore_mode()
+        self._prepare_restore_files(restore_mode=restore_mode)
+
+        self.assertTrue(restore_mode.ipmi_sel_event_monitoring)
+
+    def test_prepare_restore_files_failure_raises_exception(self):
+        """Test that failures raise RestorePreparationError"""
+        self.mock_create_inventory.side_effect = Exception("Inventory creation failed")
+
+        self.assertRaises(
+            exceptions.RestorePreparationError,
+            self._prepare_restore_files,
+        )
+
+
+class TestSetupAutoRestoreWithoutInstall(BaseTestRestoreHelpers):
+    """Test class for testing _setup_auto_restore_without_install method"""
+
+    DEFAULT_AUTO_RESTORE_MODE = "auto"
+
+    def setUp(self):
+        super().setUp()
+        self.mock_generate_seed_iso = self._mock_object(
+            subcloud_manager.SubcloudManager, "_generate_auto_restore_seed_iso"
+        )
+        self.mock_generate_seed_iso.return_value = "/tmp/seed.iso"
+
+        self.mock_create_rvmc_config = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_rvmc_config_for_seed_iso"
+        )
+
+        self.restore_ctx = self._create_restore_context()
+
+    def _setup_auto_restore(self, payload=None):
+        self.sm._setup_auto_restore_without_install(
+            payload if payload is not None else {},
+            self.subcloud,
+            self.restore_ctx,
+        )
+
+    def test_setup_auto_restore_without_install_success(self):
+        """Test successful setup of auto-restore without install"""
+        self._setup_auto_restore({"install_values": {}})
+
+        self.assertEqual(self.restore_ctx.seed_iso_path, "/tmp/seed.iso")
+        self.mock_generate_seed_iso.assert_called_once()
+        self.mock_create_rvmc_config.assert_called_once()
+
+    def test_setup_auto_restore_without_install_merges_data_install(self):
+        """Test that data_install is merged into install_values"""
+        payload = {"install_values": {"existing_key": "value"}}
+        self._setup_auto_restore(payload)
+
+        self.assertIn("existing_key", payload["install_values"])
+        self.assertIn("bootstrap_address", payload["install_values"])
+
+    def test_setup_auto_restore_without_install_creates_install_values_if_missing(self):
+        """Test that install_values is created if not present"""
+        payload = {}
+        self._setup_auto_restore(payload)
+
+        self.assertIn("install_values", payload)
+        self.assertIn("bootstrap_address", payload["install_values"])
+
+    def test_setup_auto_restore_without_install_seed_iso_failure(self):
+        """Test that seed ISO generation failure raises exception"""
+        self.mock_generate_seed_iso.return_value = None
+
+        self.assertRaises(
+            exceptions.RestorePreparationError,
+            self._setup_auto_restore,
+        )
+
+    def test_setup_auto_restore_without_install_rvmc_config_failure(self):
+        """Test that RVMC config creation failure raises exception"""
+        self.mock_create_rvmc_config.side_effect = Exception("RVMC config failed")
+
+        self.assertRaises(
+            exceptions.RestorePreparationError,
+            self._setup_auto_restore,
+        )
+        self.assertEqual(self.restore_ctx.seed_iso_path, "/tmp/seed.iso")
+
+
+class TestGetInitialSelEventId(BaseTestRestoreHelpers):
+    """Test class for testing _get_initial_sel_event_id method"""
+
+    def test_get_initial_sel_event_id_success(self):
+        """Test successful SEL event ID retrieval"""
+        self.mock_dcorch_api()._get_initial_sel_event_id.return_value = "12345"
+
+        result = self.mock_dcorch_api()._get_initial_sel_event_id(
+            self.subcloud, {"bmc_address": "192.168.1.50"}
+        )
+
+        self.assertEqual(result, "12345")
+
+    def test_get_initial_sel_event_id_failure_raises_exception(self):
+        """Test that SEL event ID retrieval failure raises exception"""
+        self.mock_dcorch_api()._get_initial_sel_event_id.side_effect = Exception(
+            "BMC connection failed"
+        )
+
+        self.assertRaises(
+            exceptions.RestorePreparationError,
+            self.sm._get_initial_sel_event_id,
+            self.subcloud,
+            {"bmc_address": "192.168.1.50"},
+        )
+
+
+class TestExecuteInstallPreRestore(BaseTestRestoreHelpers):
+    """Test class for testing _execute_install_pre_restore method"""
+
+    def setUp(self):
+        super().setUp()
+        self.subcloud = db_api.subcloud_update(
+            self.ctx, self.subcloud.id, software_version="24.09"
+        )
+
+        self.mock_compose_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "compose_install_command"
+        )
+        self.mock_compose_install.return_value = ["ansible-playbook", "install.yml"]
+
+        self.mock_get_vault = self._mock_object(
+            subcloud_manager.utils, "get_vault_load_files"
+        )
+        self.mock_get_vault.return_value = ("test.iso", None)
+
+        self.mock_run_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_run_install.return_value = (True, mock.MagicMock())
+
+        self.mock_stage_files = self._mock_object(
+            subcloud_manager.SubcloudManager, "_stage_auto_restore_files"
+        )
+        self.mock_stage_files.return_value = "/tmp/staged_files"
+
+        self.mock_get_temp_dir = self._mock_object(
+            subcloud_manager.SubcloudManager, "_get_auto_restore_temp_dir_location"
+        )
+        self.mock_get_temp_dir.return_value = "/tmp"
+
+        self.mock_get_sel = self._mock_object(
+            subcloud_manager.utils, "get_last_sel_event_id"
+        )
+        self.mock_get_sel.return_value = "12345"
+
+        self.restore_ctx = self._create_restore_context()
+
+    def _execute_install(self, payload=None, restore_ctx=None):
+        return self.sm._execute_install_pre_restore(
+            self.ctx,
+            payload
+            or self._create_payload(
+                software_version="25.09", sysadmin_password="testpass"
+            ),
+            self.subcloud,
+            restore_ctx or self.restore_ctx,
+        )
+
+    def test_execute_install_pre_restore_success(self):
+        """Test successful install execution"""
+        self.assertTrue(self._execute_install())
+        self.mock_run_install.assert_called_once()
+
+    def test_execute_install_pre_restore_notifies_dcorch_on_version_change(self):
+        """Test that dcorch is notified when software version changes"""
+        self._execute_install()
+
+        self.mock_dcorch_api().update_subcloud_version.assert_called_once_with(
+            self.ctx, self.subcloud.region_name, "25.09"
+        )
+
+    def test_execute_install_pre_restore_no_dcorch_notification_same_version(self):
+        """Test that dcorch is not notified when software version is the same"""
+        self.subcloud = db_api.subcloud_update(
+            self.ctx, self.subcloud.id, software_version="25.09"
+        )
+
+        self._execute_install()
+        self.mock_dcorch_api().update_subcloud_version.assert_not_called()
+
+    def test_execute_install_pre_restore_factory_kickstart_uri(self):
+        """Test that kickstart_uri is set for factory restore"""
+        self._execute_install()
+
+        kickstart_uri = self.mock_run_install.call_args[0][6]
+        self.assertIn(
+            "partition://platform_backup:factory/25.09/miniboot.cfg", kickstart_uri
+        )
+
+    def test_execute_install_pre_restore_auto_no_kickstart_uri(self):
+        """Test that kickstart_uri is None for auto restore"""
+        self.restore_ctx.restore_mode.auto_restore_mode = "auto"
+
+        self._execute_install()
+
+        self.assertIsNone(self.mock_run_install.call_args[0][6])
+
+    def test_execute_install_pre_restore_gets_sel_event_id(self):
+        """Test that SEL event ID is retrieved when bmc_access_only is True"""
+        self._execute_install()
+
+        self.assertEqual(self.restore_ctx.initial_sel_event_id, "12345")
+        self.mock_get_sel.assert_called_once()
+
+    def test_execute_install_pre_restore_skips_sel_when_monitoring_disabled(self):
+        """Test that SEL ID is skipped when skip_install_monitoring is True"""
+        self.restore_ctx.restore_mode.skip_install_monitoring = True
+        self.mock_get_sel.reset_mock()
+
+        self._execute_install()
+
+        self.mock_get_sel.assert_not_called()
+
+    def test_execute_install_pre_restore_skips_sel_when_bmc_access_only_false(self):
+        """Test that SEL is skipped when bmc_access_only is False"""
+        self.restore_ctx.restore_mode.bmc_access_only = False
+        self.mock_get_sel.reset_mock()
+
+        self._execute_install()
+
+        self.mock_get_sel.assert_not_called()
+
+    def test_execute_install_pre_restore_sets_defer_cleanup_for_auto_without_sel(self):
+        """Test defer_install_cleanup_on_success for auto without SEL monitoring"""
+        self.restore_ctx.restore_mode.auto_restore_mode = "auto"
+        self.restore_ctx.restore_mode.ipmi_sel_event_monitoring = False
+        self.restore_ctx.restore_mode.skip_install_monitoring = True
+
+        self._execute_install(
+            payload=self._create_payload(
+                software_version="25.09",
+                sysadmin_password="testpass",
+                with_install=True,
+            )
+        )
+
+        self.assertTrue(self.restore_ctx.defer_install_cleanup_on_success)
+
+    def test_execute_install_pre_restore_install_failure(self):
+        """Test that install failure returns False"""
+        self.mock_run_install.return_value = (False, mock.MagicMock())
+
+        self.assertFalse(self._execute_install())
+
+    def test_execute_install_pre_restore_prep_failure_raises_exception(self):
+        """Test that preparation failure raises RestorePreparationError"""
+        self.mock_get_vault.side_effect = Exception("Vault error")
+
+        self.assertRaises(exceptions.RestorePreparationError, self._execute_install)
+
+
+class TestExecuteRestorePlaybook(BaseTestRestoreHelpers):
+    """Test class for testing _execute_restore_playbook method"""
+
+    def setUp(self):
+        super().setUp()
+        self.mock_run_playbook = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+        )
+        self.mock_run_playbook.return_value = True
+
+        self.mock_delete_inventory = self._mock_object(
+            subcloud_manager.utils, "delete_subcloud_inventory"
+        )
+
+        self.restore_ctx = self._create_restore_context()
+
+    def _execute_restore(self, payload=None, restore_ctx=None):
+        return self.sm._execute_restore_playbook(
+            self.ctx, payload or {}, self.subcloud, restore_ctx or self.restore_ctx
+        )
+
+    def test_execute_restore_playbook_success(self):
+        """Test successful restore playbook execution"""
+        result = self._execute_restore()
+
+        self.assertEqual(result, (self.subcloud, True))
+        self.mock_delete_inventory.assert_called_once_with("overrides_file.yml")
+
+    def test_execute_restore_playbook_failure(self):
+        """Test restore playbook failure"""
+        self.mock_run_playbook.return_value = False
+
+        result = self._execute_restore()
+
+        self.assertEqual(result, (self.subcloud, False))
+        self.mock_delete_inventory.assert_not_called()
+
+    def test_execute_restore_playbook_adds_sel_event_from_install(self):
+        """Test that SEL event ID from install phase is added"""
+        self.restore_ctx.initial_sel_event_id = "12345"
+
+        self._execute_restore()
+
+        restore_command = self.mock_run_playbook.call_args[0][1]
+        self.assertIn("ipmi_initial_event_id=12345", restore_command)
+
+    @mock.patch.object(subcloud_manager.utils, "get_last_sel_event_id")
+    def test_execute_restore_playbook_gets_sel_for_auto_without_install(
+        self, mock_get_sel
+    ):
+        """Test SEL event ID retrieval for auto restore without install"""
+        mock_get_sel.return_value = "67890"
+        restore_ctx = self._create_restore_context(
+            restore_mode=self._create_restore_mode(auto_restore_mode="auto"),
+        )
+
+        self._execute_restore(
+            payload={
+                "with_install": False,
+                "install_values": {"bmc_address": "192.168.1.50"},
+            },
+            restore_ctx=restore_ctx,
+        )
+
+        mock_get_sel.assert_called_once()
+        self.assertIn(
+            "ipmi_initial_event_id=67890", self.mock_run_playbook.call_args[0][1]
+        )
+
+    def test_execute_restore_playbook_no_sel_for_standard_restore(self):
+        """Test that no SEL event ID is retrieved for standard restore"""
+        restore_ctx = self._create_restore_context(
+            restore_mode=self._create_restore_mode(
+                auto_restore_mode=None, bmc_access_only=False
+            ),
+        )
+
+        with mock.patch.object(
+            subcloud_manager.utils, "get_last_sel_event_id"
+        ) as mock_sel:
+            self._execute_restore(restore_ctx=restore_ctx)
+            mock_sel.assert_not_called()
+
+
+class TestCleanupRestoreContext(BaseTestRestoreHelpers):
+    """Test class for testing _cleanup_restore_context method"""
+
+    def setUp(self):
+        super().setUp()
+        self.mock_cleanup_seed_iso = self._mock_object(
+            subcloud_manager.SubcloudManager, "_cleanup_auto_restore_seed_iso"
+        )
+
+    def test_cleanup_restore_context_cleans_install_instance(self):
+        """Test install instance cleanup when defer flag is set"""
+        mock_instance = mock.MagicMock()
+        restore_ctx = self._create_restore_context(
+            install_instance=mock_instance, defer_install_cleanup_on_success=True
+        )
+
+        self.sm._cleanup_restore_context(restore_ctx)
+
+        mock_instance.cleanup.assert_called_once()
+
+    def test_cleanup_restore_context_no_cleanup_when_defer_false(self):
+        """Test no install instance cleanup when defer flag is False"""
+        mock_instance = mock.MagicMock()
+        restore_ctx = self._create_restore_context(
+            install_instance=mock_instance, defer_install_cleanup_on_success=False
+        )
+
+        self.sm._cleanup_restore_context(restore_ctx)
+
+        mock_instance.cleanup.assert_not_called()
+
+    def test_cleanup_restore_context_cleans_seed_iso(self):
+        """Test seed ISO cleanup when present"""
+        restore_ctx = self._create_restore_context(seed_iso_path="/tmp/seed.iso")
+
+        self.sm._cleanup_restore_context(restore_ctx)
+
+        self.mock_cleanup_seed_iso.assert_called_once_with("/tmp/seed.iso")
+
+    def test_cleanup_restore_context_no_seed_iso_cleanup_when_none(self):
+        """Test no seed ISO cleanup when path is None"""
+        self.sm._cleanup_restore_context(self._create_restore_context())
+
+        self.mock_cleanup_seed_iso.assert_not_called()
+
+    def test_cleanup_restore_context_cleans_both_resources(self):
+        """Test both install instance and seed ISO cleanup"""
+        mock_instance = mock.MagicMock()
+        restore_ctx = self._create_restore_context(
+            install_instance=mock_instance,
+            defer_install_cleanup_on_success=True,
+            seed_iso_path="/tmp/seed.iso",
+        )
+
+        self.sm._cleanup_restore_context(restore_ctx)
+
+        mock_instance.cleanup.assert_called_once()
+        self.mock_cleanup_seed_iso.assert_called_once_with("/tmp/seed.iso")
+
+
 class TestSubcloudMigrate(BaseTestSubcloudManager):
     """Test class for testing subcloud migrate"""
 
