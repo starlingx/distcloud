@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,11 +23,14 @@ REGION_ONE_RELEASES = [
 ]
 
 SUBCLOUD_RELEASES = [
+    {"release_id": "starlingx-8.0.0", "state": "unavailable", "sw_version": "9.0.0"},
     {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
     {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},
     {"release_id": "starlingx-9.0.2", "state": "deployed", "sw_version": "9.0.2"},
     {"release_id": "starlingx-9.0.2", "state": "deploying", "sw_version": "9.0.3"},
     {"release_id": "starlingx-9.0.4", "state": "available", "sw_version": "9.0.4"},
+    {"release_id": "starlingx-10.0.0", "state": "available", "sw_version": "10.0.0"},
+    {"release_id": "starlingx-11.0.0", "state": "available", "sw_version": "11.0.0"},
 ]
 
 SUBCLOUD_WITHOUT_DEPLOYED_RELEASES = [
@@ -61,7 +64,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self._setup_and_assert(self.on_success_state)
 
         call_args, _ = self.software_client.delete.call_args_list[0]
-        self.assertItemsEqual(["starlingx-9.0.4"], call_args[0])
+        self.assertItemsEqual(["starlingx-8.0.0"], call_args[0])
 
         self.software_client.commit_patch.assert_not_called()
 
