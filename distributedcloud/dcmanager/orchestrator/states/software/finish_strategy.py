@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -98,10 +98,6 @@ class FinishStrategyState(BaseState):
             release["release_id"]
             for release in subcloud_releases
             if release["state"] == software_v1.UNAVAILABLE
-            or (
-                release["state"] == software_v1.AVAILABLE
-                and release["release_id"] not in regionone_deployed_releases_id
-            )
         ]
 
         # TODO(nicodemos): Update releases_to_commit and handle it after
