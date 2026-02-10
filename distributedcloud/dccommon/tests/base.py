@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
+
+import mock
 
 from oslotest import base
 
@@ -65,3 +67,10 @@ class DCCommonTestCase(base.BaseTestCase):
     def setUp(self):
         super(DCCommonTestCase, self).setUp()
         self.ctx = utils.dummy_context()
+
+    def _mock_object(self, target, attribute, wraps=None, **kwargs):
+        """Mock a specified target's attribute and return the mock object"""
+
+        mock_patch_object = mock.patch.object(target, attribute, wraps=wraps, **kwargs)
+        self.addCleanup(mock_patch_object.stop)
+        return mock_patch_object.start()
