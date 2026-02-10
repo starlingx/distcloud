@@ -516,6 +516,19 @@ class Connection(object):
         return result
 
     @require_context()
+    def subcloud_get_by_ids(self, subcloud_ids):
+        """Retrieve subclouds by a list of IDs."""
+        if not subcloud_ids:
+            return []
+
+        return (
+            model_query(self.context, models.Subcloud)
+            .filter_by(deleted=0)
+            .filter(models.Subcloud.id.in_(subcloud_ids))
+            .all()
+        )
+
+    @require_context()
     def subcloud_get_all(self):
         return model_query(self.context, models.Subcloud).filter_by(deleted=0).all()
 
@@ -2095,6 +2108,44 @@ class Connection(object):
             config.update(values)
             config.save(session)
             return config
+
+    @require_context()
+    def subcloud_backup_archive_get_all(
+        self,
+        subcloud_ids=None,
+        release_version=None,
+        storage_location=None,
+        order_by="created_at",
+        order_desc=True,
+    ) -> list[models.SubcloudBackupArchive]:
+        """Get all backup archives with optional filters.
+
+        :param subcloud_ids: Optional list of subcloud IDs filter
+        :param release_version: Optional release version filter
+        :param storage_location: Optional storage location filter
+        :param order_by: Column to order by (default: created_at)
+        :param order_desc: Order descending if True (default: True)
+        :returns list[SubcloudBackupArchive]: List of backup archive records
+        """
+        with read_session() as session:
+            query = session.query(models.SubcloudBackupArchive).filter_by(deleted=0)
+
+            if subcloud_ids is not None:
+                query = query.filter(
+                    models.SubcloudBackupArchive.subcloud_id.in_(subcloud_ids)
+                )
+            if release_version:
+                query = query.filter_by(release_version=release_version)
+            if storage_location:
+                query = query.filter_by(storage_location=storage_location)
+
+            order_column = getattr(models.SubcloudBackupArchive, order_by)
+            if order_desc:
+                query = query.order_by(desc(order_column))
+            else:
+                query = query.order_by(order_column)
+
+            return query.all()
 
     @require_context(admin=True)
     def subcloud_backup_archive_create(

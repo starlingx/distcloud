@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022,2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2022,2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -34,6 +34,12 @@ subcloud_backup_rules = [
         check_str="rule:" + base.ADMIN_OR_CONFIGURATOR,
         description="Restore a subcloud backup.",
         operations=[{"method": "PATCH", "path": "/v1.0/subcloud-backup/restore"}],
+    ),
+    policy.DocumentedRuleDefault(
+        name=POLICY_ROOT % "list",
+        check_str="rule:" + base.READER_OR_OPERATOR_OR_CONFIGURATOR,
+        description="List subcloud backups.",
+        operations=[{"method": "GET", "path": "/v1.0/subcloud-backup"}],
     ),
 ]
 

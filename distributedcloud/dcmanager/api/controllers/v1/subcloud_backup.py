@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022,2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2022,2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,6 +8,7 @@ import base64
 from collections import namedtuple
 import json
 import os
+import webob.exc
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -25,6 +26,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy import models
 from dcmanager.rpc import client as rpc_client
 
 
@@ -500,6 +502,159 @@ class SubcloudBackupController(object):
                 pecan.abort(500, _("Unable to restore subcloud"))
         else:
             pecan.abort(400, _("Invalid request"))
+
+    @utils.synchronized(LOCK_NAME)
+    @index.when(method="GET", template="json")
+    def get(
+        self,
+        subcloud: str = None,
+        group: str = None,
+        release: str = None,
+        storage: str = None,
+    ):
+        """List subcloud backups with optional filters.
+
+        :param subcloud: Filter by subcloud name or ID
+        :param group: Filter by group name or ID
+        :param release: Filter by release version
+        :param storage: Filter by storage location
+        :returns dict: JSON response with list of backups including calculated indices
+        """
+        context = restcomm.extract_context_from_environ()
+        context.is_admin = self.authorize_user("list")
+
+        subcloud_obj = None
+        subclouds_filter = None
+        subcloud_cache = {}
+
+        if subcloud and group:
+            pecan.abort(
+                400,
+                _("The 'subcloud' and 'group' parameters are mutually exclusive"),
+            )
+
+        try:
+            # Storage location filter
+            if storage and storage not in consts.BACKUP_STORAGE_LOCATIONS:
+                pecan.abort(
+                    400,
+                    _("Invalid location filter, must be one of %s")
+                    % consts.BACKUP_STORAGE_LOCATIONS,
+                )
+
+            # Subcloud filter
+            if subcloud:
+                subcloud_obj = utils.subcloud_get_by_ref(context, subcloud)
+
+                if not subcloud_obj:
+                    pecan.abort(
+                        404,
+                        _("Subcloud backup filter '%s' not found") % subcloud,
+                    )
+
+                subclouds_filter = [subcloud_obj.id]
+                subcloud_cache[subcloud_obj.id] = subcloud_obj.name
+
+            # Group filter
+            if group:
+                group_obj = utils.subcloud_group_get_by_ref(context, group)
+
+                if not group_obj:
+                    pecan.abort(
+                        404,
+                        _("Group backup filter '%s' not found") % group,
+                    )
+
+                subclouds = db_api.subcloud_get_for_group(context, group_obj.id)
+                subcloud_ids = [s.id for s in subclouds]
+
+                for s in subclouds:
+                    subcloud_cache[s.id] = s.name
+
+                subclouds_filter = subcloud_ids
+
+            archives = db_api.subcloud_backup_archive_get_all(
+                context,
+                subcloud_ids=subclouds_filter,
+                release_version=release,
+                storage_location=storage,
+                order_by="created_at",
+                order_desc=True,
+            )
+
+            backups = self._format_backups_with_indices(
+                context, archives, subcloud_cache
+            )
+
+            return {"backups": backups}
+        except webob.exc.HTTPError:
+            # pecan.abort raises WebOb exception, just reraise
+            raise
+        except Exception as e:
+            LOG.exception(f"Error listing backups: {e}")
+            pecan.abort(500, _("Failed to list backups"))
+
+    def _format_backups_with_indices(
+        self,
+        context,
+        archives: list[models.SubcloudBackupArchive],
+        subcloud_cache: dict[int, str] = None,
+    ) -> list[dict]:
+        """Format archive records with calculated indices.
+
+        Index is relative to each (subcloud_id, release_version) combination.
+        Index 0 = latest backup for that subcloud+release
+        Index N-1 = oldest backup for that subcloud+release
+
+        :param context: Request context
+        :param archives: List of SubcloudBackupArchive records
+                         (ordered by created_at DESC)
+        :param subcloud_cache: A dictionary mapping subcloud IDs to names
+        :returns list[dict]: List of formatted backup dictionaries with indices
+        """
+        subcloud_cache = subcloud_cache or {}
+
+        missing_ids = {
+            archive.subcloud_id
+            for archive in archives
+            if archive.subcloud_id not in subcloud_cache
+        }
+
+        if missing_ids:
+            subclouds = db_api.subcloud_get_by_ids(context, list(missing_ids))
+            subcloud_cache.update({s.id: s.name for s in subclouds})
+
+        # Group archives by (subcloud_id, release_version)
+        groups = {}
+        for archive in archives:
+            key = (archive.subcloud_id, archive.release_version)
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(archive)
+
+        backups = []
+        for (subcloud_id, release_version), group_archives in groups.items():
+            subcloud_name = subcloud_cache[subcloud_id]
+
+            # Group archives are already sorted by created_at DESC from query
+            for idx, archive in enumerate(group_archives):
+                backups.append(
+                    {
+                        "subcloud": subcloud_name,
+                        "backup_index": idx,
+                        "backup_id": archive.backup_id,
+                        "release": archive.release_version,
+                        "storage": archive.storage_location,
+                        "created_at": (
+                            archive.created_at.isoformat()
+                            if archive.created_at
+                            else None
+                        ),
+                        "size_bytes": archive.size_bytes or 0,
+                    }
+                )
+
+        return backups
 
     def authorize_user(self, verb):
         """check the user has access to the API call

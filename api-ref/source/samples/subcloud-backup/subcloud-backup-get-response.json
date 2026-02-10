@@ -1,0 +1,22 @@
+{
+    "backups": [
+        {
+            "subcloud": "subcloud1",
+            "backup_index": 0,
+            "backup_id": "subcloud2-26.03-202602041930",
+            "release": "26.03",
+            "storage": "dc-vault",
+            "created_at": "2026-02-04T19:30:18.791210",
+            "size_bytes": 10591585
+        },
+        {
+            "subcloud": "subcloud2",
+            "backup_index": 0,
+            "backup_id": "subcloud2-26.03-202602041925",
+            "release": "26.03",
+            "storage": "seaweedfs",
+            "created_at": "2026-02-04T19:24:58.253391",
+            "size_bytes": 10519082
+        }
+    ]
+}

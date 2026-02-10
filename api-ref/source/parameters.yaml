@@ -136,6 +136,30 @@ backup_datetime:
   in: body
   required: true
   type: string
+backup_list_group_filter:
+  description: |
+    Filter by subcloud group name or ID
+  in: path
+  required: false
+  type: string
+backup_list_release_filter:
+  description: |
+    Filter by release version
+  in: path
+  required: false
+  type: string
+backup_list_storage_filter:
+  description: |
+    Filter by storage location: 'dc-vault' or 'seaweedfs'
+  in: path
+  required: false
+  type: string
+backup_list_subcloud_filter:
+  description: |
+    Filter by subcloud name or ID
+  in: path
+  required: false
+  type: string
 backup_local_only:
   description: |
     Flag to indicate whether the platform backup is to be saved locally within

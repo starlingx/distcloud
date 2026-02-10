@@ -219,6 +219,11 @@ def subcloud_get_by_name_or_region_name(context, name):
     return IMPL.Connection(context).subcloud_get_by_name_or_region_name(name)
 
 
+def subcloud_get_by_ids(context, ids: list) -> list[models.Subcloud]:
+    """Retrieve subclouds by a list of ids."""
+    return IMPL.Connection(context).subcloud_get_by_ids(ids)
+
+
 def subcloud_get_all(context):
     """Retrieve all subclouds."""
     return IMPL.Connection(context).subcloud_get_all()
@@ -1199,6 +1204,19 @@ def subcloud_backup_config_get(context) -> models.SubcloudBackupConfig:
 
 def subcloud_backup_config_update(context, values: dict) -> models.SubcloudBackupConfig:
     return IMPL.Connection(context).subcloud_backup_config_update(values)
+
+
+def subcloud_backup_archive_get_all(
+    context,
+    subcloud_ids: list = None,
+    release_version: str = None,
+    storage_location: str = None,
+    order_by: str = "created_at",
+    order_desc: bool = True,
+) -> list[models.SubcloudBackupArchive]:
+    return IMPL.Connection(context).subcloud_backup_archive_get_all(
+        subcloud_ids, release_version, storage_location, order_by, order_desc
+    )
 
 
 def subcloud_backup_archive_create(
