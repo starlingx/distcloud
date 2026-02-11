@@ -217,6 +217,10 @@ class BackupConfigNotFound(DCManagerException):
     message = _("The backup configuration was not found.")
 
 
+class BackupArchiveNotFound(DCManagerException):
+    message = _("The backup archive %(backup_id)s was not found.")
+
+
 class SubcloudSyncFailedException(DCManagerException):
     message = _("Failed to sync subcloud update to peer site %(peer_id)s")
 

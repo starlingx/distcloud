@@ -3437,6 +3437,12 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         self.values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
         self.backup_values = copy.copy(FAKE_BACKUP_CREATE_LOAD)
 
+        self.mock_db_delete = self._mock_object(
+            db_api,
+            "subcloud_backup_archive_delete",
+            wraps=db_api.subcloud_backup_archive_delete,
+        )
+
         db_api.subcloud_update(
             self.ctx,
             self.subcloud.id,
@@ -4197,6 +4203,159 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             "Failed to create backup archive record for subcloud "
             f"subcloud1: {mock_backup_archive_create.side_effect}"
         )
+
+    def _create_backup_archives(self, count, base_time=None):
+        """Helper to create multiple backup archive records in the DB."""
+        if base_time is None:
+            base_time = datetime.datetime(2026, 2, 1, 10, 0, 0)
+        archives = []
+        for i in range(count):
+            dt = base_time + datetime.timedelta(hours=i)
+            backup_id = (
+                f"{self.subcloud.name}-{self.subcloud.software_version}-"
+                f"{dt.strftime('%Y%m%d%H%M')}"
+            )
+            archive = db_api.subcloud_backup_archive_create(
+                self.ctx,
+                backup_id=backup_id,
+                subcloud_id=self.subcloud.id,
+                release_version=self.subcloud.software_version,
+                storage_location=consts.BACKUP_STORAGE_DC_VAULT,
+                storage_path=f"/opt/dc-vault/backups/{self.subcloud.name}/"
+                f"{self.subcloud.software_version}/"
+                f"{self.subcloud.name}_platform_backup_"
+                f"{dt.strftime('%Y_%m_%d_%H_%M')}_00.tgz",
+            )
+            archives.append(archive)
+        return archives
+
+    @mock.patch.object(subcloud_manager.SubcloudManager, "_delete_subcloud_backup")
+    def test_enforce_max_backup_count_deletes_oldest(self, mock_delete_backup):
+        mock_delete_backup.return_value = (self.subcloud, True)
+
+        db_api.subcloud_backup_config_update(self.ctx, {"retention_count": 2})
+
+        self._create_backup_archives(4)
+
+        self.sm._enforce_max_backup_count(self.ctx, self.subcloud, self.backup_values)
+
+        self.assertEqual(mock_delete_backup.call_count, 2)
+
+        # Verify the two oldest were deleted
+        deleted_archives = [
+            call[1]["archive"] for call in mock_delete_backup.call_args_list
+        ]
+        self.assertIn("202602011000", deleted_archives[0].backup_id)
+        self.assertIn("202602011100", deleted_archives[1].backup_id)
+
+    @mock.patch.object(subcloud_manager.SubcloudManager, "_delete_subcloud_backup")
+    def test_enforce_max_backup_count_no_deletion_needed(self, mock_delete_backup):
+        # retention_count defaults to 1
+        self._create_backup_archives(1)
+
+        self.sm._enforce_max_backup_count(self.ctx, self.subcloud, self.backup_values)
+
+        mock_delete_backup.assert_not_called()
+
+    @mock.patch.object(Path, "unlink")
+    def test_delete_subcloud_backup_from_dc_vault_success(self, mock_unlink):
+        archive = self._create_backup_archives(1)[0]
+        self._mock_object(Path, "exists", return_value=True)
+
+        result = self.sm._delete_subcloud_backup_from_dc_vault(archive, self.subcloud)
+
+        self.assertTrue(result)
+        mock_unlink.assert_called_once()
+
+    @mock.patch.object(Path, "unlink")
+    def test_delete_subcloud_backup_from_dc_vault_file_not_found(self, mock_unlink):
+        archive = self._create_backup_archives(1)[0]
+        self._mock_object(Path, "exists", return_value=False)
+
+        result = self.sm._delete_subcloud_backup_from_dc_vault(archive, self.subcloud)
+
+        self.assertTrue(result)
+        mock_unlink.assert_not_called()
+
+    def test_delete_subcloud_backup_from_dc_vault_unlink_fails(self):
+        archive = self._create_backup_archives(1)[0]
+        self._mock_object(Path, "unlink", side_effect=OSError("Permission denied"))
+        self._mock_object(Path, "exists", return_value=True)
+
+        result = self.sm._delete_subcloud_backup_from_dc_vault(archive, self.subcloud)
+
+        self.assertFalse(result)
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_local"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_from_dc_vault"
+    )
+    def test_delete_subcloud_backup_dispatches_to_dc_vault(
+        self, mock_dc_vault_delete, mock_local_delete
+    ):
+        mock_dc_vault_delete.return_value = True
+        archive = self._create_backup_archives(1)[0]
+
+        self.values["local_only"] = False
+        _, success = self.sm._delete_subcloud_backup(
+            self.ctx,
+            self.values,
+            self.subcloud.software_version,
+            self.subcloud,
+            archive=archive,
+        )
+
+        mock_dc_vault_delete.assert_called_once_with(archive, self.subcloud)
+        self.mock_db_delete.assert_called_once_with(self.ctx, archive.backup_id)
+        mock_local_delete.assert_not_called()
+        self.assertTrue(success)
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_local"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_from_dc_vault"
+    )
+    def test_delete_subcloud_backup_dispatches_to_local(
+        self, mock_dc_vault_delete, mock_local_delete
+    ):
+        mock_local_delete.return_value = True
+        self.values["local_only"] = True
+
+        _, success = self.sm._delete_subcloud_backup(
+            self.ctx, self.values, FAKE_SW_VERSION, self.subcloud
+        )
+
+        mock_local_delete.assert_called_once_with(
+            self.ctx, self.values, FAKE_SW_VERSION, self.subcloud
+        )
+        self.mock_db_delete.assert_not_called()
+        mock_dc_vault_delete.assert_not_called()
+        self.assertTrue(success)
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_from_dc_vault"
+    )
+    def test_delete_subcloud_backup_skips_db_delete_on_file_failure(
+        self, mock_dc_vault_delete
+    ):
+        mock_dc_vault_delete.return_value = False
+        archive = self._create_backup_archives(1)[0]
+
+        self.values["local_only"] = False
+        _, success = self.sm._delete_subcloud_backup(
+            self.ctx,
+            self.values,
+            self.subcloud.software_version,
+            self.subcloud,
+            archive=archive,
+        )
+
+        mock_dc_vault_delete.assert_called_once()
+        self.mock_db_delete.assert_not_called()
+        self.assertFalse(success)
 
 
 class TestSubcloudPrestage(BaseTestSubcloudManager):

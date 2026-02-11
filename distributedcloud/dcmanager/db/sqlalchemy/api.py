@@ -2179,6 +2179,23 @@ class Connection(object):
             session.add(archive)
             return archive
 
+    @require_context(admin=True)
+    def subcloud_backup_archive_delete(self, backup_id: str):
+        """Delete a backup archive record by backup_id.
+
+        :param backup_id: Unique identifier for the backup
+        """
+        with write_session() as session:
+            result = (
+                model_query(self.context, models.SubcloudBackupArchive)
+                .filter_by(deleted=0)
+                .filter_by(backup_id=backup_id)
+                .first()
+            )
+            if not result:
+                raise exception.BackupArchiveNotFound(backup_id=backup_id)
+            session.delete(result)
+
 
 def initialize_subcloud_group_default(engine):
     try:

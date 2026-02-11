@@ -75,6 +75,7 @@ from dcmanager.common import prestage
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy.models import Subcloud
+from dcmanager.db.sqlalchemy.models import SubcloudBackupArchive
 from dcmanager.manager.peer_group_audit_manager import PeerGroupAuditManager
 from dcmanager.manager.system_peer_manager import SystemPeerManager
 from dcmanager.rpc import client as dcmanager_rpc_client
@@ -2387,6 +2388,45 @@ class SubcloudManager(manager.Manager):
             backup_file.stat().st_mtime, tz=datetime.timezone.utc
         )
 
+    def _enforce_max_backup_count(self, context, subcloud: Subcloud, payload: dict):
+        """Enforce the maximum backup count by deleting old central backups."""
+        try:
+            backup_config = db_api.subcloud_backup_config_get(context)
+        except Exception:
+            LOG.warning(
+                "Could not retrieve backup config, "
+                f"skipping retention enforcement for subcloud {subcloud.name}"
+            )
+            return
+
+        retention_count = backup_config.retention_count
+
+        archives = db_api.subcloud_backup_archive_get_all(
+            context,
+            subcloud_ids=[subcloud.id],
+            release_version=subcloud.software_version,
+            order_by="created_at",
+            order_desc=False,
+        )
+
+        if len(archives) <= retention_count:
+            return
+
+        archives_to_delete = archives[: len(archives) - retention_count]
+
+        for archive in archives_to_delete:
+            LOG.info(
+                f"Deleting old backup {archive.backup_id} for subcloud {subcloud.name} "
+                f"to enforce retention count of {retention_count}"
+            )
+            self._delete_subcloud_backup(
+                context,
+                payload,
+                subcloud.software_version,
+                subcloud,
+                archive=archive,
+            )
+
     @staticmethod
     def _generate_backup_id(
         subcloud_name: str, software_version: str, backup_dt: datetime.datetime
@@ -2456,6 +2496,7 @@ class SubcloudManager(manager.Manager):
                 self._create_backup_archive_record(
                     context, subcloud, payload.get("storage_location")
                 )
+                self._enforce_max_backup_count(context, subcloud, payload)
 
         return subcloud, success
 
@@ -2534,7 +2575,60 @@ class SubcloudManager(manager.Manager):
 
         return subclouds_to_delete_backup, invalid_subclouds
 
-    def _delete_subcloud_backup(self, context, payload, release_version, subcloud):
+    def _delete_subcloud_backup_from_seaweedfs(self, archive, subcloud):
+        """Delete a specific backup file from the SeaweedFS filesystem.
+
+        :param archive: SubcloudBackupArchive DB object with storage_path
+        :param subcloud: subcloud object
+        :returns bool: True if deletion succeeded, False otherwise
+        """
+        # TODO(gherzmann): Implement subcloud delete for seaweedfs storage
+        # For now, just call the dc-vault deletion method
+        LOG.info(
+            f"NotImplemented: Deleting backup {archive.storage_path} of "
+            f"subcloud {subcloud.name} (SeaweedFS)"
+        )
+        return self._delete_subcloud_backup_from_dc_vault(archive, subcloud)
+
+    def _delete_subcloud_backup_from_dc_vault(
+        self, archive: SubcloudBackupArchive, subcloud: Subcloud
+    ) -> bool:
+        """Delete a specific backup file from the dc-vault filesystem.
+
+        :param archive: SubcloudBackupArchive DB object with storage_path
+        :param subcloud: subcloud object
+        :returns bool: True if deletion succeeded, False otherwise
+        """
+        backup_file = Path(archive.storage_path)
+        try:
+            if not backup_file.exists():
+                LOG.warning(
+                    f"Backup file {backup_file} not found on filesystem for "
+                    f"subcloud {subcloud.name}, proceeding with database cleanup"
+                )
+                return True
+
+            backup_file.unlink()
+            LOG.info(f"Deleted backup file {backup_file} for subcloud {subcloud.name}")
+            return True
+        except Exception:
+            LOG.exception(
+                f"Failed to delete backup file {backup_file} for subcloud "
+                f"{subcloud.name}"
+            )
+            return False
+
+    def _delete_subcloud_backup_local(
+        self, context, payload: dict, release_version: str, subcloud: Subcloud
+    ) -> bool:
+        """Delete local backup from the subcloud via Ansible playbook.
+
+        :param context: request context object
+        :param payload: payload dictionary with request data
+        :param release_version: the release version of the backup to be deleted
+        :param subcloud: subcloud object
+        :returns bool: True if deletion succeeded, False otherwise
+        """
         try:
             overrides_file = self._create_overrides_for_backup_delete(
                 payload, subcloud.name, release_version
@@ -2547,9 +2641,9 @@ class SubcloudManager(manager.Manager):
             )
         except Exception:
             LOG.exception(
-                "Failed to prepare subcloud %s for backup delete" % subcloud.name
+                f"Failed to prepare subcloud {subcloud.name} for backup delete"
             )
-            return subcloud, False
+            return False
 
         success = self._run_subcloud_backup_delete_playbook(
             context, subcloud, delete_command
@@ -2557,6 +2651,65 @@ class SubcloudManager(manager.Manager):
 
         if success:
             utils.delete_subcloud_inventory(overrides_file)
+
+        return success
+
+    def _delete_backup_from_database(
+        self, context, subcloud: Subcloud, backup_id: str
+    ) -> bool:
+        """Delete central backup archive entry from the dcmanager database.
+
+        :param context: request context object
+        :param subcloud: subcloud object
+        :param backup_id: the backup_id to be deleted
+        :returns bool: True if deletion succeeded, False otherwise
+        """
+        try:
+            db_api.subcloud_backup_archive_delete(context, backup_id)
+            LOG.info(f"Deleted {backup_id} from database for subcloud {subcloud.name}")
+            return True
+        except Exception as e:
+            LOG.warning(f"Failed to delete backup {backup_id} from database: {e}")
+            return False
+
+    def _delete_subcloud_backup(
+        self,
+        context,
+        payload: dict,
+        release_version: str,
+        subcloud: Subcloud,
+        archive: SubcloudBackupArchive = None,
+    ) -> tuple[Subcloud, bool]:
+        """Delete either a central or local subcloud backup.
+
+        :param context: request context object
+        :param payload: payload dictionary with request data
+        :param release_version: the release version of the backup to be deleted
+        :param subcloud: subcloud object
+        :param archive: backup archive DB object to be deleted (central backup only)
+        :returns bool: True if deletion succeeded, False otherwise
+        """
+        if payload.get("local_only"):
+            success = self._delete_subcloud_backup_local(
+                context, payload, release_version, subcloud
+            )
+        elif archive:
+            if archive.storage_location == consts.BACKUP_STORAGE_DC_VAULT:
+                success = self._delete_subcloud_backup_from_dc_vault(archive, subcloud)
+            elif archive.storage_location == consts.BACKUP_STORAGE_SEAWEEDFS:
+                success = self._delete_subcloud_backup_from_seaweedfs(archive, subcloud)
+        else:
+            # TODO(gherzmann): Remove this fallback once backup delete API flow is
+            # updated to pass archive records so we can use direct file deletion instead
+            # of the playbook for centralized backups.
+            success = self._delete_subcloud_backup_local(
+                context, payload, release_version, subcloud
+            )
+
+        if archive and success:
+            success = self._delete_backup_from_database(
+                context, subcloud, archive.backup_id
+            )
 
         return subcloud, success
 

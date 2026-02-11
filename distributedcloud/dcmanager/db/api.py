@@ -1247,3 +1247,12 @@ def subcloud_backup_archive_create(
         storage_path,
         size_bytes,
     )
+
+
+def subcloud_backup_archive_delete(context, backup_id: str):
+    """Delete a backup archive record by backup_id.
+
+    :param context: Request context
+    :param backup_id: Unique identifier for the backup
+    """
+    return IMPL.Connection(context).subcloud_backup_archive_delete(backup_id)
