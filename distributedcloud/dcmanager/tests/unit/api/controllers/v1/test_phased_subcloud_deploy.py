@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -946,14 +946,40 @@ class TestPhasedSubcloudDeployPatchConfigure(BaseTestPhasedSubcloudDeployPatch):
     def test_patch_configure_fails_with_ongoing_prestage(self):
         """Test patch configure fails with ongoing prestage"""
 
-        self._update_subcloud(prestage_status=consts.STRATEGY_STATE_PRESTAGE_IMAGES)
+        prestage_status = consts.PRESTAGE_STATE_PRESTAGING
+
+        self._update_subcloud(prestage_status=prestage_status)
 
         response = self._send_request()
+        operation_in_progress = f"prestage_status is '{prestage_status}'"
+        error_message = (
+            f"Subcloud {self.subcloud.name} current {operation_in_progress}. "
+            "Please wait until it finishes before running this operation."
+        )
 
         self._assert_pecan_and_response(
             response,
-            http.client.BAD_REQUEST,
-            "Subcloud prestage is ongoing prestaging-images",
+            http.client.CONFLICT,
+            error_message,
+        )
+        self.mock_rpc_client().subcloud_deploy_config.assert_not_called()
+
+    def test_patch_configure_fails_with_ongoing_backup(self):
+        """Test patch configure fails with ongoing backup"""
+
+        self._update_subcloud(backup_status=consts.BACKUP_STATE_IN_PROGRESS)
+
+        response = self._send_request()
+        operation_in_progress = f"backup_status is '{consts.BACKUP_STATE_IN_PROGRESS}'"
+        error_message = (
+            f"Subcloud {self.subcloud.name} current {operation_in_progress}. "
+            "Please wait until it finishes before running this operation."
+        )
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.CONFLICT,
+            error_message,
         )
         self.mock_rpc_client().subcloud_deploy_config.assert_not_called()
 

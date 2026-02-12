@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -242,6 +242,9 @@ class SubcloudsController(object):
                 422,
                 _("A subcloud must be unmanaged to perform network reconfiguration"),
             )
+
+        utils.is_subcloud_in_transient_state(subcloud, should_abort=True)
+
         if not payload.get("bootstrap_address"):
             pecan.abort(
                 422,
@@ -908,18 +911,18 @@ class SubcloudsController(object):
             new_subcloud_name = payload.get("name")
             if new_subcloud_name is not None:
                 # To be renamed the subcloud must be in unmanaged, valid deploy
-                # state, and no going prestage
+                # state
                 if (
                     subcloud.management_state != dccommon_consts.MANAGEMENT_UNMANAGED
                     or subcloud.deploy_status != consts.DEPLOY_STATE_DONE
-                    or subcloud.prestage_status in consts.STATES_FOR_ONGOING_PRESTAGE
                 ):
                     msg = (
-                        "Subcloud %s must be deployed, unmanaged and no "
-                        "ongoing prestage for the subcloud rename operation."
-                        % subcloud.name
+                        f"Subcloud {subcloud.name} must be deployed and unmanaged "
+                        "for the subcloud rename operation."
                     )
                     pecan.abort(400, msg)
+
+                utils.is_subcloud_in_transient_state(subcloud, should_abort=True)
 
                 # Validates new name
                 if not utils.is_subcloud_name_format_valid(new_subcloud_name):
@@ -978,6 +981,8 @@ class SubcloudsController(object):
                             % subcloud.deploy_status
                         ),
                     )
+
+                utils.is_subcloud_in_transient_state(subcloud, should_abort=True)
 
                 if payload.get("management_gateway_ip") is None:
                     mandatory_params = ", ".join(

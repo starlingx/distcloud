@@ -522,7 +522,7 @@ that can be used when the subcloud is reinstalled next.
 **Error response codes**
 
 badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
-HTTPUnprocessableEntity (422), internalServerError (500),
+conflict (409), HTTPUnprocessableEntity (422), internalServerError (500),
 serviceUnavailable (503)
 
 **Request parameters**
@@ -958,7 +958,7 @@ OK (200) - request has been validated and backup operation was started
 **Error response codes**
 
 badRequest (400), unauthorized (401), forbidden (403), notFound (404),
-HTTPUnprocessableEntity (422), internalServerError (500),
+conflict (409), HTTPUnprocessableEntity (422), internalServerError (500),
 serviceUnavailable (503)
 
 **Request parameters**
@@ -1035,7 +1035,7 @@ noContent (204) - Backup files deleted successfully
 **Error response codes**
 
 badRequest (400), unauthorized (401), forbidden (403), notFound (404),
-HTTPUnprocessableEntity (422), internalServerError (500),
+conflict (409), HTTPUnprocessableEntity (422), internalServerError (500),
 serviceUnavailable (503)
 
 **Request parameters**
@@ -1070,7 +1070,7 @@ OK (200) - request has been validated and restore operation was started
 **Error response codes**
 
 badRequest (400), unauthorized (401), forbidden (403), notFound (404),
-HTTPUnprocessableEntity (422), internalServerError (500),
+conflict (409), HTTPUnprocessableEntity (422), internalServerError (500),
 serviceUnavailable (503)
 
 **Request parameters**
@@ -2020,7 +2020,7 @@ The attributes of a subcloud which are modifiable:
 **Error response codes**
 
 badRequest (400), unauthorized (401), forbidden (403), badMethod (405),
-HTTPUnprocessableEntity (422), internalServerError (500),
+conflict (409), HTTPUnprocessableEntity (422), internalServerError (500),
 serviceUnavailable (503)
 
 **Request parameters**
