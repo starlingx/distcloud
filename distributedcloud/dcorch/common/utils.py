@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024, 2026 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -214,7 +214,12 @@ def enqueue_work(
     if subcloud:
         subclouds = [subcloud]
     else:
-        subclouds = subcloud_obj.SubcloudList.get_all(context)
+        subclouds = subcloud_obj.SubcloudList.get_all(
+            context,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            initial_sync_state=consts.INITIAL_SYNC_STATE_COMPLETED,
+        )
 
     orch_requests = []
     for sc in subclouds:
