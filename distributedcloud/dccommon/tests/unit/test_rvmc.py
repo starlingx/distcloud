@@ -752,6 +752,16 @@ class BaseTestVmcObject(BaseTestRvmc):
         )
         self.vmc_obj.redfish_obj = mock.MagicMock()
 
+        self.systems_url = "/redfish/v1/Systems/"
+        self.vmc_obj.systems_group_url = self.systems_url
+        self.managers_url = "/redfish/v1/Managers/"
+        self.members_list = [{"@odata.id": f"{self.managers_url}/1/"}]
+        self.vmc_obj.response_dict = {
+            "Systems": {"@odata.id": self.systems_url},
+            "Managers": {"@odata.id": self.managers_url},
+            "Members": self.members_list,
+        }
+
         self.mock_time_sleep = self._mock_object(rvmc.time, "sleep")
 
     def _generate_log_dump(self, code=1):
@@ -1326,10 +1336,6 @@ class TestVmcObjectRedfishRootQuery(BaseTestVmcObject):
         self.mock_make_request = self._mock_object(
             self.vmc_obj, "make_request", return_value=True
         )
-        self.vmc_obj.response_dict = {
-            "Systems": {"@odata.id": "/redfish/v1/Systems/"},
-            "Managers": {"@odata.id": "/redfish/v1/Managers/"},
-        }
 
     def test_redfish_root_query_succeeds_and_extracts_urls(self):
         """Verify _redfish_root_query succeeds and extracts Systems and Managers URLs"""
@@ -1340,8 +1346,8 @@ class TestVmcObjectRedfishRootQuery(BaseTestVmcObject):
 
         self.mock_make_request.assert_called_once_with(operation=rvmc.GET, path=None)
         self.assertEqual(self.vmc_obj.root_query_info, self.vmc_obj.response_json)
-        self.assertEqual(self.vmc_obj.systems_group_url, "/redfish/v1/Systems/")
-        self.assertEqual(self.vmc_obj.managers_group_url, "/redfish/v1/Managers/")
+        self.assertEqual(self.vmc_obj.systems_group_url, self.systems_url)
+        self.assertEqual(self.vmc_obj.managers_group_url, self.managers_url)
         self.mock_logger.info.assert_called_once_with("Root Query")
 
     def test_redfish_root_query_exits_when_make_request_fails(self):
@@ -1441,12 +1447,6 @@ class TestVmcObjectRedfishGetManagers(BaseTestVmcObject):
         self.mock_make_request = self._mock_object(
             self.vmc_obj, "make_request", return_value=True
         )
-        self.managers_url = "/redfish/v1/Managers/"
-        self.members_list = [{"@odata.id": "/redfish/v1/Managers/1/"}]
-        self.vmc_obj.response_dict = {
-            "Members": self.members_list,
-            "Managers": {"@odata.id": self.managers_url},
-        }
 
     def test_redfish_get_managers_succeeds_and_retrieves_members(self):
         """Verify _redfish_get_managers succeeds and retrieves manager members"""
@@ -1484,6 +1484,86 @@ class TestVmcObjectRedfishGetManagers(BaseTestVmcObject):
         expected_calls = [
             mock.call.info("Get Managers"),
             mock.call.error(f"Failed GET Managers from {self.managers_url}"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+
+class TestVmcObjectRedfishGetSystemsMembers(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_get_systems_members method.
+
+    Tests the _redfish_get_systems_members method which queries the Systems
+    group URL to retrieve the list of Systems Members from the BMC.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_make_request = self._mock_object(
+            self.vmc_obj, "make_request", return_value=True
+        )
+
+    def test_redfish_get_systems_members_succeeds_and_retrieves_members(self):
+        """Verify _redfish_get_systems_members succeeds and retrieves systems members"""
+
+        self.vmc_obj._redfish_get_systems_members()
+
+        self.mock_make_request.assert_called_once_with(
+            operation=rvmc.GET, path=self.systems_url
+        )
+        self.assertEqual(self.vmc_obj.systems_members_list, self.members_list)
+        self.assertEqual(self.vmc_obj.systems_members, 1)
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Get Systems"),
+                mock.call.debug(f"Systems Members List: {self.members_list}"),
+            ]
+        )
+
+    def test_redfish_get_systems_members_exits_when_make_request_fails(self):
+        """Verify _redfish_get_systems_members exits when make_request fails"""
+
+        self.mock_make_request.return_value = False
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_systems_members)
+
+        expected_calls = [
+            mock.call.info("Get Systems"),
+            mock.call.error(f"Unable to Get Systems Members from {self.systems_url}"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_get_systems_members_exits_when_members_list_is_none(self):
+        """Verify _redfish_get_systems_members exits when Members list is None"""
+
+        self.vmc_obj.response_dict = {"Members": None}
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_systems_members)
+
+        expected_calls = [
+            mock.call.info("Get Systems"),
+            mock.call.debug("Systems Members List: None"),
+            mock.call.error(
+                f"Systems Members URL GET Response\n{self.vmc_obj.response_json}"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_get_systems_members_exits_when_members_list_is_empty(self):
+        """Verify _redfish_get_systems_members exits when Members list is empty"""
+
+        self.vmc_obj.response_dict = {"Members": []}
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_systems_members)
+
+        expected_calls = [
+            mock.call.info("Get Systems"),
+            mock.call.debug("Systems Members List: []"),
+            mock.call.error(
+                f"BMC not publishing any System Members:\n{self.vmc_obj.response_json}"
+            ),
         ]
         expected_calls.extend(self._generate_log_dump())
         self._assert_mock_logger_calls(expected_calls)
