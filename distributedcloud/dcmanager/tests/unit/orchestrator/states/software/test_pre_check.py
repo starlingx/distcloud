@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -352,28 +352,6 @@ class TestPreCheckState(TestPreCheckStateBase):
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
-        self.software_client.list.assert_not_called()
-
-    def test_pre_check_fails_with_extra_args_rollback_and_duplex_system(self):
-        """Test pre-check fails with rollback extra args"""
-
-        self.sysinv_client.get_system.return_value.system_mode = (
-            consts.SYSTEM_MODE_DUPLEX
-        )
-
-        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
-
-        self.strategy = fake_strategy.update_fake_strategy(
-            self.ctx, additional_args={consts.EXTRA_ARGS_ROLLBACK: True}
-        )
-
-        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
-        error_msg = (
-            f"{self.current_state}: Failed for subcloud {self.subcloud.name}: "
-            "Rollback is only allowed for simplex systems"
-        )
-        self._assert_error(error_msg)
-
         self.software_client.list.assert_not_called()
 
 

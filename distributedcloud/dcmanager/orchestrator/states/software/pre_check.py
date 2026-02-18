@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -342,22 +342,6 @@ class PreCheckState(BaseState):
         """
         if not extra_args.get(consts.EXTRA_ARGS_ROLLBACK):
             return False
-        try:
-            sysinv_client = self.get_sysinv_client(self.region_name)
-        except Exception as exc:
-            self.handle_exception(
-                strategy_step,
-                "Get sysinv client failed",
-                exceptions.SoftwarePreCheckFailedException,
-                exc=exc,
-            )
-        if sysinv_client.get_system().system_mode != consts.SYSTEM_MODE_SIMPLEX:
-            self.handle_exception(
-                strategy_step,
-                "Rollback is only allowed for simplex systems",
-                exceptions.SoftwarePreCheckFailedException,
-            )
-
         subcloud_releases = self._get_subcloud_releases(strategy_step)
 
         # VIM strategy can only rollback to a release in DEPLOYING state with a deploy
