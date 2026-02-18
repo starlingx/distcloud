@@ -70,6 +70,7 @@ class SubcloudBackupController(object):
                 "group": str,
                 "local_only": str,
                 "sysadmin_password": str,
+                "backup_index": str,
             }
         elif verb == "restore":
             expected_params = {
@@ -346,17 +347,59 @@ class SubcloudBackupController(object):
 
             self._convert_param_to_bool(payload, ["local_only"])
 
+            backup_index = payload.get("backup_index")
+            local_only = payload.get("local_only")
+
+            if backup_index is not None and local_only:
+                pecan.abort(
+                    400,
+                    _(
+                        "backup_index parameter cannot be used with "
+                        "local_only. Index-based deletion is only supported "
+                        "for centralized backups."
+                    ),
+                )
+
+            if backup_index is not None:
+                backup_index_str = self._validate_backup_index_format(backup_index)
+                payload["backup_index"] = backup_index_str
+
             # Backup delete in systemcontroller doesn't need sysadmin_password
-            if payload.get("local_only"):
+            if local_only:
                 self._validate_and_decode_sysadmin_password(
                     payload, "sysadmin_password"
                 )
 
             request_entity = self._read_entity_from_request_params(context, payload)
 
+            # For group operations with index, resolve index per subcloud in RPC manager
+            # For subcloud operations with index, resolve here for early validation
+            if backup_index is not None and request_entity.type == "subcloud":
+                try:
+                    backup_id = self._resolve_backup_index_to_id(
+                        context, request_entity.id, release_version, backup_index_str
+                    )
+                except Exception:
+                    LOG.exception("Failed to resolve backup index")
+                    pecan.abort(500, _("Failed to resolve backup index"))
+
+                if not backup_id:
+                    pecan.abort(
+                        404,
+                        _(
+                            "No backup found at index '%s' for "
+                            "subcloud '%s' and release '%s'"
+                        )
+                        % (backup_index, request_entity.name, release_version),
+                    )
+                payload["backup_id"] = backup_id
+                LOG.info(
+                    f"Resolved backup_index '{backup_index}' to backup_id "
+                    f"'{backup_id}' for subcloud '{request_entity.name}'"
+                )
+
             # Validate subcloud state when deleting locally
             # Not needed for centralized storage, since connection is not required
-            local_only = payload.get("local_only")
             if local_only:
                 self._validate_subclouds(request_entity, verb)
 
@@ -378,6 +421,7 @@ class SubcloudBackupController(object):
             except Exception:
                 LOG.exception("Unable to delete subcloud backups")
                 pecan.abort(500, _("Unable to delete subcloud backups"))
+
         elif verb == "restore":
 
             if not payload:
@@ -502,6 +546,48 @@ class SubcloudBackupController(object):
                 pecan.abort(500, _("Unable to restore subcloud"))
         else:
             pecan.abort(400, _("Invalid request"))
+
+    def _validate_backup_index_format(self, backup_index: str) -> str:
+        backup_index_str = str(backup_index).lower()
+
+        if backup_index_str in [consts.BACKUP_INDEX_LATEST, consts.BACKUP_INDEX_OLDEST]:
+            return backup_index_str
+
+        # Check if it's a valid non-negative integer
+        try:
+            index_num = int(backup_index)
+            if index_num < 0:
+                pecan.abort(400, _("backup_index must be non-negative"))
+            return str(index_num)
+        except (ValueError, TypeError):
+            pecan.abort(
+                400,
+                _(
+                    "Invalid backup_index. Must be a non-negative integer, "
+                    "'%s', or '%s'"
+                )
+                % (consts.BACKUP_INDEX_LATEST, consts.BACKUP_INDEX_OLDEST),
+            )
+
+    @staticmethod
+    def _resolve_backup_index_to_id(
+        context, subcloud_id: int, release_version: str, backup_index: str
+    ) -> str:
+        """Resolve a backup index to a specific backup_id for a single subcloud.
+
+        :param context: Request context
+        :param subcloud_id: ID of the subcloud
+        :param release_version: Release version
+        :param backup_index: Index to resolve ('latest', 'oldest', or integer)
+        :returns: The backup_id string, or None if not found
+        """
+        archives = db_api.subcloud_backup_archive_get_all(
+            context,
+            subcloud_ids=[subcloud_id],
+            release_version=release_version,
+        )
+        archive = utils.resolve_backup_by_index(archives, backup_index)
+        return archive.backup_id if archive else None
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method="GET", template="json")

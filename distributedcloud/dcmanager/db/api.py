@@ -1206,6 +1206,12 @@ def subcloud_backup_config_update(context, values: dict) -> models.SubcloudBacku
     return IMPL.Connection(context).subcloud_backup_config_update(values)
 
 
+def subcloud_backup_archive_get_by_id(
+    context, backup_id: str
+) -> models.SubcloudBackupArchive:
+    return IMPL.Connection(context).subcloud_backup_archive_get_by_id(backup_id)
+
+
 def subcloud_backup_archive_get_all(
     context,
     subcloud_ids: list = None,

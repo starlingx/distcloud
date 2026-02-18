@@ -2110,6 +2110,26 @@ class Connection(object):
             return config
 
     @require_context()
+    def subcloud_backup_archive_get_by_id(
+        self, backup_id: str
+    ) -> models.SubcloudBackupArchive:
+        """Get a backup archive by its backup_id.
+
+        :param backup_id: Unique backup identifier
+        :returns SubcloudBackupArchive: The backup archive record
+        :raises BackupArchiveNotFound: If no archive with the given ID exists
+        """
+        with read_session() as session:
+            result = (
+                session.query(models.SubcloudBackupArchive)
+                .filter_by(backup_id=backup_id, deleted=0)
+                .first()
+            )
+            if not result:
+                raise exception.BackupArchiveNotFound(backup_id=backup_id)
+            return result
+
+    @require_context()
     def subcloud_backup_archive_get_all(
         self,
         subcloud_ids=None,

@@ -449,6 +449,10 @@ DEFAULT_BACKUP_RETENTION_COUNT = 1
 MIN_BACKUP_RETENTION_COUNT = 1
 MAX_BACKUP_RETENTION_COUNT = 10
 
+# Backup index aliases for index-based deletion
+BACKUP_INDEX_LATEST = "latest"
+BACKUP_INDEX_OLDEST = "oldest"
+
 FACTORY_BACKUP_PREFIX = "factory_backup"
 FACTORY_BACKUP_REGISTRY_FILESYSTEM_PREFIX = "localhost_image_registry_backup"
 

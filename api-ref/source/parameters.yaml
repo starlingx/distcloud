@@ -160,6 +160,15 @@ backup_list_subcloud_filter:
   in: path
   required: false
   type: string
+backup_index:
+  description: |
+    Position of the backup to delete within the release's backup list. Values:
+    non-negative integer in string format (0 = most recent, 1 = second most
+    recent, etc.), "latest", or "oldest". Valid only for centralized backups;
+    not compatible with "local_only" option.
+  in: body
+  required: false
+  type: string
 backup_local_only:
   description: |
     Flag to indicate whether the platform backup is to be saved locally within

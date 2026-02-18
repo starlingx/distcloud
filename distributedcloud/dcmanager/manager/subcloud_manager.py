@@ -1215,19 +1215,69 @@ class SubcloudManager(manager.Manager):
         """Delete backups for subcloud or group of subclouds for a given release
 
         :param context: request context object
-        :param release_version Backup release version to be deleted
+        :param release_version: Backup release version to be deleted
         :param payload: subcloud backup delete detail
         """
-
         local_delete = payload.get("local_only")
+        # Already resolved and validated for single subcloud by the API
+        backup_id = payload.get("backup_id")
+        # For group operations
+        backup_index = payload.get("backup_index")
 
         subclouds_to_delete_backup, invalid_subclouds = (
             self._filter_subclouds_for_backup_delete(context, payload, local_delete)
         )
 
+        # Single subcloud case
+        archive = None
+        if backup_id:
+            LOG.info(
+                "Selective backup delete for single subcloud: "
+                f"backup_id={backup_id}, release={release_version}"
+            )
+            archive = db_api.subcloud_backup_archive_get_by_id(context, backup_id)
+
+        # If backup_index specified for group, resolve per subcloud
+        subcloud_backup_map = None
+        skipped_subcloud_names = None
+        if backup_index and not backup_id:
+            LOG.info(
+                f"Group backup delete with index '{backup_index}' for release "
+                f"'{release_version}': resolving index per subcloud..."
+            )
+            subcloud_backup_map = self._resolve_backup_index_for_group(
+                context, subclouds_to_delete_backup, release_version, backup_index
+            )
+
+            # Filter out subclouds that don't have a backup at this index
+            subclouds_with_backup = []
+            subclouds_without_backup = []
+            for sc in subclouds_to_delete_backup:
+                if sc.id in subcloud_backup_map:
+                    subclouds_with_backup.append(sc)
+                else:
+                    subclouds_without_backup.append(sc)
+
+            LOG.info(
+                f"Resolved backup index '{backup_index}' for "
+                f"{len(subclouds_with_backup)} subclouds, "
+                f"skipping {len(subclouds_without_backup)} "
+                "subclouds without backup at this index"
+            )
+
+            subclouds_to_delete_backup = subclouds_with_backup
+
+            if subclouds_without_backup:
+                skipped_subcloud_names = [sc.name for sc in subclouds_without_backup]
+
         # Spawn threads to back up each applicable subcloud
         backup_delete_function = functools.partial(
-            self._delete_subcloud_backup, context, payload, release_version
+            self._delete_subcloud_backup,
+            context,
+            payload,
+            release_version,
+            archive=archive,
+            subcloud_backup_map=subcloud_backup_map,
         )
 
         # Use thread pool to limit number of operations in parallel
@@ -1244,8 +1294,65 @@ class SubcloudManager(manager.Manager):
         LOG.info("Subcloud backup delete operation finished")
 
         return self._subcloud_operation_notice(
-            "delete", subclouds_to_delete_backup, failed_subclouds, invalid_subclouds
+            "delete",
+            subclouds_to_delete_backup,
+            failed_subclouds,
+            invalid_subclouds,
+            skipped_subclouds=skipped_subcloud_names,
         )
+
+    def _resolve_backup_index_for_group(
+        self,
+        context,
+        subclouds: list[Subcloud],
+        release_version: str,
+        backup_index: str,
+    ) -> dict[int, SubcloudBackupArchive]:
+        """Resolve backup_index to backup DB object for each subcloud in a group.
+
+        :param context: Request context
+        :param subclouds: List of subcloud objects
+        :param release_version: Release version
+        :param backup_index: Index to resolve ('latest', 'oldest', or integer)
+        :returns: Mapping of subcloud_id -> backup archive for subclouds
+                  that have a backup at this index
+        """
+        subcloud_backup_map = {}
+        subcloud_ids = [sc.id for sc in subclouds]
+
+        archives = db_api.subcloud_backup_archive_get_all(
+            context,
+            subcloud_ids=subcloud_ids,
+            release_version=release_version,
+        )
+
+        # Group by subcloud_id
+        backups_by_subcloud = {}
+        for archive in archives:
+            if archive.subcloud_id not in backups_by_subcloud:
+                backups_by_subcloud[archive.subcloud_id] = []
+            backups_by_subcloud[archive.subcloud_id].append(archive)
+
+        for subcloud in subclouds:
+            subcloud_backups = backups_by_subcloud.get(subcloud.id, [])
+            backup_archive = utils.resolve_backup_by_index(
+                subcloud_backups, backup_index
+            )
+            if backup_archive:
+                subcloud_backup_map[subcloud.id] = backup_archive
+                LOG.debug(
+                    "Resolved index '%s' to backup_id '%s' for subcloud %s",
+                    backup_index,
+                    backup_archive.backup_id,
+                    subcloud.name,
+                )
+            elif subcloud_backups:
+                LOG.warning(
+                    f"Subcloud {subcloud.name} has {len(subcloud_backups)} backups "
+                    f"but index '{backup_index}' is out of range, skipping"
+                )
+
+        return subcloud_backup_map
 
     def restore_subcloud_backups(self, context, payload):
         """Restore a subcloud or group of subclouds from backup data
@@ -2142,11 +2249,19 @@ class SubcloudManager(manager.Manager):
         return db_api.subcloud_db_model_to_dict(subcloud)
 
     def _subcloud_operation_notice(
-        self, operation, restore_subclouds, failed_subclouds, invalid_subclouds
+        self,
+        operation,
+        restore_subclouds,
+        failed_subclouds,
+        invalid_subclouds,
+        skipped_subclouds=None,
     ):
+        attempted = set(restore_subclouds)
         all_failed = (
-            not set(restore_subclouds) - set(failed_subclouds)
-        ) and not invalid_subclouds
+            bool(attempted)
+            and not (attempted - set(failed_subclouds))
+            and not invalid_subclouds
+        )
         if all_failed:
             LOG.error("Backup %s failed for all applied subclouds" % operation)
             raise exceptions.SubcloudBackupOperationFailed(operation=operation)
@@ -2158,9 +2273,9 @@ class SubcloudManager(manager.Manager):
                 operation, failed_subclouds
             )
 
-        if invalid_subclouds or failed_subclouds:
+        if invalid_subclouds or failed_subclouds or skipped_subclouds:
             return self._build_subcloud_operation_notice(
-                operation, failed_subclouds, invalid_subclouds
+                operation, failed_subclouds, invalid_subclouds, skipped_subclouds
             )
         return
 
@@ -2610,6 +2725,19 @@ class SubcloudManager(manager.Manager):
 
             backup_file.unlink()
             LOG.info(f"Deleted backup file {backup_file} for subcloud {subcloud.name}")
+
+            # Clean up the release directory if it's now empty
+            release_dir = backup_file.parent
+            try:
+                if release_dir.exists() and not any(release_dir.iterdir()):
+                    release_dir.rmdir()
+                    LOG.info(f"Removed empty release directory {release_dir}")
+            except Exception:
+                LOG.warning(
+                    f"Failed to remove release directory {release_dir}, "
+                    f"it may not be empty"
+                )
+
             return True
         except Exception:
             LOG.exception(
@@ -2672,6 +2800,51 @@ class SubcloudManager(manager.Manager):
             LOG.warning(f"Failed to delete backup {backup_id} from database: {e}")
             return False
 
+    def _delete_all_centralized_backups_for_release(
+        self, context, release_version: str, subcloud: Subcloud
+    ) -> bool:
+        """Delete all centralized backup archives for a subcloud and release.
+
+        :param context: request context object
+        :param release_version: the release version of the backups to delete
+        :param subcloud: subcloud object
+        :returns bool: True if all deletions succeeded, False otherwise
+        """
+        archives = db_api.subcloud_backup_archive_get_all(
+            context,
+            subcloud_ids=[subcloud.id],
+            release_version=release_version,
+        )
+        if not archives:
+            LOG.info(
+                f"No centralized backup archives found for subcloud "
+                f"{subcloud.name} release {release_version}"
+            )
+            return True
+
+        success = True
+        for arch in archives:
+            if arch.storage_location == consts.BACKUP_STORAGE_DC_VAULT:
+                ok = self._delete_subcloud_backup_from_dc_vault(arch, subcloud)
+            elif arch.storage_location == consts.BACKUP_STORAGE_SEAWEEDFS:
+                ok = self._delete_subcloud_backup_from_seaweedfs(arch, subcloud)
+            else:
+                LOG.warning(
+                    f"Unknown storage location '{arch.storage_location}' "
+                    f"for archive {arch.backup_id}"
+                )
+                ok = False
+
+            if ok:
+                ok = self._delete_backup_from_database(
+                    context, subcloud, arch.backup_id
+                )
+
+            if not ok:
+                success = False
+
+        return success
+
     def _delete_subcloud_backup(
         self,
         context,
@@ -2679,6 +2852,7 @@ class SubcloudManager(manager.Manager):
         release_version: str,
         subcloud: Subcloud,
         archive: SubcloudBackupArchive = None,
+        subcloud_backup_map: dict[int, SubcloudBackupArchive] = None,
     ) -> tuple[Subcloud, bool]:
         """Delete either a central or local subcloud backup.
 
@@ -2687,8 +2861,23 @@ class SubcloudManager(manager.Manager):
         :param release_version: the release version of the backup to be deleted
         :param subcloud: subcloud object
         :param archive: backup archive DB object to be deleted (central backup only)
-        :returns bool: True if deletion succeeded, False otherwise
+        :param subcloud_backup_map: mapping of subcloud_id -> archive for group
+               index-based deletions
+        :returns: tuple of (subcloud, success)
         """
+
+        # Check if this is a group operation with per-subcloud mapping
+        if not archive and subcloud_backup_map:
+            archive = subcloud_backup_map.get(subcloud.id)
+            if archive:
+                LOG.debug(
+                    "Using resolved backup_id '%s' for subcloud %s "
+                    "from group operation",
+                    archive.backup_id,
+                    subcloud.name,
+                )
+
+        success = False
         if payload.get("local_only"):
             success = self._delete_subcloud_backup_local(
                 context, payload, release_version, subcloud
@@ -2698,17 +2887,13 @@ class SubcloudManager(manager.Manager):
                 success = self._delete_subcloud_backup_from_dc_vault(archive, subcloud)
             elif archive.storage_location == consts.BACKUP_STORAGE_SEAWEEDFS:
                 success = self._delete_subcloud_backup_from_seaweedfs(archive, subcloud)
-        else:
-            # TODO(gherzmann): Remove this fallback once backup delete API flow is
-            # updated to pass archive records so we can use direct file deletion instead
-            # of the playbook for centralized backups.
-            success = self._delete_subcloud_backup_local(
-                context, payload, release_version, subcloud
-            )
-
-        if archive and success:
-            success = self._delete_backup_from_database(
-                context, subcloud, archive.backup_id
+            if success:
+                success = self._delete_backup_from_database(
+                    context, subcloud, archive.backup_id
+                )
+        else:  # No backup index filter was applied
+            success = self._delete_all_centralized_backups_for_release(
+                context, release_version, subcloud
             )
 
         return subcloud, success
@@ -2779,6 +2964,7 @@ class SubcloudManager(manager.Manager):
             # For remote auto-restore, we need to copy the backup file
             # and the restore overrides, so we use the following dir:
             # CENTRAL_BACKUP_DIR / subcloud_name / software_version
+            # TODO(gherzmann): Need to handle custom backup dir for seaweedfs
             central_backup = utils.find_central_subcloud_backup(
                 subcloud.name, payload.get("software_version")
             )
@@ -3232,7 +3418,7 @@ class SubcloudManager(manager.Manager):
 
     @staticmethod
     def _build_subcloud_operation_notice(
-        operation, failed_subclouds, invalid_subclouds
+        operation, failed_subclouds, invalid_subclouds, skipped_subclouds=None
     ):
         invalid_subcloud_names = [subcloud.name for subcloud in invalid_subclouds]
         failed_subcloud_names = [subcloud.name for subcloud in failed_subclouds]
@@ -3247,6 +3433,11 @@ class SubcloudManager(manager.Manager):
             notice += (
                 "The following subclouds failed during backup "
                 "%s operation: %s." % (operation, " ,".join(failed_subcloud_names))
+            )
+        if skipped_subclouds:
+            notice += (
+                "The following subclouds had no backup at the requested "
+                f"index and were skipped: {', '.join(skipped_subclouds)}."
             )
         return notice
 

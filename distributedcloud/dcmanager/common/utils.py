@@ -1143,6 +1143,34 @@ def _is_valid_for_backup_delete(subcloud):
     return True
 
 
+def resolve_backup_by_index(
+    archives: list[models.SubcloudBackupArchive], backup_index: str
+) -> Optional[models.SubcloudBackupArchive]:
+    """Resolve a backup index to a single archive from a sorted list.
+
+    :param archives: List of backup archives, sorted by created_at descending
+        (newest first).
+    :param backup_index: Index to resolve, 'latest', 'oldest', or a
+        non-negative integer string.
+    :returns: The matching archive, or None if not found.
+    """
+    if not archives:
+        return None
+
+    if backup_index == consts.BACKUP_INDEX_LATEST:
+        return archives[0]
+    elif backup_index == consts.BACKUP_INDEX_OLDEST:
+        return archives[-1]
+    else:
+        try:
+            index = int(backup_index)
+            if 0 <= index < len(archives):
+                return archives[index]
+        except (ValueError, TypeError):
+            pass
+    return None
+
+
 def get_bootstrap_values(subcloud: models.Subcloud) -> dict:
     filename = psd_common.get_config_file_path(subcloud.name)
     LOG.info(f"Loading bootstrap values from: {filename}")

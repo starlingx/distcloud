@@ -464,7 +464,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
             "name": "subcloud1",
             "description": "subcloud1 description",
             "location": "subcloud1 location",
-            "software_version": "18.03",
+            "software_version": "22.12",
             "management_subnet": "192.168.101.0/24",
             "management_gateway_ip": "192.168.101.1",
             "management_start_ip": "192.168.101.2",
@@ -3519,9 +3519,12 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
     )
-    def test_delete_subcloud_backup_failed(self, mock_create_backup_overrides_file):
+    def test_delete_local_subcloud_backup_failed(
+        self, mock_create_backup_overrides_file
+    ):
         mock_create_backup_overrides_file.side_effect = Exception("boom")
-        self.subcloud["deploy_status"] = consts.BACKUP_STATE_COMPLETE_CENTRAL
+        self.subcloud["deploy_status"] = consts.BACKUP_STATE_COMPLETE_LOCAL
+        self.values["local_only"] = True
         self.sm._delete_subcloud_backup(
             self.ctx,
             payload=self.values,
@@ -3848,30 +3851,14 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             consts.BACKUP_STATE_PREP_FAILED, updated_subcloud.backup_status
         )
 
-    @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(
-        subcloud_manager.SubcloudManager, "compose_backup_delete_command"
+        subcloud_manager.SubcloudManager,
+        "_delete_all_centralized_backups_for_release",
+        return_value=True,
     )
-    @mock.patch.object(
-        subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
-    )
-    def test_delete_subcloud_backup(
-        self,
-        mock_create_backup_overrides_file,
-        mock_compose_backup_delete_command,
-        mock_oam_address,
+    def test_delete_central_subcloud_backup_without_specific_archive(
+        self, mock_delete_all
     ):
-        db_api.subcloud_update(
-            self.ctx,
-            self.subcloud.id,
-            backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
-        )
-
-        override_file = os_path.join(
-            ANS_PATH, self.subcloud.name + "_backup_delete_values.yml"
-        )
-        mock_create_backup_overrides_file.return_value = override_file
-
         self.sm._delete_subcloud_backup(
             self.ctx,
             payload=self.values,
@@ -3879,15 +3866,10 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             subcloud=self.subcloud,
         )
 
-        mock_create_backup_overrides_file.assert_called_once()
-        mock_compose_backup_delete_command.assert_called_once()
-        self.mock_ansible_run_playbook.assert_called_once()
-        mock_oam_address.return_value = "2620:10a:a001:d41::260"
-        self.mock_create_subcloud_inventory.assert_not_called()
-        self.mock_delete_subcloud_inventory.assert_called_once_with(override_file)
-
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.BACKUP_STATE_UNKNOWN, updated_subcloud.backup_status)
+        mock_delete_all.assert_called_once_with(
+            self.ctx, FAKE_SW_VERSION, self.subcloud
+        )
+        self.mock_ansible_run_playbook.assert_not_called()
 
     @mock.patch.object(cutils, "get_oam_floating_ip_primary")
     @mock.patch.object(
@@ -3952,9 +3934,12 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
     )
-    def test_delete_subcloud_backup_playbook_execution_failed(
-        self, mock_create_backup_overrides_file, mock_compose_backup_delete_command
+    def test_delete_local_subcloud_backup_playbook_execution_failed(
+        self,
+        mock_create_backup_overrides_file,
+        mock_compose_backup_delete_command,
     ):
+        self._mock_object(cutils, "get_oam_floating_ip_primary")
         self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
         db_api.subcloud_update(
             self.ctx,
@@ -3962,6 +3947,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
         )
 
+        self.values["local_only"] = True
         self.sm._delete_subcloud_backup(
             self.ctx,
             payload=self.values,
@@ -3984,7 +3970,6 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         mock_create_backup_overrides_file.assert_called_once()
         mock_compose_backup_delete_command.assert_called_once()
         self.mock_ansible_run_playbook.assert_called_once()
-        self.mock_create_subcloud_inventory.assert_not_called()
 
     @mock.patch.object(
         cutils, "find_ansible_error_msg", return_value="Fake playbook error"
@@ -3995,12 +3980,13 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
     )
-    def test_delete_subcloud_backup_find_and_save_ansible_error(
+    def test_delete_local_subcloud_backup_find_and_save_ansible_error(
         self,
         mock_create_backup_overrides_file,
         mock_compose_backup_delete_command,
         mock_find_msg,
     ):
+        self._mock_object(cutils, "get_oam_floating_ip_primary")
         self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
 
         db_api.subcloud_update(
@@ -4009,6 +3995,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
         )
 
+        self.values["local_only"] = True
         self.sm._delete_subcloud_backup(
             self.ctx,
             payload=self.values,
@@ -4027,7 +4014,6 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         mock_create_backup_overrides_file.assert_called_once()
         mock_compose_backup_delete_command.assert_called_once()
         self.mock_ansible_run_playbook.assert_called_once()
-        self.mock_create_subcloud_inventory.assert_not_called()
 
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "compose_backup_delete_command"
@@ -4035,9 +4021,12 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
     )
-    def test_delete_subcloud_backup_find_and_save_ansible_timeout(
-        self, mock_create_backup_overrides_file, mock_compose_backup_delete_command
+    def test_delete_local_subcloud_backup_find_and_save_ansible_timeout(
+        self,
+        mock_create_backup_overrides_file,
+        mock_compose_backup_delete_command,
     ):
+        self._mock_object(cutils, "get_oam_floating_ip_primary")
         self.mock_ansible_run_playbook.side_effect = PlaybookExecutionTimeout()
 
         db_api.subcloud_update(
@@ -4046,6 +4035,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             backup_status=consts.BACKUP_STATE_COMPLETE_CENTRAL,
         )
 
+        self.values["local_only"] = True
         self.sm._delete_subcloud_backup(
             self.ctx,
             payload=self.values,
@@ -4059,7 +4049,6 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         mock_create_backup_overrides_file.assert_called_once()
         mock_compose_backup_delete_command.assert_called_once()
         self.mock_ansible_run_playbook.assert_called_once()
-        self.mock_create_subcloud_inventory.assert_not_called()
 
     def test_generate_backup_id(self):
         backup_dt = datetime.datetime(2026, 2, 3, 14, 30, 45)
@@ -4177,7 +4166,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         mock_backup_archive_create.assert_not_called()
         self.mock_log_subcloud_manager.warning.assert_called_once_with(
             "No backup file found for subcloud subcloud1 in "
-            "/opt/dc-vault/backups/subcloud1/18.03, skipping archive record creation"
+            "/opt/dc-vault/backups/subcloud1/22.12, skipping archive record creation"
         )
 
     @mock.patch.object(db_api, "subcloud_backup_archive_create")
@@ -4356,6 +4345,298 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         mock_dc_vault_delete.assert_called_once()
         self.mock_db_delete.assert_not_called()
         self.assertFalse(success)
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_from_seaweedfs"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_from_dc_vault"
+    )
+    def test_delete_all_centralized_backups_no_archives(
+        self, mock_delete_from_dc_vault, mock_delete_from_seaweedfs
+    ):
+        result = self.sm._delete_all_centralized_backups_for_release(
+            self.ctx, FAKE_SW_VERSION, self.subcloud
+        )
+        # When no archives exist for the release, should return True
+        # without any deletions
+        self.assertTrue(result)
+        self.mock_db_delete.assert_not_called()
+        mock_delete_from_dc_vault.assert_not_called()
+        mock_delete_from_seaweedfs.assert_not_called()
+
+    @mock.patch.object(Path, "unlink")
+    def test_delete_all_centralized_backups_deletes_all_dc_vault(self, mock_unlink):
+        self._create_backup_archives(3)
+        self._mock_object(Path, "exists", return_value=True)
+        self._mock_object(Path, "iterdir", return_value=iter([]))
+
+        result = self.sm._delete_all_centralized_backups_for_release(
+            self.ctx, self.subcloud.software_version, self.subcloud
+        )
+
+        # All dc-vault archives for a release should be deleted (returns True)
+        self.assertTrue(result)
+        self.assertEqual(self.mock_db_delete.call_count, 3)
+        self.assertEqual(mock_unlink.call_count, 3)
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_from_dc_vault"
+    )
+    def test_delete_all_centralized_backups_partial_failure(self, mock_dc_vault_delete):
+        self._create_backup_archives(2)
+        mock_dc_vault_delete.side_effect = [False, True]
+
+        result = self.sm._delete_all_centralized_backups_for_release(
+            self.ctx, self.subcloud.software_version, self.subcloud
+        )
+
+        # If one archive fails to delete, overall result is False but
+        # second archive should still be deleted despite first failing
+        self.assertFalse(result)
+        self.assertEqual(self.mock_db_delete.call_count, 1)
+
+
+class TestSubcloudBackupDeleteWithIndex(TestSubcloudBackup):
+    """Tests for delete_subcloud_backups backup_id/backup_index paths"""
+
+    def setUp(self):
+        super().setUp()
+        self.mock_get_by_id = self._mock_object(
+            db_api,
+            "subcloud_backup_archive_get_by_id",
+            wraps=db_api.subcloud_backup_archive_get_by_id,
+        )
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_parallel_group_operation"
+    )
+    def test_delete_subcloud_backups_with_backup_id_fetches_archive(
+        self, mock_parallel_group_operation
+    ):
+        archive = self._create_backup_archives(1)[0]
+
+        values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
+        values["backup_id"] = archive.backup_id
+
+        self.sm.delete_subcloud_backups(
+            self.ctx, payload=values, release_version=FAKE_SW_VERSION
+        )
+
+        # When backup_id is in the payload, the archive is fetched by ID and
+        # forwarded to _delete_subcloud_backup via functools.partial
+        self.mock_get_by_id.assert_called_once_with(self.ctx, archive.backup_id)
+        mock_parallel_group_operation.assert_called_once()
+        partial_fn = mock_parallel_group_operation.call_args[0][1]
+        self.assertEqual(partial_fn.keywords["archive"].backup_id, archive.backup_id)
+
+    def test_delete_subcloud_backups_backup_id_skips_index_resolution(self):
+        self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_parallel_group_operation"
+        )
+        archive = self._create_backup_archives(1)[0]
+
+        values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
+        values["backup_id"] = archive.backup_id
+        values["backup_index"] = "latest"  # should be ignored
+
+        with mock.patch.object(
+            subcloud_manager.SubcloudManager, "_resolve_backup_index_for_group"
+        ) as mock_resolve:
+            self.sm.delete_subcloud_backups(
+                self.ctx, payload=values, release_version=FAKE_SW_VERSION
+            )
+        # When backup_id is set, backup_index must be ignored even if present
+        mock_resolve.assert_not_called()
+        self.mock_get_by_id.assert_called_once_with(self.ctx, archive.backup_id)
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_parallel_group_operation"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager,
+        "_resolve_backup_index_for_group",
+        wraps=subcloud_manager.SubcloudManager._resolve_backup_index_for_group,
+        autospec=True,
+    )
+    def test_delete_subcloud_backups_with_backup_index_calls_resolve(
+        self, mock_resolve, mock_parallel_group_operation
+    ):
+        archive = self._create_backup_archives(1)[0]
+
+        values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
+        values["backup_index"] = "latest"
+
+        self.sm.delete_subcloud_backups(
+            self.ctx, payload=values, release_version=self.subcloud.software_version
+        )
+
+        # When backup_index is present (and no backup_id), the manager must call
+        # _resolve_backup_index_for_group and forward the result as subcloud_backup_map
+        mock_resolve.assert_called_once()
+        call_args = mock_resolve.call_args
+        self.assertEqual(call_args[0][3], self.subcloud.software_version)
+        self.assertEqual(call_args[0][4], "latest")
+
+        mock_parallel_group_operation.assert_called_once()
+        partial_fn = mock_parallel_group_operation.call_args[0][1]
+        subcloud_backup_map = partial_fn.keywords["subcloud_backup_map"]
+        self.assertIn(self.subcloud.id, subcloud_backup_map)
+        self.assertEqual(
+            subcloud_backup_map[self.subcloud.id].backup_id, archive.backup_id
+        )
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_parallel_group_operation"
+    )
+    def test_delete_subcloud_backups_backup_index_tracks_skipped_subclouds(
+        self, mock_parallel_group_operation
+    ):
+        values = copy.copy(FAKE_BACKUP_DELETE_LOAD_1)
+        values["backup_index"] = "5"  # big index so all subclouds are skipped
+
+        with mock.patch.object(self.sm, "_subcloud_operation_notice") as mock_notice:
+            self.sm.delete_subcloud_backups(
+                self.ctx, payload=values, release_version=FAKE_SW_VERSION
+            )
+
+        # Subclouds absent from the backup map are excluded from the pool and
+        # reported as skipped in the operation notice
+        mock_notice.assert_called_once()
+        call_kwargs = mock_notice.call_args[1]
+        self.assertIn(self.subcloud.name, call_kwargs["skipped_subclouds"])
+        pool_subclouds = mock_parallel_group_operation.call_args[0][3]
+        self.assertEqual(pool_subclouds, [])
+
+    def test_resolve_backup_index_for_group_latest(self):
+        archives = self._create_backup_archives(2)
+
+        result = self.sm._resolve_backup_index_for_group(
+            self.ctx, [self.subcloud], FAKE_SW_VERSION, "latest"
+        )
+
+        # 'latest' resolves to the first element of the returned list
+        self.assertIn(self.subcloud.id, result)
+        self.assertEqual(result[self.subcloud.id].backup_id, archives[-1].backup_id)
+
+    def test_resolve_backup_index_for_group_oldest(self):
+        archives = self._create_backup_archives(2)
+
+        result = self.sm._resolve_backup_index_for_group(
+            self.ctx, [self.subcloud], FAKE_SW_VERSION, "oldest"
+        )
+
+        # 'oldest' resolves to the last element of the returned list
+        self.assertIn(self.subcloud.id, result)
+        self.assertEqual(result[self.subcloud.id].backup_id, archives[0].backup_id)
+
+    def test_resolve_backup_index_for_group_numeric_index(self):
+        archives = self._create_backup_archives(3)
+        newest_first = list(reversed(archives))
+
+        result = self.sm._resolve_backup_index_for_group(
+            self.ctx, [self.subcloud], FAKE_SW_VERSION, "1"
+        )
+
+        # Check that the numeric index resolves to the archive at that position
+        self.assertIn(self.subcloud.id, result)
+        self.assertEqual(result[self.subcloud.id].backup_id, newest_first[1].backup_id)
+
+    def test_resolve_backup_index_for_group_index_out_of_range(self):
+        self._create_backup_archives(1)
+
+        result = self.sm._resolve_backup_index_for_group(
+            self.ctx, [self.subcloud], FAKE_SW_VERSION, "99"
+        )
+
+        # The subcloud should be mising from the returned map, and a warning
+        # should be logged
+        self.assertNotIn(self.subcloud.id, result)
+        self.mock_log_subcloud_manager.warning.assert_called_once()
+
+    def test_resolve_backup_index_for_group_no_archives_for_subcloud(self):
+
+        result = self.sm._resolve_backup_index_for_group(
+            self.ctx, [self.subcloud], FAKE_SW_VERSION, "latest"
+        )
+
+        # If the subcloud has no archives, there's nothing to do (returns empty)
+        self.assertEqual(result, {})
+        self.mock_log_subcloud_manager.warning.assert_not_called()
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_delete_subcloud_backup_from_dc_vault"
+    )
+    def test_delete_subcloud_backup_resolves_archive_from_map(
+        self, mock_dc_vault_delete
+    ):
+        mock_dc_vault_delete.return_value = True
+        archive = self._create_backup_archives(1)[0]
+
+        self.values["local_only"] = False
+        _, success = self.sm._delete_subcloud_backup(
+            self.ctx,
+            self.values,
+            self.subcloud.software_version,
+            self.subcloud,
+            archive=None,
+            subcloud_backup_map={self.subcloud.id: archive},
+        )
+
+        # The archive should be taken from the map and forwarded to the
+        # storage-specific delete helper
+        mock_dc_vault_delete.assert_called_once_with(archive, self.subcloud)
+        self.mock_db_delete.assert_called_once_with(self.ctx, archive.backup_id)
+        self.assertTrue(success)
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager,
+        "_delete_all_centralized_backups_for_release",
+        return_value=True,
+    )
+    def test_delete_subcloud_backup_falls_back_to_all_when_not_in_map(
+        self, mock_delete_all
+    ):
+        self.values["local_only"] = False
+        _, success = self.sm._delete_subcloud_backup(
+            self.ctx,
+            self.values,
+            FAKE_SW_VERSION,
+            self.subcloud,
+            archive=None,
+            subcloud_backup_map={},
+        )
+
+        # Should fall back to deleting all centralized backups for the release
+        mock_delete_all.assert_called_once_with(
+            self.ctx, FAKE_SW_VERSION, self.subcloud
+        )
+        self.assertTrue(success)
+
+    def test_build_subcloud_operation_notice_with_skipped_subclouds(self):
+        notice = subcloud_manager.SubcloudManager._build_subcloud_operation_notice(
+            "delete",
+            failed_subclouds=[],
+            invalid_subclouds=[],
+            skipped_subclouds=["sc1", "sc2"],
+        )
+
+        self.assertIn("sc1", notice)
+        self.assertIn("sc2", notice)
+        self.assertIn("no backup at the requested index", notice)
+
+    def test_build_subcloud_operation_notice_without_skipped_subclouds(self):
+        mock_subcloud = mock.Mock()
+        mock_subcloud.name = "failed-sc"
+        notice = subcloud_manager.SubcloudManager._build_subcloud_operation_notice(
+            "delete",
+            failed_subclouds=[mock_subcloud],
+            invalid_subclouds=[],
+            skipped_subclouds=None,
+        )
+
+        self.assertIn("failed-sc", notice)
+        self.assertNotIn("skipped", notice)
 
 
 class TestSubcloudPrestage(BaseTestSubcloudManager):

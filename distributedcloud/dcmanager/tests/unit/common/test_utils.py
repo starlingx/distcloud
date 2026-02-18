@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -76,6 +76,13 @@ class FakeAddressPool(object):
         self.network = network
         self.prefix = prefix
         self.family = netaddr.IPAddress(network).version
+
+
+class FakeBackupArchive:
+    """Minimal fake backup archive for resolve_backup_by_index tests."""
+
+    def __init__(self, backup_id):
+        self.backup_id = backup_id
 
 
 class TestCommonUtils(DCManagerTestCase):
@@ -437,3 +444,45 @@ class TestCommonUtils(DCManagerTestCase):
 
         expected_list = []
         self.assertEqual(formatted_list, expected_list)
+
+    def _make_backup_archives(self, *ids):
+        return [FakeBackupArchive(bid) for bid in ids]
+
+    def test_returns_none_for_empty_list(self):
+        result = utils.resolve_backup_by_index([], "latest")
+        self.assertIsNone(result)
+
+    def test_latest_returns_first_element(self):
+        archives = self._make_backup_archives("new", "mid", "old")
+        result = utils.resolve_backup_by_index(archives, "latest")
+        self.assertEqual("new", result.backup_id)
+
+    def test_oldest_returns_last_element(self):
+        archives = self._make_backup_archives("new", "mid", "old")
+        result = utils.resolve_backup_by_index(archives, "oldest")
+        self.assertEqual("old", result.backup_id)
+
+    def test_numeric_zero_returns_newest(self):
+        archives = self._make_backup_archives("new", "old")
+        result = utils.resolve_backup_by_index(archives, "0")
+        self.assertEqual("new", result.backup_id)
+
+    def test_numeric_index_returns_correct_element(self):
+        archives = self._make_backup_archives("new", "mid", "old")
+        result = utils.resolve_backup_by_index(archives, "1")
+        self.assertEqual("mid", result.backup_id)
+
+    def test_out_of_range_index_returns_none(self):
+        archives = self._make_backup_archives("solo")
+        result = utils.resolve_backup_by_index(archives, "5")
+        self.assertIsNone(result)
+
+    def test_single_element_list_latest_and_oldest_agree(self):
+        archives = self._make_backup_archives("solo")
+        self.assertEqual(
+            "solo", utils.resolve_backup_by_index(archives, "latest").backup_id
+        )
+        self.assertEqual(
+            "solo", utils.resolve_backup_by_index(archives, "oldest").backup_id
+        )
+        self.assertEqual("solo", utils.resolve_backup_by_index(archives, "0").backup_id)

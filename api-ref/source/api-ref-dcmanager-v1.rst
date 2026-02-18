@@ -942,6 +942,11 @@ in a subcloud group.
 Backup files may be saved locally in the subcloud or to a centralized archive in the system
 controller.
 
+When a centralized backup is created, the system automatically enforces the
+**retention_count** from the backup configuration. If the number of existing
+backup archives for the subcloud and software release exceeds the configured
+retention count, the oldest backups are automatically deleted.
+
 ************************************************************************
 Generates subcloud backup files for a given subcloud or subcloud group
 ************************************************************************
@@ -1027,6 +1032,10 @@ Deletes subcloud backup files of a release for a given subcloud or subcloud grou
 
 Accepts Content-Type multipart/form-data.
 
+When **local_only** is set to true, the deletion is performed on the subcloud
+via an Ansible playbook. When deleting centralized backups (local_only is false
+or not specified), backup files are deleted directly from the system controller.
+
 
 **Normal response codes**
 
@@ -1046,6 +1055,7 @@ serviceUnavailable (503)
   - subcloud: backup_subcloud_name_or_id
   - group: backup_subcloud_group_name_or_id
   - local_only: backup_local_only
+  - backup_index: backup_index
   - sysadmin_password: sysadmin_password
 
 Request Example

@@ -830,6 +830,138 @@ class TestSubcloudBackupPatchDeleteSubcloud(BaseTestSubcloudBackupPatchDelete):
             "Unable to delete subcloud backups",
         )
 
+    def test_patch_delete_subcloud_fails_with_backup_index_and_local_only(self):
+        """Test that backup_index cannot be combined with local_only"""
+
+        self.params["backup_index"] = "latest"
+        self.params["local_only"] = "True"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "backup_index parameter cannot be used with "
+            "local_only. Index-based deletion is only supported "
+            "for centralized backups.",
+        )
+
+    def test_patch_delete_subcloud_fails_with_negative_backup_index(self):
+        """Test that a negative backup_index value is rejected"""
+
+        self.params["backup_index"] = "-1"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "backup_index must be non-negative",
+        )
+
+    def test_patch_delete_subcloud_fails_with_invalid_backup_index_string(self):
+        """Test that a non-numeric, non-alias backup_index string is rejected"""
+
+        self.params["backup_index"] = "bad_value"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Invalid backup_index. Must be a non-negative integer, "
+            f"'{consts.BACKUP_INDEX_LATEST}', or '{consts.BACKUP_INDEX_OLDEST}'",
+        )
+
+    def test_patch_delete_subcloud_succeeds_with_backup_index_latest(self):
+        """Test that backup_index='latest' is accepted and the archive is resolved"""
+
+        archive = db_api.subcloud_backup_archive_create(
+            self.ctx,
+            backup_id="test-backup-latest",
+            subcloud_id=self.subcloud.id,
+            release_version="22.12",
+            storage_location=consts.BACKUP_STORAGE_DC_VAULT,
+            storage_path="/opt/dc-vault/backups/subcloud1/22.12/backup.tgz",
+        )
+        self.params["backup_index"] = "latest"
+
+        response = self._send_request()
+
+        self._assert_response(response, http.client.MULTI_STATUS)
+        call_payload = self.mock_rpc_client().delete_subcloud_backups.call_args[0][2]
+        self.assertEqual(call_payload["backup_id"], archive.backup_id)
+
+    def test_patch_delete_subcloud_succeeds_with_backup_index_oldest(self):
+        """Test that backup_index='oldest' resolves to the single archive"""
+
+        archive = db_api.subcloud_backup_archive_create(
+            self.ctx,
+            backup_id="test-backup-oldest",
+            subcloud_id=self.subcloud.id,
+            release_version="22.12",
+            storage_location=consts.BACKUP_STORAGE_DC_VAULT,
+            storage_path="/opt/dc-vault/backups/subcloud1/22.12/backup.tgz",
+        )
+        self.params["backup_index"] = "oldest"
+
+        response = self._send_request()
+
+        self._assert_response(response, http.client.MULTI_STATUS)
+        call_payload = self.mock_rpc_client().delete_subcloud_backups.call_args[0][2]
+        self.assertEqual(call_payload["backup_id"], archive.backup_id)
+
+    def test_patch_delete_subcloud_succeeds_with_numeric_backup_index(self):
+        """Test that a numeric backup_index resolves to the correct archive"""
+
+        archive = db_api.subcloud_backup_archive_create(
+            self.ctx,
+            backup_id="test-backup-0",
+            subcloud_id=self.subcloud.id,
+            release_version="22.12",
+            storage_location=consts.BACKUP_STORAGE_DC_VAULT,
+            storage_path="/opt/dc-vault/backups/subcloud1/22.12/backup.tgz",
+        )
+        self.params["backup_index"] = "0"
+
+        response = self._send_request()
+
+        self._assert_response(response, http.client.MULTI_STATUS)
+        call_payload = self.mock_rpc_client().delete_subcloud_backups.call_args[0][2]
+        self.assertEqual(call_payload["backup_id"], archive.backup_id)
+
+    def test_patch_delete_subcloud_fails_with_backup_index_not_found(self):
+        """Test that 404 is returned when no backup exists at the requested index"""
+
+        self.params["backup_index"] = "0"
+        subcloud_ref = str(self.subcloud.id)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.NOT_FOUND,
+            f"No backup found at index '0' for "
+            f"subcloud '{subcloud_ref}' and release '22.12'",
+        )
+
+    def test_patch_delete_subcloud_returns_500_on_backup_index_resolve_error(self):
+        """Test that it fails when resolving backup_index raises an unexpected error"""
+
+        self.params["backup_index"] = "0"
+
+        with mock.patch(
+            "dcmanager.db.api.subcloud_backup_archive_get_all",
+            side_effect=Exception("DB failure"),
+        ):
+            response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Failed to resolve backup index",
+        )
+
 
 class TestSubcloudBackupPatchGroup(BaseTestSubcloudBackupPatchDelete):
     """Test class for patch requests with delete verb for group resource"""

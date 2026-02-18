@@ -1,5 +1,6 @@
 {
     "subcloud": 1,
     "local_only": false,
+    "backup_index": "oldest",
     "sysadmin_password": "XXXXXXX"
 }
