@@ -217,10 +217,9 @@ class SubcloudAuditWorkerManager(manager.Manager):
         use_cache: bool,
     ):
         audits_done = list()
-        failures = list()
         # Do the actual subcloud audit.
         try:
-            audits_done, failures = self._audit_subcloud(
+            audits_done = self._audit_subcloud(
                 subcloud,
                 update_subcloud_state,
                 firmware_audit_data,
@@ -235,14 +234,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
             )
         except Exception:
             LOG.exception("Got exception auditing subcloud: %s" % subcloud.name)
-
-        if failures and len(failures) > 1:
-            # extra log for multiple failures:
-            LOG.error(
-                "Multiple failures auditing subcloud %s: for endpoints: %s",
-                subcloud.name,
-                ", ".join(sorted(failures)),
-            )
 
         with self.audit_lock:
             self.audits_finished[subcloud.id] = {
@@ -333,7 +324,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
         subcloud_region = subcloud.region_name
         subcloud_management_ip = subcloud.management_start_ip
         audits_done = list()
-        failures = list()
         availability_data = dict()
         endpoint_data = dict()
         # Set defaults to None and disabled so we will still set disabled
@@ -341,7 +331,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
         dcagent_client = None
         avail_to_set = dccommon_consts.AVAILABILITY_OFFLINE
-        failmsg = "Audit failure subcloud: %s, endpoint: %s"
         try:
             subcloud_ks_endpoint = dccommon_utils.build_subcloud_endpoint(
                 subcloud_management_ip, dccommon_consts.ENDPOINT_NAME_KEYSTONE
@@ -356,59 +345,16 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     subcloud_management_ip, dccommon_consts.ENDPOINT_NAME_DCAGENT
                 ),
             )
-        # TODO(vgluzrom): Revise and improve the debug and error messages
-        # as well as the exception causes
-        except keystone_exceptions.ConnectTimeout:
-            if avail_status_current == dccommon_consts.AVAILABILITY_OFFLINE:
-                LOG.debug(
-                    "Identity or Platform endpoint for %s not found, ignoring for "
-                    "offline subcloud." % subcloud_name
-                )
-                return audits_done, failures
-            else:
-                # The subcloud will be marked as offline below.
-                LOG.error(
-                    "Identity or Platform endpoint for online subcloud: %s not found."
-                    % subcloud_name
-                )
-
-        except keystone_exceptions.NotFound:
-            if (
-                subcloud.first_identity_sync_complete
-                and avail_status_current == dccommon_consts.AVAILABILITY_ONLINE
-            ):
-                # The first identity sync is already complete
-                # Therefore this is an error
-                LOG.error(
-                    "Identity or Platform endpoint for online subcloud: %s not found."
-                    % subcloud_name
-                )
-            else:
-                LOG.debug(
-                    "Identity or Platform endpoint for %s not found, ignoring for "
-                    "offline subcloud or identity sync not done." % subcloud_name
-                )
-                return audits_done, failures
-
-        except (
-            keystone_exceptions.EndpointNotFound,
-            keystone_exceptions.ConnectFailure,
-            IndexError,
-        ):
-            if avail_status_current == dccommon_consts.AVAILABILITY_OFFLINE:
-                LOG.info(
-                    "Identity or Platform endpoint for %s not found, ignoring for "
-                    "offline subcloud." % subcloud_name
-                )
-                return audits_done, failures
-            # The subcloud will be marked as offline below.
-            LOG.error(
-                "Identity or Platform endpoint for online subcloud: %s not found."
-                % subcloud_name
-            )
-
         except Exception:
-            LOG.exception("Failed to create clients for subcloud: %s" % subcloud_name)
+            # No request is made when getting the keystone session or creating the
+            # dcagent client, so there's no normal reason for any exception to be
+            # raised. If the subcloud is not offline, we need to continue audit
+            # to set it to offline
+            dccommon_utils.log_subcloud_msg(
+                LOG.exception, "Failed to create session and client", subcloud_name
+            )
+            if avail_status_current == dccommon_consts.AVAILABILITY_OFFLINE:
+                return audits_done
 
         LOG.debug(f"Starting dcagent audit for subcloud: {subcloud_name}")
         # If we don't have the audit data, we won't send the request to the
@@ -458,11 +404,25 @@ class SubcloudAuditWorkerManager(manager.Manager):
         )
         audit_results = {}
         try:
-            audit_results = dcagent_client.audit(audit_payload)
+            if dcagent_client:
+                audit_results = dcagent_client.audit(audit_payload)
+                LOG.debug(
+                    f"Audits results for subcloud {subcloud_name}: {audit_results}"
+                )
+        except keystone_exceptions.connection.ConnectFailure as e:
+            # This is an expected error when the subcloud is offline. We won't log this
+            # every cycle to not flood the logs
+            if (
+                avail_status_current == dccommon_consts.AVAILABILITY_ONLINE
+                or update_subcloud_state
+            ):
+                dccommon_utils.log_subcloud_msg(LOG.error, e, subcloud_name)
+            else:
+                dccommon_utils.log_subcloud_msg(LOG.debug, e, subcloud_name)
         except Exception:
-            LOG.exception(failmsg % (subcloud.name, "dcagent"))
-            failures.append("dcagent")
-        LOG.debug(f"Audits results for subcloud {subcloud_name}: {audit_results}")
+            dccommon_utils.log_subcloud_msg(
+                LOG.error, "Failed to audit subcloud", subcloud_name
+            )
         audit_results = self._update_sw_sync_status_from_deploy_status(
             subcloud, audit_results
         )
@@ -578,4 +538,4 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     f"subcloud: {subcloud_name}"
                 )
 
-        return audits_done, failures
+        return audits_done
