@@ -1,4 +1,4 @@
-# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024-2026 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -100,6 +100,12 @@ def get_rpc_client(timeout, **msg_target_kwargs):
     target = oslo_messaging.Target(**msg_target_kwargs)
     serializer = RequestContextSerializer(JsonPayloadSerializer())
     # With timeout == None the default value will be 60 seconds
+    # Use get_rpc_client if available (oslo.messaging >= 14.1.0),
+    # otherwise fall back to RPCClient for older versions (Bullseye).
+    if hasattr(oslo_messaging, "get_rpc_client"):
+        return oslo_messaging.get_rpc_client(
+            TRANSPORT, target, timeout=timeout, serializer=serializer
+        )
     return oslo_messaging.RPCClient(
         TRANSPORT, target, timeout=timeout, serializer=serializer
     )

@@ -57,20 +57,35 @@ class RequestContext(base_context.RequestContext):
         **kwargs
     ):
         """Initializer of request context."""
-        # We still have 'tenant' param because oslo_context still use it.
+        # oslo.context >= 5.2 renamed 'user'/'tenant' to 'user_id'/'project_id'.
+        # Use try/except for compatibility with both old and new versions.
         # pylint: disable=E1123
-        super(RequestContext, self).__init__(
-            auth_token=auth_token,
-            user=user,
-            tenant=project,
-            domain=domain,
-            user_domain=user_domain,
-            project_domain=project_domain,
-            roles=roles,
-            read_only=read_only,
-            show_deleted=show_deleted,
-            request_id=request_id,
-        )
+        try:
+            super(RequestContext, self).__init__(
+                auth_token=auth_token,
+                user_id=user,
+                project_id=project,
+                domain=domain,
+                user_domain=user_domain,
+                project_domain=project_domain,
+                roles=roles,
+                read_only=read_only,
+                show_deleted=show_deleted,
+                request_id=request_id,
+            )
+        except TypeError:
+            super(RequestContext, self).__init__(
+                auth_token=auth_token,
+                user=user,
+                tenant=project,
+                domain=domain,
+                user_domain=user_domain,
+                project_domain=project_domain,
+                roles=roles,
+                read_only=read_only,
+                show_deleted=show_deleted,
+                request_id=request_id,
+            )
 
         # request_id might be a byte array
         self.request_id = encodeutils.safe_decode(self.request_id)

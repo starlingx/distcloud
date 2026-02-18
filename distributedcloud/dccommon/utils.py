@@ -204,7 +204,7 @@ class memoized(object):
         self.cache = {}
 
     def __call__(self, *args):
-        if not isinstance(args, collections.Hashable):
+        if not isinstance(args, collections.abc.Hashable):
             # uncacheable. a list, for instance.
             # better to not cache than blow up.
             return self.func(*args)
@@ -289,6 +289,8 @@ class AnsiblePlaybook(object):
         """
         exec_env = os.environ.copy()
         exec_env["ANSIBLE_LOG_PATH"] = "/dev/null"
+        exec_env["LC_ALL"] = "C.UTF-8"
+        exec_env["LANG"] = "C.UTF-8"
 
         aborted = False
 
