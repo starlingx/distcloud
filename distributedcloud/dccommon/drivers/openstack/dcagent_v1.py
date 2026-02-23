@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024, 2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -47,11 +47,6 @@ class DcagentClient(base.DriverBase):
         url = self.endpoint + "/v1/dcaudit"
         headers = headers or {}
         response = self.session.patch(
-            url, json=audit_data, headers=headers, timeout=timeout, raise_exc=False
+            url, json=audit_data, headers=headers, timeout=timeout
         )
-
-        if response.status_code == 200:
-            return response.json()
-        message = f"Audit request failed with RC: {response.status_code}"
-        LOG.error(message)
-        raise Exception(message)
+        return response.json()

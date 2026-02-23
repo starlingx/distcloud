@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -40,15 +40,15 @@ from dcmanager.db import api as db_api
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-# We will update the state of each subcloud in the dcorch about once per hour.
-# Calculate how many iterations that will be.
-SUBCLOUD_STATE_UPDATE_ITERATIONS = (
-    dccommon_consts.SECONDS_IN_HOUR // CONF.scheduler.subcloud_audit_interval
-)
-
 # Time for the periodic audit loop to execute
 # It needs to be greater than the subcloud_audit_interval
 AUDIT_LOOP_INTERVAL = CONF.scheduler.subcloud_audit_interval + 10
+
+# We will update the state of each subcloud in the dcorch about once per hour.
+# Calculate how many iterations that will be.
+SUBCLOUD_STATE_UPDATE_ITERATIONS = (
+    dccommon_consts.SECONDS_IN_HOUR // AUDIT_LOOP_INTERVAL
+)
 
 # Name of starlingx openstack helm application
 HELM_APP_OPENSTACK = "openstack"
