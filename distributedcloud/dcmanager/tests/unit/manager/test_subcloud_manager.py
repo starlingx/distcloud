@@ -7045,3 +7045,27 @@ class TestEnrollOverrides(BaseTestSubcloudManager):
         self._run_test_scenario(
             self.enroll_overrides, "/path/to/cloud_init.tar", expected_content
         )
+
+
+class TestAddAdditionalOverridesForEnroll(BaseTestSubcloudManager):
+    """Test class for _add_additional_overrides_for_enroll method"""
+
+    def test_add_bootstrap_vlan_and_interface(self):
+        payload = {
+            "install_values": {"bootstrap_vlan": "100", "bootstrap_interface": "eth0"}
+        }
+        self.sm._add_additional_overrides_for_enroll(payload)
+        self.assertEqual(payload["bootstrap_vlan"], "100")
+        self.assertEqual(payload["bootstrap_interface"], "eth0")
+
+    def test_missing_install_values(self):
+        payload = {"install_values": {}}
+        self.sm._add_additional_overrides_for_enroll(payload)
+        self.assertNotIn("bootstrap_vlan", payload)
+        self.assertNotIn("bootstrap_interface", payload)
+
+    def test_partial_values(self):
+        payload = {"install_values": {"bootstrap_vlan": "100"}}
+        self.sm._add_additional_overrides_for_enroll(payload)
+        self.assertEqual(payload["bootstrap_vlan"], "100")
+        self.assertNotIn("bootstrap_interface", payload)
