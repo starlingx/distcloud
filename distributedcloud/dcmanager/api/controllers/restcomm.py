@@ -73,7 +73,7 @@ def extract_context_from_environ():
         user_name=username,
         project_name=_ADMIN_PROJECT_NAME,
         roles=roles,
-        is_admin=("admin" in roles),
+        is_admin=any(role in ["admin", "configurator"] for role in roles),
         request_id=environ.get("openstack.request_id"),
     )
 
