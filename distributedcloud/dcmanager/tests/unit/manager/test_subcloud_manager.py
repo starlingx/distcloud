@@ -495,6 +495,31 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         values.update(kwargs)
         return db_api.subcloud_peer_group_create(ctxt, **values)
 
+    def _create_backup_archives(self, count, base_time=None):
+        """Helper to create multiple backup archive records in the DB."""
+        if base_time is None:
+            base_time = datetime.datetime(2026, 2, 1, 10, 0, 0)
+        archives = []
+        for i in range(count):
+            dt = base_time + datetime.timedelta(hours=i)
+            backup_id = (
+                f"{self.subcloud.name}-{self.subcloud.software_version}-"
+                f"{dt.strftime('%Y%m%d%H%M')}"
+            )
+            archive = db_api.subcloud_backup_archive_create(
+                self.ctx,
+                backup_id=backup_id,
+                subcloud_id=self.subcloud.id,
+                release_version=self.subcloud.software_version,
+                storage_location=consts.BACKUP_STORAGE_DC_VAULT,
+                storage_path=f"/opt/dc-vault/backups/{self.subcloud.name}/"
+                f"{self.subcloud.software_version}/"
+                f"{self.subcloud.name}_platform_backup_"
+                f"{dt.strftime('%Y_%m_%d_%H_%M')}_00.tgz",
+            )
+            archives.append(archive)
+        return archives
+
     def test_init(self):
         self.assertIsNotNone(self.sm)
         self.assertEqual("subcloud_manager", self.sm.service_name)
@@ -3428,8 +3453,7 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
             self.assertEqual(expected_state, subcloud.get(state_type))
 
 
-class TestSubcloudBackup(BaseTestSubcloudManager):
-    """Test class for testing subcloud backup"""
+class BaseTestSubcloudBackup(BaseTestSubcloudManager):
 
     def setUp(self):
         super().setUp()
@@ -3460,6 +3484,10 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             session = get_session()
             session.add(backup_config)
             session.flush()
+
+
+class TestSubcloudBackup(BaseTestSubcloudBackup):
+    """Test class for testing subcloud backup"""
 
     @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
     @mock.patch.object(
@@ -4193,31 +4221,6 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
             f"subcloud1: {mock_backup_archive_create.side_effect}"
         )
 
-    def _create_backup_archives(self, count, base_time=None):
-        """Helper to create multiple backup archive records in the DB."""
-        if base_time is None:
-            base_time = datetime.datetime(2026, 2, 1, 10, 0, 0)
-        archives = []
-        for i in range(count):
-            dt = base_time + datetime.timedelta(hours=i)
-            backup_id = (
-                f"{self.subcloud.name}-{self.subcloud.software_version}-"
-                f"{dt.strftime('%Y%m%d%H%M')}"
-            )
-            archive = db_api.subcloud_backup_archive_create(
-                self.ctx,
-                backup_id=backup_id,
-                subcloud_id=self.subcloud.id,
-                release_version=self.subcloud.software_version,
-                storage_location=consts.BACKUP_STORAGE_DC_VAULT,
-                storage_path=f"/opt/dc-vault/backups/{self.subcloud.name}/"
-                f"{self.subcloud.software_version}/"
-                f"{self.subcloud.name}_platform_backup_"
-                f"{dt.strftime('%Y_%m_%d_%H_%M')}_00.tgz",
-            )
-            archives.append(archive)
-        return archives
-
     @mock.patch.object(subcloud_manager.SubcloudManager, "_delete_subcloud_backup")
     def test_enforce_max_backup_count_deletes_oldest(self, mock_delete_backup):
         mock_delete_backup.return_value = (self.subcloud, True)
@@ -4397,7 +4400,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         self.assertEqual(self.mock_db_delete.call_count, 1)
 
 
-class TestSubcloudBackupDeleteWithIndex(TestSubcloudBackup):
+class TestSubcloudBackupDeleteWithIndex(BaseTestSubcloudBackup):
     """Tests for delete_subcloud_backups backup_id/backup_index paths"""
 
     def setUp(self):
@@ -4971,7 +4974,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
 
         self.assertIn(expected_log, return_log)
         self.mock_log_subcloud_manager.info.assert_called_with(
-            "Subcloud restore backup operation finished.\nRestored subclouds: 0. "
+            "Subcloud restore backup operation finished. Restored subclouds: 0. "
             "Invalid subclouds: 1. Failed subclouds: 0."
         )
 
@@ -5075,6 +5078,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             "factory",
             mock.ANY,
             subcloud_region_name=self.subcloud.region_name,
+            backup_filename=None,
         )
 
         mock_stage_auto_restore_files.assert_called_once()
@@ -5169,6 +5173,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             None,
             True,
             subcloud_region_name=self.subcloud.region_name,
+            backup_filename=None,
         )
 
         mock_run_restore_playbook.assert_called_once_with(
@@ -5240,7 +5245,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
                 "(operation 100% complete, 0 subcloud(s) remaining)"
             ),
             mock.call(
-                "Subcloud restore backup operation finished.\n"
+                "Subcloud restore backup operation finished. "
                 "Restored subclouds: 1. Invalid subclouds: 0. Failed subclouds: 0."
             ),
         ]
@@ -5271,7 +5276,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
                 "(operation 100% complete, 0 subcloud(s) remaining)"
             ),
             mock.call(
-                "Subcloud restore backup operation finished.\n"
+                "Subcloud restore backup operation finished. "
                 "Restored subclouds: 1. Invalid subclouds: 0. Failed subclouds: 0."
             ),
         ]
@@ -5486,6 +5491,103 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.assertEqual(restore_command, expected)
 
 
+class TestSubcloudBackupRestoreWithIndex(BaseTestSubcloudManager):
+    """Tests for restore_subcloud_backups backup_id/backup_index paths"""
+
+    def setUp(self):
+        super().setUp()
+        self.values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        self.data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
+            "'", '"'
+        )
+        self.mock_get_by_id = self._mock_object(
+            db_api,
+            "subcloud_backup_archive_get_by_id",
+            wraps=db_api.subcloud_backup_archive_get_by_id,
+        )
+
+        self.mock_parallel_group_operation = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_parallel_group_operation"
+        )
+
+    def test_restore_subcloud_backups_with_backup_id_fetches_archive(self):
+        archive = self._create_backup_archives(1)[0]
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        values["backup_id"] = archive.backup_id
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        # When backup_id is in the payload, the archive is fetched by ID and
+        # forwarded to _restore_subcloud_backup via functools.partial
+        self.mock_get_by_id.assert_called_once_with(self.ctx, archive.backup_id)
+        self.mock_parallel_group_operation.assert_called_once()
+        partial_fn = self.mock_parallel_group_operation.call_args[0][1]
+        self.assertEqual(partial_fn.keywords["archive"].backup_id, archive.backup_id)
+
+    def test_restore_subcloud_backups_backup_id_skips_index_resolution(self):
+        archive = self._create_backup_archives(1)[0]
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        values["backup_id"] = archive.backup_id
+        values["backup_index"] = "latest"  # should be ignored
+
+        with mock.patch.object(
+            subcloud_manager.SubcloudManager, "_resolve_backup_index_for_group"
+        ) as mock_resolve:
+            self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        # When backup_id is set, backup_index must be ignored even if present
+        mock_resolve.assert_not_called()
+        self.mock_get_by_id.assert_called_once_with(self.ctx, archive.backup_id)
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager,
+        "_resolve_backup_index_for_group",
+        wraps=subcloud_manager.SubcloudManager._resolve_backup_index_for_group,
+        autospec=True,
+    )
+    def test_restore_subcloud_backups_with_backup_index_calls_resolve(
+        self, mock_resolve
+    ):
+        archive = self._create_backup_archives(1)[0]
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        values["backup_index"] = "latest"
+        values["release"] = self.subcloud.software_version
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        # When backup_index is present (and no backup_id), the manager must call
+        # _resolve_backup_index_for_group and forward the result as subcloud_backup_map
+        mock_resolve.assert_called_once()
+        call_args = mock_resolve.call_args
+        self.assertEqual(call_args[0][3], self.subcloud.software_version)
+        self.assertEqual(call_args[0][4], "latest")
+
+        self.mock_parallel_group_operation.assert_called_once()
+        partial_fn = self.mock_parallel_group_operation.call_args[0][1]
+        subcloud_backup_map = partial_fn.keywords["subcloud_backup_map"]
+        self.assertIn(self.subcloud.id, subcloud_backup_map)
+        self.assertEqual(
+            subcloud_backup_map[self.subcloud.id].backup_id, archive.backup_id
+        )
+
+    def test_restore_subcloud_backups_backup_index_tracks_skipped_subclouds(self):
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        values["backup_index"] = "99"
+
+        with mock.patch.object(self.sm, "_subcloud_operation_notice") as mock_notice:
+            self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        # Subclouds absent from the backup map are skipped (not invalid, not failed)
+        # and reported in the operation notice
+        mock_notice.assert_called_once()
+        call_kwargs = mock_notice.call_args[1]
+        self.assertIn(self.subcloud.name, call_kwargs["skipped_subclouds"])
+        self.mock_parallel_group_operation.assert_not_called()
+
+
 class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
     """Test class for testing _stage_auto_restore_files method"""
 
@@ -5585,16 +5687,11 @@ class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
 
         self.assertEqual(result, str(self.expected_path))
 
-    @mock.patch.object(cutils, "find_central_subcloud_backup")
-    def test_stage_auto_restore_files_central_restore(self, mock_find_backup):
-        """Test staging files for central (non-local) auto restore"""
-        mock_find_backup.return_value = self.backup_file
-
-        payload = {
-            "local_only": False,
-            "factory": False,
-            "software_version": "25.09",
-        }
+    def test_stage_auto_restore_files_central_restore(self):
+        """Test staging files for central (non-local) auto restore using archive"""
+        payload = {"local_only": False, "factory": False}
+        archive = mock.Mock()
+        archive.storage_path = str(self.backup_file)
 
         result = self.sm._stage_auto_restore_files(
             stage_dir=self.stage_dir,
@@ -5603,18 +5700,16 @@ class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
             subcloud=self.subcloud,
             auto_restore_mode="auto",
             ipmi_sel_event_monitoring=None,
+            archive=archive,
         )
 
         # Verify auto-restore directory creation
         self.mock_path_mkdir.assert_called_once()
 
-        # Verify find_central_subcloud_backup was called
-        mock_find_backup.assert_called_once_with(self.subcloud.name, "25.09")
-
-        # Verify hard links were created for both files
+        # Verify hard links were created for both files using archive.storage_path
         expected_calls = [
             mock.call(self.overrides_file, self.expected_destination),
-            mock.call(self.backup_file, self.expected_path / self.backup_file.name),
+            mock.call(archive.storage_path, self.expected_path / self.backup_file.name),
         ]
         self.mock_os_link.assert_has_calls(expected_calls)
         self.assertEqual(self.mock_os_link.call_count, 2)
@@ -5624,16 +5719,11 @@ class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
 
         self.assertEqual(result, str(self.expected_path))
 
-    @mock.patch.object(cutils, "find_central_subcloud_backup")
-    def test_stage_auto_restore_files_auto_restore_mode(self, mock_find_backup):
-        """Test staging files with auto restore mode"""
-        mock_find_backup.return_value = self.backup_file
-
-        payload = {
-            "local_only": False,
-            "factory": False,
-            "software_version": "22.12",
-        }
+    def test_stage_auto_restore_files_central_restore_with_install(self):
+        """Test staging files for central auto restore with --with-install"""
+        payload = {"local_only": False, "factory": False}
+        archive = mock.Mock()
+        archive.storage_path = str(self.backup_file)
 
         result = self.sm._stage_auto_restore_files(
             stage_dir=self.stage_dir,
@@ -5641,7 +5731,8 @@ class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
             payload=payload,
             subcloud=self.subcloud,
             auto_restore_mode="auto",
-            ipmi_sel_event_monitoring=None,
+            ipmi_sel_event_monitoring=True,
+            archive=archive,
         )
 
         # Verify auto-restore directory creation was attempted
@@ -5650,12 +5741,44 @@ class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
         # Verify both files were staged with correct arguments
         expected_calls = [
             mock.call(self.overrides_file, self.expected_destination),
-            mock.call(self.backup_file, self.expected_path / self.backup_file.name),
+            mock.call(archive.storage_path, self.expected_path / self.backup_file.name),
         ]
         self.mock_os_link.assert_has_calls(expected_calls)
         self.assertEqual(self.mock_os_link.call_count, 2)
 
         self.assertEqual(result, str(self.expected_path))
+
+    def test_get_auto_restore_temp_dir_location_central(self):
+        """Test that temp dir is set to the backup file's parent for central restore"""
+        payload = {"local_only": False, "factory": False}
+        archive = mock.Mock()
+        archive.storage_path = str(self.backup_file)
+
+        result = subcloud_manager.SubcloudManager._get_auto_restore_temp_dir_location(
+            payload, archive=archive
+        )
+
+        self.assertEqual(result, self.backup_file.parent)
+
+    def test_get_auto_restore_temp_dir_location_local_only(self):
+        """Test that temp dir is ANSIBLE_OVERRIDES_PATH for local-only restore"""
+        payload = {"local_only": True, "factory": False}
+
+        result = subcloud_manager.SubcloudManager._get_auto_restore_temp_dir_location(
+            payload
+        )
+
+        self.assertEqual(result, Path(dccommon_consts.ANSIBLE_OVERRIDES_PATH))
+
+    def test_get_auto_restore_temp_dir_location_factory(self):
+        """Test that temp dir is ANSIBLE_OVERRIDES_PATH for factory restore"""
+        payload = {"local_only": False, "factory": True}
+
+        result = subcloud_manager.SubcloudManager._get_auto_restore_temp_dir_location(
+            payload
+        )
+
+        self.assertEqual(result, Path(dccommon_consts.ANSIBLE_OVERRIDES_PATH))
 
 
 class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
@@ -5705,13 +5828,6 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             subcloud_manager.SubcloudManager, "compose_install_command"
         )
         self.mock_compose_install.return_value = ["ansible-playbook", "install.yml"]
-
-        self.mock_central_backup = self._mock_object(
-            cutils, "find_central_subcloud_backup"
-        )
-        self.mock_central_backup.return_value = Path(
-            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
-        )
 
         # Setup subcloud in initial state
         self.subcloud = db_api.subcloud_update(
@@ -5812,11 +5928,15 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             subcloud_manager.SubcloudManager, "_create_rvmc_config_for_seed_iso"
         )
 
+        archive = self._create_backup_archives(1)[0]
+
         payload = self._create_payload(
             restore_mode="auto", ipmi_sel_monitoring=False, with_install=False
         )
 
-        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+        result = self.sm._restore_subcloud_backup(
+            self.ctx, payload, self.subcloud, archive=archive
+        )
 
         # Verify compose_backup_restore_command was called with correct arguments
         self.mock_compose_restore.assert_called_once_with(
@@ -5844,7 +5964,11 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             restore_mode="auto", ipmi_sel_monitoring=False, with_install=True
         )
 
-        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+        archive = self._create_backup_archives(1)[0]
+
+        result = self.sm._restore_subcloud_backup(
+            self.ctx, payload, self.subcloud, archive=archive
+        )
 
         # Verify _stage_auto_restore_files was called with correct arguments
         self.mock_stage_files.assert_called_once_with(
@@ -5854,6 +5978,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             self.subcloud,
             "auto",  # auto_restore_mode
             False,  # ipmi_sel_event_monitoring
+            archive=archive,
         )
 
         # Verify compose_install_command was called with skip_install_monitoring=True
@@ -5866,6 +5991,56 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
         )
 
         self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_passes_backup_filename_to_overrides(self):
+        """Test that backup_filename from archive is forwarded to the overrides file"""
+        archive = self._create_backup_archives(1)[0]
+        payload = self._create_payload(
+            restore_mode=None, ipmi_sel_monitoring=True, with_install=False
+        )
+
+        self.sm._restore_subcloud_backup(
+            self.ctx, payload, self.subcloud, archive=archive
+        )
+
+        self.mock_create_overrides.assert_called_once()
+        _, call_kwargs = self.mock_create_overrides.call_args
+        self.assertEqual(call_kwargs.get("backup_filename"), archive.storage_path)
+
+    def test_restore_subcloud_backup_factory_does_not_set_backup_filename(self):
+        """Test that factory restore doesn't pass backup_filename"""
+        archive = self._create_backup_archives(1)[0]
+        payload = self._create_payload(
+            restore_mode="factory", ipmi_sel_monitoring=True, with_install=True
+        )
+
+        self.sm._restore_subcloud_backup(
+            self.ctx, payload, self.subcloud, archive=archive
+        )
+
+        self.mock_create_overrides.assert_called_once()
+        _, call_kwargs = self.mock_create_overrides.call_args
+        self.assertIsNone(call_kwargs.get("backup_filename"))
+
+    def test_restore_subcloud_backup_resolves_archive_from_subcloud_backup_map(self):
+        """Test that archive is correctly resolved from subcloud_backup_map"""
+        archive = self._create_backup_archives(1)[0]
+        payload = self._create_payload(
+            restore_mode=None, ipmi_sel_monitoring=True, with_install=False
+        )
+
+        self.sm._restore_subcloud_backup(
+            self.ctx,
+            payload,
+            self.subcloud,
+            archive=None,
+            subcloud_backup_map={self.subcloud.id: archive},
+        )
+
+        # backup_filename should be resolved from the map, not directly from archive
+        self.mock_create_overrides.assert_called_once()
+        _, call_kwargs = self.mock_create_overrides.call_args
+        self.assertEqual(call_kwargs.get("backup_filename"), archive.storage_path)
 
     def test_restore_subcloud_backup_prep_failure(self):
         """Test that prep failures are handled correctly"""

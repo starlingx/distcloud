@@ -1228,47 +1228,19 @@ class SubcloudManager(manager.Manager):
             self._filter_subclouds_for_backup_delete(context, payload, local_delete)
         )
 
-        # Single subcloud case
-        archive = None
-        if backup_id:
-            LOG.info(
-                "Selective backup delete for single subcloud: "
-                f"backup_id={backup_id}, release={release_version}"
-            )
-            archive = db_api.subcloud_backup_archive_get_by_id(context, backup_id)
-
-        # If backup_index specified for group, resolve per subcloud
-        subcloud_backup_map = None
-        skipped_subcloud_names = None
-        if backup_index and not backup_id:
-            LOG.info(
-                f"Group backup delete with index '{backup_index}' for release "
-                f"'{release_version}': resolving index per subcloud..."
-            )
-            subcloud_backup_map = self._resolve_backup_index_for_group(
-                context, subclouds_to_delete_backup, release_version, backup_index
-            )
-
-            # Filter out subclouds that don't have a backup at this index
-            subclouds_with_backup = []
-            subclouds_without_backup = []
-            for sc in subclouds_to_delete_backup:
-                if sc.id in subcloud_backup_map:
-                    subclouds_with_backup.append(sc)
-                else:
-                    subclouds_without_backup.append(sc)
-
-            LOG.info(
-                f"Resolved backup index '{backup_index}' for "
-                f"{len(subclouds_with_backup)} subclouds, "
-                f"skipping {len(subclouds_without_backup)} "
-                "subclouds without backup at this index"
-            )
-
-            subclouds_to_delete_backup = subclouds_with_backup
-
-            if subclouds_without_backup:
-                skipped_subcloud_names = [sc.name for sc in subclouds_without_backup]
+        (
+            archive,
+            subcloud_backup_map,
+            subclouds_to_delete_backup,
+            skipped_subcloud_names,
+        ) = self._resolve_backup_archive_and_filter(
+            context,
+            subclouds_to_delete_backup,
+            backup_id,
+            backup_index,
+            release_version,
+            "backup delete",
+        )
 
         # Spawn threads to back up each applicable subcloud
         backup_delete_function = functools.partial(
@@ -1354,24 +1326,80 @@ class SubcloudManager(manager.Manager):
 
         return subcloud_backup_map
 
+    def _resolve_backup_archive_and_filter(
+        self,
+        context,
+        subclouds: list[Subcloud],
+        backup_id: str,
+        backup_index: str,
+        release_version: str,
+        operation: str,
+    ) -> tuple:
+        """Resolve backup archive and/or filter subclouds by backup index.
+
+        :param context: Request context
+        :param subclouds: List of subcloud objects to process
+        :param backup_id: Specific backup ID (single subcloud case)
+        :param backup_index: Index to resolve
+        :param release_version: Release version of the target backup
+        :param operation: Operation name for log messages
+        :returns: Tuple of (archive, subcloud_backup_map, filtered_subclouds,
+                  skipped_subcloud_names)
+        """
+        archive = None
+        if backup_id:
+            LOG.info(
+                f"Selective {operation} for single subcloud: backup_id={backup_id}, "
+                f"release={release_version}"
+            )
+            archive = db_api.subcloud_backup_archive_get_by_id(context, backup_id)
+
+        subcloud_backup_map = None
+        skipped_subcloud_names = None
+        if backup_index and not backup_id:
+            LOG.info(
+                f"Group {operation} with index '{backup_index}' for release "
+                f"'{release_version}': resolving per subcloud..."
+            )
+            subcloud_backup_map = self._resolve_backup_index_for_group(
+                context, subclouds, release_version, backup_index
+            )
+
+            subclouds_with_backup = []
+            subclouds_without_backup = []
+            for sc in subclouds:
+                if sc.id in subcloud_backup_map:
+                    subclouds_with_backup.append(sc)
+                else:
+                    subclouds_without_backup.append(sc)
+
+            LOG.info(
+                f"Resolved backup index '{backup_index}' for "
+                f"{len(subclouds_with_backup)} subclouds, "
+                f"skipping {len(subclouds_without_backup)} "
+                "subclouds without backup at this index"
+            )
+
+            subclouds = subclouds_with_backup
+            if subclouds_without_backup:
+                skipped_subcloud_names = [sc.name for sc in subclouds_without_backup]
+
+        return archive, subcloud_backup_map, subclouds, skipped_subcloud_names
+
     def restore_subcloud_backups(self, context, payload):
         """Restore a subcloud or group of subclouds from backup data
 
         :param context: request context object
         :param payload: restore backup subcloud detail
         """
+        # Already resolved and validated for single subcloud by the API
+        backup_id = payload.get("backup_id")
+        # For group operations
+        backup_index = payload.get("backup_index")
 
         subcloud_id = payload.get("subcloud")
         group_id = payload.get("group")
 
-        # Initialize subclouds lists
-        restore_subclouds, invalid_subclouds, failed_subclouds = (
-            list(),
-            list(),
-            list(),
-        )
-
-        # Retrieve either a single subcloud or all subclouds in a group
         subclouds = (
             [db_api.subcloud_get(context, subcloud_id)]
             if subcloud_id
@@ -1386,30 +1414,47 @@ class SubcloudManager(manager.Manager):
             subclouds, "restore", bootstrap_address_dict
         )
 
+        release_version = payload.get("release", SW_VERSION)
+        archive, subcloud_backup_map, restore_subclouds, skipped_subcloud_names = (
+            self._resolve_backup_archive_and_filter(
+                context,
+                restore_subclouds,
+                backup_id,
+                backup_index,
+                release_version,
+                "backup restore",
+            )
+        )
+
+        failed_subclouds = []
         if restore_subclouds:
-            # Use thread pool to limit number of operations in parallel
+            restore_function = functools.partial(
+                self._restore_subcloud_backup,
+                context,
+                payload,
+                archive=archive,
+                subcloud_backup_map=subcloud_backup_map,
+            )
             restore_pool = greenpool.GreenPool(
                 size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE
             )
-
-            # Spawn threads to back up each applicable subcloud
-            restore_function = functools.partial(
-                self._restore_subcloud_backup, context, payload
-            )
-
             failed_subclouds = self._run_parallel_group_operation(
                 "backup restore", restore_function, restore_pool, restore_subclouds
             )
 
         restored_subclouds = len(restore_subclouds) - len(failed_subclouds)
         LOG.info(
-            "Subcloud restore backup operation finished.\nRestored subclouds: %s. "
-            "Invalid subclouds: %s. Failed subclouds: %s."
-            % (restored_subclouds, len(invalid_subclouds), len(failed_subclouds))
+            "Subcloud restore backup operation finished. Restored subclouds: "
+            f"{restored_subclouds}. Invalid subclouds: {len(invalid_subclouds)}. "
+            f"Failed subclouds: {len(failed_subclouds)}."
         )
 
         return self._subcloud_operation_notice(
-            "restore", restore_subclouds, failed_subclouds, invalid_subclouds
+            "restore",
+            restore_subclouds,
+            failed_subclouds,
+            invalid_subclouds,
+            skipped_subclouds=skipped_subcloud_names,
         )
 
     def _deploy_bootstrap_prep(
@@ -2906,6 +2951,7 @@ class SubcloudManager(manager.Manager):
         subcloud: Subcloud,
         auto_restore_mode=None,
         ipmi_sel_event_monitoring=None,
+        archive: SubcloudBackupArchive = None,
     ) -> str:
         """Stage auto-restore files in a directory for subcloud auto-restore.
 
@@ -2942,39 +2988,26 @@ class SubcloudManager(manager.Manager):
 
         # Stage the subcloud backup file
         if not payload["local_only"] and not payload.get("factory"):
-            central_backup = utils.find_central_subcloud_backup(
-                subcloud.name, payload.get("software_version")
-            )
-            destination_file = target_path / central_backup.name
-            os.link(central_backup, destination_file)
+            destination_file = target_path / Path(archive.storage_path).name
+            os.link(archive.storage_path, destination_file)
 
         return os.fspath(target_path)
 
     @staticmethod
     def _get_auto_restore_temp_dir_location(
-        subcloud: Subcloud, payload: dict
+        payload: dict,
+        archive: SubcloudBackupArchive = None,
     ) -> Optional[Path]:
         """Get the directory where temp folder should be created"""
         if payload.get("local_only") or payload.get("factory"):
-            # For local-only or factory auto-retores, we only need to
+            # For local-only or factory auto-restores, we only need to
             # copy the restore overrides file, so we create a temp dir
             # inside ANSIBLE_OVERRIDES_PATH as that will always exist
             return Path(dccommon_consts.ANSIBLE_OVERRIDES_PATH)
-        try:
-            # For remote auto-restore, we need to copy the backup file
-            # and the restore overrides, so we use the following dir:
-            # CENTRAL_BACKUP_DIR / subcloud_name / software_version
-            # TODO(gherzmann): Need to handle custom backup dir for seaweedfs
-            central_backup = utils.find_central_subcloud_backup(
-                subcloud.name, payload.get("software_version")
-            )
-            return central_backup.parent
-        except FileNotFoundError:
-            LOG.exception(
-                "Unable to find subcloud backup for remote auto-restore, make "
-                "sure a subcloud backup was created without --local-only"
-            )
-            raise
+        # For remote auto-restore, we need to copy the backup file
+        # and the restore overrides.
+        # TODO(gherzmann): Need to handle custom backup dir for seaweedfs
+        return Path(archive.storage_path).parent
 
     def _create_auto_restore_user_data(self, temp_dir: str, subcloud_name: str) -> None:
         """Create cloud-init user-data file for auto-restore
@@ -3050,7 +3083,11 @@ class SubcloudManager(manager.Manager):
         LOG.info(f"Created meta-data for auto-restore seed ISO for {subcloud_name}")
 
     def _generate_auto_restore_seed_iso(
-        self, subcloud: Subcloud, overrides_file: str, payload: dict
+        self,
+        subcloud: Subcloud,
+        overrides_file: str,
+        payload: dict,
+        archive: SubcloudBackupArchive = None,
     ) -> str:
         try:
             software_version = str(payload.get("software_version"))
@@ -3080,13 +3117,17 @@ class SubcloudManager(manager.Manager):
             # Create the cloud-init ISO structure in a single temp directory
             with tempfile.TemporaryDirectory(
                 prefix=f".{subcloud.name}",
-                dir=self._get_auto_restore_temp_dir_location(subcloud, payload),
+                dir=self._get_auto_restore_temp_dir_location(payload, archive=archive),
             ) as temp_iso_dir:
                 self._create_auto_restore_user_data(temp_iso_dir, subcloud.name)
                 self._create_auto_restore_meta_data(temp_iso_dir, subcloud.name)
 
                 self._stage_auto_restore_files(
-                    Path(temp_iso_dir), Path(overrides_file), payload, subcloud
+                    Path(temp_iso_dir),
+                    Path(overrides_file),
+                    payload,
+                    subcloud,
+                    archive=archive,
                 )
 
                 gen_seed_iso_command = [
@@ -3200,7 +3241,14 @@ class SubcloudManager(manager.Manager):
         )
         return rvmc_config_path
 
-    def _restore_subcloud_backup(self, context, payload, subcloud):
+    def _restore_subcloud_backup(
+        self,
+        context,
+        payload: dict,
+        subcloud: Subcloud,
+        archive: SubcloudBackupArchive = None,
+        subcloud_backup_map: dict[int, SubcloudBackupArchive] = None,
+    ):
         log_file = (
             os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
             + "_playbook_output.log"
@@ -3217,6 +3265,26 @@ class SubcloudManager(manager.Manager):
         else:
             auto_restore_mode = None
             bmc_access_only = False
+
+        # Check if this is a group operation with per-subcloud mapping
+        if not archive and subcloud_backup_map:
+            archive = subcloud_backup_map.get(subcloud.id)
+            if archive:
+                LOG.debug(
+                    "Using resolved backup_id '%s' for restore of subcloud %s "
+                    "from group operation",
+                    archive.backup_id,
+                    subcloud.name,
+                )
+
+        backup_filename = None
+        if archive and not payload.get("factory"):
+            backup_filename = archive.storage_path
+            LOG.debug(
+                "Restoring subcloud %s from specific backup: %s",
+                subcloud.name,
+                backup_filename,
+            )
 
         # To get the bootstrap_address for the subcloud, we considered
         # the following order:
@@ -3274,6 +3342,7 @@ class SubcloudManager(manager.Manager):
                 auto_restore_mode,
                 install_wipe_osds,
                 subcloud_region_name=subcloud.region_name,
+                backup_filename=backup_filename,
             )
 
             ipmi_sel_event_monitoring = payload.get("override_values").get(
@@ -3308,7 +3377,7 @@ class SubcloudManager(manager.Manager):
                 )
 
                 seed_iso_path = self._generate_auto_restore_seed_iso(
-                    subcloud, overrides_file, payload
+                    subcloud, overrides_file, payload, archive=archive
                 )
 
                 if not seed_iso_path:
@@ -3325,7 +3394,9 @@ class SubcloudManager(manager.Manager):
             auto_restore_context = (
                 tempfile.TemporaryDirectory(
                     prefix=f".{subcloud.name}",
-                    dir=self._get_auto_restore_temp_dir_location(subcloud, payload),
+                    dir=self._get_auto_restore_temp_dir_location(
+                        payload, archive=archive
+                    ),
                 )
                 if auto_restore_mode
                 else nullcontext()
@@ -3386,6 +3457,7 @@ class SubcloudManager(manager.Manager):
                             subcloud,
                             auto_restore_mode,
                             ipmi_sel_event_monitoring,
+                            archive=archive,
                         )
                     ]
 
@@ -3494,6 +3566,7 @@ class SubcloudManager(manager.Manager):
         auto_restore_mode=None,
         install_wipe_osds=None,
         subcloud_region_name=None,
+        backup_filename: str = None,
     ):
         # Set override names as expected by the playbook
         if not payload.get("override_values"):
@@ -3624,7 +3697,16 @@ class SubcloudManager(manager.Manager):
                         bootstrap_values["external_oam_floating_address"].split(",")[0]
                     )
 
-        return self._create_backup_overrides_file(payload, subcloud_name, suffix)
+        extra_overrides = {}
+        if backup_filename and op == "restore" and not auto_restore_mode:
+            extra_overrides["backup_filename"] = backup_filename
+
+        return self._create_backup_overrides_file(
+            payload,
+            subcloud_name,
+            suffix,
+            extra_overrides=extra_overrides or None,
+        )
 
     def _create_overrides_for_backup_delete(
         self, payload, subcloud_name, release_version
@@ -3651,7 +3733,9 @@ class SubcloudManager(manager.Manager):
             payload, subcloud_name, "backup_delete_values"
         )
 
-    def _create_backup_overrides_file(self, payload, subcloud_name, filename_suffix):
+    def _create_backup_overrides_file(
+        self, payload, subcloud_name, filename_suffix, extra_overrides=None
+    ):
         backup_overrides_file = os.path.join(
             dccommon_consts.ANSIBLE_OVERRIDES_PATH,
             subcloud_name + "_" + filename_suffix + ".yml",
@@ -3661,6 +3745,9 @@ class SubcloudManager(manager.Manager):
             f_out.write("---\n")
             for k, v in payload["override_values"].items():
                 f_out.write("%s: %s\n" % (k, json.dumps(v)))
+            if extra_overrides:
+                for k, v in extra_overrides.items():
+                    f_out.write("%s: %s\n" % (k, json.dumps(v)))
 
         return backup_overrides_file
 

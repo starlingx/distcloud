@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -21,7 +21,6 @@ import grp
 import itertools
 import json
 import os
-from pathlib import Path
 import pwd
 import re
 import resource as sys_resource
@@ -1240,26 +1239,6 @@ def _is_valid_for_backup_restore(
         raise exceptions.ValidateFail(msg)
 
     return True
-
-
-def find_central_subcloud_backup(subcloud_name: str, software_version: str) -> Path:
-    """Find the central backup file for a subcloud, to be used by auto-restore.
-
-    Raises:
-        FileNotFoundError: If backup directory or files don't exist.
-    """
-    search_dir = Path(consts.CENTRAL_BACKUP_DIR) / subcloud_name / software_version
-
-    if not search_dir.exists():
-        raise FileNotFoundError(f"Backup directory does not exist: {search_dir}")
-
-    pattern = f"{subcloud_name}_platform_backup_*.tgz"
-    backup_files = list(search_dir.glob(pattern))
-
-    if not backup_files:
-        raise FileNotFoundError(f"No backup files found in {search_dir}")
-
-    return backup_files[0]
 
 
 def get_matching_iso(software_version=None):

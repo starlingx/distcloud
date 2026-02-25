@@ -1087,6 +1087,21 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
         self.mock_os_path_isdir.return_value = True
 
+        self.default_archive = self._create_restore_archive()
+
+    def _create_restore_archive(self, backup_id="test-restore-backup"):
+        return db_api.subcloud_backup_archive_create(
+            self.ctx,
+            backup_id=backup_id,
+            subcloud_id=self.subcloud.id,
+            release_version="TEST.SW.VERSION",
+            storage_location=consts.BACKUP_STORAGE_DC_VAULT,
+            storage_path=(
+                f"/opt/dc-vault/backups/{self.subcloud.name}/"
+                f"TEST.SW.VERSION/{backup_id}.tgz"
+            ),
+        )
+
     def test_patch_restore_subcloud_succeeds(self):
         """Test patch restore subcloud succeeds"""
 
@@ -1205,7 +1220,7 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         """Test patch restore subcloud succeeds with install and release"""
 
         self.params["with_install"] = "True"
-        self.params["release"] = "22.12"
+        self.params["release"] = "TEST.SW.VERSION"
 
         data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace("/", '"')
         self._update_subcloud(
@@ -1313,8 +1328,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
 
         self._assert_pecan_and_response(
             response,
-            http.client.INTERNAL_SERVER_ERROR,
-            "Error: unable to validate the release version.",
+            http.client.NOT_FOUND,
+            "No backup found at index 'latest' for subcloud '1' and release '00.00'",
         )
 
     @mock.patch("dcmanager.common.utils.get_bootstrap_values")
@@ -1354,6 +1369,165 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_response(response)
+
+    def test_patch_restore_subcloud_fails_with_backup_index_and_local_only(self):
+        """Test that backup_index cannot be combined with local_only"""
+
+        self.params["backup_index"] = "latest"
+        self.params["local_only"] = "True"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "backup_index parameter cannot be used with local_only. Index-based "
+            "restore is only supported for centralized backups.",
+        )
+
+    def test_patch_restore_subcloud_fails_with_backup_index_and_factory(self):
+        """Test that backup_index cannot be combined with factory restore"""
+
+        self.params["backup_index"] = "latest"
+        self.params["factory"] = "True"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "backup_index parameter cannot be used with factory restore. "
+            "Factory restore always uses pre-installed local backup.",
+        )
+
+    def test_patch_restore_subcloud_fails_with_negative_backup_index(self):
+        """Test that a negative backup_index value is rejected"""
+
+        self.params["backup_index"] = "-1"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "backup_index must be non-negative",
+        )
+
+    def test_patch_restore_subcloud_fails_with_invalid_backup_index_string(self):
+        """Test that a non-numeric, non-alias backup_index string is rejected"""
+
+        self.params["backup_index"] = "bad_value"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Invalid backup_index. Must be a non-negative integer, "
+            f"'{consts.BACKUP_INDEX_LATEST}', or '{consts.BACKUP_INDEX_OLDEST}'",
+        )
+
+    def test_patch_restore_subcloud_succeeds_with_backup_index_latest(self):
+        """Test that backup_index='latest' resolves the correct archive"""
+        latest_archive = self._create_restore_archive(backup_id="latest-backup")
+
+        self.params["backup_index"] = "latest"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertEqual(call_payload["backup_id"], latest_archive.backup_id)
+
+    def test_patch_restore_subcloud_succeeds_with_backup_index_oldest(self):
+        """Test that backup_index='oldest' resolves to the single archive"""
+        self._create_restore_archive(backup_id="latest-backup")
+
+        self.params["backup_index"] = "oldest"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertEqual(call_payload["backup_id"], self.default_archive.backup_id)
+
+    def test_patch_restore_subcloud_succeeds_with_numeric_backup_index(self):
+        """Test that a numeric backup_index resolves to the correct archive"""
+        latest_archive = self._create_restore_archive(backup_id="latest-backup")
+
+        self.params["backup_index"] = "0"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertEqual(call_payload["backup_id"], latest_archive.backup_id)
+
+    def test_patch_restore_subcloud_fails_with_backup_index_not_found(self):
+        """Test that 404 is returned when no backup exists at the requested index"""
+
+        # setUp creates exactly 1 archive (index 0); index 1 does not exist
+        self.params["backup_index"] = "1"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.NOT_FOUND,
+            f"No backup found at index '1' for "
+            f"subcloud '{self.params['subcloud']}' and release 'TEST.SW.VERSION'",
+        )
+
+    def test_patch_restore_subcloud_returns_500_on_backup_index_resolve_error(self):
+        """Test that 500 is returned when resolving backup_index raises an error"""
+
+        self.params["backup_index"] = "0"
+
+        with mock.patch(
+            "dcmanager.db.api.subcloud_backup_archive_get_all",
+            side_effect=Exception("Mocked DB failure"),
+        ):
+            response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Failed to resolve backup index",
+        )
+
+    def test_patch_restore_subcloud_defaults_to_latest_for_centralized(self):
+        """Test that backup_index defaults to 'latest' when not specified"""
+        latest_archive = self._create_restore_archive(backup_id="latest-backup")
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertEqual(call_payload["backup_index"], consts.BACKUP_INDEX_LATEST)
+        self.assertEqual(call_payload["backup_id"], latest_archive.backup_id)
+
+    def test_patch_restore_local_only_does_not_default_backup_index(self):
+        """Test that backup_index is NOT defaulted for local-only restore"""
+
+        self.params["local_only"] = "True"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertNotIn("backup_index", call_payload)
+
+    def test_patch_restore_factory_does_not_default_backup_index(self):
+        """Test that backup_index is NOT defaulted for factory restore"""
+
+        self.params["factory"] = "True"
+        self.params["restore_values"] = FAKE_RESTORE_VALUES_VALID_IP
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertNotIn("backup_index", call_payload)
 
 
 class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):

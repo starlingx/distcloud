@@ -17,6 +17,7 @@ import pecan
 from pecan import expose
 from pecan import request as pecan_request
 from pecan import response
+from tsconfig.tsconfig import SW_VERSION
 
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_backup as subcloud_backup_policy
@@ -84,6 +85,7 @@ class SubcloudBackupController(object):
                 "group": str,
                 "auto": str,
                 "factory": str,
+                "backup_index": str,
             }
         else:
             pecan.abort(400, _("Unexpected verb received"))
@@ -375,27 +377,8 @@ class SubcloudBackupController(object):
             # For group operations with index, resolve index per subcloud in RPC manager
             # For subcloud operations with index, resolve here for early validation
             if backup_index is not None and request_entity.type == "subcloud":
-                try:
-                    backup_id = self._resolve_backup_index_to_id(
-                        context, request_entity.id, release_version, backup_index_str
-                    )
-                except Exception:
-                    LOG.exception("Failed to resolve backup index")
-                    pecan.abort(500, _("Failed to resolve backup index"))
-
-                if not backup_id:
-                    pecan.abort(
-                        404,
-                        _(
-                            "No backup found at index '%s' for "
-                            "subcloud '%s' and release '%s'"
-                        )
-                        % (backup_index, request_entity.name, release_version),
-                    )
-                payload["backup_id"] = backup_id
-                LOG.info(
-                    f"Resolved backup_index '{backup_index}' to backup_id "
-                    f"'{backup_id}' for subcloud '{request_entity.name}'"
+                payload["backup_id"] = self._resolve_backup_index_for_subcloud(
+                    context, request_entity, release_version, backup_index_str
                 )
 
             # Validate subcloud state when deleting locally
@@ -433,6 +416,38 @@ class SubcloudBackupController(object):
                 payload,
                 ("local_only", "with_install", "registry_images", "auto", "factory"),
             )
+
+            backup_index = payload.get("backup_index")
+            local_only = payload.get("local_only")
+
+            if backup_index is not None and local_only:
+                pecan.abort(
+                    400,
+                    _(
+                        "backup_index parameter cannot be used with local_only. "
+                        "Index-based restore is only supported for centralized backups."
+                    ),
+                )
+
+            if backup_index is not None and payload.get("factory"):
+                pecan.abort(
+                    400,
+                    _(
+                        "backup_index parameter cannot be used with factory restore. "
+                        "Factory restore always uses pre-installed local backup."
+                    ),
+                )
+
+            if backup_index is not None:
+                backup_index_str = self._validate_backup_index_format(backup_index)
+                payload["backup_index"] = backup_index_str
+
+            # For centralized restore, default to 'latest' if backup-index was
+            # not specified
+            if not local_only and not payload.get("factory") and backup_index is None:
+                backup_index = consts.BACKUP_INDEX_LATEST
+                backup_index_str = consts.BACKUP_INDEX_LATEST
+                payload["backup_index"] = backup_index_str
 
             if not payload["local_only"] and payload["registry_images"]:
                 pecan.abort(
@@ -481,6 +496,14 @@ class SubcloudBackupController(object):
                 auto_restore_mode = "auto"
             else:
                 auto_restore_mode = None
+
+            # For group operations with index, resolve index per subcloud in RPC manager
+            # For subcloud operations with index, resolve here for early validation
+            if backup_index is not None and request_entity.type == "subcloud":
+                restore_release = payload.get("release", SW_VERSION)
+                payload["backup_id"] = self._resolve_backup_index_for_subcloud(
+                    context, request_entity, restore_release, backup_index_str
+                )
 
             restore_subclouds = self._validate_subclouds(
                 request_entity, verb, bootstrap_address_dict, auto_restore_mode
@@ -588,6 +611,43 @@ class SubcloudBackupController(object):
         )
         archive = utils.resolve_backup_by_index(archives, backup_index)
         return archive.backup_id if archive else None
+
+    @staticmethod
+    def _resolve_backup_index_for_subcloud(
+        context,
+        request_entity: RequestEntity,
+        release_version: str,
+        backup_index: str,
+    ) -> str:
+        """Resolve backup_index to backup_id for a single subcloud, aborting on error.
+
+        :param context: Request context
+        :param request_entity: RequestEntity namedtuple
+        :param release_version: Release version to look up
+        :param backup_index: Validated backup index string
+        :returns: The backup_id string
+        """
+        try:
+            backup_id = SubcloudBackupController._resolve_backup_index_to_id(
+                context, request_entity.id, release_version, backup_index
+            )
+        except Exception:
+            LOG.exception("Failed to resolve backup index")
+            pecan.abort(500, _("Failed to resolve backup index"))
+
+        if not backup_id:
+            pecan.abort(
+                404,
+                _("No backup found at index '%s' for subcloud '%s' and release '%s'")
+                % (backup_index, request_entity.name, release_version),
+            )
+        LOG.info(
+            "Resolved backup_index '%s' to backup_id '%s' for subcloud '%s'",
+            backup_index,
+            backup_id,
+            request_entity.name,
+        )
+        return backup_id
 
     @utils.synchronized(LOCK_NAME)
     @index.when(method="GET", template="json")
