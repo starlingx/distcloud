@@ -1666,13 +1666,13 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
         self.url = f"{self.url}/enroll"
 
         self._update_subcloud(
-            deploy_status=consts.DEPLOY_STATE_CREATED, software_version=SW_VERSION
+            deploy_status=consts.DEPLOY_STATE_CREATED,
+            software_version=SW_VERSION,
+            data_install=json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES),
         )
 
-        modified_bootstrap_data = copy.copy(
-            fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD
-        )
-        modified_bootstrap_data.update({"name": "fake_subcloud1"})
+        modified_bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        modified_bootstrap_data["sysadmin_password"] = self._create_password("testpass")
         modified_install_data = copy.copy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
         install_fake_content = json.dumps(modified_install_data).encode("utf-8")
@@ -1684,10 +1684,21 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
         self.mock_get_subcloud_db_install_values = self._mock_object(
             psd_common, "get_subcloud_db_install_values"
         )
+        self.mock_populate_payload = self._mock_object(
+            psd_common, "populate_payload_with_pre_existing_data"
+        )
+        self.mock_os_path_exists = self._mock_object(os.path, "exists")
+        self._setup_mock_os_path_exists()
 
         self._setup_mock_playbook_exists(
             consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
             SW_VERSION,
+        )
+
+    def _setup_mock_os_path_exists(self):
+        config_file = psd_common.get_config_file_path(self.subcloud.name)
+        self.mock_os_path_exists.side_effect = lambda file: (
+            True if file == config_file else False
         )
 
     def test_patch_enroll_fails_invalid_deploy_status(self):
@@ -1705,12 +1716,80 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
         )
 
     def test_patch_enroll_succeeds_without_install_values_on_request(self):
-        """Test patch enroll succeeds without install values on request"""
+        """Test patch enroll populates install values when not provided"""
 
-        del self.install_payload["install_values"]
-        self.mock_get_subcloud_db_install_values.return_value = self.data_install
+        bootstrap_data = copy.copy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_data["sysadmin_password"] = self._create_password("testpass")
+        self.upload_files = [
+            (
+                "bootstrap_values",
+                "bootstrap_fake_filename",
+                json.dumps(bootstrap_data).encode("utf-8"),
+            )
+        ]
 
-        request_response = self._send_request()
+        response = self._send_request()
 
-        self._assert_response(request_response)
+        self._assert_response(response)
+        # Verify populate_payload was called with install_values
+        call_args = self.mock_populate_payload.call_args_list
+        install_values_calls = [
+            call for call in call_args if call[0][2] == [consts.INSTALL_VALUES]
+        ]
+        self.assertEqual(len(install_values_calls), 1)
+        self.mock_rpc_client().subcloud_deploy_enroll.assert_called_once()
+
+    def test_patch_enroll_populates_install_values_when_provided(self):
+        """Test patch enroll populates install values when provided"""
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        # Verify populate_payload was called with install_values in the list
+        call_args = self.mock_populate_payload.call_args_list
+        install_values_calls = [
+            call for call in call_args if call[0][2] == [consts.INSTALL_VALUES]
+        ]
+        self.assertEqual(len(install_values_calls), 1)
+        self.mock_rpc_client().subcloud_deploy_enroll.assert_called_once()
+
+    def test_patch_enroll_populates_bootstrap_when_not_provided(self):
+        """Test patch enroll populates bootstrap values when not provided"""
+
+        self.upload_files = [
+            (
+                "install_values",
+                "install_values_fake_filename",
+                json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).encode("utf-8"),
+            )
+        ]
+        self.params = {"sysadmin_password": self._create_password("testpass")}
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        # Verify populate_payload was called with both bootstrap and install values
+        call_args = self.mock_populate_payload.call_args_list
+        bootstrap_calls = [
+            call for call in call_args if call[0][2] == [consts.BOOTSTRAP_VALUES]
+        ]
+        install_calls = [
+            call for call in call_args if call[0][2] == [consts.INSTALL_VALUES]
+        ]
+        self.assertEqual(len(bootstrap_calls), 1)
+        self.assertEqual(len(install_calls), 1)
+        self.mock_rpc_client().subcloud_deploy_enroll.assert_called_once()
+
+    def test_patch_enroll_does_not_populate_bootstrap_when_provided(self):
+        """Test patch enroll does not populate bootstrap values when provided"""
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        bootstrap_calls = [
+            call
+            for call in self.mock_populate_payload.call_args_list
+            if call[0][2] == [consts.BOOTSTRAP_VALUES]
+        ]
+        self.assertEqual(len(bootstrap_calls), 0)
         self.mock_rpc_client().subcloud_deploy_enroll.assert_called_once()

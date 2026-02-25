@@ -607,7 +607,6 @@ class PhasedSubcloudDeployController(object):
             pecan.abort(400, _(msg))
 
         has_bootstrap_values = consts.BOOTSTRAP_VALUES in request.POST
-        has_install_values = consts.INSTALL_VALUES in request.POST
         has_cloud_init_config = dccommon_consts.CLOUD_INIT_CONFIG in request.POST
 
         payload = psd_common.get_request_data(
@@ -628,10 +627,9 @@ class PhasedSubcloudDeployController(object):
             )
             pecan.abort(400, _(msg))
 
-        if not has_install_values:
-            psd_common.populate_payload_with_pre_existing_data(
-                payload, subcloud, [consts.INSTALL_VALUES]
-            )
+        psd_common.populate_payload_with_pre_existing_data(
+            payload, subcloud, [consts.INSTALL_VALUES]
+        )
 
         unvalidated_sw_version = payload.get("release", subcloud.software_version)
         payload["software_version"] = utils.get_sw_version(unvalidated_sw_version)
