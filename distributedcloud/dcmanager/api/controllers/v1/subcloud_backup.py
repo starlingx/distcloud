@@ -403,6 +403,20 @@ class SubcloudBackupController(object):
                     ),
                 )
 
+            if (
+                (payload.get("factory") or payload.get("auto"))
+                and payload.get("release")
+                and payload.get("release") < consts.MINIMUM_AUTO_RESTORE_RELEASE
+            ):
+                pecan.abort(
+                    400,
+                    _(
+                        "Auto-restore and factory restore are not supported "
+                        "for releases earlier than %s."
+                    )
+                    % consts.MINIMUM_AUTO_RESTORE_RELEASE,
+                )
+
             request_entity = self._read_entity_from_request_params(context, payload)
             if len(request_entity.subclouds) == 0:
                 msg = "No subclouds exist under %s %s" % (
