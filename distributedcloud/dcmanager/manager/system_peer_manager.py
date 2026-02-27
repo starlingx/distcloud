@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -366,6 +366,7 @@ class SystemPeerManager(manager.Manager):
                 "region_name": subcloud.region_name,
                 "location": subcloud.location,
                 "description": subcloud.description,
+                "release": subcloud.software_version,
             }
 
             if temp_install_file:
