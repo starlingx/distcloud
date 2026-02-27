@@ -1377,6 +1377,51 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
 
         self._assert_response(response)
 
+    @mock.patch("dcmanager.common.utils.get_bootstrap_values")
+    def test_patch_restore_subcloud_auto_restore_fails_with_unsupported_release(
+        self, mock_get_bootstrap_values
+    ):
+        """Test patch subcloud auto-restore fails with an unsupported release"""
+
+        self.params["auto"] = "True"
+        self.params["with_install"] = "True"
+        self.params["release"] = "22.12"
+
+        mock_get_bootstrap_values.return_value = {
+            "system_mode": consts.SYSTEM_MODE_SIMPLEX
+        }
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Auto-restore and factory restore are not supported for releases "
+            f"earlier than {consts.MINIMUM_AUTO_RESTORE_RELEASE}.",
+        )
+
+    @mock.patch("dcmanager.common.utils.get_bootstrap_values")
+    def test_patch_restore_subcloud_factory_restore_fails_with_unsupported_release(
+        self, mock_get_bootstrap_values
+    ):
+        """Test patch subcloud factory-restore fails with an unsupported release"""
+
+        self.params["factory"] = "True"
+        self.params["release"] = "22.12"
+
+        mock_get_bootstrap_values.return_value = {
+            "system_mode": consts.SYSTEM_MODE_SIMPLEX
+        }
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Auto-restore and factory restore are not supported for releases "
+            f"earlier than {consts.MINIMUM_AUTO_RESTORE_RELEASE}.",
+        )
+
     def test_patch_restore_subcloud_fails_with_backup_index_and_local_only(self):
         """Test that backup_index cannot be combined with local_only"""
 
