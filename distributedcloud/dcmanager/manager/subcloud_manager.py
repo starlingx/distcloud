@@ -1361,6 +1361,9 @@ class SubcloudManager(manager.Manager):
         payload["ansible_ssh_pass"] = payload["sysadmin_password"]
         payload["admin_password"] = str(keyring.get_password("CGCS", "admin"))
 
+        if operation.lower() == "enroll":
+            self._add_additional_overrides_for_enroll(payload)
+
         payload_for_overrides_file = payload.copy()
         for key in VALUES_TO_DELETE_OVERRIDES:
             if key in payload_for_overrides_file:
@@ -1402,6 +1405,20 @@ class SubcloudManager(manager.Manager):
         utils.update_install_values_with_new_bootstrap_address(
             context, payload, subcloud
         )
+
+    def _add_additional_overrides_for_enroll(self, payload):
+        """Add bootstrap network parameters to payload for enrollment
+
+        The bootstrap vlan and interface are used to create the OAM network
+        connection for the enrollment. They are expected to be used to persist
+        the interface configuration in database when a reboot request patch is
+        expected to apply during enrollment.
+
+        :param payload: enrollment request parameters
+        """
+        for key in ["bootstrap_vlan", "bootstrap_interface"]:
+            if key in payload["install_values"]:
+                payload[key] = payload["install_values"][key]
 
     def _deploy_config_prep(
         self,
