@@ -680,7 +680,7 @@ class SystemPeerManager(manager.Manager):
         )
 
     def update_association_sync_status(
-        self, context, peer_group_id, sync_status, sync_message=None
+        self, context, peer_group_id, sync_status, sync_message=None, force=False
     ):
         """Update PGA sync status on primary and peer site(s).
 
@@ -691,6 +691,7 @@ class SystemPeerManager(manager.Manager):
         :param peer_group_id: id of the peer group used to fetch corresponding PGA
         :param sync_status: the sync status to be updated to
         :param sync_message: The sync message to be updated to
+        :param force: Whether to ignore the current sync status to do the update
         """
         # Collect the association IDs to be synced.
         out_of_sync_associations_ids = set()
@@ -737,7 +738,7 @@ class SystemPeerManager(manager.Manager):
                     system_peer = db_api.system_peer_get(
                         context, association.system_peer_id
                     )
-                    if pre_sync_status != sync_status:
+                    if pre_sync_status != sync_status or force:
                         SystemPeerManager.update_sync_status(
                             context,
                             system_peer,
@@ -750,7 +751,7 @@ class SystemPeerManager(manager.Manager):
                         # Already update sync_status on both peer and local sites
                         continue
 
-                if pre_sync_status != new_sync_status:
+                if pre_sync_status != new_sync_status or force:
                     # Update local site peer association sync_status
                     db_api.peer_group_association_update(
                         context,

@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -1653,6 +1653,27 @@ class Connection(object):
             return association_ref
 
     @require_context(admin=True)
+    def peer_group_association_update_by_peer_group_id(
+        self,
+        peer_group_id,
+        sync_status=None,
+        sync_message=None,
+    ):
+        with write_session() as session:
+            fields_to_update = dict()
+
+            if sync_status:
+                fields_to_update["sync_status"] = sync_status
+            if sync_message:
+                fields_to_update["sync_message"] = sync_message
+
+            model_query(
+                self.context, models.PeerGroupAssociation, session=session
+            ).filter_by(deleted=0).filter_by(peer_group_id=peer_group_id).update(
+                fields_to_update, synchronize_session="fetch"
+            )
+
+    @require_context(admin=True)
     def peer_group_association_destroy(self, association_id):
         with write_session() as session:
             association_ref = self.peer_group_association_get(association_id)
@@ -1743,6 +1764,40 @@ class Connection(object):
         )
 
         return result
+
+    @require_context()
+    def peer_group_association_get_updated_in_major_upgrade(self):
+        with write_session() as session:
+            upgrade_completed_subclouds = (
+                session.query(models.StrategyStep.subcloud_id)
+                .filter_by(state=consts.STRATEGY_STATE_COMPLETE)
+                .subquery()
+            )
+
+            peer_group_ids = (
+                session.query(models.Subcloud.peer_group_id)
+                .filter(models.Subcloud.id.in_(upgrade_completed_subclouds))
+                .distinct()
+                .subquery()
+            )
+
+            peer_groups_to_sync = (
+                session.query(models.SubcloudPeerGroup.id)
+                .filter(models.SubcloudPeerGroup.id.in_(peer_group_ids))
+                .join(
+                    models.PeerGroupAssociation,
+                    models.PeerGroupAssociation.peer_group_id
+                    == models.SubcloudPeerGroup.id,
+                )
+                .filter(
+                    models.PeerGroupAssociation.sync_status
+                    == consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC
+                )
+                .distinct()
+            )
+
+            # The response is a set with the peer group ids in the format [(id,)]
+            return [row[0] for row in peer_groups_to_sync.all()]
 
     @require_context()
     def strategy_step_get(self, subcloud_id):

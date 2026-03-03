@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -184,6 +184,7 @@ class DCManagerService(service.Service):
         peer_group_id=None,
         bootstrap_values=None,
         bootstrap_address=None,
+        software_version=None,
     ):
         # Updates a subcloud
         LOG.info("Handling update_subcloud request for: %s" % subcloud_id)
@@ -200,6 +201,7 @@ class DCManagerService(service.Service):
             peer_group_id,
             bootstrap_values,
             bootstrap_address,
+            software_version,
         )
         return subcloud
 
@@ -422,7 +424,7 @@ class DCManagerService(service.Service):
 
     @request_context
     def update_association_sync_status(
-        self, context, peer_group_id, sync_status, sync_message=None
+        self, context, peer_group_id, sync_status, sync_message=None, force=False
     ):
         # Updates peer group association sync_status
         LOG.info(
@@ -430,7 +432,7 @@ class DCManagerService(service.Service):
             % peer_group_id
         )
         return self.system_peer_manager.update_association_sync_status(
-            context, peer_group_id, sync_status, sync_message
+            context, peer_group_id, sync_status, sync_message, force
         )
 
     def _stop_rpc_server(self):

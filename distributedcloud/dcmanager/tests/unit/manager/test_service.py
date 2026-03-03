@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -146,6 +146,7 @@ class TestSubcloudManager(BaseTestDCManagerService):
             self.ctx,
             1,
             "testmgmtstatus",
+            None,
             None,
             None,
             None,

@@ -45,6 +45,7 @@ class SoftwareStrategy(BaseStrategy):
         self._shared_caches = SharedCacheRepository(consts.SW_UPDATE_TYPE_SOFTWARE)
         # For prestage operations
         self.oam_floating_ip_dict = dict()
+        self.is_major_release_upgrade = None
 
     def pre_apply_setup(self, strategy):
         # Start caches for the strategy
@@ -63,6 +64,7 @@ class SoftwareStrategy(BaseStrategy):
 
     def teardown(self):
         self.oam_floating_ip_dict.clear()
+        self.is_major_release_upgrade = None
         return super().teardown()
 
     def determine_state_operator(self, region_name, strategy_step):

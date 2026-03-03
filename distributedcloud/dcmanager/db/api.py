@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -776,6 +776,15 @@ def peer_group_association_update(
     )
 
 
+def peer_group_association_update_by_peer_group_id(
+    context, peer_group_id, sync_status=None, sync_message=None
+):
+    """Update the peer group association by the peer group id"""
+    return IMPL.Connection(context).peer_group_association_update_by_peer_group_id(
+        peer_group_id, sync_status, sync_message
+    )
+
+
 def peer_group_association_destroy(context, id):
     """Destroy the peer_group_association or raise if it does not exist."""
     return IMPL.Connection(context).peer_group_association_destroy(id)
@@ -818,6 +827,19 @@ def peer_group_association_get_by_system_peer_id(
     return IMPL.Connection(context).peer_group_association_get_by_system_peer_id(
         system_peer_id
     )
+
+
+def peer_group_association_get_updated_in_major_upgrade(context):
+    """Get a list of peer_group_association that were set to out-of-sync in sw-upgrade
+
+    During a software upgrade strategy, the subclouds that perform a major upgrade
+    successfully have their peer_group_association set to out-of-sync in the primary
+    system controller. This method, returns a list of the updated associations in
+    order to update the secondary system controller.
+    """
+    return IMPL.Connection(
+        context
+    ).peer_group_association_get_updated_in_major_upgrade()
 
 
 ###################
