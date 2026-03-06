@@ -3591,6 +3591,16 @@ class SubcloudManager(manager.Manager):
             LOG.error(msg)
             return False
 
+    @staticmethod
+    def _get_prestage_versions_post_subcloud_restore(context, subcloud_id):
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+        prestage_versions = subcloud.prestage_versions
+        if prestage_versions:
+            position = prestage_versions.find("for-sw-deploy:")
+            if position != -1:
+                prestage_versions = prestage_versions[:position] + "for-sw-deploy: None"
+        return prestage_versions
+
     def _run_subcloud_backup_restore_playbook(
         self, subcloud, context, restore_ctx: RestoreContext
     ):
@@ -3622,7 +3632,16 @@ class SubcloudManager(manager.Manager):
                 else consts.DEPLOY_STATE_DONE
             )
 
-            db_api.subcloud_update(context, subcloud.id, deploy_status=complete_state)
+            prestage_versions = self._get_prestage_versions_post_subcloud_restore(
+                context, subcloud.id
+            )
+            db_api.subcloud_update(
+                context,
+                subcloud.id,
+                deploy_status=complete_state,
+                prestage_versions=prestage_versions,
+            )
+
             return True
         except PlaybookExecutionFailed as e:
             msg = utils.find_and_save_ansible_error_msg(

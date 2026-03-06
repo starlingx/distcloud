@@ -4666,6 +4666,8 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.values["restore_values"] = {
             "bootstrap_address": {"subcloud1": "10.10.20.12"}
         }
+        fake_prestage_versions = "for-install: 26.03 - for-sw-deploy: 26.03"
+        fake_prestage_versions_updated = "for-install: 26.03 - for-sw-deploy: None"
         db_api.subcloud_update(
             self.ctx,
             self.subcloud.id,
@@ -4673,12 +4675,16 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
             data_install=self.data_install,
+            prestage_versions=fake_prestage_versions,
         )
 
         self.sm.restore_subcloud_backups(self.ctx, payload=self.values)
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(consts.DEPLOY_STATE_DONE, updated_subcloud.deploy_status)
+        self.assertEqual(
+            fake_prestage_versions_updated, updated_subcloud.prestage_versions
+        )
         Calls = [
             mock.call("Backup restore: Received restore_values for subcloud subcloud1"),
             mock.call("Successfully restore subcloud subcloud1"),
