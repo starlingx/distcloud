@@ -21,7 +21,7 @@ import base64
 import collections
 from contextlib import nullcontext
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime
 import filecmp
 import functools
@@ -191,10 +191,20 @@ class RestoreContext:
     overrides_file: str
     log_file: str
     restore_command: list[str]
+    restore_timeout: int
     seed_iso_path: Optional[str] = None
     initial_sel_event_id: Optional[str] = None
     install_instance: Optional[Any] = None
     defer_install_cleanup_on_success: bool = False
+    ansible_subprocess_timeout: int = field(init=False)
+
+    def __post_init__(self):
+        # ansible_subprocess_timeout is the timeout for the ansible subprocess
+        # running the whole subcloud restore playbook. It is set 10 minutes
+        # longer than restore_timeout (the nested platform restore playbook
+        # timeout) to give the wrapper playbook time to complete remaining
+        # tasks after the nested playbook finishes (e.g. host unlock).
+        self.ansible_subprocess_timeout = self.restore_timeout + 600  # +10min
 
 
 class SubcloudManager(manager.Manager):
@@ -2844,6 +2854,13 @@ class SubcloudManager(manager.Manager):
                 data_install = json.loads(subcloud.data_install)
                 install_wipe_osds = data_install.get("wipe_osds", False)
 
+            # The restore timeout needs to be increased a half of the default
+            # global ansible playbook timeout because the default of 1h is not
+            # enough to restore a duplex subcloud running rook ceph.
+            restore_timeout = payload.get("restore_values", {}).get(
+                "restore_timeout", CONF.playbook_timeout * 1.5
+            )
+
             overrides_file = self._create_overrides_for_backup_or_restore(
                 "restore",
                 payload,
@@ -2851,6 +2868,7 @@ class SubcloudManager(manager.Manager):
                 restore_mode.auto_restore_mode,
                 install_wipe_osds,
                 subcloud_region_name=subcloud.region_name,
+                restore_timeout=restore_timeout,
             )
 
             # Handle the IPMI SEL event monitoring option (defaults to True)
@@ -2891,6 +2909,7 @@ class SubcloudManager(manager.Manager):
                 overrides_file=overrides_file,
                 log_file=log_file,
                 restore_command=restore_command,
+                restore_timeout=restore_timeout,
             )
         except Exception as e:
             raise exceptions.RestorePreparationError(
@@ -3108,11 +3127,10 @@ class SubcloudManager(manager.Manager):
         :raises RestorePreparationError: If getting SEL event ID fails
         """
         restore_mode = restore_ctx.restore_mode
-        restore_command = restore_ctx.restore_command.copy()
 
         # Add SEL event ID if we already have it from the install phase
         if restore_ctx.initial_sel_event_id is not None:
-            restore_command.extend(
+            restore_ctx.restore_command.extend(
                 ["-e", f"ipmi_initial_event_id={restore_ctx.initial_sel_event_id}"]
             )
 
@@ -3125,17 +3143,13 @@ class SubcloudManager(manager.Manager):
             initial_sel_event_id = self._get_initial_sel_event_id(
                 subcloud, payload.get("install_values", {})
             )
-            restore_command.extend(
+            restore_ctx.restore_command.extend(
                 ["-e", f"ipmi_initial_event_id={initial_sel_event_id}"]
             )
 
         # Run the restore playbook
         success = self._run_subcloud_backup_restore_playbook(
-            subcloud,
-            restore_command,
-            context,
-            restore_ctx.log_file,
-            restore_mode.auto_restore_mode,
+            subcloud, context, restore_ctx
         )
 
         if success:
@@ -3298,6 +3312,7 @@ class SubcloudManager(manager.Manager):
         auto_restore_mode=None,
         install_wipe_osds=None,
         subcloud_region_name=None,
+        restore_timeout=None,
     ):
         # Set override names as expected by the playbook
         if not payload.get("override_values"):
@@ -3366,6 +3381,9 @@ class SubcloudManager(manager.Manager):
             payload["override_values"][
                 "max_home_dir_usage"
             ] = consts.DEFAULT_SUBCLOUD_CENTRAL_BACKUP_MAX_HOME_DIR_SIZE_MB
+
+        if op == "restore" and restore_timeout:
+            payload["override_values"]["restore_timeout"] = restore_timeout
 
         # auto_restore_mode allows the auto restore script running inside the
         # subcloud to determine which type of restore to run
@@ -3574,7 +3592,7 @@ class SubcloudManager(manager.Manager):
             return False
 
     def _run_subcloud_backup_restore_playbook(
-        self, subcloud, restore_command, context, log_file, auto_restore_mode=None
+        self, subcloud, context, restore_ctx: RestoreContext
     ):
         db_api.subcloud_update(
             context,
@@ -3582,13 +3600,18 @@ class SubcloudManager(manager.Manager):
             deploy_status=consts.DEPLOY_STATE_RESTORING,
             error_description=consts.ERROR_DESC_EMPTY,
         )
+
+        auto_restore_mode = restore_ctx.restore_mode.auto_restore_mode
+
         # Run the subcloud backup restore playbook
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
-            # The restore timeout needs to be increased a half because the default
-            # of 1h is not enough to restore a duplex subcloud running rook ceph.
-            restore_timeout = CONF.playbook_timeout * 1.5
-            ansible.run_playbook(log_file, restore_command, timeout=restore_timeout)
+
+            ansible.run_playbook(
+                restore_ctx.log_file,
+                restore_ctx.restore_command,
+                timeout=restore_ctx.ansible_subprocess_timeout,
+            )
 
             mode_str = f"{auto_restore_mode} " if auto_restore_mode else ""
             LOG.info(f"Successfully {mode_str}restore subcloud {subcloud.name}")
@@ -3605,7 +3628,7 @@ class SubcloudManager(manager.Manager):
             msg = utils.find_and_save_ansible_error_msg(
                 context,
                 subcloud,
-                log_file,
+                restore_ctx.log_file,
                 exception=e,
                 stage=consts.DEPLOY_STATE_RESTORING,
                 deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
