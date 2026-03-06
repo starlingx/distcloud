@@ -80,6 +80,7 @@ FAKE_SYSINV_USER_ID = 2
 FAKE_DCMANAGER_USER_ID = 3
 FAKE_ADMIN_PROJECT_ID = 1
 FAKE_SERVICE_PROJECT_ID = 2
+DEFAULT_RESTORE_TIMEOUT = 5400.0
 
 
 class FakeEndpoint(object):
@@ -5085,13 +5086,14 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             mock.ANY,
             subcloud_region_name=self.subcloud.region_name,
             backup_filename=None,
+            restore_timeout=DEFAULT_RESTORE_TIMEOUT,
         )
 
         mock_stage_auto_restore_files.assert_called_once()
 
-        mock_run_restore_playbook.assert_called_once_with(
-            mock.ANY, mock.ANY, mock.ANY, mock.ANY, "factory"
-        )
+        mock_run_restore_playbook.assert_called_once()
+        _, _, restore_ctx_arg = mock_run_restore_playbook.call_args.args
+        self.assertEqual(restore_ctx_arg.restore_mode.auto_restore_mode, "factory")
 
         # Verify that subcloud has the correct deploy status
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
@@ -5180,16 +5182,63 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             True,
             subcloud_region_name=self.subcloud.region_name,
             backup_filename=None,
+            restore_timeout=DEFAULT_RESTORE_TIMEOUT,
         )
 
-        mock_run_restore_playbook.assert_called_once_with(
-            mock.ANY, mock.ANY, mock.ANY, mock.ANY, mock.ANY
-        )
+        mock_run_restore_playbook.assert_called_once_with(mock.ANY, mock.ANY, mock.ANY)
 
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
         )
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_restore_with_custom_restore_timeout(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_run_restore_playbook,
+    ):
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+        mock_run_restore_playbook.return_value = True
+
+        custom_timeout = 7200.0
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD)
+        values["restore_values"] = {"restore_timeout": custom_timeout}
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
+        )
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=values)
+
+        mock_create_overrides.assert_called_once_with(
+            "restore",
+            values,
+            self.subcloud.name,
+            None,
+            mock.ANY,
+            subcloud_region_name=self.subcloud.region_name,
+            backup_filename=None,
+            restore_timeout=custom_timeout,
+        )
+
+        _, _, restore_ctx_arg = mock_run_restore_playbook.call_args.args
+        self.assertEqual(restore_ctx_arg.restore_timeout, custom_timeout)
 
     @mock.patch.object(subcloud_install.SubcloudInstall, "prep")
     def test_backup_restore_with_install_failed(self, mock_prep):
@@ -6274,6 +6323,7 @@ class BaseTestRestoreHelpers(BaseTestSubcloudManager):
             "overrides_file": "overrides_file.yml",
             "log_file": "/tmp/log.log",
             "restore_command": ["ansible-playbook", "restore.yml"],
+            "restore_timeout": 5400.0,
         }
         defaults.update(kwargs)
         return subcloud_manager.RestoreContext(**defaults)
@@ -6674,8 +6724,8 @@ class TestExecuteRestorePlaybook(BaseTestRestoreHelpers):
 
         self._execute_restore()
 
-        restore_command = self.mock_run_playbook.call_args[0][1]
-        self.assertIn("ipmi_initial_event_id=12345", restore_command)
+        restore_ctx_arg = self.mock_run_playbook.call_args[0][2]
+        self.assertIn("ipmi_initial_event_id=12345", restore_ctx_arg.restore_command)
 
     @mock.patch.object(subcloud_manager.utils, "get_last_sel_event_id")
     def test_execute_restore_playbook_gets_sel_for_auto_without_install(
@@ -6695,10 +6745,8 @@ class TestExecuteRestorePlaybook(BaseTestRestoreHelpers):
             restore_ctx=restore_ctx,
         )
 
-        mock_get_sel.assert_called_once()
-        self.assertIn(
-            "ipmi_initial_event_id=67890", self.mock_run_playbook.call_args[0][1]
-        )
+        restore_ctx_arg = self.mock_run_playbook.call_args[0][2]
+        self.assertIn("ipmi_initial_event_id=67890", restore_ctx_arg.restore_command)
 
     def test_execute_restore_playbook_no_sel_for_standard_restore(self):
         """Test that no SEL event ID is retrieved for standard restore"""
