@@ -22,14 +22,15 @@ from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon import ostree_mount
-from dcmanager.audit import rpcapi
+from dcmanager.audit import rpcapi as audit_rcpacpi
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import orchestrator_manager
-from dcmanager.orchestrator import rpcapi as orchestrator_rpc_api
+from dcmanager.orchestrator import rpcapi as orchestrator_rpcapi
+from dcmanager.rpc import client as dcmanager_rcpacpi
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.common import fake_subcloud
@@ -44,9 +45,10 @@ class BaseTestOrchestratorManager(DCManagerTestCase):
         # Mock the context
         mock_get_admin_context = self._mock_object(context, "get_admin_context")
         mock_get_admin_context.return_value = self.ctx
-        self.mock_rpc_audit = self._mock_object(rpcapi, "ManagerAuditClient")
+        self.mock_rpc_audit = self._mock_object(audit_rcpacpi, "ManagerAuditClient")
+        self._mock_object(dcmanager_rcpacpi, "ManagerClient")
         self.mock_rpc_orchestrator_worker = self._mock_object(
-            orchestrator_rpc_api, "ManagerOrchestratorWorkerClient"
+            orchestrator_rpcapi, "ManagerOrchestratorWorkerClient"
         )
         self._mock_object(orchestrator_manager, "LOG")
         self._mock_object(ostree_mount, "validate_ostree_iso_mount")

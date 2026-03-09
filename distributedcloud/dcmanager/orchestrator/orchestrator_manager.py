@@ -36,7 +36,7 @@ from dcmanager.common import prestage
 from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
-from dcmanager.orchestrator import rpcapi as orchestrator_rpc_api
+from dcmanager.orchestrator import rpcapi as orchestrator_rpcapi
 from dcmanager.orchestrator.validators.firmware_validator import (
     FirmwareStrategyValidator,
 )
@@ -52,6 +52,7 @@ from dcmanager.orchestrator.validators.prestage_validator import (
 from dcmanager.orchestrator.validators.sw_deploy_validator import (
     SoftwareDeployStrategyValidator,
 )
+from dcmanager.rpc import client
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -82,8 +83,9 @@ class OrchestratorManager(manager.Manager):
             consts.SW_UPDATE_TYPE_PRESTAGE: lambda context: None,
         }
         self.orchestrator_worker_rpc_client = (
-            orchestrator_rpc_api.ManagerOrchestratorWorkerClient()
+            orchestrator_rpcapi.ManagerOrchestratorWorkerClient()
         )
+        self.manager_rpc_client = client.ManagerClient()
 
         # Used to determine the continuous execution of the strategy monitoring
         self._monitor_strategy = False
@@ -305,6 +307,33 @@ class OrchestratorManager(manager.Manager):
                     )
                 self.audit_trigger[strategy_type](self.context)
                 self._monitor_strategy = False
+
+                # In a software upgrade strategy, the peer group association is set to
+                # out-of-sync when a major upgrade is performed successfully for one
+                # of its subclouds. If that occurs, the secondary site needs to be
+                # updated as well.
+                if (
+                    strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
+                    and db_api.system_peer_get_all(self.context)
+                ):
+                    updated_peer_group_ids = (
+                        db_api.peer_group_association_get_updated_in_major_upgrade(
+                            self.context
+                        )
+                    )
+
+                    if updated_peer_group_ids:
+                        update_association_call = (
+                            self.manager_rpc_client.update_association_sync_status_async
+                        )
+                        for peer_group_id in updated_peer_group_ids:
+                            update_association_call(
+                                self.context,
+                                peer_group_id,
+                                consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+                                force=True,
+                            )
+
         elif strategy.state == consts.SW_UPDATE_STATE_ABORT_REQUESTED:
             # When the strategy is set to abort requested, it needs to have all of
             # the steps in initial state updated to aborted before proceeding

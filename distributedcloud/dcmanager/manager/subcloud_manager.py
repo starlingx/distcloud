@@ -4561,6 +4561,7 @@ class SubcloudManager(manager.Manager):
         peer_group_id=None,
         bootstrap_values=None,
         bootstrap_address=None,
+        software_version=None,
     ):
         """Update subcloud and notify orchestrators.
 
@@ -4576,6 +4577,7 @@ class SubcloudManager(manager.Manager):
         :param peer_group_id: id of peer group
         :param bootstrap_values: bootstrap_values yaml content
         :param bootstrap_address: oam IP for rehome
+        :param software_version: new subcloud software_version
         """
 
         LOG.info("Updating subcloud %s." % subcloud_id)
@@ -4651,6 +4653,9 @@ class SubcloudManager(manager.Manager):
             # Deletes old routes (subcloud obj holds old gateway ip)
             self._delete_subcloud_routes(m_ks_client, subcloud)
 
+        if not software_version:
+            software_version = subcloud.software_version
+
         subcloud = db_api.subcloud_update(
             context,
             subcloud_id,
@@ -4667,6 +4672,7 @@ class SubcloudManager(manager.Manager):
                 if systemcontroller_gateway_ip is None
                 else systemcontroller_gateway_ip.split(",")[0]
             ),
+            software_version=software_version,
         )
 
         # Inform orchestrators that subcloud has been updated

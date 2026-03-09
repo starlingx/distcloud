@@ -1782,6 +1782,7 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
             bootstrap_values=None,
             bootstrap_address=None,
             deploy_status=None,
+            software_version=None,
         )
 
     def test_patch_succeeds_with_group_id(self):
@@ -1844,6 +1845,7 @@ class TestSubcloudsPatch(BaseTestSubcloudsPatch):
             bootstrap_values=None,
             bootstrap_address=None,
             deploy_status=None,
+            software_version=None,
         )
 
     def test_patch_succeeds_with_persistent_size_in_install_values(self):
@@ -2414,6 +2416,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
             bootstrap_values=mock.ANY,
             bootstrap_address=mock.ANY,
             deploy_status=mock.ANY,
+            software_version=None,
         )
         self.mock_rpc_client().update_association_sync_status.assert_called_once()
 
@@ -2472,6 +2475,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
             bootstrap_values=mock.ANY,
             bootstrap_address=mock.ANY,
             deploy_status=mock.ANY,
+            software_version=None,
         )
         self.mock_rpc_client().update_association_sync_status.assert_called_once()
 
@@ -2518,6 +2522,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
             bootstrap_values=None,
             bootstrap_address=self.params["bootstrap_address"],
             deploy_status=None,
+            software_version=None,
         )
         self.mock_rpc_client().update_association_sync_status.assert_called_once()
 
@@ -2596,6 +2601,7 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
             bootstrap_values=None,
             bootstrap_address=self.params["bootstrap_address"],
             deploy_status=None,
+            software_version=None,
         )
         self.assertEqual(
             consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,

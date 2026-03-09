@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -216,6 +216,7 @@ class ManagerClient(RPCClient):
         peer_group_id=None,
         bootstrap_values=None,
         bootstrap_address=None,
+        software_version=None,
     ):
         return self.call(
             ctxt,
@@ -232,6 +233,7 @@ class ManagerClient(RPCClient):
                 peer_group_id=peer_group_id,
                 bootstrap_values=bootstrap_values,
                 bootstrap_address=bootstrap_address,
+                software_version=software_version,
             ),
         )
 
@@ -436,7 +438,7 @@ class ManagerClient(RPCClient):
         )
 
     def update_association_sync_status(
-        self, ctxt, peer_group_id, sync_status, sync_message=None
+        self, ctxt, peer_group_id, sync_status, sync_message=None, force=False
     ):
         return self.call(
             ctxt,
@@ -445,6 +447,21 @@ class ManagerClient(RPCClient):
                 peer_group_id=peer_group_id,
                 sync_status=sync_status,
                 sync_message=sync_message,
+                force=force,
+            ),
+        )
+
+    def update_association_sync_status_async(
+        self, ctxt, peer_group_id, sync_status, sync_message=None, force=False
+    ):
+        return self.cast(
+            ctxt,
+            self.make_msg(
+                "update_association_sync_status",
+                peer_group_id=peer_group_id,
+                sync_status=sync_status,
+                sync_message=sync_message,
+                force=force,
             ),
         )
 

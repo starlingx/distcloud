@@ -1163,6 +1163,7 @@ class SubcloudsController(object):
                     bootstrap_values=bootstrap_values,
                     bootstrap_address=bootstrap_address,
                     deploy_status=deploy_status,
+                    software_version=payload.get("release"),
                 )
 
                 # Update the PGA sync_status to out-of-sync locally

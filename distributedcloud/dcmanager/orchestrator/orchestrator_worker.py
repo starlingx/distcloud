@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -31,6 +31,7 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
 from dcmanager.common import scheduler
+from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.rpcapi import ManagerOrchestratorClient
 from dcmanager.orchestrator.strategies.firmware import FirmwareStrategy
@@ -101,6 +102,8 @@ class OrchestratorWorker(object):
         # Handlers for subcloud data update
         self.subcloud_data = list()
         self.subcloud_lock = threading.Lock()
+        # Handlers for peer group data update
+        self.peer_group_sync_updated = set()
 
     def stop(self):
         self.thread_group_manager.stop()
@@ -113,6 +116,19 @@ class OrchestratorWorker(object):
     def _update_subcloud_data(self, subcloud_id, **kwargs):
         with self.subcloud_lock:
             self.subcloud_data.append({"id": subcloud_id, **kwargs})
+
+    def _update_peer_group_sync_status(self, step):
+        """Update peer group association sync status to out-of-sync in sw-upgrade"""
+
+        if step.subcloud.peer_group_id in self.peer_group_sync_updated:
+            return
+
+        db_api.peer_group_association_update_by_peer_group_id(
+            self.context,
+            step.subcloud.peer_group_id,
+            sync_status=consts.ASSOCIATION_SYNC_STATUS_OUT_OF_SYNC,
+        )
+        self.peer_group_sync_updated.add(step.subcloud.peer_group_id)
 
     def _bulk_update_subcloud_and_strategy_steps(self):
         with self.strategy_step_lock:
@@ -307,6 +323,7 @@ class OrchestratorWorker(object):
             self.strategy_type = None
             self.steps_to_process.clear()
             self.steps_received.clear()
+            self.peer_group_sync_updated.clear()
 
         self._last_update = None
         self._sleep_time = consts.ORCHESTRATION_SLEEP_TIME_IN_SECONDS
@@ -524,6 +541,12 @@ class OrchestratorWorker(object):
                         prestage.get_prestage_versions(step.subcloud.name)
                     )
                     subcloud_update["prestage_status"] = consts.PRESTAGE_STATE_COMPLETE
+                elif (
+                    self.strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
+                    and self.strategies[self.strategy_type].is_major_release_upgrade
+                    and step.subcloud.peer_group_id
+                ):
+                    self._update_peer_group_sync_status(step)
 
                 if subcloud_update:
                     self._update_subcloud_data(step.subcloud.id, **subcloud_update)
@@ -602,6 +625,12 @@ class OrchestratorWorker(object):
                         prestage.get_prestage_versions(step.subcloud.name)
                     )
                     subcloud_update["prestage_status"] = consts.PRESTAGE_STATE_COMPLETE
+                elif (
+                    self.strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
+                    and self.strategies[self.strategy_type].is_major_release_upgrade
+                    and step.subcloud.peer_group_id
+                ):
+                    self._update_peer_group_sync_status(step)
 
                 if subcloud_update:
                     self._update_subcloud_data(step.subcloud.id, **subcloud_update)
@@ -641,6 +670,22 @@ class OrchestratorWorker(object):
                             details=message,
                         )
                         continue
+
+                    # In a software deploy strategy, it is necessary to set the peer
+                    # group association's sync status to out-of-sync once one of its
+                    # subclouds finishes a major software upgrade successfully. For
+                    # that, we need to first identify if it is a major or minor upgrade.
+                    if (
+                        self.strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
+                        and self.strategies[self.strategy_type].is_major_release_upgrade
+                        is None
+                    ):
+                        self.strategies[self.strategy_type].is_major_release_upgrade = (
+                            step.subcloud.software_version
+                            < utils.get_major_release(
+                                strategy.extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
+                            )
+                        )
 
                     # We are just getting started, enter the first state
                     # Use the updated value for calling process_update_step
