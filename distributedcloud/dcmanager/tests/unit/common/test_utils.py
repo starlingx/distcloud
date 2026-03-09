@@ -10,6 +10,7 @@ Tests for the generic utils.
 
 import copy
 import netaddr
+import requests
 
 from dcmanager.common import exceptions
 from dcmanager.common import utils
@@ -412,3 +413,77 @@ class TestCommonUtils(DCManagerTestCase):
 
         expected_list = []
         self.assertEqual(formatted_list, expected_list)
+
+
+class TestGetRegionName(DCManagerTestCase):
+    """Test class for get_region_name function"""
+
+    def setUp(self):
+        super().setUp()
+        self.get_region_name_func = utils.get_region_name
+        if hasattr(self.get_region_name_func, "__wrapped__"):
+            self.get_region_name_func = self.get_region_name_func.__wrapped__
+
+        self.mock_get = mock.patch("dcmanager.common.utils.requests.get")
+        self.mock_get_obj = self.mock_get.start()
+
+    def tearDown(self):
+        super().tearDown()
+        self.mock_get.stop()
+
+    def test_get_region_name_success(self):
+        """Test get_region_name with successful response"""
+        mock_response = mock.MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"region_name": "test-region"}
+        self.mock_get_obj.return_value = mock_response
+
+        result = self.get_region_name_func("https://10.10.10.12:6385")
+        self.assertEqual(result, "test-region")
+
+    def test_get_region_name_connection_error(self):
+        """Test get_region_name with connection refused error"""
+        self.mock_get_obj.side_effect = requests.exceptions.ConnectionError(
+            "Connection refused"
+        )
+
+        self.assertRaises(
+            exceptions.ServiceUnavailable,
+            self.get_region_name_func,
+            "https://10.10.10.12:6385",
+        )
+
+    def test_get_region_name_timeout_error(self):
+        """Test get_region_name with timeout error"""
+        self.mock_get_obj.side_effect = requests.exceptions.Timeout("Request timeout")
+
+        self.assertRaises(
+            exceptions.ServiceUnavailable,
+            self.get_region_name_func,
+            "https://10.10.10.12:6385",
+        )
+
+    def test_get_region_name_non_200_status(self):
+        """Test get_region_name with non-200 status code"""
+        mock_response = mock.MagicMock()
+        mock_response.status_code = 500
+        self.mock_get_obj.return_value = mock_response
+
+        self.assertRaises(
+            exceptions.ServiceUnavailable,
+            self.get_region_name_func,
+            "https://10.10.10.12:6385",
+        )
+
+    def test_get_region_name_missing_region_name(self):
+        """Test get_region_name when region_name is missing from response"""
+        mock_response = mock.MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {}
+        self.mock_get_obj.return_value = mock_response
+
+        self.assertRaises(
+            exceptions.NotFound,
+            self.get_region_name_func,
+            "https://10.10.10.12:6385",
+        )

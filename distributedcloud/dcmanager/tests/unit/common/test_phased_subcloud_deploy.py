@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -300,15 +300,17 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
         with self.assertRaisesRegex(Exception, "Invalid boolean string"):
             psd_common.verify_boolean_str("0")
         with self.assertRaisesRegex(Exception, "Invalid boolean string"):
-            psd_common.verify_boolean_str("True")
-        with self.assertRaisesRegex(Exception, "Invalid boolean string"):
-            psd_common.verify_boolean_str("False")
-        with self.assertRaisesRegex(Exception, "Invalid boolean string"):
             psd_common.verify_boolean_str("yes")
         with self.assertRaisesRegex(Exception, "Invalid boolean string"):
             psd_common.verify_boolean_str(True)
-        psd_common.verify_boolean_str("true")
-        psd_common.verify_boolean_str("false")
+
+        # Test that function returns normalized lowercase values
+        self.assertEqual(psd_common.verify_boolean_str("true"), "true")
+        self.assertEqual(psd_common.verify_boolean_str("false"), "false")
+        self.assertEqual(psd_common.verify_boolean_str("True"), "true")
+        self.assertEqual(psd_common.verify_boolean_str("False"), "false")
+        self.assertEqual(psd_common.verify_boolean_str("TRUE"), "true")
+        self.assertEqual(psd_common.verify_boolean_str("FALSE"), "false")
 
     def test_validate_migrate_parameter_valid(self):
         psd_common.validate_migrate_parameter({"migrate": "false"})
@@ -325,6 +327,21 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
         with self.assertRaisesRegex(Exception, "migrate with enroll is not allowed"):
             psd_common.validate_migrate_parameter(payload)
 
+    def test_validate_migrate_parameter_normalize_boolean_values(self):
+        # Test that boolean parameters are normalized to lowercase
+        payload = {"migrate": "True"}
+        psd_common.validate_migrate_parameter(payload)
+        self.assertEqual(payload["migrate"], "true")
+
+        payload = {"migrate": "FALSE"}
+        psd_common.validate_migrate_parameter(payload)
+        self.assertEqual(payload["migrate"], "false")
+
+        payload = {"migrate": "True", "enroll": "False"}
+        psd_common.validate_migrate_parameter(payload)
+        self.assertEqual(payload["migrate"], "true")
+        self.assertEqual(payload["enroll"], "false")
+
     def test_validate_enroll_parameter_enroll_false_with_cloud_init(self):
         payload = {"enroll": "false", "cloud_init_config": "dummy"}
         with self.assertRaisesRegex(
@@ -334,9 +351,11 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
             psd_common.validate_enroll_parameter(payload)
 
     def test_validate_enroll_parameter_missing_install_values(self):
+        # Should raise an exception when install_values is missing
         payload = {"enroll": "true"}
         with self.assertRaisesRegex(
-            Exception, "Install values is necessary for subcloud enrollment"
+            Exception,
+            "Install values is necessary for subcloud enrollment",
         ):
             psd_common.validate_enroll_parameter(payload)
 
@@ -344,6 +363,38 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
         payload = {"enroll": "true", "install_values": {"bmc_password": "abc"}}
         psd_common.validate_enroll_parameter(payload)
         self.assertEqual(payload["bmc_password"], "abc")
+
+    def test_validate_enroll_parameter_normalize_boolean_values(self):
+        # Test that boolean parameters are normalized to lowercase
+        payload = {
+            "enroll": "True",
+            "skip_enroll_init": "False",
+            "install_values": {"bmc_password": "abc"},
+        }
+        psd_common.validate_enroll_parameter(payload)
+        self.assertEqual(payload["enroll"], "true")
+        self.assertEqual(payload["skip_enroll_init"], "false")
+
+        # Test that enroll=FALSE with skip_enroll_init=TRUE aborts after normalization
+        payload = {
+            "enroll": "FALSE",
+            "skip_enroll_init": "TRUE",
+            "install_values": {"bmc_password": "abc"},
+        }
+        with self.assertRaisesRegex(
+            Exception,
+            "skip_enroll_init is not allowed with enroll=false",
+        ):
+            psd_common.validate_enroll_parameter(payload)
+
+    def test_validate_enroll_parameter_skip_enroll_init_logic(self):
+        # Test the logic error fix: skip_enroll_init=true with enroll=false should fail
+        payload = {"enroll": "false", "skip_enroll_init": "true"}
+        with self.assertRaisesRegex(
+            Exception,
+            "skip_enroll_init is not allowed with enroll=false",
+        ):
+            psd_common.validate_enroll_parameter(payload)
 
     def test_validate_tarball_not_tar(self):
         bad_data = b"not a tarfile"
@@ -461,8 +512,7 @@ class TestValidateBootstrapValuesIPv4(BaseTestValidateBootstrapValuesErrors):
 
         with self.assertRaisesRegex(
             Exception,
-            "admin_gateway_address and management_gateway_address "
-            "cannot be specified",
+            "admin_gateway_address and management_gateway_address cannot be specified",
         ):
             psd_common.validate_bootstrap_values(self.payload)
 
@@ -510,3 +560,263 @@ class TestValidateBootstrapValuesIPv6(TestValidateBootstrapValuesIPv4):
         test_subcloud.update(additional_fields)
         test_subcloud.pop("management_gateway_address", None)
         return test_subcloud
+
+
+class TestInstallValuesValidator(DCManagerTestCase):
+    """Test cases for InstallValuesValidator class."""
+
+    def setUp(self):
+        super().setUp()
+        self.payload = {
+            "software_version": "22.12",
+            "bmc_password": base64.b64encode(b"password").decode("utf-8"),
+            "skip_enroll_init": "false",
+        }
+        self.install_values = {
+            "software_version": "22.12",
+            "bootstrap_address": "192.168.1.10",
+            "bmc_address": "192.168.1.20",
+            "install_type": 0,
+        }
+
+    def test_validator_initialization(self):
+        """Test validator initialization with valid data."""
+        validator = psd_common.InstallValuesValidator(self.payload, self.install_values)
+        self.assertEqual(validator.payload, self.payload)
+        self.assertEqual(validator.install_values, self.install_values)
+        self.assertIsNone(validator.subcloud)
+        self.assertFalse(validator.skip_enroll_init)
+        self.assertIsNone(validator.original_install_values)
+
+    def test_validator_initialization_with_subcloud(self):
+        """Test validator initialization with subcloud data."""
+        subcloud = Subcloud(fake_subcloud.FAKE_SUBCLOUD_DATA, True)
+        install_data = {"test": "data"}
+        subcloud.data_install = json.dumps(install_data)
+
+        validator = psd_common.InstallValuesValidator(
+            self.payload, self.install_values, subcloud
+        )
+        self.assertEqual(validator.subcloud, subcloud)
+        self.assertEqual(validator.original_install_values, install_data)
+
+    def test_validate_bmc_password_missing_no_skip(self):
+        """Test BMC password validation when missing and not skipping."""
+        payload = {"skip_enroll_init": "false"}
+        install_values = {}
+        validator = psd_common.InstallValuesValidator(payload, install_values)
+
+        with self.assertRaisesRegex(Exception, "subcloud bmc_password required"):
+            validator._validate_bmc_password()
+
+    def test_validate_bmc_password_invalid_encoding(self):
+        """Test BMC password validation with invalid base64 encoding."""
+        payload = {
+            "bmc_password": "not-base64!@#",
+            "skip_enroll_init": "false",
+            "install_values": {},
+        }
+        install_values = {}
+        validator = psd_common.InstallValuesValidator(payload, install_values)
+
+        with self.assertRaisesRegex(
+            Exception, "Failed to decode subcloud bmc_password"
+        ):
+            validator._validate_bmc_password()
+
+    def test_validate_bmc_password_valid(self):
+        """Test BMC password validation with valid data."""
+        encoded_password = base64.b64encode(b"password").decode("utf-8")
+        payload = {
+            "bmc_password": encoded_password,
+            "skip_enroll_init": "false",
+            "install_values": {},
+        }
+        install_values = {}
+        validator = psd_common.InstallValuesValidator(payload, install_values)
+        validator._validate_bmc_password()
+        self.assertEqual(payload["install_values"]["bmc_password"], encoded_password)
+
+    def test_validate_software_version_mismatch(self):
+        """Test software version validation with mismatch."""
+        payload = {"software_version": "22.12"}
+        install_values = {"software_version": "21.12"}
+        validator = psd_common.InstallValuesValidator(payload, install_values)
+
+        with self.assertRaisesRegex(
+            Exception, "software_version value .* does not match"
+        ):
+            validator._validate_software_version()
+
+    def test_validate_software_version_adds_missing(self):
+        """Test software version is added when missing."""
+        payload = {"software_version": "22.12", "install_values": {}}
+        install_values = {}
+        validator = psd_common.InstallValuesValidator(payload, install_values)
+
+        result = validator._validate_software_version()
+        self.assertEqual(result, "22.12")
+        self.assertEqual(payload["install_values"]["software_version"], "22.12")
+
+    def test_validate_int_field_not_integer(self):
+        """Test integer field validation with non-integer value."""
+        install_values = {"persistent_size": "not_an_int"}
+        validator = psd_common.InstallValuesValidator({}, install_values)
+
+        with self.assertRaisesRegex(
+            Exception, "must be a whole number greater than or equal to"
+        ):
+            validator._validate_int_field("persistent_size", 10000, "MB")
+
+    def test_validate_int_field_below_minimum(self):
+        """Test integer field validation with value below minimum."""
+        install_values = {"persistent_size": 5000}
+        validator = psd_common.InstallValuesValidator({}, install_values)
+
+        with self.assertRaisesRegex(Exception, "is less than"):
+            validator._validate_int_field("persistent_size", 10000, "MB")
+
+    def test_validate_int_field_valid(self):
+        """Test integer field validation with valid value."""
+        install_values = {"persistent_size": 15000}
+        validator = psd_common.InstallValuesValidator({}, install_values)
+        validator._validate_int_field("persistent_size", 10000, "MB")
+
+    def test_validate_extra_boot_params_empty(self):
+        """Test extra boot params validation with empty value."""
+        install_values = {"extra_boot_params": ""}
+        validator = psd_common.InstallValuesValidator({}, install_values)
+
+        with self.assertRaisesRegex(Exception, "must not be empty"):
+            validator._validate_extra_boot_params()
+
+    def test_validate_extra_boot_params_with_spaces(self):
+        """Test extra boot params validation with spaces."""
+        install_values = {"extra_boot_params": "param1 param2"}
+        validator = psd_common.InstallValuesValidator({}, install_values)
+
+        with self.assertRaisesRegex(Exception, "Spaces are not allowed"):
+            validator._validate_extra_boot_params()
+
+    def test_validate_extra_boot_params_valid(self):
+        """Test extra boot params validation with valid value."""
+        install_values = {"extra_boot_params": "param1,param2"}
+        validator = psd_common.InstallValuesValidator({}, install_values)
+        validator._validate_extra_boot_params()
+
+    def test_validate_ip_address_invalid(self):
+        """Test IP address validation with invalid address."""
+        install_values = {"bootstrap_address": "invalid_ip"}
+        validator = psd_common.InstallValuesValidator({}, install_values)
+
+        with self.assertRaisesRegex(Exception, "bootstrap_address invalid"):
+            validator._validate_ip_address("bootstrap_address")
+
+    def test_validate_ip_address_valid(self):
+        """Test IP address validation with valid address."""
+        install_values = {"bootstrap_address": "192.168.1.10"}
+        validator = psd_common.InstallValuesValidator({}, install_values)
+
+        result = validator._validate_ip_address("bootstrap_address")
+        self.assertEqual(str(result), "192.168.1.10")
+
+    def test_validate_ip_version_match_mismatch(self):
+        """Test IP version match validation with mismatch."""
+        import netaddr
+
+        ip1 = netaddr.IPAddress("192.168.1.10")
+        ip2 = netaddr.IPAddress("fd00::1")
+        validator = psd_common.InstallValuesValidator({}, {})
+
+        with self.assertRaisesRegex(Exception, "must be the same IP version"):
+            validator._validate_ip_version_match(ip1, ip2, "field1", "field2")
+
+    def test_validate_ip_version_match_success(self):
+        """Test IP version match validation with matching versions."""
+        import netaddr
+
+        ip1 = netaddr.IPAddress("192.168.1.10")
+        ip2 = netaddr.IPAddress("192.168.1.20")
+        validator = psd_common.InstallValuesValidator({}, {})
+        validator._validate_ip_version_match(ip1, ip2, "field1", "field2")
+
+    def test_validate_ip_addresses_and_network_missing_nexthop(self):
+        """Test network address validation when nexthop is missing."""
+        install_values = {
+            "bootstrap_address": "192.168.1.10",
+            "network_address": "192.168.1.0",
+        }
+        validator = psd_common.InstallValuesValidator({}, install_values)
+
+        with self.assertRaisesRegex(
+            Exception, "nexthop_gateway is required when network_address is present"
+        ):
+            validator._validate_ip_addresses_and_network()
+
+    def test_validate_ip_addresses_and_network_missing_mask(self):
+        """Test network address validation when mask is missing."""
+        install_values = {
+            "bootstrap_address": "192.168.1.10",
+            "network_address": "192.168.1.0",
+            "nexthop_gateway": "192.168.1.1",
+        }
+        validator = psd_common.InstallValuesValidator({}, install_values)
+
+        with self.assertRaisesRegex(
+            Exception, "network mask is required when network address is present"
+        ):
+            validator._validate_ip_addresses_and_network()
+
+    def test_validate_mandatory_values_skip_enroll_init(self):
+        """Test mandatory values when skip_enroll_init is true."""
+        payload = {
+            "software_version": "22.12",
+            "skip_enroll_init": "true",
+            "install_values": {
+                "bootstrap_interface": "eno1",
+            },
+        }
+        install_values = payload["install_values"]
+        validator = psd_common.InstallValuesValidator(payload, install_values)
+        validator._validate_mandatory_values()
+
+    def test_validate_mandatory_values_skip_enroll_init_missing(self):
+        """Test mandatory values fail when bootstrap_interface missing."""
+        payload = {
+            "software_version": "22.12",
+            "skip_enroll_init": "true",
+            "install_values": {},
+        }
+        install_values = payload["install_values"]
+        validator = psd_common.InstallValuesValidator(payload, install_values)
+        with self.assertRaisesRegex(
+            Exception,
+            "Mandatory install value bootstrap_interface not present",
+        ):
+            validator._validate_mandatory_values()
+
+    def test_validate_install_values_integration(self):
+        """Test full validation flow through validate_install_values function."""
+        self._mock_object(psd_common.utils, "get_matching_iso").return_value = (
+            "test.iso",
+            None,
+        )
+
+        payload = {
+            "software_version": "22.12",
+            "bmc_password": base64.b64encode(b"password").decode("utf-8"),
+            "skip_enroll_init": "false",
+            "install_values": {
+                "software_version": "22.12",
+                "bootstrap_address": "192.168.1.10",
+                "bootstrap_address_prefix": 24,
+                "bmc_address": "192.168.1.20",
+                "install_type": 0,
+                "bmc_username": "admin",
+                "bootstrap_interface": "eno1",
+                "console_type": "tty0",
+            },
+        }
+
+        psd_common.validate_install_values(payload)
+        self.assertEqual(payload["install_values"]["image"], "test.iso")

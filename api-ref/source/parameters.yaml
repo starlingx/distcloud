@@ -289,6 +289,13 @@ endpoint_sync_status:
   in: body
   required: true
   type: list
+enroll:
+  description: |
+    A flag indicating if the factory installed system should be enrolled
+    as a subcloud.
+  in: body
+  required: false
+  type: string
 error_description:
   description: |
     Description of the subcloud's error.
@@ -463,7 +470,7 @@ migrate:
     A flag indicating if the subcloud is migrated
   in: body
   required: false
-  type: boolean
+  type: string
 minor_alarms:
   description: |
     Number of minor alarms for subcloud (-1 when cloud_status is disabled).
@@ -568,6 +575,13 @@ secondary:
   in: body
   required: false
   type: boolean
+skip_enroll_init:
+  description: |
+    A flag indicating whether to skip the enrollment initialization step.
+    Only applicable when enroll is set to "true".
+  in: body
+  required: false
+  type: string
 software_version:
   description: |
     The software version for the subcloud.

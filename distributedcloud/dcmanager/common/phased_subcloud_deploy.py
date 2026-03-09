@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -145,8 +145,8 @@ def validate_bootstrap_values(payload: dict):
             pecan.abort(
                 400,
                 _(
-                    "admin_gateway_address and management_gateway_address cannot be "
-                    "specified at the same time"
+                    "admin_gateway_address and management_gateway_address "
+                    "cannot be specified at the same time"
                 ),
             )
         elif not admin_gateway_ip and not management_gateway_ip:
@@ -179,8 +179,10 @@ def validate_system_controller_deploy_status(operation: str):
 
 
 def verify_boolean_str(value):
+    if isinstance(value, str):
+        value = value.lower()
     if isinstance(value, str) and value in ["true", "false"]:
-        return
+        return value
 
     pecan.abort(
         400,
@@ -193,14 +195,16 @@ def validate_migrate_parameter(payload):
     if migrate_str is None:
         return
 
-    verify_boolean_str(migrate_str)
+    migrate_str = verify_boolean_str(migrate_str)
+    payload["migrate"] = migrate_str
 
     if migrate_str == "false":
         return
 
     enroll_str = payload.get("enroll")
     if enroll_str is not None:
-        verify_boolean_str(enroll_str)
+        enroll_str = verify_boolean_str(enroll_str)
+        payload["enroll"] = enroll_str
         if enroll_str == "true":
             pecan.abort(400, _("migrate with enroll is not allowed"))
 
@@ -214,20 +218,33 @@ def validate_enroll_parameter(payload):
     if enroll_str is None:
         return
 
-    verify_boolean_str(enroll_str)
+    enroll_str = verify_boolean_str(enroll_str)
+    payload["enroll"] = enroll_str
+
+    skip_enroll_init_str = payload.get("skip_enroll_init")
+    if skip_enroll_init_str is not None:
+        skip_enroll_init_str = verify_boolean_str(skip_enroll_init_str)
+        payload["skip_enroll_init"] = skip_enroll_init_str
 
     if enroll_str == "false":
         if dccommon_consts.CLOUD_INIT_CONFIG in payload:
             pecan.abort(400, _("cloud_init_config is not allowed with enroll=false"))
+        elif skip_enroll_init_str == "true":
+            pecan.abort(400, _("skip_enroll_init is not allowed with enroll=false"))
         else:
             return
 
     install_values = payload.get(consts.INSTALL_VALUES)
     if not install_values:
         pecan.abort(400, _("Install values is necessary for subcloud enrollment"))
-    # Update the install values in payload
-    if not payload.get("bmc_password"):
+
+    if payload.get("bmc_password"):
+        return
+
+    if "bmc_password" in install_values:
         payload.update({"bmc_password": install_values.get("bmc_password")})
+    elif skip_enroll_init_str != "true":
+        pecan.abort(400, _("bmc_password is necessary for subcloud enrollment"))
 
 
 def validate_tarball(contents, file_name):
@@ -246,11 +263,8 @@ def validate_secondary_parameter(payload, request):
     secondary_str = payload.get("secondary")
     migrate_str = payload.get("migrate")
     if secondary_str is not None:
-        if secondary_str not in ["true", "false"]:
-            pecan.abort(
-                400,
-                _("The secondary option is invalid, valid options are true and false."),
-            )
+        secondary_str = verify_boolean_str(secondary_str)
+        payload["secondary"] = secondary_str
         if consts.DEPLOY_CONFIG in request.POST:
             pecan.abort(400, _("secondary with deploy-config is not allowed"))
         if migrate_str is not None:
@@ -319,8 +333,8 @@ def validate_systemcontroller_gateway_address(
         )
     except Exception as e:
         error_msg = (
-            "systemcontroller_gateway_address IP family is not aligned "
-            "with system controller management"
+            "systemcontroller_gateway_address IP family is not aligned with "
+            "system controller management"
         )
         LOG.exception(error_msg)
         pecan.abort(400, _("%s: %s") % (error_msg, e))
@@ -348,8 +362,8 @@ def validate_systemcontroller_gateway_address(
         pecan.abort(
             400,
             _(
-                "systemcontroller_gateway_address invalid, "
-                "is within management pool: %(start)s - %(end)s"
+                "systemcontroller_gateway_address invalid, is within "
+                "management pool: %(start)s - %(end)s"
             )
             % {"start": mgmt_address_start, "end": mgmt_address_end},
         )
@@ -445,7 +459,8 @@ def validate_subcloud_config(
     for start_ip, end_ip in zip(management_start_ips, management_end_ips):
         if start_ip > end_ip:
             pecan.abort(
-                400, _("management_start_address greater than management_end_address")
+                400,
+                _("management_start_address greater than management_end_address"),
             )
 
         if netaddr.IPRange(start_ip, end_ip).size < min_management_valid_hosts:
@@ -511,7 +526,9 @@ def validate_subcloud_config(
         subcloud_mgmt_gw_ip = management_gateway_ips
 
     for start_ip, end_ip, gateway_ip in zip(
-        subcloud_mgmt_address_start, subcloud_mgmt_address_end, subcloud_mgmt_gw_ip
+        subcloud_mgmt_address_start,
+        subcloud_mgmt_address_end,
+        subcloud_mgmt_gw_ip,
     ):
         if start_ip <= gateway_ip <= end_ip:
             pecan.abort(
@@ -728,104 +745,143 @@ def get_network_address_pools(network="management"):
     return sysinv_client.get_management_address_pools()
 
 
-def validate_install_values(payload, subcloud=None):
-    """Validate install values if 'install_values' is present in payload.
+class InstallValuesValidator:
+    """Validator for subcloud install values."""
 
-    The image in payload install values is optional, and if not provided,
-    the image is set to the available active/inactive load image.
+    def __init__(
+        self,
+        payload: dict,
+        install_values: dict,
+        subcloud: typing.Optional[models.Subcloud] = None,
+    ) -> None:
+        self.payload: dict = payload
+        self.install_values: dict = install_values
+        self.subcloud: typing.Optional[models.Subcloud] = subcloud
+        skip_enroll_init_str = payload.get("skip_enroll_init", "false")
+        self.skip_enroll_init: bool = skip_enroll_init_str == "true"
+        self.original_install_values: typing.Optional[dict] = None
+        if subcloud and subcloud.data_install:
+            self.original_install_values = json.loads(subcloud.data_install)
 
-    :return boolean: True if bmc install requested, otherwise False
-    """
-    install_values = payload.get("install_values")
-    if not install_values:
-        return
+    def validate(self) -> None:
+        """Run all validations."""
+        self._validate_bmc_password()
+        software_version = self._validate_software_version()
+        self._validate_int_fields()
+        self._validate_extra_boot_params()
+        self._validate_mandatory_values()
+        self._validate_and_set_image(software_version)
+        self._validate_ip_addresses_and_network()
+        self._validate_other_fields()
 
-    original_install_values = None
-    if subcloud:
-        if subcloud.data_install:
-            original_install_values = json.loads(subcloud.data_install)
+    def _validate_bmc_password(self) -> None:
+        """Validate and update BMC password in payload."""
+        bmc_password = self.payload.get("bmc_password")
+        if not bmc_password and not self.skip_enroll_init:
+            pecan.abort(400, _("subcloud bmc_password required"))
 
-    bmc_password = payload.get("bmc_password")
-    if not bmc_password:
-        pecan.abort(400, _("subcloud bmc_password required"))
-    try:
-        base64.b64decode(bmc_password).decode("utf-8")
-    except Exception:
-        msg = _(
-            "Failed to decode subcloud bmc_password, "
-            "verify the password is base64 encoded"
-        )
-        LOG.exception(msg)
-        pecan.abort(400, msg)
-    payload["install_values"].update({"bmc_password": bmc_password})
-
-    software_version = payload.get("software_version")
-    if not software_version and subcloud:
-        software_version = subcloud.software_version
-    if "software_version" in install_values:
-        install_software_version = str(install_values.get("software_version"))
-        if software_version and software_version != install_software_version:
-            pecan.abort(
-                400,
-                _(
-                    "The software_version value %s in the install values "
-                    "yaml file does not match with the specified/current "
-                    "software version of %s. Please correct or remove "
-                    "this parameter from the yaml file and try again."
+        if bmc_password:
+            try:
+                base64.b64decode(bmc_password).decode("utf-8")
+            except Exception:
+                msg = _(
+                    "Failed to decode subcloud bmc_password, "
+                    "verify the password is base64 encoded"
                 )
-                % (install_software_version, software_version),
-            )
-    else:
-        # Only install_values payload will be passed to the subcloud
-        # installation backend methods. The software_version is required by
-        # the installation, so it cannot be absent in the install_values.
-        LOG.debug("software_version (%s) is added to install_values" % software_version)
-        payload["install_values"].update({"software_version": software_version})
+                LOG.exception(msg)
+                pecan.abort(400, msg)
+            self.payload["install_values"].update({"bmc_password": bmc_password})
 
-    if "persistent_size" in install_values:
-        persistent_size = install_values.get("persistent_size")
-        if not isinstance(persistent_size, int):
-            pecan.abort(
-                400,
-                _(
-                    "The install value persistent_size (in MB) must "
-                    "be a whole number greater than or equal to %s"
+    def _validate_software_version(self) -> str:
+        """Validate and update software version in install values."""
+        software_version = self.payload.get("software_version")
+        if not software_version and self.subcloud:
+            software_version = self.subcloud.software_version
+
+        if "software_version" in self.install_values:
+            install_software_version = str(self.install_values.get("software_version"))
+            if software_version and software_version != install_software_version:
+                pecan.abort(
+                    400,
+                    _(
+                        "The software_version value %s in the install values yaml "
+                        "file does not match with the specified/current software "
+                        "version of %s. Please correct or remove this parameter "
+                        "from the yaml file and try again."
+                    )
+                    % (install_software_version, software_version),
                 )
-                % consts.DEFAULT_PERSISTENT_SIZE,
+        else:
+            # Only install_values payload will be passed to the subcloud
+            # installation backend methods. The software_version is required by
+            # the installation, so it cannot be absent in the install_values.
+            LOG.debug(
+                "software_version (%s) is added to install_values" % software_version
             )
-        if persistent_size < consts.DEFAULT_PERSISTENT_SIZE:
-            # the expected value is less than the default. so throw an error.
-            pecan.abort(
-                400,
-                _("persistent_size of %s MB is less than the permitted minimum %s MB")
-                % (str(persistent_size), consts.DEFAULT_PERSISTENT_SIZE),
+            self.payload["install_values"].update(
+                {"software_version": software_version}
             )
 
-    if "hw_settle" in install_values:
-        hw_settle = install_values.get("hw_settle")
-        if not isinstance(hw_settle, int):
+        return software_version
+
+    def _validate_int_field(self, field: str, min_value: int, unit: str = "") -> None:
+        """Validate integer field with minimum value constraint."""
+        if field not in self.install_values:
+            return
+
+        value = self.install_values.get(field)
+        if not isinstance(value, int):
             pecan.abort(
                 400,
-                _(
-                    "The install value hw_settle (in seconds) must "
-                    "be a whole number greater than or equal to 0"
+                (
+                    _(
+                        "The install value %s (in %s) must be a whole number "
+                        "greater than or equal to %s"
+                    )
+                    % (field, unit, min_value)
+                    if unit
+                    else _(
+                        "The install value %s must be a whole number "
+                        "greater than or equal to %s"
+                    )
+                    % (field, min_value)
                 ),
             )
-        if hw_settle < 0:
+        if value < min_value:
             pecan.abort(
-                400, _("hw_settle of %s seconds is less than 0") % (str(hw_settle))
+                400,
+                (
+                    _("%(field)s of %(value)s %(unit)s is less than %(min_value)s")
+                    % {
+                        "field": field,
+                        "value": value,
+                        "unit": unit,
+                        "min_value": min_value,
+                    }
+                    if unit
+                    else _("%(field)s of %(value)s is less than %(min_value)s")
+                    % {"field": field, "value": value, "min_value": min_value}
+                ),
             )
 
-    if "extra_boot_params" in install_values:
-        # Validate 'extra_boot_params' boot parameter
-        # Note: this must be a single string (no spaces). If
-        # multiple boot parameters are required they can be
-        # separated by commas. They will be split into separate
-        # arguments by the miniboot.cfg kickstart.
-        extra_boot_params = install_values.get("extra_boot_params")
+    def _validate_int_fields(self) -> None:
+        """Validate all integer fields."""
+        self._validate_int_field(
+            "persistent_size", consts.DEFAULT_PERSISTENT_SIZE, "MB"
+        )
+        self._validate_int_field("hw_settle", 0, "seconds")
+
+    def _validate_extra_boot_params(self) -> None:
+        """Validate extra_boot_params field."""
+        if "extra_boot_params" not in self.install_values:
+            return
+
+        extra_boot_params = self.install_values.get("extra_boot_params")
         if extra_boot_params in ("", None, "None"):
-            msg = "The install value extra_boot_params must not be empty."
-            pecan.abort(400, _(msg))
+            pecan.abort(
+                400,
+                _("The install value extra_boot_params must not be empty."),
+            )
         if " " in extra_boot_params:
             msg = (
                 f"Invalid install value 'extra_boot_params={extra_boot_params}'. "
@@ -833,123 +889,208 @@ def validate_install_values(payload, subcloud=None):
             )
             pecan.abort(400, _(msg))
 
-    for k in dccommon_consts.MANDATORY_INSTALL_VALUES:
-        if k not in install_values:
-            if original_install_values:
-                pecan.abort(
-                    400,
-                    _("Mandatory install value %s not present, existing %s in DB: %s")
-                    % (k, k, original_install_values.get(k)),
-                )
-            else:
-                pecan.abort(400, _("Mandatory install value %s not present") % k)
-
-    # check for the image at load vault load location
-    matching_iso, err_msg = utils.get_matching_iso(software_version)
-    if err_msg:
-        LOG.exception(err_msg)
-        pecan.abort(400, _(err_msg))
-    LOG.info("Image in install_values is set to %s" % matching_iso)
-    payload["install_values"].update({"image": matching_iso})
-
-    if install_values["install_type"] not in list(
-        range(dccommon_consts.SUPPORTED_INSTALL_TYPES)
-    ):
-        pecan.abort(400, _("install_type invalid: %s") % install_values["install_type"])
-
-    try:
-        ip_version = netaddr.IPAddress(install_values["bootstrap_address"]).version
-    except netaddr.AddrFormatError as e:
-        LOG.exception(e)
-        pecan.abort(400, _("bootstrap_address invalid: %s") % e)
-
-    try:
-        bmc_address = netaddr.IPAddress(install_values["bmc_address"])
-    except netaddr.AddrFormatError as e:
-        LOG.exception(e)
-        pecan.abort(400, _("bmc_address invalid: %s") % e)
-
-    if bmc_address.version != ip_version:
-        pecan.abort(
-            400, _("bmc_address and bootstrap_address must be the same IP version")
+    def _validate_mandatory_values(self) -> None:
+        """Validate all mandatory install values are present."""
+        mandatory_install_values = (
+            dccommon_consts.MANDATORY_INSTALL_VALUES_FOR_ENROLL
+            if self.skip_enroll_init
+            else dccommon_consts.MANDATORY_INSTALL_VALUES
         )
 
-    oam_ip_version = None
-    oam_subnet_str = payload.get("external_oam_subnet", None)
-    if oam_subnet_str:
-        oam_ip_version = netaddr.IPNetwork(oam_subnet_str.split(",")[0]).version
-    elif subcloud:
-        oam_ip_version = int(subcloud.external_oam_subnet_ip_family)
-    if oam_ip_version and bmc_address.version != oam_ip_version:
-        pecan.abort(
-            400,
-            _("bmc_address and primary OAM network must be the same IP version"),
-        )
+        for k in mandatory_install_values:
+            if k not in self.install_values:
+                if self.original_install_values:
+                    pecan.abort(
+                        400,
+                        _(
+                            "Mandatory install value %s not present, existing %s "
+                            "in DB: %s"
+                        )
+                        % (k, k, self.original_install_values.get(k)),
+                    )
+                else:
+                    pecan.abort(400, _("Mandatory install value %s not present") % k)
 
-    if "nexthop_gateway" in install_values:
+    def _validate_and_set_image(self, software_version: str) -> None:
+        """Validate install type and set image if not skipping enroll init."""
+        if self.skip_enroll_init:
+            return
+
+        matching_iso, err_msg = utils.get_matching_iso(software_version)
+        if err_msg:
+            LOG.exception(err_msg)
+            pecan.abort(400, _(err_msg))
+        LOG.info("Image in install_values is set to %s" % matching_iso)
+        self.payload["install_values"].update({"image": matching_iso})
+
+        if self.install_values["install_type"] not in list(
+            range(dccommon_consts.SUPPORTED_INSTALL_TYPES)
+        ):
+            pecan.abort(
+                400,
+                _("install_type invalid: %s") % self.install_values["install_type"],
+            )
+
+    def _validate_ip_address(self, field: str) -> netaddr.IPAddress:
+        """Validate IP address field and return IPAddress object."""
         try:
-            gateway_ip = netaddr.IPAddress(install_values["nexthop_gateway"])
+            return netaddr.IPAddress(self.install_values[field])
         except netaddr.AddrFormatError as e:
             LOG.exception(e)
-            pecan.abort(400, _("nexthop_gateway invalid: %s") % e)
-        if gateway_ip.version != ip_version:
+            pecan.abort(400, _("%s invalid: %s") % (field, e))
+
+    def _validate_ip_version_match(
+        self,
+        ip1: netaddr.IPAddress,
+        ip2: netaddr.IPAddress,
+        field1: str,
+        field2: str,
+    ) -> None:
+        """Validate two IP addresses have matching versions."""
+        if ip1.version != ip2.version:
             pecan.abort(
                 400,
-                _("nexthop_gateway and bootstrap_address must be the same IP version"),
+                _("%s and %s must be the same IP version") % (field1, field2),
             )
 
-    if "network_address" in install_values and "nexthop_gateway" not in install_values:
-        pecan.abort(
-            400, _("nexthop_gateway is required when network_address is present")
-        )
+    def _get_bootstrap_address(self) -> None:
+        """Get bootstrap_address from install_values, payload,
 
-    if "nexthop_gateway" and "network_address" in install_values:
-        if "network_mask" not in install_values:
-            pecan.abort(
-                400,
-                _("The network mask is required when network address is present"),
+        or original_install_values.
+        """
+        if "bootstrap_address" not in self.install_values:
+            if "bootstrap-address" in self.payload:
+                self.install_values["bootstrap_address"] = self.payload[
+                    "bootstrap-address"
+                ]
+            elif (
+                self.original_install_values
+                and "bootstrap_address" in self.original_install_values
+            ):
+                self.install_values["bootstrap_address"] = self.original_install_values[
+                    "bootstrap_address"
+                ]
+            else:
+                pecan.abort(400, _("bootstrap_address required"))
+
+    def _validate_ip_addresses_and_network(self) -> None:
+        """Validate all IP addresses and network configuration."""
+        self._get_bootstrap_address()
+
+        bootstrap_ip = self._validate_ip_address("bootstrap_address")
+        ip_version = bootstrap_ip.version
+
+        if "bmc_address" in self.install_values:
+            bmc_address = self._validate_ip_address("bmc_address")
+            self._validate_ip_version_match(
+                bmc_address, bootstrap_ip, "bmc_address", "bootstrap_address"
             )
-
-        network_str = (
-            install_values["network_address"]
-            + "/"
-            + str(install_values["network_mask"])
-        )
-        try:
-            networks = utils.validate_network_str(network_str, 1)
-        except exceptions.ValidateFail as e:
-            LOG.exception(e)
-            pecan.abort(400, _("network address invalid: %s") % e)
-
-        if networks[0].version != ip_version:
-            pecan.abort(
-                400,
-                _("network address and bootstrap address must be the same IP version"),
-            )
-
-    if "rd.net.timeout.ipv6dad" in install_values:
-        try:
-            ipv6dad_timeout = int(install_values["rd.net.timeout.ipv6dad"])
-            if ipv6dad_timeout <= 0:
+            oam_ip_version = None
+            oam_subnet_str = self.payload.get("external_oam_subnet", None)
+            if oam_subnet_str:
+                oam_ip_version = netaddr.IPNetwork(oam_subnet_str.split(",")[0]).version
+            elif self.subcloud:
+                oam_ip_version = int(self.subcloud.external_oam_subnet_ip_family)
+            if oam_ip_version and bmc_address.version != oam_ip_version:
                 pecan.abort(
                     400,
-                    _("rd.net.timeout.ipv6dad must be greater than 0: %d")
-                    % ipv6dad_timeout,
+                    _(
+                        "bmc_address and primary OAM network must be the same "
+                        "IP version"
+                    ),
                 )
-        except ValueError as e:
-            LOG.exception(e)
-            pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
 
-    if "rvmc_debug_level" in install_values:
-        try:
-            rvmc_debug_level = int(install_values["rvmc_debug_level"])
-            if rvmc_debug_level < 0 or rvmc_debug_level > 4:
+        if "nexthop_gateway" in self.install_values:
+            gateway_ip = self._validate_ip_address("nexthop_gateway")
+            self._validate_ip_version_match(
+                gateway_ip,
+                bootstrap_ip,
+                "nexthop_gateway",
+                "bootstrap_address",
+            )
+
+        # Validate network address configuration
+        if (
+            "network_address" in self.install_values
+            and "nexthop_gateway" not in self.install_values
+        ):
+            pecan.abort(
+                400,
+                _("nexthop_gateway is required when network_address is present"),
+            )
+
+        if (
+            "nexthop_gateway" in self.install_values
+            and "network_address" in self.install_values
+        ):
+            if "network_mask" not in self.install_values:
                 pecan.abort(
-                    400, _("rvmc_debug_level must be an integer between 0 and 4.")
+                    400,
+                    _("The network mask is required when network address is present"),
                 )
-        except ValueError as e:
-            LOG.exception(e)
-            pecan.abort(400, _("Invalid value of rvmc_debug_level: %s") % e)
+
+            network_str = (
+                self.install_values["network_address"]
+                + "/"
+                + str(self.install_values["network_mask"])
+            )
+            try:
+                networks = utils.validate_network_str(network_str, 1)
+            except exceptions.ValidateFail as e:
+                LOG.exception(e)
+                pecan.abort(400, _("network address invalid: %s") % e)
+
+            if networks[0].version != ip_version:
+                pecan.abort(
+                    400,
+                    _(
+                        "network address and bootstrap address must be the same "
+                        "IP version"
+                    ),
+                )
+
+    def _validate_other_fields(self) -> None:
+        """Validate other install value fields with custom logic."""
+        if "rd.net.timeout.ipv6dad" in self.install_values:
+            try:
+                ipv6dad_timeout = int(self.install_values["rd.net.timeout.ipv6dad"])
+                if ipv6dad_timeout <= 0:
+                    pecan.abort(
+                        400,
+                        _("rd.net.timeout.ipv6dad must be greater than 0: %d")
+                        % ipv6dad_timeout,
+                    )
+            except ValueError as e:
+                LOG.exception(e)
+                pecan.abort(400, _("rd.net.timeout.ipv6dad invalid: %s") % e)
+
+        if "rvmc_debug_level" in self.install_values:
+            try:
+                rvmc_debug_level = int(self.install_values["rvmc_debug_level"])
+                if rvmc_debug_level < 0 or rvmc_debug_level > 4:
+                    pecan.abort(
+                        400,
+                        _("rvmc_debug_level must be an integer between 0 and 4."),
+                    )
+            except ValueError as e:
+                LOG.exception(e)
+                pecan.abort(400, _("Invalid value of rvmc_debug_level: %s") % e)
+
+
+def validate_install_values(
+    payload: dict, subcloud: typing.Optional[models.Subcloud] = None
+) -> None:
+    """Validate install values if 'install_values' is present in payload.
+
+    The image in payload install values is optional, and if not provided,
+    the image is set to the available active/inactive load image.
+    """
+    install_values = payload.get("install_values")
+    if not install_values:
+        return
+
+    validator = InstallValuesValidator(payload, install_values, subcloud)
+    validator.validate()
 
 
 def validate_bootstrap_playbook_for_sw_version(
@@ -1010,7 +1151,11 @@ def validate_k8s_version(payload):
                         "bootstrap yaml file doesn't match fresh_install_k8s_version "
                         "value (%s) of the specified release %s"
                     )
-                    % (kubernetes_version, fresh_install_k8s_version, software_version),
+                    % (
+                        kubernetes_version,
+                        fresh_install_k8s_version,
+                        software_version,
+                    ),
                 )
         except exceptions.PlaybookNotFound:
             pecan.abort(

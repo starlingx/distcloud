@@ -1695,6 +1695,8 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
             SW_VERSION,
         )
 
+        self.params = {"bmc_password": self._create_password("bmc_password")}
+
     def _setup_mock_os_path_exists(self):
         config_file = psd_common.get_config_file_path(self.subcloud.name)
         self.mock_os_path_exists.side_effect = lambda file: (
@@ -1727,6 +1729,15 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
                 json.dumps(bootstrap_data).encode("utf-8"),
             )
         ]
+
+        # validate_enroll_parameter requires install_values in the payload
+        def populate_side_effect(payload, subcloud, keys):
+            if consts.INSTALL_VALUES in keys:
+                payload[consts.INSTALL_VALUES] = (
+                    fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES
+                )
+
+        self.mock_populate_payload.side_effect = populate_side_effect
 
         response = self._send_request()
 
@@ -1763,7 +1774,10 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
                 json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).encode("utf-8"),
             )
         ]
-        self.params = {"sysadmin_password": self._create_password("testpass")}
+        self.params = {
+            "sysadmin_password": self._create_password("testpass"),
+            "bmc_password": self._create_password("bmc_password"),
+        }
 
         response = self._send_request()
 

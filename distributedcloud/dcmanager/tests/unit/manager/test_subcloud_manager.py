@@ -1613,6 +1613,53 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         )
         self.assertFalse(updated_subcloud.rehomed)
 
+    @mock.patch.object(cutils, "get_region_name")
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "subcloud_init_enroll", return_value=True
+    )
+    def test_subcloud_deploy_enroll_skip_enroll_init(
+        self, mock_init_enroll, mock_get_region_name
+    ):
+        """When skip_enroll_init=true, subcloud_init_enroll must not be called."""
+        mock_get_region_name.return_value = "11111"
+        self.mock_ansible_run_playbook.return_value = False
+
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_COMPLETE,
+            data_install=json.dumps(self.fake_payload_enroll["install_values"]),
+        )
+
+        payload = dict(self.fake_payload_enroll, skip_enroll_init="true")
+        self.sm.subcloud_deploy_enroll(self.ctx, subcloud.id, payload)
+
+        mock_init_enroll.assert_not_called()
+        self.mock_ansible_run_playbook.assert_called_once()
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "subcloud_init_enroll", return_value=False
+    )
+    def test_subcloud_deploy_enroll_init_enroll_failed(self, mock_init_enroll):
+        """When subcloud_init_enroll returns False, enroll returns False early."""
+        subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA["name"],
+            deploy_status=consts.DEPLOY_STATE_PRE_INIT_ENROLL,
+            data_install=json.dumps(self.fake_payload_enroll["install_values"]),
+        )
+
+        result = self.sm.subcloud_deploy_enroll(
+            self.ctx, subcloud.id, self.fake_payload_enroll
+        )
+
+        self.assertFalse(result)
+        mock_init_enroll.assert_called_once()
+        self.mock_ansible_run_playbook.assert_not_called()
+        self.mock_log_subcloud_manager.error.assert_called_once_with(
+            f"Initial enrollment failed for subcloud {subcloud.name}"
+        )
+
 
 class TestSubcloudAdd(BaseTestSubcloudManager):
     """Test class for testing subcloud add"""

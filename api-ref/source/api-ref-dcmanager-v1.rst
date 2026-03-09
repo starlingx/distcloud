@@ -132,6 +132,7 @@ serviceUnavailable (503)
   - cloud_init_config: cloud_init_config
   - deploy_config: deploy_config
   - description: subcloud_description
+  - enroll: enroll
   - external_oam_floating_address: external_oam_floating_address
   - external_oam_gateway_address: external_oam_gateway_address
   - external_oam_subnet: external_oam_subnet
@@ -144,6 +145,7 @@ serviceUnavailable (503)
   - management_subnet: management_subnet
   - migrate: migrate
   - secondary: secondary
+  - skip_enroll_init: skip_enroll_init
   - name: subcloud_name
   - release: release
   - sysadmin_password: sysadmin_password
