@@ -275,6 +275,10 @@ MANDATORY_INSTALL_VALUES = [
     "install_type",
 ] + BMC_INSTALL_VALUES
 
+MANDATORY_INSTALL_VALUES_FOR_ENROLL = [
+    "bootstrap_interface",
+]
+
 MANDATORY_ENROLL_INIT_VALUES = [
     "bootstrap_interface",
     "external_oam_subnet",

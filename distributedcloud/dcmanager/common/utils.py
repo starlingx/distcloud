@@ -862,17 +862,25 @@ def get_region_name(
     endpoint, timeout=dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT
 ):
     url = endpoint + "/v1/isystems/region_id"
-    response = requests.get(url, timeout=timeout)
+    try:
+        response = requests.get(url, timeout=timeout)
 
-    if response.status_code == 200:
-        data = response.json()
-        if "region_name" not in data:
-            raise exceptions.NotFound
+        if response.status_code == 200:
+            data = response.json()
+            if "region_name" not in data:
+                raise exceptions.NotFound
 
-        region_name = data["region_name"]
-        return region_name
-    else:
-        msg = f"GET region_name from {url} FAILED WITH RC {response.status_code}"
+            region_name = data["region_name"]
+            return region_name
+        else:
+            msg = f"GET region_name from {url} FAILED WITH RC {response.status_code}"
+            LOG.error(msg)
+            raise exceptions.ServiceUnavailable
+    except exceptions.NotFound:
+        # Re-raise NotFound without retry
+        raise
+    except requests.exceptions.RequestException as e:
+        msg = f"Failed to get region_name from {url}: {str(e)}"
         LOG.error(msg)
         raise exceptions.ServiceUnavailable
 
