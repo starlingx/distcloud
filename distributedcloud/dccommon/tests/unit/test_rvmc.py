@@ -22,37 +22,37 @@ class TestSafeLog(base.DCCommonTestCase):
     """
 
     def test_safe_log_none_input(self):
-        """Verify safe_log returns 'None' string for None input"""
+        """Test safe_log returns 'None' string for None input"""
 
         self.assertEqual(rvmc.safe_log(None), "None")
 
     def test_safe_log_empty_list_returns_none(self):
-        """Verify safe_log returns 'None' string for empty list"""
+        """Test safe_log returns 'None' string for empty list"""
 
         self.assertEqual(rvmc.safe_log([]), "None")
 
     def test_safe_log_empty_tuple_returns_none(self):
-        """Verify safe_log returns 'None' string for empty tuple"""
+        """Test safe_log returns 'None' string for empty tuple"""
 
         self.assertEqual(rvmc.safe_log(tuple()), "None")
 
     def test_safe_log_list_returns_comma_separated(self):
-        """Verify safe_log returns comma-separated string for list with values"""
+        """Test safe_log returns comma-separated string for list with values"""
 
         self.assertEqual(rvmc.safe_log([1, 2, 3]), "1, 2, 3")
 
     def test_safe_log_tuple_returns_comma_separated(self):
-        """Verify safe_log returns comma-separated string for tuple with values"""
+        """Test safe_log returns comma-separated string for tuple with values"""
 
         self.assertEqual(rvmc.safe_log((1, 2, 3)), "1, 2, 3")
 
     def test_safe_log_string_input(self):
-        """Verify safe_log returns string representation for string input"""
+        """Test safe_log returns string representation for string input"""
 
         self.assertEqual(rvmc.safe_log("test"), "test")
 
     def test_safe_log_integer_input(self):
-        """Verify safe_log returns string representation for integer input"""
+        """Test safe_log returns string representation for integer input"""
 
         self.assertEqual(rvmc.safe_log(42), "42")
 
@@ -79,7 +79,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
             self.assertTrue(calls[i].endswith(expected_suffix))
 
     def test_init_with_logger_sets_attributes(self):
-        """Verify LoggingUtil initialization with logger"""
+        """Test LoggingUtil initialization with logger"""
 
         util = rvmc.LoggingUtil(
             logger=self.mock_logger,
@@ -93,7 +93,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self.assertTrue(util.mute_on)
 
     def test_init_without_logger_uses_defaults(self):
-        """Verify LoggingUtil initialization without logger"""
+        """Test LoggingUtil initialization without logger"""
 
         util = rvmc.LoggingUtil()
         self.assertIsNone(util.logger)
@@ -102,7 +102,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self.assertFalse(util.mute_on)
 
     def test_t_returns_datetime_without_microseconds(self):
-        """Verify t method returns current datetime without microseconds"""
+        """Test t method returns current datetime without microseconds"""
 
         util = rvmc.LoggingUtil()
         result = util.t()
@@ -110,7 +110,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self.assertEqual(result.microsecond, 0)
 
     def test_logging_with_logger_includes_subcloud_name_when_specified(self):
-        """Verify logging methods include subcloud name with logger when specified"""
+        """Test logging methods include subcloud name with logger when specified"""
 
         util = rvmc.LoggingUtil(logger=self.mock_logger, subcloud_name="subcloud1")
 
@@ -130,7 +130,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self.mock_logger.info.assert_called_with("subcloud1: stage message")
 
     def test_logging_with_logger_without_subcloud_name(self):
-        """Verify logging methods only log the message when subcloud is not specified"""
+        """Test logging methods only log the message when subcloud is not specified"""
 
         util = rvmc.LoggingUtil(logger=self.mock_logger)
 
@@ -150,7 +150,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self.mock_logger.info.assert_called_with("stage message")
 
     def test_logging_without_logger_writes_to_stdout(self):
-        """Verify all logging methods write to stdout when no logger id provided"""
+        """Test all logging methods write to stdout when no logger id provided"""
 
         util = rvmc.LoggingUtil()
 
@@ -170,7 +170,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self._assert_stdout_write_calls(expected_calls)
 
     def test_muted_logging_does_not_log(self):
-        """Verify muted logging methods do not log"""
+        """Test muted logging methods do not log"""
 
         util = rvmc.LoggingUtil(logger=self.mock_logger, mute_on=True)
 
@@ -181,7 +181,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self.mock_logger.info.assert_not_called()
 
     def test_dlog1_logs_at_level_1(self):
-        """Verify dlog1 logs debug message at level 1"""
+        """Test dlog1 logs debug message at level 1"""
 
         util = rvmc.LoggingUtil(
             logger=self.mock_logger, debug_level=1, subcloud_name="subcloud1"
@@ -190,14 +190,14 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self.mock_logger.debug.assert_called_once_with("subcloud1: debug message")
 
     def test_dlog1_logs_when_level_higher(self):
-        """Verify dlog1 logs debug message when debug_level is higher"""
+        """Test dlog1 logs debug message when debug_level is higher"""
 
         util = rvmc.LoggingUtil(logger=self.mock_logger, debug_level=2)
         util.dlog1("debug message")
         self.mock_logger.debug.assert_called_once_with("debug message")
 
     def test_dlog1_without_logger_writes_to_stdout(self):
-        """Verify dlog1 writes to stdout when no logger is provided"""
+        """Test dlog1 writes to stdout when no logger is provided"""
 
         util = rvmc.LoggingUtil(debug_level=1)
         util.dlog1("debug message")
@@ -205,14 +205,14 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self._assert_stdout_write_calls([" Debug1: debug message"])
 
     def test_dlog1_no_output_when_level_insufficient(self):
-        """Verify dlog1 does not log when debug_level is 0"""
+        """Test dlog1 does not log when debug_level is 0"""
 
         util = rvmc.LoggingUtil(logger=self.mock_logger, debug_level=0)
         util.dlog1("debug message")
         self.mock_logger.debug.assert_not_called()
 
     def test_dlog1_logs_at_custom_level(self):
-        """Verify dlog1 logs at custom level when debug_level is sufficient"""
+        """Test dlog1 logs at custom level when debug_level is sufficient"""
 
         util = rvmc.LoggingUtil(
             logger=self.mock_logger, debug_level=3, subcloud_name="subcloud2"
@@ -221,14 +221,14 @@ class TestLoggingUtil(base.DCCommonTestCase):
         self.mock_logger.debug.assert_called_once_with("subcloud2: debug message")
 
     def test_dlog1_no_output_when_custom_level_exceeds(self):
-        """Verify dlog1 does not log when custom level exceeds debug_level"""
+        """Test dlog1 does not log when custom level exceeds debug_level"""
 
         util = rvmc.LoggingUtil(logger=self.mock_logger, debug_level=2)
         util.dlog1("debug message", level=3)
         self.mock_logger.debug.assert_not_called()
 
     def test_debug_logging_at_correct_levels(self):
-        """Verify debug logging methods work at their respective levels"""
+        """Test debug logging methods work at their respective levels"""
 
         debug_methods = [("dlog2", 2), ("dlog3", 3), ("dlog4", 4)]
 
@@ -243,7 +243,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
             self.mock_logger.reset_mock()
 
     def test_debug_logging_without_logger_writes_to_stdout(self):
-        """Verify debug logging methods write to stdout when no logger provided"""
+        """Test debug logging methods write to stdout when no logger provided"""
 
         debug_methods = [
             ("dlog2", 2, "Debug2"),
@@ -259,7 +259,7 @@ class TestLoggingUtil(base.DCCommonTestCase):
             self.mock_stdout_write.reset_mock()
 
     def test_debug_logging_no_output_when_level_insufficient(self):
-        """Verify debug logging methods don't log when debug_level is insufficient"""
+        """Test debug logging methods don't log when debug_level is insufficient"""
 
         debug_methods = ["dlog2", "dlog3", "dlog4"]
 
@@ -283,12 +283,12 @@ class TestExitHandler(base.DCCommonTestCase):
         self.exit_handler = rvmc.ExitHandler()
 
     def test_exit_with_zero_code_does_not_raise(self):
-        """Verify exit with code 0 does not raise exception"""
+        """Test exit with code 0 does not raise exception"""
 
         self.assertIsNone(self.exit_handler.exit(0))
 
     def test_exit_with_non_zero_code_raises_rvmc_exit(self):
-        """Verify exit with non-zero codes raises RvmcExit exception"""
+        """Test exit with non-zero codes raises RvmcExit exception"""
 
         for code in [1, 2, -1]:
             self.assertRaises(RvmcExit, self.exit_handler.exit, code)
@@ -325,47 +325,47 @@ class TestIsIpv6Address(base.DCCommonTestCase):
         )
 
     def test_is_ipv6_address_with_valid_ipv6_returns_true(self):
-        """Verify is_ipv6_address returns True for valid IPv6 address"""
+        """Test is_ipv6_address returns True for valid IPv6 address"""
 
         self._validate_ipv6_response("2001:db8::1")
 
     def test_is_ipv6_address_with_ipv6_loopback_returns_true(self):
-        """Verify is_ipv6_address returns True for IPv6 loopback address"""
+        """Test is_ipv6_address returns True for IPv6 loopback address"""
 
         self._validate_ipv6_response("::1")
 
     def test_is_ipv6_address_with_ipv6_full_address_returns_true(self):
-        """Verify is_ipv6_address returns True for full IPv6 address"""
+        """Test is_ipv6_address returns True for full IPv6 address"""
 
         self._validate_ipv6_response("2001:0db8:85a3:0000:0000:8a2e:0370:7334")
 
     def test_is_ipv6_address_with_ipv6_compressed_returns_true(self):
-        """Verify is_ipv6_address returns True for compressed IPv6 address"""
+        """Test is_ipv6_address returns True for compressed IPv6 address"""
 
         self._validate_ipv6_response("fe80::1")
 
     def test_is_ipv6_address_with_ipv6_all_zeros_returns_true(self):
-        """Verify is_ipv6_address returns True for IPv6 all zeros address"""
+        """Test is_ipv6_address returns True for IPv6 all zeros address"""
 
         self._validate_ipv6_response("::")
 
     def test_is_ipv6_address_with_ipv4_returns_false(self):
-        """Verify is_ipv6_address returns False for IPv4 address"""
+        """Test is_ipv6_address returns False for IPv4 address"""
 
         self._validate_ipv6_response("192.168.1.1", "IPv4")
 
     def test_is_ipv6_address_with_ipv4_loopback_returns_false(self):
-        """Verify is_ipv6_address returns False for IPv4 loopback address"""
+        """Test is_ipv6_address returns False for IPv4 loopback address"""
 
         self._validate_ipv6_response("127.0.0.1", "IPv4")
 
     def test_is_ipv6_address_with_invalid_address_returns_false(self):
-        """Verify is_ipv6_address returns False for invalid address format"""
+        """Test is_ipv6_address returns False for invalid address format"""
 
         self._validate_ipv6_response("invalid_address", "IPv4")
 
     def test_is_ipv6_address_with_empty_string_returns_false(self):
-        """Verify is_ipv6_address returns False for empty string"""
+        """Test is_ipv6_address returns False for empty string"""
 
         self._validate_ipv6_response("", "IPv4")
 
@@ -378,7 +378,7 @@ class TestSupportedDevice(base.DCCommonTestCase):
     """
 
     def test_supported_device_returns_true_for_valid_devices(self):
-        """Verify supported_device returns True for supported devices"""
+        """Test supported_device returns True for supported devices"""
 
         valid_cases = [
             ["CD"],
@@ -391,7 +391,7 @@ class TestSupportedDevice(base.DCCommonTestCase):
             self.assertTrue(rvmc.supported_device(devices))
 
     def test_supported_device_returns_false_for_invalid_devices(self):
-        """Verify supported_device returns False for unsupported or invalid devices"""
+        """Test supported_device returns False for unsupported or invalid devices"""
 
         invalid_cases = [
             [],
@@ -461,7 +461,7 @@ class TestParseTarget(BaseTestRvmc):
         )
 
     def test_parse_target_returns_none_when_password_missing(self):
-        """Verify parse_target returns None when bmc_password is missing"""
+        """Test parse_target returns None when bmc_password is missing"""
 
         del self.target_dict["bmc_password"]
 
@@ -473,7 +473,7 @@ class TestParseTarget(BaseTestRvmc):
         )
 
     def test_parse_target_returns_none_when_password_decode_fails(self):
-        """Verify parse_target returns None when password decoding fails"""
+        """Test parse_target returns None when password decoding fails"""
 
         self.target_dict["bmc_password"] = "invalid_base64!@#"
 
@@ -493,7 +493,7 @@ class TestParseTarget(BaseTestRvmc):
         )
 
     def test_parse_target_returns_none_when_address_missing(self):
-        """Verify parse_target returns None when bmc_address is missing"""
+        """Test parse_target returns None when bmc_address is missing"""
 
         del self.target_dict["bmc_address"]
 
@@ -510,7 +510,7 @@ class TestParseTarget(BaseTestRvmc):
         )
 
     def test_parse_target_creates_vmc_object_with_ipv4_address(self):
-        """Verify parse_target creates VmcObject for IPv4 address"""
+        """Test parse_target creates VmcObject for IPv4 address"""
 
         result = rvmc.parse_target(*self.parse_config_file_args)
 
@@ -522,7 +522,7 @@ class TestParseTarget(BaseTestRvmc):
         self.assertEqual(result.pw_encoded, self.target_dict["bmc_password"])
 
     def test_parse_target_creates_vmc_object_with_ipv6_address(self):
-        """Verify parse_target creates VmcObject for IPv6 address with brackets"""
+        """Test parse_target creates VmcObject for IPv6 address with brackets"""
 
         self.target_dict["bmc_address"] = "2001:db8::1"
 
@@ -535,7 +535,7 @@ class TestParseTarget(BaseTestRvmc):
         self.assertEqual(result.pw_encoded, self.target_dict["bmc_password"])
 
     def test_parse_target_returns_none_when_vmc_object_creation_fails(self):
-        """Verify parse_target returns None when VmcObject creation raises exception
+        """Test parse_target returns None when VmcObject creation raises exception
 
         This can occur when either the image or bmc_username keys are no found in the
         target_dict variable.
@@ -565,7 +565,7 @@ class TestParseTarget(BaseTestRvmc):
         )
 
     def test_parse_target_returns_none_when_vmc_object_is_none(self):
-        """Verify parse_target returns None when VmcObject creation returns None
+        """Test parse_target returns None when VmcObject creation returns None
 
         Note: this does not seem a reacheable code, therfore the VmcObject had to be
         mocked.
@@ -610,7 +610,7 @@ class TestParseConfigFile(BaseTestRvmc):
         )
 
     def test_parse_config_file_returns_none_when_file_not_exists(self):
-        """Verify parse_config_file exits when config file does not exist"""
+        """Test parse_config_file exits when config file does not exist"""
 
         self.mock_os_path_exists.return_value = False
 
@@ -628,7 +628,7 @@ class TestParseConfigFile(BaseTestRvmc):
         )
 
     def test_parse_config_file_exits_when_file_open_fails(self):
-        """Verify parse_config_file exits when file cannot be opened"""
+        """Test parse_config_file exits when file cannot be opened"""
 
         self.mock_open.side_effect = PermissionError("Permission denied")
 
@@ -648,7 +648,7 @@ class TestParseConfigFile(BaseTestRvmc):
         )
 
     def test_parse_config_file_exits_when_yaml_parsing_fails(self):
-        """Verify parse_config_file exits when YAML parsing fails"""
+        """Test parse_config_file exits when YAML parsing fails"""
 
         self.mock_yaml_load.side_effect = Exception("Invalid YAML")
 
@@ -669,7 +669,7 @@ class TestParseConfigFile(BaseTestRvmc):
         )
 
     def test_parse_config_file_returns_config_and_target_object(self):
-        """Verify parse_config_file returns config data and target object"""
+        """Test parse_config_file returns config data and target object"""
 
         cfg, target_object = rvmc.parse_config_file(*self.parse_config_file_args)
 
@@ -682,7 +682,7 @@ class TestParseConfigFile(BaseTestRvmc):
         self.assertEqual(target_object.pw_encoded, self.target_dict["bmc_password"])
 
     def test_parse_config_file_returns_config_and_target_object_with_ipv6(self):
-        """Verify parse_config_file returns config data and target object with ipv6"""
+        """Test parse_config_file returns config data and target object with ipv6"""
 
         self.target_dict["bmc_address"] = "2001:db8::1"
         self.mock_yaml_load.return_value = self.target_dict
@@ -698,7 +698,7 @@ class TestParseConfigFile(BaseTestRvmc):
         self.assertEqual(target_object.pw_encoded, self.target_dict["bmc_password"])
 
     def test_parse_config_file_returns_none_target_object_on_parse_target_failure(self):
-        """Verify parse_config_file returns None target_object on parse_target failure
+        """Test parse_config_file returns None target_object on parse_target failure
 
         In this scenario, the configuration is parsed appropriately and returned, but
         the target object is returned empty.
@@ -721,7 +721,7 @@ class TestParseConfigFile(BaseTestRvmc):
         )
 
     def test_parse_config_file_returns_config_for_empty_config_file(self):
-        """Verify parse_config_file returns config for an empty config file"""
+        """Test parse_config_file returns config for an empty config file"""
 
         self.mock_yaml_load.return_value = {}
 
@@ -752,16 +752,44 @@ class BaseTestVmcObject(BaseTestRvmc):
         )
         self.vmc_obj.redfish_obj = mock.MagicMock()
 
-        self.systems_url = "/redfish/v1/Systems/"
+        self.systems_url = "/redfish/v1/Systems"
         self.vmc_obj.systems_group_url = self.systems_url
-        self.managers_url = "/redfish/v1/Managers/"
+        self.vmc_obj.systems_members = 1
+        self.systems_members_url = f"{self.systems_url}/v1"
+        self.vmc_obj.systems_members_list = [
+            {"@odata.id": f"{self.systems_members_url}"}
+        ]
+        self.managers_url = "/redfish/v1/Managers"
         self.members_list = [{"@odata.id": f"{self.managers_url}/1/"}]
+        self.reset_command_list = [
+            "On",
+            "ForceOff",
+            "ForceOn",
+            "GracefulShutdown",
+            "ForceRestart",
+        ]
+        self.reset_command_url = (
+            f"{self.systems_members_url}/Actions/ComputerSystem.Reset/"
+        )
         self.vmc_obj.response_dict = {
             "Systems": {"@odata.id": self.systems_url},
             "Managers": {"@odata.id": self.managers_url},
             "Members": self.members_list,
+            "Actions": {
+                "#ComputerSystem.Reset": {
+                    "target": f"{self.reset_command_url}",
+                    "ResetType@Redfish.AllowableValues": self.reset_command_list,
+                }
+            },
+            "PowerState": rvmc.POWER_OFF,
         }
 
+        # Store the original make_request method for its tests
+        self.original_make_request = self.vmc_obj.make_request
+        self.mock_make_request = self._mock_object(
+            self.vmc_obj, "make_request", return_value=True
+        )
+        self.original_time_sleep = rvmc.time.sleep
         self.mock_time_sleep = self._mock_object(rvmc.time, "sleep")
 
     def _generate_log_dump(self, code=1):
@@ -803,6 +831,8 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
 
     def setUp(self):
         super().setUp()
+
+        self.mock_make_request.side_effect = self.original_make_request
 
         self.mock_response = mock.MagicMock()
         self.mock_response.status = 200
@@ -859,7 +889,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         super()._assert_mock_logger_calls(calls)
 
     def test_make_request_get_operation_returns_true(self):
-        """Verify make_request's successful GET operation returns True"""
+        """Test make_request's successful GET operation returns True"""
 
         result = self.vmc_obj.make_request(operation=rvmc.GET)
 
@@ -872,7 +902,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         )
 
     def test_make_request_get_operation_with_status_204_returns_true(self):
-        """Verify make_request GET operation with 204 status returns True"""
+        """Test make_request GET operation with 204 status returns True"""
 
         self.mock_response.status = 204
         self.vmc_obj.redfish_obj.get.return_value = self.mock_response
@@ -883,7 +913,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         self.assertEqual(self.vmc_obj.response, "")
 
     def test_make_request_post_operation_returns_true(self):
-        """Verify make_request's successful POST operation returns True"""
+        """Test make_request's successful POST operation returns True"""
 
         result = self.vmc_obj.make_request(operation=rvmc.POST, payload=self.payload)
 
@@ -899,7 +929,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         )
 
     def test_make_request_patch_operation_returns_true(self):
-        """Verify make_request's successful PATCH operation returns True"""
+        """Test make_request's successful PATCH operation returns True"""
 
         result = self.vmc_obj.make_request(operation=rvmc.PATCH, payload=self.payload)
 
@@ -915,7 +945,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         )
 
     def test_make_request_unsupported_operation_returns_false(self):
-        """Verify make_request's unsupported operation returns False"""
+        """Test make_request's unsupported operation returns False"""
 
         result = self.vmc_obj.make_request(operation="INVALID")
 
@@ -928,7 +958,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         )
 
     def test_make_request_returns_false_when_exception_occurs_during_request(self):
-        """Verify make_request returns False when exception occurs during request"""
+        """Test make_request returns False when exception occurs during request"""
 
         self.vmc_obj.redfish_obj.get.side_effect = Exception("Connection error")
 
@@ -945,7 +975,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         )
 
     def test_make_request_uses_custom_path_when_provided(self):
-        """Verify make_request uses custom path when provided"""
+        """Test make_request uses custom path when provided"""
 
         custom_path = "/custom/path"
 
@@ -963,7 +993,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         )
 
     def test_make_request_does_not_retry_on_non_transient_error(self):
-        """Verify make_request does not retry on non-transient error"""
+        """Test make_request does not retry on non-transient error"""
 
         self.mock_response.status = 400
         self.mock_response.dict = {"key": "value"}
@@ -988,7 +1018,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
     @mock.patch.object(rvmc, "MAX_HTTP_TRANSIENT_ERROR_RETRIES", 1)
     @mock.patch.object(rvmc, "HTTP_REQUEST_RETRY_INTERVAL", 0)
     def test_make_request_retries_on_transient_error(self):
-        """Verify make_request retries on transient error (status >= 500)"""
+        """Test make_request retries on transient error (status >= 500)"""
 
         self.mock_response.status = 500
         self.mock_response.dict = {"key": "value"}
@@ -1016,7 +1046,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_make_request_returns_false_when_resp_dict_is_empty(self):
-        """Verify make_request returns False when resp_dict is empty"""
+        """Test make_request returns False when resp_dict is empty"""
 
         self.mock_response.read = None
         self.vmc_obj.redfish_obj.get.return_value = self.mock_response
@@ -1032,7 +1062,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_make_request_returns_false_when_resp_dict_raises_exception(self):
-        """Verify make_request returns False when resp_dict raises exception"""
+        """Test make_request returns False when resp_dict raises exception"""
 
         self.mock_response.read = "not a json"
         self.vmc_obj.redfish_obj.get.return_value = self.mock_response
@@ -1070,7 +1100,7 @@ class TestVmcObjectCheckImageUrl(BaseTestVmcObject):
         self.test_url = "http://example.com/image.iso"
 
     def test_check_image_url_returns_true_for_success_status_codes(self):
-        """Verify check_image_url returns True for HTTP 200, 202, 204 status codes"""
+        """Test check_image_url returns True for HTTP 200, 202, 204 status codes"""
 
         for status_code in [200, 202, 204]:
             self.mock_response.status_code = status_code
@@ -1089,7 +1119,7 @@ class TestVmcObjectCheckImageUrl(BaseTestVmcObject):
             )
 
     def test_check_image_url_returns_false_for_error_status_codes(self):
-        """Verify check_image_url returns False for HTTP error status codes"""
+        """Test check_image_url returns False for HTTP error status codes"""
 
         for status_code in [404, 500]:
             self.mock_response.status_code = status_code
@@ -1103,7 +1133,7 @@ class TestVmcObjectCheckImageUrl(BaseTestVmcObject):
             )
 
     def test_check_image_url_handles_missing_content_type_header(self):
-        """Verify check_image_url handles missing Content-Type header"""
+        """Test check_image_url handles missing Content-Type header"""
 
         self.mock_response.headers = {}
 
@@ -1115,7 +1145,7 @@ class TestVmcObjectCheckImageUrl(BaseTestVmcObject):
         )
 
     def test_check_image_url_returns_false_on_exception(self):
-        """Verify check_image_url returns False on exception"""
+        """Test check_image_url returns False on exception"""
 
         self.mock_requests_head.side_effect = rvmc.requests.exceptions.ConnectionError(
             "Connection refused"
@@ -1143,7 +1173,7 @@ class TestVmcObjectExit(BaseTestVmcObject):
         self.vmc_obj.session = True
 
     def test_exit_with_no_session_calls_dump_and_exit_handler(self):
-        """Verify _exit calls dump and exit handler when no session or redfish object"""
+        """Test _exit calls dump and exit handler when no session or redfish object"""
 
         scenarios = [
             {"session": False, "redfish_obj": None},
@@ -1162,7 +1192,7 @@ class TestVmcObjectExit(BaseTestVmcObject):
             self._assert_mock_logger_calls(self._generate_log_dump())
 
     def test_exit_with_active_session_performs_logout(self):
-        """Verify _exit performs logout when session is active"""
+        """Test _exit performs logout when session is active"""
 
         self.assertRaises(RvmcExit, self.vmc_obj._exit, 1)
 
@@ -1176,7 +1206,7 @@ class TestVmcObjectExit(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_exit_handles_logout_exception(self):
-        """Verify _exit handles exceptions during logout gracefully"""
+        """Test _exit handles exceptions during logout gracefully"""
 
         self.vmc_obj.redfish_obj.logout.side_effect = Exception("Logout failed")
 
@@ -1208,7 +1238,7 @@ class TestVmcObjectRedfishClientConnect(BaseTestVmcObject):
         )
 
     def test_redfish_client_connect_succeeds_with_ipv4_on_first_ping(self):
-        """Verify _redfish_client_connect succeeds with IPv4 on first ping"""
+        """Test _redfish_client_connect succeeds with IPv4 on first ping"""
 
         self.vmc_obj._redfish_client_connect()
 
@@ -1229,7 +1259,7 @@ class TestVmcObjectRedfishClientConnect(BaseTestVmcObject):
         )
 
     def test_redfish_client_connect_succeeds_with_ipv6(self):
-        """Verify _redfish_client_connect succeeds with IPv6
+        """Test _redfish_client_connect succeeds with IPv6
 
         This test also ensures the execution completes successfully in case the initial
         ping or redfish_client call fail.
@@ -1264,7 +1294,7 @@ class TestVmcObjectRedfishClientConnect(BaseTestVmcObject):
         )
 
     def test_redfish_client_connect_exits_when_ping_fails_max_times(self):
-        """Verify _redfish_client_connect exits when ping fails max times"""
+        """Test _redfish_client_connect exits when ping fails max times"""
 
         self.mock_os_system.return_value = 1
 
@@ -1290,7 +1320,7 @@ class TestVmcObjectRedfishClientConnect(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_redfish_client_connect_exits_after_max_connection_attempts(self):
-        """Verify _redfish_client_connect exits after max connection attempts"""
+        """Test _redfish_client_connect exits after max connection attempts"""
 
         self.mock_redfish_client.side_effect = [
             None,
@@ -1330,15 +1360,8 @@ class TestVmcObjectRedfishRootQuery(BaseTestVmcObject):
     query to retrieve Systems and Managers URLs from the BMC.
     """
 
-    def setUp(self):
-        super().setUp()
-
-        self.mock_make_request = self._mock_object(
-            self.vmc_obj, "make_request", return_value=True
-        )
-
     def test_redfish_root_query_succeeds_and_extracts_urls(self):
-        """Verify _redfish_root_query succeeds and extracts Systems and Managers URLs"""
+        """Test _redfish_root_query succeeds and extracts Systems and Managers URLs"""
 
         self.vmc_obj.response_json = self.vmc_obj.response_dict
 
@@ -1351,7 +1374,7 @@ class TestVmcObjectRedfishRootQuery(BaseTestVmcObject):
         self.mock_logger.info.assert_called_once_with("Root Query")
 
     def test_redfish_root_query_exits_when_make_request_fails(self):
-        """Verify _redfish_root_query exits when make_request fails"""
+        """Test _redfish_root_query exits when make_request fails"""
 
         self.mock_make_request.return_value = False
 
@@ -1365,7 +1388,7 @@ class TestVmcObjectRedfishRootQuery(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_redfish_root_query_does_not_set_root_query(self):
-        """Verify _redfish_root_query does not set root_query_info"""
+        """Test _redfish_root_query does not set root_query_info"""
 
         self.vmc_obj.response_json = None
 
@@ -1383,7 +1406,7 @@ class TestVmcObjectRedfishCreateSession(BaseTestVmcObject):
     """
 
     def test_redfish_create_session_succeeds_on_first_attempt(self):
-        """Verify _redfish_create_session succeeds on first login attempt"""
+        """Test _redfish_create_session succeeds on first login attempt"""
 
         self.vmc_obj._redfish_create_session()
 
@@ -1397,7 +1420,7 @@ class TestVmcObjectRedfishCreateSession(BaseTestVmcObject):
         )
 
     def test_redfish_create_session_exits_on_invalid_credentials(self):
-        """Verify _redfish_create_session exits on invalid credentials"""
+        """Test _redfish_create_session exits on invalid credentials"""
 
         self.vmc_obj.redfish_obj.login.side_effect = rvmc.InvalidCredentialsError()
 
@@ -1412,7 +1435,7 @@ class TestVmcObjectRedfishCreateSession(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_redfish_create_session_exits_after_max_retries(self):
-        """Verify _redfish_create_session exits after max retry attempts"""
+        """Test _redfish_create_session exits after max retry attempts"""
 
         self.vmc_obj.redfish_obj.login.side_effect = Exception("Connection failed")
 
@@ -1441,15 +1464,8 @@ class TestVmcObjectRedfishGetManagers(BaseTestVmcObject):
     to retrieve the Managers URL and Members list from the BMC.
     """
 
-    def setUp(self):
-        super().setUp()
-
-        self.mock_make_request = self._mock_object(
-            self.vmc_obj, "make_request", return_value=True
-        )
-
     def test_redfish_get_managers_succeeds_and_retrieves_members(self):
-        """Verify _redfish_get_managers succeeds and retrieves manager members"""
+        """Test _redfish_get_managers succeeds and retrieves manager members"""
 
         self.vmc_obj._redfish_get_managers()
 
@@ -1461,7 +1477,7 @@ class TestVmcObjectRedfishGetManagers(BaseTestVmcObject):
         self.mock_logger.info.assert_called_once_with("Get Managers")
 
     def test_redfish_get_managers_exits_when_managers_url_is_none(self):
-        """Verify _redfish_get_managers exits when managers_group_url is None"""
+        """Test _redfish_get_managers exits when managers_group_url is None"""
 
         self.vmc_obj.response_dict["Managers"] = {"@odata.id": None}
 
@@ -1475,7 +1491,7 @@ class TestVmcObjectRedfishGetManagers(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_redfish_get_managers_exits_when_make_request_fails(self):
-        """Verify _redfish_get_managers exits when make_request fails"""
+        """Test _redfish_get_managers exits when make_request fails"""
 
         self.mock_make_request.return_value = False
 
@@ -1496,15 +1512,8 @@ class TestVmcObjectRedfishGetSystemsMembers(BaseTestVmcObject):
     group URL to retrieve the list of Systems Members from the BMC.
     """
 
-    def setUp(self):
-        super().setUp()
-
-        self.mock_make_request = self._mock_object(
-            self.vmc_obj, "make_request", return_value=True
-        )
-
     def test_redfish_get_systems_members_succeeds_and_retrieves_members(self):
-        """Verify _redfish_get_systems_members succeeds and retrieves systems members"""
+        """Test _redfish_get_systems_members succeeds and retrieves systems members"""
 
         self.vmc_obj._redfish_get_systems_members()
 
@@ -1521,7 +1530,7 @@ class TestVmcObjectRedfishGetSystemsMembers(BaseTestVmcObject):
         )
 
     def test_redfish_get_systems_members_exits_when_make_request_fails(self):
-        """Verify _redfish_get_systems_members exits when make_request fails"""
+        """Test _redfish_get_systems_members exits when make_request fails"""
 
         self.mock_make_request.return_value = False
 
@@ -1535,7 +1544,7 @@ class TestVmcObjectRedfishGetSystemsMembers(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_redfish_get_systems_members_exits_when_members_list_is_none(self):
-        """Verify _redfish_get_systems_members exits when Members list is None"""
+        """Test _redfish_get_systems_members exits when Members list is None"""
 
         self.vmc_obj.response_dict = {"Members": None}
 
@@ -1552,7 +1561,7 @@ class TestVmcObjectRedfishGetSystemsMembers(BaseTestVmcObject):
         self._assert_mock_logger_calls(expected_calls)
 
     def test_redfish_get_systems_members_exits_when_members_list_is_empty(self):
-        """Verify _redfish_get_systems_members exits when Members list is empty"""
+        """Test _redfish_get_systems_members exits when Members list is empty"""
 
         self.vmc_obj.response_dict = {"Members": []}
 
@@ -1567,3 +1576,262 @@ class TestVmcObjectRedfishGetSystemsMembers(BaseTestVmcObject):
         ]
         expected_calls.extend(self._generate_log_dump())
         self._assert_mock_logger_calls(expected_calls)
+
+
+class TestVmcObjectRedfishPowerctlHost(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_powerctl_host method.
+
+    Tests the _redfish_powerctl_host method which powers on or off the host
+    by issuing reset commands and optionally verifying the power state.
+    """
+
+    def test_redfish_powerctl_host_when_already_in_requested_state(self):
+        """Test _redfish_powerctl_host when already in requested state"""
+
+        self.vmc_obj.power_state = rvmc.POWER_ON
+
+        self.vmc_obj._redfish_powerctl_host(rvmc.POWER_ON)
+
+        self.mock_make_request.assert_not_called()
+        self.mock_logger.info.assert_called_once_with(f"Power {rvmc.POWER_ON} Host")
+
+    def test_redfish_powerctl_host_exits_with_empty_and_none_systems_members_list(self):
+        """Test _redfish_powerctl_host exits with empty and none systems members list"""
+
+        for systems_members_list in [[{}], [{"@odata.id": None}]]:
+            self.vmc_obj.systems_members_list = systems_members_list
+
+            self.assertRaises(
+                RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON
+            )
+
+            expected_calls = [
+                mock.call.info("Power On Host"),
+                mock.call.error(
+                    f"Unable to get Redfish Systems Actions Member URL:\n"
+                    f"{self.vmc_obj.response_json}\n"
+                ),
+            ]
+            expected_calls.extend(self._generate_log_dump())
+            self._assert_mock_logger_calls(expected_calls)
+
+            self.mock_logger.reset_mock()
+
+    def test_redfish_powerctl_host_exits_when_make_request_fails(self):
+        """Test _redfish_powerctl_host exits when make_request fails"""
+
+        self.mock_make_request.return_value = False
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON)
+
+        expected_calls = [
+            mock.call.info("Power On Host"),
+            mock.call.error(
+                "Unable to get Redfish Systems Actions Member from "
+                f"{self.systems_members_url}"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_powerctl_host_exits_when_reset_action_dict_is_none(self):
+        """Test _redfish_powerctl_host exits when reset action dict is None"""
+
+        self.vmc_obj.response_dict = {"Actions": {}}
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON)
+
+        expected_calls = [
+            mock.call.info("Power On Host"),
+            mock.call.debug(
+                f"No #ComputerSystem.Reset actions from {self.systems_members_url}. "
+                "Try other URL."
+            ),
+            mock.call.error(
+                f"BMC not publishing Systems Reset Action Dictionary:\n"
+                f"{self.vmc_obj.response_json}\n"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_powerctl_host_exits_when_reset_command_url_is_none(self):
+        """Test _redfish_powerctl_host exits when reset command url is None"""
+
+        del self.vmc_obj.response_dict["Actions"]["#ComputerSystem.Reset"]["target"]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON)
+
+        expected_calls = [
+            mock.call.info("Power On Host"),
+            mock.call.error(
+                f"Unable to get Reset Command URL (members:{len(self.members_list)})\n"
+                f"{self.vmc_obj.response_dict['Actions']['#ComputerSystem.Reset']}"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_powerctl_host_exits_when_reset_command_list_is_none(self):
+        """Test _redfish_powerctl_host exits when reset command list is none"""
+
+        del self.vmc_obj.response_dict["Actions"]["#ComputerSystem.Reset"][
+            "ResetType@Redfish.AllowableValues"
+        ]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON)
+
+        expected_calls = [
+            mock.call.info("Power On Host"),
+            mock.call.error("BMC is not publishing any Allowable Reset Actions"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_powerctl_host_exits_with_invalid_reset_command_list(self):
+        """Test _redfish_powerctl_host exits with invalid reset command list"""
+
+        reset_command_list = ["Nmi"]
+        self.vmc_obj.response_dict["Actions"]["#ComputerSystem.Reset"][
+            "ResetType@Redfish.AllowableValues"
+        ] = reset_command_list
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON)
+
+        expected_calls = [
+            mock.call.info("Power On Host"),
+            mock.call.info(f"ResetActions: {reset_command_list}"),
+            mock.call.error(
+                f"Failed to find acceptable Power {rvmc.POWER_ON} command in:\n"
+                f"{reset_command_list}"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_powerctl_host_exits_when_post_request_fails(self):
+        """Test _redfish_powerctl_host exits when POST request fails"""
+
+        self.mock_make_request.side_effect = [True, False]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON)
+
+        expected_calls = [
+            mock.call.info(f"Power {rvmc.POWER_ON} Host"),
+            mock.call.info(f"ResetActions: {self.reset_command_list}"),
+            mock.call.info("Selected Command: ForceOn"),
+            mock.call.error(f"Failed to Power {rvmc.POWER_ON} Host"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_powerctl_host_skips_verification_when_verify_is_false(self):
+        """Test _redfish_powerctl_host skips verification when verify is False"""
+
+        self.vmc_obj._redfish_powerctl_host(rvmc.POWER_ON, verify=False)
+
+        expected_calls = [
+            mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=0),
+            mock.call(
+                operation=rvmc.POST,
+                payload={"ResetType": "ForceOn"},
+                path=self.vmc_obj.response_dict["Actions"]["#ComputerSystem.Reset"][
+                    "target"
+                ],
+            ),
+        ]
+        self.mock_make_request.assert_has_calls(expected_calls)
+
+    # The time argument is ignored to avoid having a longer slepp
+    def _reduced_sleep(self, _):
+        self.original_time_sleep(1)
+
+    @mock.patch.dict(rvmc.os.environ, {"RVMC_POWER_ACTION_TIMEOUT": "1"})
+    def test_redfish_powerctl_host_exits_when_verification_timeout(self):
+        """Test _redfish_powerctl_host exits when verification timeout"""
+
+        self.mock_time_sleep.side_effect = self._reduced_sleep
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON)
+
+        expected_calls = [
+            mock.call.info("Power On Host"),
+            mock.call.info(f"ResetActions: {self.reset_command_list}"),
+            mock.call.info("Selected Command: ForceOn"),
+            mock.call.info("Power On Host timeout is 1 seconds"),
+            mock.call.debug("Waiting for Power On (currently Off) (1 secs)"),
+            mock.call.error(
+                f"Failed to Set System Power State to On after 1 secs "
+                f"({self.systems_members_url})"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    @mock.patch.dict(rvmc.os.environ, {"RVMC_POWER_ACTION_TIMEOUT": "1"})
+    def test_redfish_powerctl_host_handles_get_failure_during_verification(self):
+        """Test _redfish_powerctl_host handles GET failure during verification"""
+
+        self.mock_time_sleep.side_effect = self._reduced_sleep
+
+        self.mock_make_request.side_effect = [True, True, False, False]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_powerctl_host, rvmc.POWER_ON)
+        expected_calls = [
+            mock.call.info("Power On Host"),
+            mock.call.info(f"ResetActions: {self.reset_command_list}"),
+            mock.call.info("Selected Command: ForceOn"),
+            mock.call.info("Power On Host timeout is 1 seconds"),
+            mock.call.error("Failed to Get System State (after 1 secs)"),
+            mock.call.error(
+                f"Failed to Set System Power State to On after 1 secs "
+                f"({self.systems_members_url})"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_powerctl_host_returns_without_verification_for_restart(self):
+        """Test _redfish_powerctl_host returns without verification for restart"""
+
+        self.vmc_obj._redfish_powerctl_host("Restart")
+
+        expected_calls = [
+            mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=0),
+            mock.call(
+                operation=rvmc.POST,
+                payload={"ResetType": "ForceRestart"},
+                path=self.reset_command_url,
+            ),
+        ]
+        self.mock_make_request.assert_has_calls(expected_calls)
+
+    def test_redfish_powerctl_host_powers_on_and_off_host_successfully(self):
+        """Test _redfish_powerctl_host powers on and off host successfully"""
+
+        for power_state in [rvmc.POWER_ON, rvmc.POWER_OFF]:
+            if power_state == rvmc.POWER_OFF:
+                self.vmc_obj.response_dict["PowerState"] = rvmc.POWER_ON
+                self.vmc_obj.power_state = rvmc.POWER_ON
+
+            self.vmc_obj._redfish_powerctl_host(power_state, verify=False)
+
+            self._assert_mock_logger_calls(
+                [
+                    mock.call.info(f"Power {power_state} Host"),
+                    mock.call.info(f"ResetActions: {self.reset_command_list}"),
+                    mock.call.info(f"Selected Command: Force{power_state}"),
+                ]
+            )
+            expected_calls = [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=0),
+                mock.call(
+                    operation=rvmc.POST,
+                    payload={"ResetType": f"Force{power_state}"},
+                    path=self.reset_command_url,
+                ),
+            ]
+            self.mock_make_request.assert_has_calls(expected_calls)
+
+            self.mock_make_request.reset_mock()
+            self.mock_logger.reset_mock()
