@@ -2857,8 +2857,10 @@ class SubcloudManager(manager.Manager):
             # The restore timeout needs to be increased a half of the default
             # global ansible playbook timeout because the default of 1h is not
             # enough to restore a duplex subcloud running rook ceph.
-            restore_timeout = payload.get("restore_values", {}).get(
-                "restore_timeout", CONF.playbook_timeout * 1.5
+            restore_timeout = int(
+                payload.get("restore_values", {}).get(
+                    "restore_timeout", CONF.playbook_timeout * 1.5
+                )
             )
 
             overrides_file = self._create_overrides_for_backup_or_restore(
