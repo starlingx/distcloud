@@ -1398,9 +1398,7 @@ class VmcObject(object):
                     else:
                         self.logging_util.wlog("VM member[%d] missing @odata.id" % i)
                 else:
-                    self.logging_util.wlog(
-                        "VM member[%d] not a dict: {type(member)}" % i
-                    )
+                    self.logging_util.wlog(f"VM member[{i}] not a dict: {type(member)}")
 
             # Iterate each member’s VirtualMedia URL.
             # TODO(emacdona): Remove this if statement with Models_list.
