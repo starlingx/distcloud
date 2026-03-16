@@ -675,8 +675,12 @@ class OrchestratorWorker(object):
                     # group association's sync status to out-of-sync once one of its
                     # subclouds finishes a major software upgrade successfully. For
                     # that, we need to first identify if it is a major or minor upgrade.
+                    # In the case of a delete_only or rollback strategy,
+                    # release_id is None, so we need to skip this check,
+                    # otherwise get_major_release will throw an exception.
                     if (
                         self.strategy_type == consts.SW_UPDATE_TYPE_SOFTWARE
+                        and strategy.extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
                         and self.strategies[self.strategy_type].is_major_release_upgrade
                         is None
                     ):
