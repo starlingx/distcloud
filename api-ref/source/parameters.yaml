@@ -490,6 +490,16 @@ on_site:
   in: body
   required: false
   type: string
+on_site_restore:
+  description: |
+    Indicates that the restore is triggered locally inside the subcloud.
+    The system controller transfers the backup archive if local_only
+    is not provided and monitors completion. Cannot be used with the
+    with_install, factory, auto, or group options.
+    Defaults to False.
+  in: body
+  required: false
+  type: string
 openstack_installed:
   description: |
     A flag indicating if openstack is installed in the subcloud.
