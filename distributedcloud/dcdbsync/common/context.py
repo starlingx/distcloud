@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019-2022,2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2022,2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -144,12 +144,6 @@ class RequestContext(base_context.RequestContext):
 
 def get_admin_context(show_deleted=False):
     return RequestContext(is_admin=True, show_deleted=show_deleted)
-
-
-def get_service_context(**args):
-    """An abstraction layer for getting service context."""
-
-    pass
 
 
 class AuthHook(hooks.PecanHook):
