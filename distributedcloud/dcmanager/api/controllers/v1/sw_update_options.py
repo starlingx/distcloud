@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -56,6 +56,54 @@ class SwUpdateOptionsController(object):
         """Get details about software update options.
 
         :param subcloud: name or id of subcloud (optional)
+        ---
+        get:
+          summary: Get software update options
+          description: >-
+            Retrieve software update options for
+            all subclouds or a specific subcloud
+          operationId: getSwUpdateOptions
+          tags:
+          - sw-update-options
+          parameters:
+          - name: subcloud_ref
+            in: query
+            description: ID or name of subcloud
+            required: false
+            schema:
+              type: string
+          responses:
+            200:
+              description: Options retrieved successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 1
+                    name: subcloud1-stx-latest
+                    subcloud-id: 9
+                    storage-apply-type: parallel
+                    worker-apply-type: parallel
+                    max-parallel-workers: 10
+                    alarm-restriction-type: relaxed
+                    default-instance-action: migrate
+                    created-at: '2026-03-04 00:50:07.041135'
+                    updated-at: null
+            404:
+              description: Subcloud not found
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    code: 404
+                    title: Not Found
+                    description: >-
+                      No options found for Subcloud
+                      with id 9, defaults will be used.
+            500:
+              description: Internal server error
         """
         policy.authorize(
             sw_update_options_policy.POLICY_ROOT % "get",
@@ -118,6 +166,69 @@ class SwUpdateOptionsController(object):
         """Update or create sw update options.
 
         :param subcloud: name or id of subcloud (optional)
+        ---
+        post:
+          summary: Create or update software update options
+          description: >-
+            Create or update software update options for a
+            subcloud or default options
+          operationId: updateSwUpdateOptions
+          tags:
+          - sw-update-options
+          parameters:
+          - name: subcloud_ref
+            in: query
+            description: ID or name of subcloud
+            required: false
+            schema:
+              type: string
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                  - storage-apply-type
+                  - worker-apply-type
+                  - max-parallel-workers
+                  - alarm-restriction-type
+                  - default-instance-action
+                  properties:
+                    storage-apply-type:
+                      $ref: '#/components/schemas/storage_apply_type'
+                    worker-apply-type:
+                      $ref: '#/components/schemas/worker_apply_type'
+                    max-parallel-workers:
+                      $ref: '#/components/schemas/max_parallel_workers'
+                    alarm-restriction-type:
+                      $ref: '#/components/schemas/alarm_restriction_type'
+                    default-instance-action:
+                      $ref: '#/components/schemas/default_instance_action'
+          responses:
+            200:
+              description: Options updated successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 1
+                    name: subcloud1-stx-latest
+                    subcloud-id: 9
+                    storage-apply-type: parallel
+                    worker-apply-type: parallel
+                    max-parallel-workers: 10
+                    alarm-restriction-type: relaxed
+                    default-instance-action: migrate
+                    created-at: '2026-03-04 00:50:07.041135'
+                    updated-at: null
+            400:
+              description: Bad request - invalid parameters
+            404:
+              description: Subcloud not found
+            500:
+              description: Internal server error
         """
 
         # Note creating or updating subcloud specific options require
@@ -219,7 +330,34 @@ class SwUpdateOptionsController(object):
 
     @index.when(method="delete", template="json")
     def delete(self, subcloud_ref):
-        """Delete the software update options."""
+        """Delete the software update options.
+
+        ---
+        delete:
+          summary: Delete software update options
+          description: Delete software update options for a subcloud
+          operationId: deleteSwUpdateOptions
+          tags:
+          - sw-update-options
+          parameters:
+          - name: subcloud_ref
+            in: query
+            description: ID or name of subcloud
+            required: true
+            schema:
+              type: string
+          responses:
+            200:
+              description: Options deleted successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+            404:
+              description: Subcloud not found
+            500:
+              description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(

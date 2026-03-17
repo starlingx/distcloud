@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -58,7 +58,40 @@ class SubcloudAlarmController(object):
 
     @index.when(method="GET", template="json")
     def get(self):
-        """Get List of alarm summarys"""
+        """Get alarm summary for all subclouds
+
+        ---
+        get:
+          summary: Get alarm summary for all subclouds
+          description: >-
+            Retrieve aggregated alarm information for all
+            subclouds including critical, major, minor
+            alarms, warnings and status
+          operationId: getAlarmSummary
+          tags:
+          - alarms
+          responses:
+            200:
+              description: Alarm summary retrieved successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      alarm_summary:
+                        $ref: '#/components/schemas/alarm_summary'
+                  example:
+                    alarm_summary:
+                    - region_name: subcloud1-stx-latest
+                      uuid: ae2e7141-eed1-4b48-856a-743feb0a7b80
+                      critical_alarms: 0
+                      major_alarms: 0
+                      minor_alarms: 0
+                      warnings: 0
+                      cloud_status: OK
+            500:
+              description: Internal server error
+        """
         policy.authorize(
             alarm_manager_policy.POLICY_ROOT % "get",
             {},

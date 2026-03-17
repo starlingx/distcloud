@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2020-2022,2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2022,2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -80,6 +80,42 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         """Get details about subcloud group.
 
         :param group_ref: ID or name of subcloud group
+        ---
+        get:
+          summary: Get subcloud groups
+          description: >-
+            Retrieve list of all subcloud groups
+            or details of a specific group
+          operationId: getSubcloudGroups
+          tags:
+          - subcloud-groups
+          parameters:
+          - name: group_ref
+            in: query
+            description: ID or name of subcloud group
+            required: false
+            schema:
+              type: string
+          - name: subclouds
+            in: query
+            description: Return only subclouds for this group
+            required: false
+            schema:
+              type: boolean
+          responses:
+            200:
+              description: Groups retrieved successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      subcloud_groups:
+                        $ref: '#/components/schemas/subcloud_groups'
+            404:
+              description: Subcloud group not found
+            500:
+              description: Internal server error
         """
         policy.authorize(
             subcloud_group_policy.POLICY_ROOT % "get",
@@ -133,7 +169,57 @@ class SubcloudGroupsController(restcomm.GenericPathController):
 
     @index.when(method="POST", template="json")
     def post(self):
-        """Create a new subcloud group."""
+        """Create a new subcloud group.
+
+        ---
+        post:
+          summary: Create a new subcloud group
+          description: Create a new subcloud group with specified configuration
+          operationId: createSubcloudGroup
+          tags:
+          - subcloud-groups
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    name:
+                      $ref: '#/components/schemas/subcloud_group_name'
+                    description:
+                      $ref: '#/components/schemas/subcloud_group_description'
+                    update_apply_type:
+                      $ref: '#/components/schemas/subcloud_group_update_apply_type'
+                    max_parallel_subclouds:
+                      $ref: '#/components/schemas/group_max_parallel_subclouds'
+                example:
+                  name: mygroup
+                  description: My subcloud group
+                  update_apply_type: parallel
+                  max_parallel_subclouds: 3
+          responses:
+            200:
+              description: Group created successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 2
+                    name: New Group
+                    description: bla
+                    update_apply_type: parallel
+                    max_parallel_subclouds: 2
+                    created-at: '2026-03-04 00:57:16.732189'
+                    updated-at: null
+            400:
+              description: Bad request - invalid parameters
+            422:
+              description: Unprocessable entity - validation failed
+            500:
+              description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(
@@ -188,6 +274,58 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         """Update a subcloud group.
 
         :param group_ref: ID or name of subcloud group to update
+        ---
+        patch:
+          summary: Update a subcloud group
+          description: Update subcloud group configuration
+          operationId: updateSubcloudGroup
+          tags:
+          - subcloud-groups
+          parameters:
+          - name: group_ref
+            in: query
+            description: ID or name of subcloud group
+            required: true
+            schema:
+              type: string
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    name:
+                      $ref: '#/components/schemas/subcloud_group_name'
+                    description:
+                      $ref: '#/components/schemas/subcloud_group_description'
+                    update_apply_type:
+                      $ref: '#/components/schemas/subcloud_group_update_apply_type'
+                    max_parallel_subclouds:
+                      $ref: '#/components/schemas/group_max_parallel_subclouds'
+          responses:
+            200:
+              description: Group updated successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 2
+                    name: RENAME
+                    description: bla
+                    update_apply_type: parallel
+                    max_parallel_subclouds: 3
+                    created-at: '2026-03-04 00:57:16.732189'
+                    updated-at: '2026-03-04 00:58:36.034341'
+            400:
+              description: Bad request - invalid parameters
+            404:
+              description: Subcloud group not found
+            422:
+              description: Unprocessable entity - validation failed
+            500:
+              description: Internal server error
         """
 
         context = restcomm.extract_context_from_environ()
@@ -263,7 +401,38 @@ class SubcloudGroupsController(restcomm.GenericPathController):
 
     @index.when(method="delete", template="json")
     def delete(self, group_ref):
-        """Delete the subcloud group."""
+        """Delete the subcloud group.
+
+        ---
+        delete:
+          summary: Delete a subcloud group
+          description: Delete a subcloud group if it is empty
+          operationId: deleteSubcloudGroup
+          tags:
+          - subcloud-groups
+          parameters:
+          - name: group_ref
+            in: query
+            description: ID or name of subcloud group
+            required: true
+            schema:
+              type: string
+          responses:
+            200:
+              description: Group deleted successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+            400:
+              description: Bad request - group not empty or default group
+            404:
+              description: Subcloud group not found
+            422:
+              description: Unprocessable entity - validation failed
+            500:
+              description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(

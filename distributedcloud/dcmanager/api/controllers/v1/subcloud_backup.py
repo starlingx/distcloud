@@ -27,7 +27,6 @@ from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 
-
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
@@ -291,7 +290,92 @@ class SubcloudBackupController(object):
     @utils.synchronized(LOCK_NAME)
     @index.when(method="POST", template="json")
     def post(self):
-        """Create a new subcloud backup."""
+        """Create a new subcloud backup.
+
+        ---
+        post:
+          summary: Create subcloud backup
+          description: Create a backup of a subcloud or subcloud group
+          operationId: createSubcloudBackup
+          tags:
+          - subcloud-backup
+          requestBody:
+            required: true
+            content:
+              multipart/form-data:
+                schema:
+                  type: object
+                  properties:
+                    subcloud:
+                      $ref: '#/components/schemas/backup_subcloud_name_or_id'
+                    group:
+                      $ref: '#/components/schemas/backup_subcloud_group_name_or_id'
+                    local_only:
+                      $ref: '#/components/schemas/backup_local_only'
+                    registry_images:
+                      $ref: '#/components/schemas/backup_registry_images'
+                    backup_values:
+                      $ref: '#/components/schemas/backup_values'
+                    sysadmin_password:
+                      $ref: '#/components/schemas/sysadmin_password'
+                examples:
+                  subcloud_backup_request:
+                    summary: Create backup for specific subcloud
+                    value:
+                      subcloud: "23"
+                      group: ""
+                      local_only: "false"
+                      sysadmin_password: "cGFzc3dvcmQK"
+                  local_backup_with_registry:
+                    summary: Create local backup with registry images
+                    value:
+                      subcloud: "23"
+                      local_only: "true"
+                      registry_images: "true"
+                      sysadmin_password: "cGFzc3dvcmQK"
+          responses:
+            200:
+              description: Backup created successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  examples:
+                    subcloud_backup_response:
+                      summary: Successful subcloud backup creation
+                      value:
+                        subclouds:
+                        - id: 23
+                          name: "subcloud2-stx-latest"
+                          description: "subcloud2"
+                          location: "Ottawa"
+                          software-version: "25.09"
+                          management-state: "managed"
+                          availability-status: "online"
+                          deploy-status: "complete"
+                          backup-status: null
+                          backup-datetime: null
+                          error-description: "No errors present"
+                          region-name: "e1aa806aa39442628247d21efb1ed407"
+                          management-subnet: "192.168.102.0/24"
+                          management-start-ip: "192.168.102.2"
+                          management-end-ip: "192.168.102.50"
+                          management-gateway-ip: "192.168.102.1"
+                          openstack-installed: false
+                          prestage-status: null
+                          prestage-versions: null
+                          systemcontroller-gateway-ip: "192.168.204.101"
+                          created-at: "2026-03-09 18:54:16.183774"
+                          updated-at: "2026-03-10 18:12:42.226949"
+                          group_id: 1
+                          peer_group_id: null
+            400:
+              description: Bad request - invalid parameters
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
+        """
         context = restcomm.extract_context_from_environ()
         payload = self._get_payload(pecan_request, "create")
         context.is_admin = self.authorize_user("create")
@@ -329,6 +413,137 @@ class SubcloudBackupController(object):
         to the subcloud backup operation
 
         :param release_version: Backup release version to be deleted
+        ---
+        patch:
+          summary: Restore subcloud backup
+          description: |
+            Restore a subcloud from backup or delete backup
+            files. Valid verb values are restore and delete.
+
+            Properties by verb:
+
+            verb=restore (Required):
+            - subcloud OR group: Target subcloud
+              name/ID or group name/ID
+              (mutually exclusive)
+            - sysadmin_password: Base64 encoded password
+
+            verb=restore (Optional):
+            - local_only: Restore from local backup
+              (default: false)
+            - with_install: Perform installation
+              prior to restore (default: false)
+            - registry_images: Restore registry images
+              (default: false, requires local_only=true)
+            - restore_values: YAML file with restore
+              config (including bootstrap_address)
+            - release: Software release version
+              (requires with_install or factory=true)
+            - auto: Auto-restore mode (default: false, implies registry_images=true)
+            - factory: Factory restore mode (default: false,
+              implies with_install=true, local_only=true,
+              registry_images=true)
+
+            verb=delete (Required):
+            - subcloud OR group: Target subcloud
+              name/ID or group name/ID
+              (mutually exclusive)
+            - release_version: Release version to
+              delete (query parameter)
+
+            verb=delete (Optional):
+            - local_only: Delete local backup only
+              (default: false)
+            - sysadmin_password: Base64 encoded
+              password (required if local_only=true)
+          operationId: restoreSubcloudBackup
+          tags:
+          - subcloud-backup
+          parameters:
+          - name: verb
+            in: query
+            description: Operation verb (restore or delete)
+            required: true
+            schema:
+              type: string
+              enum:
+              - restore
+              - delete
+          - name: release_version
+            in: query
+            description: Release version (required for delete verb)
+            required: false
+            schema:
+              type: string
+          requestBody:
+            required: true
+            content:
+              multipart/form-data:
+                schema:
+                  type: object
+                  properties:
+                    subcloud:
+                      $ref: '#/components/schemas/subcloud_name'
+                    group:
+                      $ref: '#/components/schemas/backup_subcloud_group_name_or_id'
+                    local_only:
+                      $ref: '#/components/schemas/backup_local_only'
+                    with_install:
+                      $ref: '#/components/schemas/with_install'
+                    registry_images:
+                      $ref: '#/components/schemas/backup_registry_images'
+                    restore_values:
+                      $ref: '#/components/schemas/backup_restore_values'
+                    sysadmin_password:
+                      $ref: '#/components/schemas/sysadmin_password'
+                    release:
+                      $ref: '#/components/schemas/release'
+                    auto:
+                      $ref: '#/components/schemas/auto_restore'
+                    factory:
+                      $ref: '#/components/schemas/factory_restore'
+                examples:
+                  restore_with_install:
+                    summary: Restore subcloud with installation
+                    value:
+                      subcloud: "subcloud2-stx-latest"
+                      local_only: "false"
+                      with_install: "true"
+                      release: "25.09"
+                      sysadmin_password: "cGFzc3dvcmQK"
+                  restore_local_with_registry:
+                    summary: Restore from local backup with registry images
+                    value:
+                      subcloud: "subcloud2-stx-latest"
+                      local_only: "true"
+                      registry_images: "true"
+                      sysadmin_password: "cGFzc3dvcmQK"
+                  delete_backup:
+                    summary: >-
+                      Delete backup for specific release
+                      (requires release_version query parameter)
+                    value:
+                      subcloud: "subcloud2-stx-latest"
+                      local_only: "false"
+                  delete_local_backup:
+                    summary: Delete local backup for specific release
+                    value:
+                      subcloud: "subcloud2-stx-latest"
+                      local_only: "true"
+                      sysadmin_password: "cGFzc3dvcmQK"
+          responses:
+            200:
+              description: Restore initiated successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+            400:
+              description: Bad request - invalid parameters
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
         """
         context = restcomm.extract_context_from_environ()
         payload = self._get_payload(pecan_request, verb)

@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB.
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -63,6 +63,135 @@ class SwUpdateStrategyController(object):
 
         :param steps: get the steps for this strategy (optional)
         :param cloud_name: name of cloud (optional)
+        ---
+                /v1.0/sw-update-strategy:
+                  get:
+                    summary: Get software update strategy
+                    description: Retrieve software update strategy details
+                    operationId: getSwUpdateStrategy
+                    tags:
+                    - sw-update-strategy
+                    parameters:
+                    - name: type
+                      in: query
+                      description: |
+                        Strategy type filter.
+                        Valid values: firmware,
+                        kube-rootca-update, kubernetes,
+                        prestage, sw-deploy
+                      required: false
+                      schema:
+                        type: string
+                        enum:
+                        - firmware
+                        - kube-rootca-update
+                        - kubernetes
+                        - prestage
+                        - sw-deploy
+                    responses:
+                      200:
+                        description: Strategy retrieved successfully
+                      404:
+                        description: Strategy not found
+                      500:
+                        description: Internal server error
+                /v1.0/sw-update-strategy/steps:
+                  get:
+                    summary: Get software update strategy steps
+                    description: Retrieve strategy steps
+                    operationId: getSwUpdateStrategySteps
+                    tags:
+                    - sw-update-strategy
+                    parameters:
+                    - name: type
+                      in: query
+                      description: |
+                        Strategy type filter.
+                        Valid values: firmware,
+                        kube-rootca-update, kubernetes,
+                        prestage, sw-deploy
+                      required: false
+                      schema:
+                        type: string
+                        enum:
+                        - firmware
+                        - kube-rootca-update
+                        - kubernetes
+                        - prestage
+                        - sw-deploy
+                    responses:
+                      200:
+                        description: Strategy steps retrieved successfully
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                            example:
+                              strategy-steps:
+                              - id: 1
+                                cloud: subcloud2
+                                stage: Create
+                                state: initial
+                                details: ''
+                                started-at: null
+                                finished-at: null
+                                created-at: '2026-03-04 14:24:47.700836'
+                                updated-at: null
+                      404:
+                        description: Strategy not found
+                      500:
+                        description: Internal server error
+                /v1.0/sw-update-strategy/steps/{cloud_name}:
+                  get:
+                    summary: Get specific strategy step for cloud
+                    description: Retrieve strategy step for a specific cloud
+                    operationId: getSwUpdateStrategyStepByCloud
+                    tags:
+                    - sw-update-strategy
+                    parameters:
+                    - name: cloud_name
+                      in: path
+                      description: Name of cloud for specific step
+                      required: true
+                      schema:
+                        type: string
+                    - name: type
+                      in: query
+                      description: |
+                        Strategy type filter.
+                        Valid values: firmware,
+                        kube-rootca-update, kubernetes,
+                        prestage, sw-deploy
+                      required: false
+                      schema:
+                        type: string
+                        enum:
+                        - firmware
+                        - kube-rootca-update
+                        - kubernetes
+                        - prestage
+                        - sw-deploy
+                    responses:
+                      200:
+                        description: Strategy step retrieved successfully
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                            example:
+                              id: 1
+                              cloud: subcloud2
+                              stage: Create
+                              state: initial
+                              details: ''
+                              started-at: null
+                              finished-at: null
+                              created-at: '2026-03-04 14:24:47.700836'
+                              updated-at: null
+                      404:
+                        description: Strategy step not found
+                      500:
+                        description: Internal server error
         """
         policy.authorize(
             sw_update_strat_policy.POLICY_ROOT % "get",
@@ -140,7 +269,238 @@ class SwUpdateStrategyController(object):
 
     @index.when(method="POST", template="json")
     def post(self, actions=None):
-        """Create a new software update strategy."""
+        """Create a new software update strategy.
+
+        ---
+                /v1.0/sw-update-strategy:
+                  post:
+                    summary: Create software update strategy
+                    description: |
+                      Create a new software update strategy.
+                      Strategy type values: firmware,
+                      kube-rootca-update, kubernetes, prestage,
+                      sw-deploy.
+                      Subcloud apply type values: parallel, serial.
+                    operationId: createSwUpdateStrategy
+                    tags:
+                    - sw-update-strategy
+                    requestBody:
+                      required: true
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            required:
+                            - type
+                            properties:
+                              type:
+                                type: string
+                                enum:
+                                - firmware
+                                - kube-rootca-update
+                                - kubernetes
+                                - prestage
+                                - sw-deploy
+                                description: |
+                                  Strategy type.
+                                  Valid values: firmware,
+                                  kube-rootca-update, kubernetes,
+                                  prestage, sw-deploy
+                              subcloud-apply-type:
+                                type: string
+                                enum:
+                                - parallel
+                                - serial
+                                description: |
+                                  Apply type for subclouds.
+                                  Valid values: parallel, serial
+                              max-parallel-subclouds:
+                                $ref: '#/components/schemas/max_parallel_subclouds'
+                              stop-on-failure:
+                                $ref: '#/components/schemas/stop_on_failure'
+                              force:
+                                $ref: '#/components/schemas/force'
+                              subcloud_group:
+                                type: string
+                                description: Name or ID of subcloud group
+                              cloud_name:
+                                type: string
+                                description: Name of specific cloud
+                              release:
+                                type: string
+                                description: |
+                                  Software release version for prestage operations.
+                                  Required when type is 'prestage'.
+                                  Format: MM.mm (e.g., "26.03")
+                              release_id:
+                                type: string
+                                description: |
+                                  Release ID for software deployment operations.
+                                  Required when type is 'sw-deploy'
+                                  (unless rollback or delete_only
+                                  is true).
+                                  Example: "starlingx-11"
+                              rollback:
+                                type: boolean
+                                description: |
+                                  Rollback to previous software release.
+                                  Only applicable for sw-deploy strategy type.
+                              snapshot:
+                                type: boolean
+                                description: |
+                                  Create snapshot before software deployment.
+                                  Only applicable for sw-deploy strategy type.
+                              with_delete:
+                                type: boolean
+                                description: |
+                                  Delete the software deployment post successful
+                                  strategy application.
+                                  Only applicable for sw-deploy strategy type.
+                              delete_only:
+                                type: boolean
+                                description: |
+                                  Delete the software deployment without
+                                  performing deployment.
+                                  Only applicable for sw-deploy strategy type.
+                              with_prestage:
+                                type: boolean
+                                description: |
+                                  Prestage software before deployment.
+                                  Only applicable for sw-deploy strategy type.
+                              sysadmin_password:
+                                type: string
+                                description: |
+                                  Base64 encoded sysadmin password for subcloud access.
+                                  Required when with_prestage is true
+                                  for sw-deploy strategy.
+                              to-version:
+                                type: string
+                                description: |
+                                  Target Kubernetes version for upgrade.
+                                  Only applicable for kubernetes strategy type.
+                              expiry-date:
+                                type: string
+                                format: date
+                                description: |
+                                  Certificate expiry date in YYYY-MM-DD format.
+                                  Only applicable for kube-rootca-update strategy type.
+                              subject:
+                                type: string
+                                description: |
+                                  Certificate subject specification.
+                                  Only applicable for kube-rootca-update strategy type.
+                                  Format: >-
+                                    C=<Country> ST=<State/Province>
+                                    L=<Locality> O=<Organization>
+                                    OU=<OrganizationUnit>
+                                    CN=<commonName>
+                          examples:
+                            sw_deploy_strategy:
+                              summary: Create SW Deploy Strategy
+                              description: >-
+                                Create a software deployment
+                                strategy with delete option
+                              value:
+                                type: "sw-deploy"
+                                release_id: "starlingx-26.03.0"
+                                subcloud_group: "21"
+                                with_delete: "true"
+                            prestage_strategy:
+                              summary: Create Prestage Strategy
+                              description: >-
+                                Create a prestage strategy
+                                for software preparation
+                              value:
+                                type: "prestage"
+                                release: "26.03"
+                                subcloud_group: "1"
+                                sysadmin_password: "cGFzc3dvcmQK"
+                                for_sw_deploy: "true"
+                                for_install: "false"
+                                stop-on-failure: "true"
+                            kubernetes_upgrade:
+                              summary: Create Kubernetes Upgrade Strategy
+                              description: Create a Kubernetes upgrade strategy
+                              value:
+                                type: "kubernetes"
+                                to-version: "v1.24.4"
+                                subcloud-apply-type: "parallel"
+                                max-parallel-subclouds: "3"
+                                stop-on-failure: "false"
+                            kube_rootca_update:
+                              summary: Create Kube Root CA Update Strategy
+                              description: >-
+                                Create a Kubernetes root CA
+                                certificate update strategy
+                              value:
+                                type: "kube-rootca-update"
+                                expiry-date: "2025-12-31"
+                                subject: >-
+                                  C=CA ST=Ontario L=Ottawa
+                                  O=WindRiver OU=Engineering
+                                  CN=StarlingX
+                                subcloud-apply-type: "serial"
+                                stop-on-failure: true
+                    responses:
+                      200:
+                        description: Strategy created successfully
+                      400:
+                        description: Bad request
+                      422:
+                        description: Unprocessable entity
+                      500:
+                        description: Internal server error
+                /v1.0/sw-update-strategy/actions:
+                  post:
+                    summary: Apply or abort software update strategy
+                    description: |
+                      Apply or abort an existing strategy.
+                      Valid action values: apply, abort.
+                    operationId: applySwUpdateStrategy
+                    tags:
+                    - sw-update-strategy
+                    requestBody:
+                      required: true
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            required:
+                            - action
+                            properties:
+                              action:
+                                $ref: '#/components/schemas/sw_update_strategy_action'
+                    responses:
+                      200:
+                        description: Action applied successfully
+                        content:
+                          application/json:
+                            schema:
+                              type: object
+                            example:
+                              id: 1
+                              type: sw-deploy
+                              subcloud-apply-type: parallel
+                              max-parallel-subclouds: 2
+                              stop-on-failure: false
+                              state: applying
+                              created-at: '2026-03-04T14:24:47.698157'
+                              updated-at: '2026-03-04T14:57:18.049556'
+                              extra-args:
+                                delete_only: false
+                                release_id: starlingx-11
+                                rollback: false
+                                snapshot: false
+                                sysadmin_password: null
+                                with_prestage: false
+                                with_delete: true
+                      400:
+                        description: Bad request
+                      422:
+                        description: Unprocessable entity
+                      500:
+                        description: Internal server error
+        """
         context = restcomm.extract_context_from_environ()
 
         payload = json.loads(request.body.decode("utf-8"))
@@ -245,7 +605,44 @@ class SwUpdateStrategyController(object):
 
     @index.when(method="delete", template="json")
     def delete(self):
-        """Delete the software update strategy."""
+        """Delete the software update strategy.
+
+        ---
+                delete:
+                  summary: Delete software update strategy
+                  description: Delete an existing software update strategy
+                  operationId: deleteSwUpdateStrategy
+                  tags:
+                  - sw-update-strategy
+                  parameters:
+                  - name: type
+                    in: query
+                    description: |
+                      Strategy type filter.
+                      Valid values: firmware,
+                      kube-rootca-update, kubernetes,
+                      prestage, sw-deploy
+                    required: false
+                    schema:
+                      type: string
+                      enum:
+                      - firmware
+                      - kube-rootca-update
+                      - kubernetes
+                      - prestage
+                      - sw-deploy
+                  responses:
+                    200:
+                      description: Strategy deleted successfully
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                    422:
+                      description: Unprocessable entity
+                    500:
+                      description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(

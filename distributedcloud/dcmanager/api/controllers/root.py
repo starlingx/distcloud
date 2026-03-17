@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei Tech. Co., Ltd.
-# Copyright (c) 2017, 2019, 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017, 2019, 2021, 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -34,6 +34,36 @@ class RootController(object):
 
     @pecan.expose(generic=True, template="json")
     def index(self):
+        """Get API version information
+
+        ---
+        get:
+          summary: Get API version information
+          description: Retrieve available API versions for the Distributed Cloud Manager
+          operationId: getApiVersions
+          tags:
+          - root
+          responses:
+            200:
+              description: API versions retrieved successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      versions:
+                        type: array
+                        items:
+                          type: object
+                  example:
+                    versions:
+                    - status: CURRENT
+                      links:
+                      - rel: self
+                        href: http://localhost:8119/v1.0/
+                      id: v1.0
+                      updated: '2017-10-2'
+        """
         return {
             "versions": [
                 {

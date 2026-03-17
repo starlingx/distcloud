@@ -1,0 +1,2931 @@
+info:
+  description: REST API for managing distributed cloud subclouds, peer groups,
+    system
+    peers, and orchestrated updates across multiple sites.
+  contact:
+    name: StarlingX
+    url: https://www.starlingx.io
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+  title: StarlingX Distributed Cloud Manager API
+  version: 1.0.0
+servers:
+- url: https://{host}:{port}
+  variables:
+    host:
+      default: localhost
+    port:
+      default: '8119'
+security:
+- XAuthToken: []
+- OIDCToken: []
+paths:
+  /:
+    get:
+      summary: Get API version information
+      description: Retrieve available API versions for the Distributed Cloud
+        Manager
+      operationId: getApiVersions
+      tags:
+      - root
+      responses:
+        '200':
+          description: API versions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items:
+                      type: object
+              example:
+                versions:
+                - status: CURRENT
+                  links:
+                  - rel: self
+                    href: http://localhost:8119/v1.0/
+                  id: v1.0
+                  updated: 2017-10-2
+  /v1.0/subclouds:
+    get:
+      summary: Get subclouds
+      description: Retrieve list of all subclouds or details of a specific
+        subcloud
+      operationId: getSubclouds
+      tags:
+      - subclouds
+      parameters:
+      - name: subcloud_ref
+        in: query
+        description: ID or name of subcloud
+        required: false
+        schema:
+          type: string
+      - name: detail
+        in: query
+        description: Include additional details
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Subclouds retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subclouds:
+                    $ref: '#/components/schemas/subclouds'
+        '404':
+          description: Subcloud not found
+        '500':
+          description: Internal server error
+    post:
+      summary: Create, deploy, migrate, or enroll a subcloud
+      description: |
+        Create and deploy a new subcloud with
+        bootstrap, install, and deploy configuration.
+        Also supports subcloud migration, enrollment,
+        and secondary subcloud creation.
+
+        Example request for subcloud enrollment
+        (cloud_init_config is optional, only when
+        enroll is true):
+        ```
+        enroll: true
+        bootstrap_values: @subcloud10_ipv6-bootstrap-values.yaml
+        install_values: @subcloud10-install-values.yaml
+        deploy_config: @subcloud10-deploy-standard.yaml
+        cloud_init_config: @cloud-init-config.tar
+        sysadmin_password: cGFzc3dvcmQK
+        bmc_password: cGFzc3dvcmQK
+        bootstrap-address: 10.10.10.12
+        ```
+      operationId: createSubcloud
+      tags:
+      - subclouds
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name:
+                  $ref: '#/components/schemas/subcloud_name'
+                description:
+                  $ref: '#/components/schemas/subcloud_description'
+                location:
+                  $ref: '#/components/schemas/subcloud_location'
+                group_id:
+                  $ref: '#/components/schemas/group_id'
+                bootstrap_values:
+                  $ref: '#/components/schemas/bootstrap_values'
+                install_values:
+                  $ref: '#/components/schemas/install_values'
+                deploy_config:
+                  $ref: '#/components/schemas/deploy_config'
+                cloud_init_config:
+                  $ref: '#/components/schemas/cloud_init_config'
+                bootstrap-address:
+                  $ref: '#/components/schemas/bootstrap_address'
+                bmc_password:
+                  $ref: '#/components/schemas/bmc_password'
+                sysadmin_password:
+                  $ref: '#/components/schemas/sysadmin_password'
+                release:
+                  $ref: '#/components/schemas/release'
+                migrate:
+                  type: string
+                  enum:
+                  - 'true'
+                  - 'false'
+                  description: Set to 'true' to create a subcloud for migration
+                    purposes.
+                    Requires matching bootstrap subcloud name
+                secondary:
+                  type: string
+                  description: Set to create a secondary subcloud. Secondary
+                    subclouds
+                    are created synchronously and do not require sysadmin
+                    password
+                    validation
+                enroll:
+                  type: string
+                  enum:
+                  - 'true'
+                  - 'false'
+                  description: Set to 'true' to enroll the subcloud after
+                    creation.
+                    cloud_init_config is optional only when enroll is true,
+                    rejected
+                    with 400 when enroll is false
+                skip_enroll_init:
+                  type: string
+                  enum:
+                  - 'true'
+                  - 'false'
+                  description: Set to 'true' to skip the initial enrollment
+                    step.
+                    Only valid when enroll is 'true'
+            example:
+              enroll: 'true'
+              bootstrap_values: subcloud10_ipv6-bootstrap-values.yaml
+              install_values: subcloud10-install-values.yaml
+              deploy_config: subcloud10-deploy-standard.yaml
+              cloud_init_config: cloud-init-config.tar
+              sysadmin_password: cGFzc3dvcmQK
+              bmc_password: cGFzc3dvcmQK
+              bootstrap-address: 10.10.10.12
+      responses:
+        '200':
+          description: Subcloud created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 9
+                name: subcloud1-stx-latest
+                description: subcloud1
+                location: Kanata
+                software-version: '26.03'
+                management-state: unmanaged
+                availability-status: offline
+                deploy-status: not-deployed
+                backup-status: null
+                backup-datetime: null
+                error-description: No errors present
+                region-name: e6f93b0ca0764ca49c0779497bf20f82
+                management-subnet: 192.168.101.0/24
+                management-start-ip: 192.168.101.2
+                management-end-ip: 192.168.101.50
+                management-gateway-ip: 192.168.101.1
+                openstack-installed: false
+                prestage-status: null
+                prestage-versions: null
+                systemcontroller-gateway-ip: 192.168.204.101
+                data_install: {}
+                data_upgrade: null
+                created-at: '2026-02-25 18:28:43.715335'
+                updated-at: null
+                group_id: 1
+                peer_group_id: null
+                rehome_data: null
+        '400':
+          description: Bad request
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    patch:
+      summary: Update a subcloud
+      description: |
+        Update subcloud configuration, management
+        state, or perform operations like redeploy,
+        prestage, update_status, or management network
+        reconfiguration. The verb parameter specifies
+        the operation to perform.
+
+        When verb is not specified, the PATCH method
+        handles:
+        - configuration updates (description, location,
+          group_id, bootstrap values)
+        - management state changes
+        - subcloud rename
+        - management network reconfiguration
+        - peer group updates
+
+        Example prestage request (verb=prestage):
+
+            PATCH /v1.0/subclouds/{subcloud_ref}/prestage
+            Content-Type: application/json
+            {
+              "sysadmin_password": "<base64-encoded>",
+              "release": "26.03",
+              "for_sw_deploy": "true"
+            }
+      operationId: updateSubcloud
+      tags:
+      - subclouds
+      parameters:
+      - name: subcloud_ref
+        in: query
+        description: ID or name of subcloud to update
+        required: true
+        schema:
+          type: string
+      - name: verb
+        in: query
+        description: 'Operation to perform. When null or "redeploy": use
+          multipart/form-data.
+          When "prestage" or "update_status": use application/json'
+        required: false
+        schema:
+          type: string
+          enum:
+          - redeploy
+          - prestage
+          - update_status
+      requestBody:
+        required: true
+        description: Request body format depends on verb parameter. Use
+          multipart/form-data
+          for no verb or redeploy. Use application/json for prestage or
+          update_status.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name:
+                  $ref: '#/components/schemas/subcloud_name'
+                description:
+                  $ref: '#/components/schemas/subcloud_description'
+                location:
+                  $ref: '#/components/schemas/subcloud_location'
+                management-state:
+                  $ref: '#/components/schemas/management_state'
+                group_id:
+                  $ref: '#/components/schemas/group_id'
+                bootstrap_values:
+                  $ref: '#/components/schemas/bootstrap_values'
+                install_values:
+                  $ref: '#/components/schemas/install_values'
+                deploy_config:
+                  $ref: '#/components/schemas/deploy_config'
+                bmc_password:
+                  $ref: '#/components/schemas/bmc_password'
+                sysadmin_password:
+                  $ref: '#/components/schemas/sysadmin_password'
+                release:
+                  $ref: '#/components/schemas/release'
+                force:
+                  $ref: '#/components/schemas/force'
+          application/json:
+            schema:
+              oneOf:
+              - title: Prestage Request
+                description: Request body for verb=prestage
+                type: object
+                required:
+                - sysadmin_password
+                properties:
+                  sysadmin_password:
+                    $ref: '#/components/schemas/sysadmin_password'
+                  force:
+                    $ref: '#/components/schemas/force'
+                  release:
+                    $ref: '#/components/schemas/release'
+                  for_install:
+                    type: boolean
+                    description: Prestage for installation
+                  for_sw_deploy:
+                    type: boolean
+                    description: Prestage for software deployment
+                example:
+                  sysadmin_password: cGFzc3dvcmQK
+                  release: '25.09'
+                  for_install: true
+                  endpoint: dc-cert
+                  status: in-sync
+              - title: Update Status Request
+                description: Request body for verb=update_status
+                type: object
+                required:
+                - endpoint
+                - status
+                properties:
+                  endpoint:
+                    type: string
+                    enum:
+                    - dc-cert
+                    description: Endpoint type (only dc-cert allowed)
+                  status:
+                    type: string
+                    enum:
+                    - in-sync
+                    - out-of-sync
+                    - unknown
+                    description: Synchronization status
+      responses:
+        '200':
+          description: Subcloud updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 9
+                name: subcloud1-stx-latest
+                description: subcloud1
+                location: Kanata
+                software-version: '26.03'
+                management-state: managed
+                availability-status: online
+                deploy-status: complete
+                backup-status: null
+                backup-datetime: null
+                error-description: No errors present
+                region-name: e6f93b0ca0764ca49c0779497bf20f82
+                management-subnet: 192.168.101.0/24
+                management-start-ip: 192.168.101.2
+                management-end-ip: 192.168.101.50
+                management-gateway-ip: 192.168.101.1
+                openstack-installed: false
+                prestage-status: prestaging
+                prestage-versions: null
+                systemcontroller-gateway-ip: 192.168.204.101
+                data_install: '{"software_version": 26.03,
+                  "bootstrap_interface":
+                  "enp2s1", "bootstrap_address": "10.10.10.12",
+                  "bootstrap_address_prefix":
+                  23, "bmc_address": "192.168.122.101", "bmc_username": "admin",
+                  "install_type":
+                  2, "console_type": "tty0", "rootfs_device": "/dev/sda",
+                  "boot_device":
+                  "/dev/sda", "wait_for_timeout": 3600, "no_check_certificate":
+                  true,
+                  "persistent_size": 30000, "bmc_password": "YWRtaW4=", "image":
+                    "/opt/dc-vault/software/26.03/starlingx-
+                    intel-x86-64-cd.iso"}'
+                data_upgrade: null
+                created-at: '2026-02-25 18:28:43.715335'
+                updated-at: '2026-02-26 11:10:13.287088'
+                group_id: 1
+                peer_group_id: null
+                rehome_data: null
+                prestage-software-version: '26.03'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                code: 400
+                title: Bad Request
+                description: 'Prestage skipped ''subcloud1-stx-latest'':
+                  Subcloud
+                  is not managed.'
+        '404':
+          description: Subcloud not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete a subcloud
+      description: Delete a subcloud and all its resources
+      operationId: deleteSubcloud
+      tags:
+      - subclouds
+      parameters:
+      - name: subcloud_ref
+        in: query
+        description: ID or name of subcloud to delete
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Subcloud deleted successfully
+        '400':
+          description: Bad request
+        '404':
+          description: Subcloud not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+  /v1.0/alarms:
+    get:
+      summary: Get alarm summary for all subclouds
+      description: Retrieve aggregated alarm information for all subclouds
+        including
+        critical, major, minor alarms, warnings and status
+      operationId: getAlarmSummary
+      tags:
+      - alarms
+      responses:
+        '200':
+          description: Alarm summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alarm_summary:
+                    $ref: '#/components/schemas/alarm_summary'
+              example:
+                alarm_summary:
+                - region_name: subcloud1-stx-latest
+                  uuid: ae2e7141-eed1-4b48-856a-743feb0a7b80
+                  critical_alarms: 0
+                  major_alarms: 0
+                  minor_alarms: 0
+                  warnings: 0
+                  cloud_status: OK
+        '500':
+          description: Internal server error
+  /v1.0/sw-update-strategy:
+    delete:
+      summary: Delete software update strategy
+      description: Delete an existing software update strategy
+      operationId: deleteSwUpdateStrategy
+      tags:
+      - sw-update-strategy
+      parameters:
+      - name: type
+        in: query
+        description: |
+          Strategy type filter.
+          Valid values: firmware,
+          kube-rootca-update, kubernetes,
+          prestage, sw-deploy
+        required: false
+        schema:
+          type: string
+          enum:
+          - firmware
+          - kube-rootca-update
+          - kubernetes
+          - prestage
+          - sw-deploy
+      responses:
+        '200':
+          description: Strategy deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    get:
+      summary: Get software update strategy
+      description: Retrieve software update strategy details
+      operationId: getSwUpdateStrategy
+      tags:
+      - sw-update-strategy
+      parameters:
+      - name: type
+        in: query
+        description: |
+          Strategy type filter.
+          Valid values: firmware,
+          kube-rootca-update, kubernetes,
+          prestage, sw-deploy
+        required: false
+        schema:
+          type: string
+          enum:
+          - firmware
+          - kube-rootca-update
+          - kubernetes
+          - prestage
+          - sw-deploy
+      responses:
+        '200':
+          description: Strategy retrieved successfully
+        '404':
+          description: Strategy not found
+        '500':
+          description: Internal server error
+    post:
+      summary: Create software update strategy
+      description: |
+        Create a new software update strategy.
+        Strategy type values: firmware,
+        kube-rootca-update, kubernetes, prestage,
+        sw-deploy.
+        Subcloud apply type values: parallel, serial.
+      operationId: createSwUpdateStrategy
+      tags:
+      - sw-update-strategy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - type
+              properties:
+                type:
+                  type: string
+                  enum:
+                  - firmware
+                  - kube-rootca-update
+                  - kubernetes
+                  - prestage
+                  - sw-deploy
+                  description: |
+                    Strategy type.
+                    Valid values: firmware,
+                    kube-rootca-update, kubernetes,
+                    prestage, sw-deploy
+                subcloud-apply-type:
+                  type: string
+                  enum:
+                  - parallel
+                  - serial
+                  description: |
+                    Apply type for subclouds.
+                    Valid values: parallel, serial
+                max-parallel-subclouds:
+                  $ref: '#/components/schemas/max_parallel_subclouds'
+                stop-on-failure:
+                  $ref: '#/components/schemas/stop_on_failure'
+                force:
+                  $ref: '#/components/schemas/force'
+                subcloud_group:
+                  type: string
+                  description: Name or ID of subcloud group
+                cloud_name:
+                  type: string
+                  description: Name of specific cloud
+                release:
+                  type: string
+                  description: |
+                    Software release version for prestage operations.
+                    Required when type is 'prestage'.
+                    Format: MM.mm (e.g., "26.03")
+                release_id:
+                  type: string
+                  description: |
+                    Release ID for software deployment operations.
+                    Required when type is 'sw-deploy'
+                    (unless rollback or delete_only
+                    is true).
+                    Example: "starlingx-11"
+                rollback:
+                  type: boolean
+                  description: |
+                    Rollback to previous software release.
+                    Only applicable for sw-deploy strategy type.
+                snapshot:
+                  type: boolean
+                  description: |
+                    Create snapshot before software deployment.
+                    Only applicable for sw-deploy strategy type.
+                with_delete:
+                  type: boolean
+                  description: |
+                    Delete the software deployment post successful
+                    strategy application.
+                    Only applicable for sw-deploy strategy type.
+                delete_only:
+                  type: boolean
+                  description: |
+                    Delete the software deployment without
+                    performing deployment.
+                    Only applicable for sw-deploy strategy type.
+                with_prestage:
+                  type: boolean
+                  description: |
+                    Prestage software before deployment.
+                    Only applicable for sw-deploy strategy type.
+                sysadmin_password:
+                  type: string
+                  description: |
+                    Base64 encoded sysadmin password for subcloud access.
+                    Required when with_prestage is true
+                    for sw-deploy strategy.
+                to-version:
+                  type: string
+                  description: |
+                    Target Kubernetes version for upgrade.
+                    Only applicable for kubernetes strategy type.
+                expiry-date:
+                  type: string
+                  format: date
+                  description: |
+                    Certificate expiry date in YYYY-MM-DD format.
+                    Only applicable for kube-rootca-update strategy type.
+                subject:
+                  type: string
+                  description: |
+                    Certificate subject specification.
+                    Only applicable for kube-rootca-update strategy type.
+                    Format: >-
+                      C=<Country> ST=<State/Province>
+                      L=<Locality> O=<Organization>
+                      OU=<OrganizationUnit>
+                      CN=<commonName>
+            examples:
+              sw_deploy_strategy:
+                summary: Create SW Deploy Strategy
+                description: Create a software deployment strategy with delete
+                  option
+                value:
+                  type: sw-deploy
+                  release_id: starlingx-26.03.0
+                  subcloud_group: '21'
+                  with_delete: 'true'
+              prestage_strategy:
+                summary: Create Prestage Strategy
+                description: Create a prestage strategy for software preparation
+                value:
+                  type: prestage
+                  release: '26.03'
+                  subcloud_group: '1'
+                  sysadmin_password: cGFzc3dvcmQK
+                  for_sw_deploy: 'true'
+                  for_install: 'false'
+                  stop-on-failure: 'true'
+              kubernetes_upgrade:
+                summary: Create Kubernetes Upgrade Strategy
+                description: Create a Kubernetes upgrade strategy
+                value:
+                  type: kubernetes
+                  to-version: v1.24.4
+                  subcloud-apply-type: parallel
+                  max-parallel-subclouds: '3'
+                  stop-on-failure: 'false'
+              kube_rootca_update:
+                summary: Create Kube Root CA Update Strategy
+                description: Create a Kubernetes root CA certificate update
+                  strategy
+                value:
+                  type: kube-rootca-update
+                  expiry-date: '2025-12-31'
+                  subject: C=CA ST=Ontario L=Ottawa O=WindRiver OU=Engineering
+                    CN=StarlingX
+                  subcloud-apply-type: serial
+                  stop-on-failure: true
+      responses:
+        '200':
+          description: Strategy created successfully
+        '400':
+          description: Bad request
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+  /v1.0/sw-update-strategy/steps:
+    get:
+      summary: Get software update strategy steps
+      description: Retrieve strategy steps
+      operationId: getSwUpdateStrategySteps
+      tags:
+      - sw-update-strategy
+      parameters:
+      - name: type
+        in: query
+        description: |
+          Strategy type filter.
+          Valid values: firmware,
+          kube-rootca-update, kubernetes,
+          prestage, sw-deploy
+        required: false
+        schema:
+          type: string
+          enum:
+          - firmware
+          - kube-rootca-update
+          - kubernetes
+          - prestage
+          - sw-deploy
+      responses:
+        '200':
+          description: Strategy steps retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                strategy-steps:
+                - id: 1
+                  cloud: subcloud2
+                  stage: Create
+                  state: initial
+                  details: ''
+                  started-at: null
+                  finished-at: null
+                  created-at: '2026-03-04 14:24:47.700836'
+                  updated-at: null
+        '404':
+          description: Strategy not found
+        '500':
+          description: Internal server error
+  /v1.0/sw-update-strategy/steps/{cloud_name}:
+    get:
+      summary: Get specific strategy step for cloud
+      description: Retrieve strategy step for a specific cloud
+      operationId: getSwUpdateStrategyStepByCloud
+      tags:
+      - sw-update-strategy
+      parameters:
+      - name: cloud_name
+        in: path
+        description: Name of cloud for specific step
+        required: true
+        schema:
+          type: string
+      - name: type
+        in: query
+        description: |
+          Strategy type filter.
+          Valid values: firmware,
+          kube-rootca-update, kubernetes,
+          prestage, sw-deploy
+        required: false
+        schema:
+          type: string
+          enum:
+          - firmware
+          - kube-rootca-update
+          - kubernetes
+          - prestage
+          - sw-deploy
+      responses:
+        '200':
+          description: Strategy step retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 1
+                cloud: subcloud2
+                stage: Create
+                state: initial
+                details: ''
+                started-at: null
+                finished-at: null
+                created-at: '2026-03-04 14:24:47.700836'
+                updated-at: null
+        '404':
+          description: Strategy step not found
+        '500':
+          description: Internal server error
+  /v1.0/sw-update-strategy/actions:
+    post:
+      summary: Apply or abort software update strategy
+      description: |
+        Apply or abort an existing strategy.
+        Valid action values: apply, abort.
+      operationId: applySwUpdateStrategy
+      tags:
+      - sw-update-strategy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - action
+              properties:
+                action:
+                  $ref: '#/components/schemas/sw_update_strategy_action'
+      responses:
+        '200':
+          description: Action applied successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 1
+                type: sw-deploy
+                subcloud-apply-type: parallel
+                max-parallel-subclouds: 2
+                stop-on-failure: false
+                state: applying
+                created-at: '2026-03-04T14:24:47.698157'
+                updated-at: '2026-03-04T14:57:18.049556'
+                extra-args:
+                  delete_only: false
+                  release_id: starlingx-11
+                  rollback: false
+                  snapshot: false
+                  sysadmin_password: null
+                  with_prestage: false
+                  with_delete: true
+        '400':
+          description: Bad request
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+  /v1.0/sw-update-options:
+    get:
+      summary: Get software update options
+      description: Retrieve software update options for all subclouds or a
+        specific
+        subcloud
+      operationId: getSwUpdateOptions
+      tags:
+      - sw-update-options
+      parameters:
+      - name: subcloud_ref
+        in: query
+        description: ID or name of subcloud
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Options retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 1
+                name: subcloud1-stx-latest
+                subcloud-id: 9
+                storage-apply-type: parallel
+                worker-apply-type: parallel
+                max-parallel-workers: 10
+                alarm-restriction-type: relaxed
+                default-instance-action: migrate
+                created-at: '2026-03-04 00:50:07.041135'
+                updated-at: null
+        '404':
+          description: Subcloud not found
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                code: 404
+                title: Not Found
+                description: No options found for Subcloud with id 9, defaults
+                  will
+                  be used.
+        '500':
+          description: Internal server error
+    post:
+      summary: Create or update software update options
+      description: Create or update software update options for a subcloud or
+        default
+        options
+      operationId: updateSwUpdateOptions
+      tags:
+      - sw-update-options
+      parameters:
+      - name: subcloud_ref
+        in: query
+        description: ID or name of subcloud
+        required: false
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - storage-apply-type
+              - worker-apply-type
+              - max-parallel-workers
+              - alarm-restriction-type
+              - default-instance-action
+              properties:
+                storage-apply-type:
+                  $ref: '#/components/schemas/storage_apply_type'
+                worker-apply-type:
+                  $ref: '#/components/schemas/worker_apply_type'
+                max-parallel-workers:
+                  $ref: '#/components/schemas/max_parallel_workers'
+                alarm-restriction-type:
+                  $ref: '#/components/schemas/alarm_restriction_type'
+                default-instance-action:
+                  $ref: '#/components/schemas/default_instance_action'
+      responses:
+        '200':
+          description: Options updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 1
+                name: subcloud1-stx-latest
+                subcloud-id: 9
+                storage-apply-type: parallel
+                worker-apply-type: parallel
+                max-parallel-workers: 10
+                alarm-restriction-type: relaxed
+                default-instance-action: migrate
+                created-at: '2026-03-04 00:50:07.041135'
+                updated-at: null
+        '400':
+          description: Bad request - invalid parameters
+        '404':
+          description: Subcloud not found
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete software update options
+      description: Delete software update options for a subcloud
+      operationId: deleteSwUpdateOptions
+      tags:
+      - sw-update-options
+      parameters:
+      - name: subcloud_ref
+        in: query
+        description: ID or name of subcloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Options deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Subcloud not found
+        '500':
+          description: Internal server error
+  /v1.0/subcloud-groups:
+    get:
+      summary: Get subcloud groups
+      description: Retrieve list of all subcloud groups or details of a specific
+        group
+      operationId: getSubcloudGroups
+      tags:
+      - subcloud-groups
+      parameters:
+      - name: group_ref
+        in: query
+        description: ID or name of subcloud group
+        required: false
+        schema:
+          type: string
+      - name: subclouds
+        in: query
+        description: Return only subclouds for this group
+        required: false
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: Groups retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subcloud_groups:
+                    $ref: '#/components/schemas/subcloud_groups'
+        '404':
+          description: Subcloud group not found
+        '500':
+          description: Internal server error
+    post:
+      summary: Create a new subcloud group
+      description: Create a new subcloud group with specified configuration
+      operationId: createSubcloudGroup
+      tags:
+      - subcloud-groups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  $ref: '#/components/schemas/subcloud_group_name'
+                description:
+                  $ref: '#/components/schemas/subcloud_group_description'
+                update_apply_type:
+                  $ref: '#/components/schemas/subcloud_group_update_apply_type'
+                max_parallel_subclouds:
+                  $ref: '#/components/schemas/group_max_parallel_subclouds'
+            example:
+              name: mygroup
+              description: My subcloud group
+              update_apply_type: parallel
+              max_parallel_subclouds: 3
+      responses:
+        '200':
+          description: Group created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 2
+                name: New Group
+                description: bla
+                update_apply_type: parallel
+                max_parallel_subclouds: 2
+                created-at: '2026-03-04 00:57:16.732189'
+                updated-at: null
+        '400':
+          description: Bad request - invalid parameters
+        '422':
+          description: Unprocessable entity - validation failed
+        '500':
+          description: Internal server error
+    patch:
+      summary: Update a subcloud group
+      description: Update subcloud group configuration
+      operationId: updateSubcloudGroup
+      tags:
+      - subcloud-groups
+      parameters:
+      - name: group_ref
+        in: query
+        description: ID or name of subcloud group
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  $ref: '#/components/schemas/subcloud_group_name'
+                description:
+                  $ref: '#/components/schemas/subcloud_group_description'
+                update_apply_type:
+                  $ref: '#/components/schemas/subcloud_group_update_apply_type'
+                max_parallel_subclouds:
+                  $ref: '#/components/schemas/group_max_parallel_subclouds'
+      responses:
+        '200':
+          description: Group updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 2
+                name: RENAME
+                description: bla
+                update_apply_type: parallel
+                max_parallel_subclouds: 3
+                created-at: '2026-03-04 00:57:16.732189'
+                updated-at: '2026-03-04 00:58:36.034341'
+        '400':
+          description: Bad request - invalid parameters
+        '404':
+          description: Subcloud group not found
+        '422':
+          description: Unprocessable entity - validation failed
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete a subcloud group
+      description: Delete a subcloud group if it is empty
+      operationId: deleteSubcloudGroup
+      tags:
+      - subcloud-groups
+      parameters:
+      - name: group_ref
+        in: query
+        description: ID or name of subcloud group
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Group deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad request - group not empty or default group
+        '404':
+          description: Subcloud group not found
+        '422':
+          description: Unprocessable entity - validation failed
+        '500':
+          description: Internal server error
+  /v1.0/notifications:
+    post:
+      summary: Process notification events
+      description: Handle notification events from subclouds such as platform-
+        upgrade-completed,
+        k8s-upgrade-completed, and kube-rootca-update-completed to trigger
+        corresponding
+        audits
+      operationId: processNotifications
+      tags:
+      - notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                events:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Notification processed successfully
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+  /v1.0/subcloud-deploy:
+    post:
+      summary: Upload subcloud deploy files
+      description: |
+        Upload deployment files including playbook, chart,
+        overrides, and prestage images for a specific
+        software release.
+
+        Required Properties:
+        - For deployment files: deploy_playbook AND deploy_chart are both
+        required
+        - For prestage-only uploads: only prestage_images is required
+
+        Optional Properties:
+        - release: Software release version (defaults to
+          the system controller version if not provided)
+        - deploy_overrides: Deployment manager overrides file
+      operationId: uploadSubcloudDeployFiles
+      tags:
+      - subcloud-deploy
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                release:
+                  $ref: '#/components/schemas/release'
+                deploy_playbook:
+                  $ref: '#/components/schemas/subcloud_deploy_playbook'
+                deploy_overrides:
+                  $ref: '#/components/schemas/subcloud_deploy_overrides'
+                deploy_chart:
+                  $ref: '#/components/schemas/subcloud_deploy_chart'
+                prestage_images:
+                  $ref: '#/components/schemas/subcloud_deploy_prestage_images'
+            examples:
+              deployment_files:
+                summary: Upload deployment files
+                value:
+                  release: '26.03'
+                  deploy_playbook: deploy-playbook.yaml
+                  deploy_chart: deploy-chart.tgz
+              prestage_only:
+                summary: Upload prestage images only
+                value:
+                  release: '25.09'
+                  prestage_images: images.lst
+      responses:
+        '200':
+          description: Files uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  software_version:
+                    $ref: '#/components/schemas/software_version'
+              examples:
+                deployment_files:
+                  summary: Deployment files uploaded
+                  value:
+                    software_version: '26.03'
+                    deploy_playbook: deploy-playbook.yaml
+                    deploy_chart: deploy-chart.tgz
+                prestage_only:
+                  summary: Prestage images uploaded
+                  value:
+                    software_version: '25.09'
+                    prestage_images: images.lst
+        '400':
+          description: Bad request - missing required files
+        '500':
+          description: Internal server error
+    get:
+      summary: Get subcloud deploy files
+      description: Retrieve information about uploaded deployment files for a
+        specific
+        release
+      operationId: getSubcloudDeployFiles
+      tags:
+      - subcloud-deploy
+      parameters:
+      - name: release
+        in: query
+        description: Software release version
+        required: false
+        schema:
+          type: string
+        example: '26.03'
+      responses:
+        '200':
+          description: Deploy files retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subcloud_deploy:
+                    $ref: '#/components/schemas/subcloud_deploy'
+              example:
+                subcloud_deploy:
+                  software_version: '26.03'
+                  deploy_playbook: deploy-playbook.yaml
+                  deploy_overrides: null
+                  deploy_chart: deploy-chart.tgz
+                  prestage_images: null
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete subcloud deploy files
+      description: Delete deployment files for a specific release
+      operationId: deleteSubcloudDeployFiles
+      tags:
+      - subcloud-deploy
+      parameters:
+      - name: release
+        in: query
+        description: Software release version
+        required: false
+        schema:
+          type: string
+        example: '26.03'
+      - name: prestage_images
+        in: query
+        description: Delete prestage images
+        required: false
+        schema:
+          type: boolean
+        example: true
+      - name: deployment_files
+        in: query
+        description: Delete deployment files
+        required: false
+        schema:
+          type: boolean
+        example: true
+      responses:
+        '200':
+          description: Files deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example: null
+        '404':
+          description: Directory not found
+        '500':
+          description: Internal server error
+  /v1.0/subcloud-backup:
+    post:
+      summary: Create subcloud backup
+      description: Create a backup of a subcloud or subcloud group
+      operationId: createSubcloudBackup
+      tags:
+      - subcloud-backup
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                subcloud:
+                  $ref: '#/components/schemas/backup_subcloud_name_or_id'
+                group:
+                  $ref: '#/components/schemas/backup_subcloud_group_name_or_id'
+                local_only:
+                  $ref: '#/components/schemas/backup_local_only'
+                registry_images:
+                  $ref: '#/components/schemas/backup_registry_images'
+                backup_values:
+                  $ref: '#/components/schemas/backup_values'
+                sysadmin_password:
+                  $ref: '#/components/schemas/sysadmin_password'
+            examples:
+              subcloud_backup_request:
+                summary: Create backup for specific subcloud
+                value:
+                  subcloud: '23'
+                  group: ''
+                  local_only: 'false'
+                  sysadmin_password: cGFzc3dvcmQK
+              local_backup_with_registry:
+                summary: Create local backup with registry images
+                value:
+                  subcloud: '23'
+                  local_only: 'true'
+                  registry_images: 'true'
+                  sysadmin_password: cGFzc3dvcmQK
+      responses:
+        '200':
+          description: Backup created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              examples:
+                subcloud_backup_response:
+                  summary: Successful subcloud backup creation
+                  value:
+                    subclouds:
+                    - id: 23
+                      name: subcloud2-stx-latest
+                      description: subcloud2
+                      location: Ottawa
+                      software-version: '25.09'
+                      management-state: managed
+                      availability-status: online
+                      deploy-status: complete
+                      backup-status: null
+                      backup-datetime: null
+                      error-description: No errors present
+                      region-name: e1aa806aa39442628247d21efb1ed407
+                      management-subnet: 192.168.102.0/24
+                      management-start-ip: 192.168.102.2
+                      management-end-ip: 192.168.102.50
+                      management-gateway-ip: 192.168.102.1
+                      openstack-installed: false
+                      prestage-status: null
+                      prestage-versions: null
+                      systemcontroller-gateway-ip: 192.168.204.101
+                      created-at: '2026-03-09 18:54:16.183774'
+                      updated-at: '2026-03-10 18:12:42.226949'
+                      group_id: 1
+                      peer_group_id: null
+        '400':
+          description: Bad request - invalid parameters
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    patch:
+      summary: Restore subcloud backup
+      description: |
+        Restore a subcloud from backup or delete backup
+        files. Valid verb values are restore and delete.
+
+        Properties by verb:
+
+        verb=restore (Required):
+        - subcloud OR group: Target subcloud
+          name/ID or group name/ID
+          (mutually exclusive)
+        - sysadmin_password: Base64 encoded password
+
+        verb=restore (Optional):
+        - local_only: Restore from local backup
+          (default: false)
+        - with_install: Perform installation
+          prior to restore (default: false)
+        - registry_images: Restore registry images
+          (default: false, requires local_only=true)
+        - restore_values: YAML file with restore
+          config (including bootstrap_address)
+        - release: Software release version
+          (requires with_install or factory=true)
+        - auto: Auto-restore mode (default: false, implies registry_images=true)
+        - factory: Factory restore mode (default: false,
+          implies with_install=true, local_only=true,
+          registry_images=true)
+
+        verb=delete (Required):
+        - subcloud OR group: Target subcloud
+          name/ID or group name/ID
+          (mutually exclusive)
+        - release_version: Release version to
+          delete (query parameter)
+
+        verb=delete (Optional):
+        - local_only: Delete local backup only
+          (default: false)
+        - sysadmin_password: Base64 encoded
+          password (required if local_only=true)
+      operationId: restoreSubcloudBackup
+      tags:
+      - subcloud-backup
+      parameters:
+      - name: verb
+        in: query
+        description: Operation verb (restore or delete)
+        required: true
+        schema:
+          type: string
+          enum:
+          - restore
+          - delete
+      - name: release_version
+        in: query
+        description: Release version (required for delete verb)
+        required: false
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                subcloud:
+                  $ref: '#/components/schemas/subcloud_name'
+                group:
+                  $ref: '#/components/schemas/backup_subcloud_group_name_or_id'
+                local_only:
+                  $ref: '#/components/schemas/backup_local_only'
+                with_install:
+                  $ref: '#/components/schemas/with_install'
+                registry_images:
+                  $ref: '#/components/schemas/backup_registry_images'
+                restore_values:
+                  $ref: '#/components/schemas/backup_restore_values'
+                sysadmin_password:
+                  $ref: '#/components/schemas/sysadmin_password'
+                release:
+                  $ref: '#/components/schemas/release'
+                auto:
+                  $ref: '#/components/schemas/auto_restore'
+                factory:
+                  $ref: '#/components/schemas/factory_restore'
+            examples:
+              restore_with_install:
+                summary: Restore subcloud with installation
+                value:
+                  subcloud: subcloud2-stx-latest
+                  local_only: 'false'
+                  with_install: 'true'
+                  release: '25.09'
+                  sysadmin_password: cGFzc3dvcmQK
+              restore_local_with_registry:
+                summary: Restore from local backup with registry images
+                value:
+                  subcloud: subcloud2-stx-latest
+                  local_only: 'true'
+                  registry_images: 'true'
+                  sysadmin_password: cGFzc3dvcmQK
+              delete_backup:
+                summary: Delete backup for specific release (requires
+                  release_version
+                  query parameter)
+                value:
+                  subcloud: subcloud2-stx-latest
+                  local_only: 'false'
+              delete_local_backup:
+                summary: Delete local backup for specific release
+                value:
+                  subcloud: subcloud2-stx-latest
+                  local_only: 'true'
+                  sysadmin_password: cGFzc3dvcmQK
+      responses:
+        '200':
+          description: Restore initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad request - invalid parameters
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+  /v1.0/phased-subcloud-deploy:
+    post:
+      summary: Create phased subcloud deployment
+      description: Initiate a phased deployment for a subcloud
+      operationId: createPhasedSubcloudDeploy
+      tags:
+      - phased-subcloud-deploy
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - name
+              - bootstrap_values
+              - bootstrap-address
+              properties:
+                name:
+                  $ref: '#/components/schemas/subcloud_name'
+                group_id:
+                  $ref: '#/components/schemas/group_id'
+                bootstrap_values:
+                  $ref: '#/components/schemas/bootstrap_values'
+                bootstrap-address:
+                  $ref: '#/components/schemas/bootstrap_address'
+                install_values:
+                  $ref: '#/components/schemas/install_values'
+                deploy_config:
+                  $ref: '#/components/schemas/deploy_config'
+                bmc_password:
+                  $ref: '#/components/schemas/bmc_password'
+                sysadmin_password:
+                  $ref: '#/components/schemas/sysadmin_password'
+                release:
+                  $ref: '#/components/schemas/release'
+            example:
+              name: subcloud1-main
+              group_id: 1
+              bootstrap_values: '@bootstrap-values-subcloud1.yml'
+              bootstrap-address: 10.10.10.12
+              install_values: '@install-values-subcloud1.yml'
+              deploy_config: '@deployment-config-subcloud1.yaml'
+              bmc_password: YWRtaW4=
+              sysadmin_password: cGFzc3dvcmQK
+              release: 25.09
+      responses:
+        '200':
+          description: Deployment initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 8
+                name: subcloud1-main
+                description: subcloud1
+                location: Ottawa
+                software-version: '25.09'
+                management-state: unmanaged
+                availability-status: offline
+                deploy-status: create-complete
+                backup-status: null
+                backup-datetime: null
+                error-description: No errors present
+                region-name: ccc70d2e1b394254b157e295fbf7e7c7
+                management-subnet: 192.168.101.0/24
+                management-start-ip: 192.168.101.2
+                management-end-ip: 192.168.101.50
+                management-gateway-ip: 192.168.101.1
+                openstack-installed: false
+                prestage-status: null
+                prestage-versions: null
+                systemcontroller-gateway-ip: 192.168.204.101
+                data_install: '{"bootstrap_interface": "enp2s1",
+                  "bootstrap_address":
+                  "10.10.10.12", "bootstrap_address_prefix": 23, "bmc_address":
+                  "192.168.122.101",
+                  "bmc_username": "admin", "install_type": 2, "console_type":
+                    "tty0",
+                  "rootfs_device": "/dev/sda", "boot_device": "/dev/sda",
+                    "wait_for_timeout":
+                  3600, "no_check_certificate": true, "persistent_size": 30000,
+                  "bmc_password":
+                  "YWRtaW4=", "software_version": "25.09", "image": "/opt/dc-
+                  vault/software/25.09/25.09.iso"}'
+                data_upgrade: null
+                created-at: '2026-03-12T23:25:45.960747'
+                updated-at: '2026-03-12T23:25:59.462698'
+                group_id: 1
+                peer_group_id: null
+                rehome_data: null
+        '400':
+          description: Bad request - invalid parameters
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    patch:
+      summary: Update phased subcloud deployment
+      description: |
+        Perform operations on phased subcloud deployment.
+        It's not required to send these values in the
+        request if they're available in the system already.
+
+        install: install_values, bmc_password, release
+        bootstrap: bootstrap_values, description, location
+        configure: deploy_config
+        complete: no request body
+        abort: no request body
+        resume: based on deployment state
+        enroll: bootstrap_values, install_values,
+        optionally cloud_init_config
+      operationId: updatePhasedSubcloudDeploy
+      tags:
+      - phased-subcloud-deploy
+      parameters:
+      - name: subcloud_ref
+        in: query
+        description: ID or name of subcloud
+        required: true
+        schema:
+          type: string
+      - name: verb
+        in: query
+        description: 'Operation to perform: install, bootstrap, configure,
+          complete,
+          abort, resume, enroll'
+        required: false
+        schema:
+          type: string
+          enum:
+          - install
+          - bootstrap
+          - configure
+          - complete
+          - abort
+          - resume
+          - enroll
+      requestBody:
+        required: false
+        description: |
+          Request body requirements depend on the verb
+          parameter. It's not required to send these
+          values in the request if they're available
+          in the system already.
+
+          install: install_values, bmc_password, release
+          bootstrap: bootstrap_values, description, location
+          configure: deploy_config
+          complete: no request body
+          abort: no request body
+          resume: based on deployment state
+          enroll: bootstrap_values, install_values,
+          optionally cloud_init_config
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                bootstrap_values:
+                  $ref: '#/components/schemas/bootstrap_values'
+                deploy_config:
+                  $ref: '#/components/schemas/deploy_config'
+                install_values:
+                  $ref: '#/components/schemas/install_values'
+                sysadmin_password:
+                  $ref: '#/components/schemas/sysadmin_password'
+                bootstrap-address:
+                  $ref: '#/components/schemas/bootstrap_address'
+                bmc_password:
+                  $ref: '#/components/schemas/bmc_password'
+                release:
+                  $ref: '#/components/schemas/release'
+                description:
+                  $ref: '#/components/schemas/subcloud_description'
+                location:
+                  $ref: '#/components/schemas/subcloud_location'
+                cloud_init_config:
+                  $ref: '#/components/schemas/cloud_init_config'
+            examples:
+              install:
+                summary: Install operation (verb=install)
+                value:
+                  install_values: '@install-values-subcloud1.yml'
+                  bmc_password: YWRtaW4=
+                  sysadmin_password: cGFzc3dvcmQK
+                  release: 25.09
+              bootstrap:
+                summary: Bootstrap operation (verb=bootstrap)
+                value:
+                  bootstrap_values: '@bootstrap-values-subcloud1.yml'
+                  bmc_password: YWRtaW4=
+                  sysadmin_password: cGFzc3dvcmQK
+                  release: 25.09
+                  location: Ottawa
+                  description: subcloud1
+              configure:
+                summary: Configure operation (verb=configure)
+                value:
+                  deploy_config: '@deployment-config-subcloud1.yaml'
+                  sysadmin_password: cGFzc3dvcmQK
+                  description: string
+      responses:
+        '200':
+          description: Operation completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              examples:
+                install:
+                  summary: Install operation response (verb=install)
+                  value:
+                    id: 8
+                    name: subcloud1-main
+                    description: subcloud1
+                    location: Ottawa
+                    software-version: '25.09'
+                    management-state: unmanaged
+                    availability-status: offline
+                    deploy-status: pre-install
+                    backup-status: null
+                    backup-datetime: null
+                    error-description: No errors present
+                    region-name: ccc70d2e1b394254b157e295fbf7e7c7
+                    management-subnet: 192.168.101.0/24
+                    management-start-ip: 192.168.101.2
+                    management-end-ip: 192.168.101.50
+                    management-gateway-ip: 192.168.101.1
+                    openstack-installed: false
+                    prestage-status: null
+                    prestage-versions: null
+                    systemcontroller-gateway-ip: 192.168.204.101
+                    data_install: '{"bootstrap_interface": "enp2s1",
+                      "bootstrap_address":
+                      "10.10.10.12", "bootstrap_address_prefix": 23,
+                      "bmc_address":
+                      "192.168.122.101", "bmc_username": "admin",
+                      "install_type":
+                      2, "console_type": "tty0", "rootfs_device": "/dev/sda",
+                      "boot_device":
+                      "/dev/sda", "wait_for_timeout": 3600,
+                      "no_check_certificate":
+                      true, "persistent_size": 30000, "bmc_password":
+                      "YWRtaW4=",
+                      "software_version": "25.09", "image": "/opt/dc-
+                        vault/software/25.09/25.09.iso"}'
+                    data_upgrade: null
+                    created-at: '2026-03-12 23:25:45.960747'
+                    updated-at: '2026-03-12 23:25:59.462698'
+                    group_id: 1
+                    peer_group_id: null
+                    rehome_data: null
+                bootstrap:
+                  summary: Bootstrap operation response (verb=bootstrap)
+                  value:
+                    id: 9
+                    name: subcloud1-main
+                    description: subcloud1
+                    location: Ottawa
+                    software-version: '25.09'
+                    management-state: unmanaged
+                    availability-status: offline
+                    deploy-status: pre-bootstrap
+                    backup-status: null
+                    backup-datetime: null
+                    error-description: No errors present
+                    region-name: e040681264c44c468a4d8d21528fdd7e
+                    management-subnet: 192.168.101.0/24
+                    management-start-ip: 192.168.101.2
+                    management-end-ip: 192.168.101.50
+                    management-gateway-ip: 192.168.101.1
+                    openstack-installed: false
+                    prestage-status: null
+                    prestage-versions: null
+                    systemcontroller-gateway-ip: 192.168.204.101
+                    data_install: '{"bootstrap_interface": "enp2s1",
+                      "bootstrap_address":
+                      "10.10.10.12", "bootstrap_address_prefix": 23,
+                      "bmc_address":
+                      "192.168.122.101", "bmc_username": "admin",
+                      "install_type":
+                      2, "console_type": "tty0", "rootfs_device": "/dev/sda",
+                      "boot_device":
+                      "/dev/sda", "wait_for_timeout": 3600,
+                      "no_check_certificate":
+                      true, "persistent_size": 30000, "bmc_password":
+                      "YWRtaW4=",
+                      "software_version": "25.09", "image": "/opt/dc-
+                        vault/software/25.09/25.09.iso"}'
+                    data_upgrade: null
+                    created-at: '2026-03-12 23:41:24.274911'
+                    updated-at: '2026-03-12 23:52:37.243492'
+                    group_id: 1
+                    peer_group_id: null
+                    rehome_data: null
+                configure:
+                  summary: Configure operation response (verb=configure)
+                  value:
+                    id: 9
+                    name: subcloud1-main
+                    description: subcloud1
+                    location: Ottawa
+                    software-version: '25.09'
+                    management-state: unmanaged
+                    availability-status: offline
+                    deploy-status: pre-config
+                    backup-status: null
+                    backup-datetime: null
+                    error-description: No errors present
+                    region-name: e040681264c44c468a4d8d21528fdd7e
+                    management-subnet: 192.168.101.0/24
+                    management-start-ip: 192.168.101.2
+                    management-end-ip: 192.168.101.50
+                    management-gateway-ip: 192.168.101.1
+                    openstack-installed: false
+                    prestage-status: null
+                    prestage-versions: null
+                    systemcontroller-gateway-ip: 192.168.204.101
+                    data_install: '{"bootstrap_interface": "enp2s1",
+                      "bootstrap_address":
+                      "10.10.10.12", "bootstrap_address_prefix": 23,
+                      "bmc_address":
+                      "192.168.122.101", "bmc_username": "admin",
+                      "install_type":
+                      2, "console_type": "tty0", "rootfs_device": "/dev/sda",
+                      "boot_device":
+                      "/dev/sda", "wait_for_timeout": 3600,
+                      "no_check_certificate":
+                      true, "persistent_size": 30000, "bmc_password":
+                      "YWRtaW4=",
+                      "software_version": "25.09", "image": "/opt/dc-
+                        vault/software/25.09/25.09.iso"}'
+                    data_upgrade: null
+                    created-at: '2026-03-12 23:41:24.274911'
+                    updated-at: '2026-03-13 00:20:38.055536'
+                    group_id: 1
+                    peer_group_id: null
+                    rehome_data: null
+        '400':
+          description: Bad request - invalid parameters
+        '404':
+          description: Subcloud not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+  /v1.0/subcloud-peer-groups:
+    get:
+      summary: Get subcloud peer groups
+      description: |
+        Retrieve list of all subcloud peer groups or details of a specific
+        group.
+
+        Valid verb values:
+        - subclouds: returns subclouds for the peer group
+        - status: returns status information for the peer group
+      operationId: getSubcloudPeerGroups
+      tags:
+      - subcloud-peer-groups
+      parameters:
+      - name: group_ref
+        in: query
+        description: ID or name of subcloud peer group
+        required: false
+        schema:
+          type: string
+      - name: verb
+        in: query
+        description: Additional operation verb
+        required: false
+        schema:
+          type: string
+          enum:
+          - subclouds
+          - status
+      responses:
+        '200':
+          description: Peer groups retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subcloud_peer_groups:
+                    $ref: '#/components/schemas/subcloud_peer_groups'
+              example:
+                subcloud_peer_groups:
+                - id: 1
+                  peer_group_name: group1
+                  group_priority: 0
+                  group_state: enabled
+                  max_subcloud_rehoming: 10
+                  system_leader_id: fba24562-e071-4c09-8616-a96bc19702f3
+                  system_leader_name: s1-system-controller
+                  migration_status: null
+                  created-at: '2026-03-12 19:20:18.700628'
+                  updated-at: null
+        '404':
+          description: Peer group not found
+        '500':
+          description: Internal server error
+    post:
+      summary: Create a new subcloud peer group
+      description: |
+        Create a new subcloud peer group with specified configuration.
+        Valid group_state values: enabled, disabled.
+      operationId: createSubcloudPeerGroup
+      tags:
+      - subcloud-peer-groups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                peer-group-name:
+                  $ref: '#/components/schemas/subcloud_peer_group_name'
+                group-priority:
+                  $ref: '#/components/schemas/subcloud_peer_group_priority'
+                group-state:
+                  $ref: '#/components/schemas/spg_administrative_state'
+                max-subcloud-rehoming:
+                  $ref: '#/components/schemas/spg_max_subcloud_rehoming'
+                system-leader-id:
+                  $ref: '#/components/schemas/spg_system_leader_id'
+                system-leader-name:
+                  $ref: '#/components/schemas/spg_system_leader_name'
+            example:
+              peer-group-name: group2
+              group-priority: 0
+              group-state: enabled
+              max-subcloud-rehoming: 2
+      responses:
+        '200':
+          description: Peer group created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 2
+                peer_group_name: group2
+                group_priority: 0
+                group_state: enabled
+                max_subcloud_rehoming: 2
+                system_leader_id: fba24562-e071-4c09-8616-a96bc19702f3
+                system_leader_name: s1-system-controller
+                migration_status: null
+                created-at: '2026-03-12 23:07:01.847344'
+                updated-at: null
+        '400':
+          description: Bad request - invalid parameters
+        '409':
+          description: Conflict - peer group name already exists
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    patch:
+      summary: Update a subcloud peer group
+      description: |
+        Update subcloud peer group configuration or perform operations.
+        Valid verb values: migrate, audit (or no verb for regular update).
+        When verb=migrate, only sysadmin_password is required in request body.
+        When verb=audit, requires: peer_uuid,
+        peer_group_name, group_priority, group_state,
+        system_leader_id, system_leader_name,
+        migration_status.
+        When verb is omitted, use peer-group-name,
+        group-priority, group-state, or
+        max-subcloud-rehoming.
+      operationId: updateSubcloudPeerGroup
+      tags:
+      - subcloud-peer-groups
+      parameters:
+      - name: group_ref
+        in: query
+        description: ID or name of subcloud peer group
+        required: true
+        schema:
+          type: string
+      - name: verb
+        in: query
+        description: Operation verb (migrate, audit, or omit for regular update)
+        required: false
+        schema:
+          type: string
+          enum:
+          - migrate
+          - audit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                peer-group-name:
+                  $ref: '#/components/schemas/subcloud_peer_group_name'
+                group-priority:
+                  $ref: '#/components/schemas/subcloud_peer_group_priority'
+                group-state:
+                  $ref: '#/components/schemas/spg_administrative_state'
+                max-subcloud-rehoming:
+                  $ref: '#/components/schemas/spg_max_subcloud_rehoming'
+                sysadmin_password:
+                  $ref: '#/components/schemas/sysadmin_password'
+                peer_uuid:
+                  type: string
+                  description: UUID of peer system (required for verb=audit)
+                peer_group_name:
+                  type: string
+                  description: Peer group name (required for verb=audit)
+                group_priority:
+                  type: integer
+                  description: Group priority (required for verb=audit)
+                group_state:
+                  type: string
+                  description: Group state (required for verb=audit)
+                system_leader_id:
+                  type: string
+                  description: System leader ID (required for verb=audit)
+                system_leader_name:
+                  type: string
+                  description: System leader name (required for verb=audit)
+                migration_status:
+                  type: string
+                  description: Migration status (required for verb=audit)
+            example:
+              peer-group-name: group123
+              group_priority: 0
+      responses:
+        '200':
+          description: Peer group updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 1
+                peer_group_name: group123
+                group_priority: 0
+                group_state: enabled
+                max_subcloud_rehoming: 10
+                system_leader_id: fba24562-e071-4c09-8616-a96bc19702f3
+                system_leader_name: s1-system-controller
+                migration_status: null
+                created-at: '2026-03-12 19:20:18.700628'
+                updated-at: '2026-03-12 20:54:15.731299'
+        '400':
+          description: Bad request - invalid parameters
+        '404':
+          description: Peer group not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete a subcloud peer group
+      description: Delete a subcloud peer group
+      operationId: deleteSubcloudPeerGroup
+      tags:
+      - subcloud-peer-groups
+      parameters:
+      - name: group_ref
+        in: query
+        description: ID or name of subcloud peer group
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Peer group deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad request - cannot delete group
+        '404':
+          description: Peer group not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+  /v1.0/system-peers:
+    get:
+      summary: Get system peers
+      description: Retrieve list of all system peers or details of a specific
+        peer
+      operationId: getSystemPeers
+      tags:
+      - system-peers
+      parameters:
+      - name: peer_ref
+        in: query
+        description: ID or name of system peer
+        required: false
+        schema:
+          type: string
+      - name: subcloud_peer_groups
+        in: query
+        description: Include subcloud peer groups
+        required: false
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: System peers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  system_peers:
+                    $ref: '#/components/schemas/system_peers'
+              example:
+                system_peers:
+                - id: 1
+                  peer-uuid: 22e8ce03-2691-4d6d-8960-59b7c7fc731e
+                  peer-name: DC1-2
+                  manager-endpoint: https://[2620:10a:a001:d41::1208]:5000
+                  manager-username: admin
+                  peer-controller-gateway-address: fd00:8:58::1
+                  administrative-state: enabled
+                  heartbeat-interval: 60
+                  heartbeat-failure-threshold: 3
+                  heartbeat-failure-policy: alarm
+                  heartbeat-maintenance-timeout: 600
+                  availability-state: available
+                  created-at: '2026-03-12 19:17:12.027885'
+                  updated-at: '2026-03-12 19:21:20.423925'
+        '404':
+          description: System peer not found
+        '500':
+          description: Internal server error
+    post:
+      summary: Create a new system peer
+      description: Create a new system peer connection
+      operationId: createSystemPeer
+      tags:
+      - system-peers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                peer_name:
+                  $ref: '#/components/schemas/peer_name'
+                peer_uuid:
+                  $ref: '#/components/schemas/peer_uuid'
+                manager_endpoint:
+                  $ref: '#/components/schemas/manager_endpoint'
+                manager_username:
+                  $ref: '#/components/schemas/manager_username'
+                manager_password:
+                  $ref: '#/components/schemas/manager_password'
+                peer_controller_gateway_address:
+                  $ref: '#/components/schemas/peer_controller_gateway_address'
+                administrative_state:
+                  $ref: '#/components/schemas/administrative_state'
+                heartbeat_interval:
+                  $ref: '#/components/schemas/heartbeat_interval'
+                heartbeat_failure_threshold:
+                  $ref: '#/components/schemas/heartbeat_failure_threshold'
+                heartbeat_failure_policy:
+                  $ref: '#/components/schemas/heartbeat_failure_policy'
+                heartbeat_maintenance_timeout:
+                  $ref: '#/components/schemas/heartbeat_maintenance_timeout'
+            example:
+              peer_name: DC1-2-2nd
+              peer_uuid: 22e8ce03-2691-4d6d-8960-59b7c7fc731e
+              manager_endpoint: https://[2620:10a:a001:d41::1208]:5000
+              manager_username: admin
+              manager_password: password
+              peer_controller_gateway_address: fd00:8:58::1
+              administrative_state: enabled
+              heartbeat_interval: 60
+              heartbeat_failure_threshold: 3
+              heartbeat_failure_policy: alarm
+              heartbeat_maintenance_timeout: 600
+      responses:
+        '200':
+          description: System peer created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 3
+                peer-uuid: 22e8ce03-2691-4d6d-8960-59b7c7fc731e
+                peer-name: DC1-2-2nd
+                manager-endpoint: https://[2620:10a:a001:d41::1208]:5000
+                manager-username: admin
+                peer-controller-gateway-address: fd00:8:58::1
+                administrative-state: enabled
+                heartbeat-interval: 60
+                heartbeat-failure-threshold: 3
+                heartbeat-failure-policy: alarm
+                heartbeat-maintenance-timeout: 600
+                availability-state: created
+                created-at: '2026-03-12 20:41:06.142761'
+                updated-at: null
+        '400':
+          description: Bad request - invalid parameters
+        '409':
+          description: Conflict - system peer UUID already exists
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    patch:
+      summary: Update a system peer
+      description: Update system peer configuration
+      operationId: updateSystemPeer
+      tags:
+      - system-peers
+      parameters:
+      - name: peer_ref
+        in: query
+        description: ID or name of system peer
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                peer_name:
+                  $ref: '#/components/schemas/peer_name'
+                manager_endpoint:
+                  $ref: '#/components/schemas/manager_endpoint'
+                manager_username:
+                  $ref: '#/components/schemas/manager_username'
+                manager_password:
+                  $ref: '#/components/schemas/manager_password'
+                peer_controller_gateway_address:
+                  $ref: '#/components/schemas/peer_controller_gateway_address'
+                administrative_state:
+                  $ref: '#/components/schemas/administrative_state'
+                heartbeat_interval:
+                  $ref: '#/components/schemas/heartbeat_interval'
+                heartbeat_failure_threshold:
+                  $ref: '#/components/schemas/heartbeat_failure_threshold'
+                heartbeat_failure_policy:
+                  $ref: '#/components/schemas/heartbeat_failure_policy'
+                heartbeat_maintenance_timeout:
+                  $ref: '#/components/schemas/heartbeat_maintenance_timeout'
+            example:
+              heartbeat_interval: 61
+      responses:
+        '200':
+          description: System peer updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 3
+                peer-uuid: 22e8ce03-2691-4d6d-8960-59b7c7fc731e
+                peer-name: DC1-2-2nd
+                manager-endpoint: https://[2620:10a:a001:d41::1208]:5000
+                manager-username: admin
+                peer-controller-gateway-address: fd00:8:58::1
+                administrative-state: enabled
+                heartbeat-interval: 61
+                heartbeat-failure-threshold: 3
+                heartbeat-failure-policy: alarm
+                heartbeat-maintenance-timeout: 600
+                availability-state: created
+                created-at: '2026-03-12 20:41:06.142761'
+                updated-at: '2026-03-12 20:47:38.087695'
+        '400':
+          description: Bad request - invalid parameters
+        '404':
+          description: System peer not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete a system peer
+      description: Delete a system peer connection
+      operationId: deleteSystemPeer
+      tags:
+      - system-peers
+      parameters:
+      - name: peer_ref
+        in: query
+        description: ID or name of system peer
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: System peer deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad request - cannot delete peer
+        '404':
+          description: System peer not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+  /v1.0/peer-group-associations:
+    get:
+      summary: Get peer group associations
+      description: Retrieve list of all peer group associations or details of a
+        specific
+        association
+      operationId: getPeerGroupAssociations
+      tags:
+      - peer-group-associations
+      parameters:
+      - name: association_id
+        in: query
+        description: ID of peer group association
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Associations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  peer_group_associations:
+                    $ref: '#/components/schemas/peer_group_associations'
+              example:
+                peer_group_associations:
+                - id: 1
+                  peer-group-id: 1
+                  system-peer-id: 1
+                  peer-group-priority: 1
+                  association-type: primary
+                  sync-status: in-sync
+                  created-at: '2026-03-12 19:21:18.992598'
+                  updated-at: '2026-03-12 19:21:20.406960'
+        '400':
+          description: Bad request - invalid association ID
+        '404':
+          description: Association not found
+        '500':
+          description: Internal server error
+    post:
+      summary: Create a new peer group association
+      description: Create a new association between peer groups
+      operationId: createPeerGroupAssociation
+      tags:
+      - peer-group-associations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                system_peer_id:
+                  $ref: '#/components/schemas/system_peer_id'
+                peer_group_id:
+                  $ref: '#/components/schemas/association_peer_group_id'
+                peer_group_priority:
+                  $ref: '#/components/schemas/association_peer_group_priority'
+            example:
+              system_peer_id: 3
+              peer_group_id: '1'
+              peer_group_priority: '1'
+      responses:
+        '200':
+          description: Association created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 2
+                peer-group-id: '1'
+                system-peer-id: 3
+                peer-group-priority: '1'
+                association-type: primary
+                sync-status: syncing
+                sync-message: null
+                created-at: '2026-03-12 21:00:21.338674'
+                updated-at: null
+        '400':
+          description: Bad request - invalid parameters
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    patch:
+      summary: Update a peer group association
+      description: Update peer group association configuration or sync status
+      operationId: updatePeerGroupAssociation
+      tags:
+      - peer-group-associations
+      parameters:
+      - name: association_id
+        in: query
+        description: ID of peer group association
+        required: true
+        schema:
+          type: integer
+      - name: sync
+        in: query
+        description: Sync the association
+        required: false
+        schema:
+          type: boolean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                peer_group_priority:
+                  $ref: '#/components/schemas/association_peer_group_priority'
+                sync_status:
+                  $ref: '#/components/schemas/association_sync_status'
+            example:
+              peer_group_priority: 3
+      responses:
+        '200':
+          description: Association updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                id: 1
+                peer-group-id: 1
+                system-peer-id: 1
+                peer-group-priority: 3
+                association-type: primary
+                sync-status: in-sync
+                sync-message: null
+                created-at: '2026-03-12T19:21:18.992598'
+                updated-at: '2026-03-12T20:24:31.801489'
+        '400':
+          description: Bad request - invalid parameters
+        '404':
+          description: Association not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete a peer group association
+      description: Delete a peer group association
+      operationId: deletePeerGroupAssociation
+      tags:
+      - peer-group-associations
+      parameters:
+      - name: association_id
+        in: query
+        description: ID of peer group association
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Association deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad request - cannot delete association
+        '404':
+          description: Association not found
+        '422':
+          description: Unprocessable entity
+        '500':
+          description: Internal server error
+tags:
+- name: root
+  description: Root API endpoint provides version information for the
+    Distributed
+    Cloud Manager API.
+- name: subclouds
+  description: Subclouds are systems managed by a central System Controller.
+- name: subcloud-groups
+  description: Subcloud Groups are logical groupings managed by a central System
+    Controller.
+    Subclouds in a group can be updated in parallel when applying patches or
+    software
+    upgrades.
+- name: subcloud-peer-groups
+  description: Subcloud Peer Groups are logical groupings managed by a central
+    System
+    Controller. Each Subcloud Peer Group maintains information for subcloud
+    migration
+    and rehoming in Geo-Redundancy deployment.
+- name: system-peers
+  description: System Peers are logical entities which are managed by a central
+    System
+    Controller. Each System Peer maintains the information which is used for
+    health
+    check and data synchronization in the protection group in Geo-Redundancy
+    deployment.
+- name: peer-group-associations
+  description: Peer Group Associations are logical connections managed by a
+    central
+    System Controller. They link subcloud peer groups with system peers for Geo-
+    Redundancy
+    operations.
+- name: sw-update-strategy
+  description: Software Update Strategy manages orchestrated updates across
+    subclouds
+    including firmware, Kubernetes, kube-rootca-update, prestage, and software
+    deployments.
+- name: sw-update-options
+  description: Software Update Options are configurable settings that control
+    how
+    software updates are applied to subclouds.
+- name: alarms
+  description: Subcloud alarms are aggregated on the System Controller for
+    centralized
+    monitoring.
+- name: subcloud-backup
+  description: Subcloud Backups allow for essential subcloud system data and
+    optionally
+    container images to be backed up and restored.
+- name: subcloud-deploy
+  description: Subcloud Deploy APIs allow for the display and upload of
+    deployment
+    manager common files and helm charts.
+- name: phased-subcloud-deploy
+  description: 'Phased Subcloud Deploy APIs allow for subcloud deployment to be
+    done
+    in phases: install, bootstrap, and configure.'
+- name: notifications
+  description: Notifications API allows external systems to send notifications
+    to
+    the System Controller.
+openapi: 3.0.2
+components:
+  schemas:
+    administrative_state:
+      description: |
+        The administrative state of the system
+        peer site. (enabled, disabled)
+      type: string
+    alarm_restriction_type:
+      description: |
+        Whether to allow update if subcloud alarms are present or not.
+        Valid values are `strict` or `relaxed`.
+      type: string
+    alarm_summary:
+      description: The list of alarm summaries.
+      items:
+        type: string
+      type: array
+    association_peer_group_id:
+      description: The ID of the subcloud peer group as an integer.
+      type: string
+    association_peer_group_priority:
+      description: |
+        The priority of the subcloud peer group in peer group association.
+        The lower the value, the higher the priority.
+      type: integer
+    association_sync_status:
+      description: The sync status for association.
+      type: string
+    auto_restore:
+      description: |
+        Performs a subcloud restore by automatically triggering the restore
+        process locally in the subcloud using only BMC connectivity.
+        Also restores container images.
+        Can be used with or without the local-only and with-install options.
+        Defaults to False.
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    backup_local_only:
+      description: |
+        Flag to indicate whether the platform
+        backup is to be saved locally within
+        the subcloud.
+        Defaults to False.
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    backup_registry_images:
+      description: |
+        Flag to indicate whether registry images backup should also be
+        generated (local only).
+        Defaults to False.
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    backup_restore_values:
+      description: Content of a restore playbook overrides file.
+      type: string
+      format: binary
+    backup_subcloud_group_name_or_id:
+      description: |
+        Name or ID of the group of subclouds to be backed up.
+        To be specified if and only if 'subcloud' is not provided.
+      type: string
+    backup_subcloud_name_or_id:
+      description: |
+        Name or ID of the subcloud to be backed up.
+        To be specified if and only if 'group' is not provided.
+      type: string
+    backup_values:
+      description: |
+        Content of a backup playbook overrides
+        file, if needed (e.g. backup_dir).
+      format: binary
+      type: string
+    bmc_password:
+      description: The BMC password of the subcloud. Must be base64 encoded.
+      type: string
+    bootstrap_address:
+      description: An OAM IP address of the subcloud controller-0.
+      type: string
+    bootstrap_values:
+      description: |
+        The content of a file containing the
+        bootstrap overrides such as subcloud
+        name, management and OAM subnet.
+        The sysadmin password of the subcloud.
+        Must be base64 encoded.
+      format: binary
+      type: string
+    cloud_init_config:
+      description: |
+        The content of a tarball containing
+        cloud-init config files for the
+        subcloud.
+      format: binary
+      type: string
+    default_instance_action:
+      description: |
+        How instances should be handled.
+        Valid values are `stop-start` or `migrate`.
+      type: string
+    deploy_config:
+      description: |
+        The content of a file containing the resource definitions describing
+        the desired subcloud configuration.
+      format: binary
+      type: string
+    factory_restore:
+      description: |
+        Performs a subcloud restore with
+        installation, automatically triggering
+        a factory restore locally in the
+        subcloud after installation completes.
+        Also
+        restores container images using the local factory backup stored in the
+        subcloud.
+        Defaults to False.
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    force:
+      description: |
+        Indicates whether to disregard subcloud
+        management alarm condition.
+      type: boolean
+    group_id:
+      description: The ID of a subcloud group. Default is 1.
+      type: integer
+    heartbeat_failure_policy:
+      description: |
+        The failure policy of the peer site
+        heartbeats. (alarm, rehome, delegate)
+      type: string
+    heartbeat_failure_threshold:
+      description: The failure threshold of the peer site heartbeats.
+      type: integer
+    heartbeat_interval:
+      description: |
+        The interval of the message between the
+        peer site heartbeats. (in seconds)
+      type: integer
+    heartbeat_maintenance_timeout:
+      description: |
+        The maintenance timeout of the peer site
+        heartbeats. (in seconds)
+      type: integer
+    install_values:
+      description: |
+        The content of a file containing install variables such as subcloud
+        bootstrap interface and BMC information.
+      format: binary
+      type: string
+    management_state:
+      description: Management state of the subcloud.
+      type: string
+    manager_endpoint:
+      description: The endpoint of the system peer site manager.
+      type: string
+    manager_password:
+      description: The password of the system peer site manager.
+      type: string
+    manager_username:
+      description: The username of the system peer site manager.
+      type: string
+    max_parallel_subclouds:
+      description: The maximum number of subclouds to update in parallel.
+      type: integer
+    max_parallel_workers:
+      description: |
+        The maximum number of workers within a
+        subcloud to update in parallel.
+      type: integer
+    peer_controller_gateway_address:
+      description: |
+        The gateway IP address of the system peer
+        site system controller.
+      type: string
+    peer_group_associations:
+      description: The list of ``peer-group-association`` objects.
+      items:
+        type: string
+      type: array
+    peer_name:
+      description: The name of a peer as a string.
+      type: string
+    peer_uuid:
+      description: The UUID of a peer as a string.
+      type: string
+    release:
+      description: The subcloud software version.
+      type: string
+    software_version:
+      description: The software version for the subcloud.
+      type: string
+    stop_on_failure:
+      description: |
+        Flag to indicate if the update should stop updating additional subclouds
+        if a failure is encountered.
+      type: boolean
+    storage_apply_type:
+      description: |
+        The apply type for the update on storage nodes in a subcloud.
+        Valid values are:  `serial` or `parallel`.
+      type: string
+    subcloud_deploy:
+      description: The dictionary of subcloud deploy files.
+      type: object
+    subcloud_deploy_chart:
+      description: The file name of the deployment manager helm charts.
+      type: string
+      format: binary
+    subcloud_deploy_overrides:
+      description: The file name of the deployment manager overrides.
+      type: string
+      format: binary
+    subcloud_deploy_playbook:
+      description: The file name of the deployment manager playbook.
+      type: string
+      format: binary
+    subcloud_deploy_prestage_images:
+      description: The file name of the deployment manager prestage images.
+      type: string
+      format: binary
+    subcloud_description:
+      description: The description of a subcloud.
+      type: string
+    subcloud_group_description:
+      description: The description of the subcloud group.
+      type: integer
+    group_max_parallel_subclouds:
+      description: |
+        The maximum number of subclouds in the
+        subcloud group to update in parallel.
+      type: integer
+    subcloud_group_name:
+      description: The name of the subcloud group.
+      type: integer
+    subcloud_group_update_apply_type:
+      description: |
+        The method for applying an update to this subcloud group.
+        `serial` or `parallel`.
+      type: string
+    subcloud_groups:
+      description: The list of ``subcloud-group`` objects.
+      items:
+        type: string
+      type: array
+    subcloud_location:
+      description: The location of a subcloud.
+      type: string
+    subcloud_name:
+      description: The name of a subcloud.
+      type: string
+    spg_administrative_state:
+      description: |
+        The administrative state of the subcloud peer group.
+        Valid values: enabled, disabled.
+      type: string
+      enum:
+      - enabled
+      - disabled
+    spg_max_subcloud_rehoming:
+      description: The maximum number of subclouds to rehome in parallel.
+      type: integer
+    subcloud_peer_group_name:
+      description: The NAME of the subcloud peer group.
+      type: string
+    subcloud_peer_group_priority:
+      description: |
+        The priority of the subcloud peer group.
+        Number lower priority is higher.
+      type: integer
+    spg_system_leader_id:
+      description: UUID of the peer system.
+      type: string
+    spg_system_leader_name:
+      description: NAME of the peer system.
+      type: string
+    subcloud_peer_groups:
+      description: The list of ``subcloud-peer-group`` objects.
+      items:
+        type: string
+      type: array
+    subclouds:
+      description: The list of ``subcloud`` objects.
+      items:
+        type: string
+      type: array
+    sw_update_strategy_action:
+      description: |
+        Perform an action on the update strategy.
+        Valid values are: `apply`, or `abort`.
+      type: string
+    sysadmin_password:
+      description: |
+        The sysadmin password of the subcloud.
+        Must be base64 encoded.
+      type: string
+    system_peer_id:
+      description: The ID of a system peer as an integer.
+      type: integer
+    system_peers:
+      description: The list of ``system-peer`` objects.
+      items:
+        type: string
+      type: array
+    with_install:
+      description: |
+        The flag to indicate whether remote
+        install is required or not
+        (e.g. true).
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    worker_apply_type:
+      description: |
+        The apply type for the update on worker nodes in a subcloud.
+        Valid values are:  `serial` or `parallel`.
+      type: string
+  securitySchemes:
+    XAuthToken:
+      type: apiKey
+      in: header
+      name: X-Auth-Token
+      description: OpenStack Keystone authentication token
+    OIDCToken:
+      type: apiKey
+      in: header
+      name: OIDC-Token
+      description: OIDC authentication token

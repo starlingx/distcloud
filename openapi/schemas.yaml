@@ -1,0 +1,325 @@
+components:
+  schemas:
+    administrative_state:
+      description: |
+        The administrative state of the system
+        peer site. (enabled, disabled)
+      type: string
+    alarm_restriction_type:
+      description: |
+        Whether to allow update if subcloud alarms are present or not.
+        Valid values are `strict` or `relaxed`.
+      type: string
+    alarm_summary:
+      description: The list of alarm summaries.
+      items:
+        type: string
+      type: array
+    association_peer_group_id:
+      description: The ID of the subcloud peer group as an integer.
+      type: string
+    association_peer_group_priority:
+      description: |
+        The priority of the subcloud peer group in peer group association.
+        The lower the value, the higher the priority.
+      type: integer
+    association_sync_status:
+      description: The sync status for association.
+      type: string
+    auto_restore:
+      description: |
+        Performs a subcloud restore by automatically triggering the restore
+        process locally in the subcloud using only BMC connectivity.
+        Also restores container images.
+        Can be used with or without the local-only and with-install options.
+        Defaults to False.
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    backup_local_only:
+      description: |
+        Flag to indicate whether the platform
+        backup is to be saved locally within
+        the subcloud.
+        Defaults to False.
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    backup_registry_images:
+      description: |
+        Flag to indicate whether registry images backup should also be
+        generated (local only).
+        Defaults to False.
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    backup_restore_values:
+      description: Content of a restore playbook overrides file.
+      type: string
+      format: binary
+    backup_subcloud_group_name_or_id:
+      description: |
+        Name or ID of the group of subclouds to be backed up.
+        To be specified if and only if 'subcloud' is not provided.
+      type: string
+    backup_subcloud_name_or_id:
+      description: |
+        Name or ID of the subcloud to be backed up.
+        To be specified if and only if 'group' is not provided.
+      type: string
+    backup_values:
+      description: |
+        Content of a backup playbook overrides
+        file, if needed (e.g. backup_dir).
+      format: binary
+      type: string
+    bmc_password:
+      description: The BMC password of the subcloud. Must be base64 encoded.
+      type: string
+    bootstrap_address:
+      description: An OAM IP address of the subcloud controller-0.
+      type: string
+    bootstrap_values:
+      description: |
+        The content of a file containing the
+        bootstrap overrides such as subcloud
+        name, management and OAM subnet.
+        The sysadmin password of the subcloud.
+        Must be base64 encoded.
+      format: binary
+      type: string
+    cloud_init_config:
+      description: |
+        The content of a tarball containing
+        cloud-init config files for the
+        subcloud.
+      format: binary
+      type: string
+    default_instance_action:
+      description: |
+        How instances should be handled.
+        Valid values are `stop-start` or `migrate`.
+      type: string
+    deploy_config:
+      description: |
+        The content of a file containing the resource definitions describing
+        the desired subcloud configuration.
+      format: binary
+      type: string
+    factory_restore:
+      description: |
+        Performs a subcloud restore with
+        installation, automatically triggering
+        a factory restore locally in the
+        subcloud after installation completes.
+        Also
+        restores container images using the local factory backup stored in the
+        subcloud.
+        Defaults to False.
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    force:
+      description: |
+        Indicates whether to disregard subcloud
+        management alarm condition.
+      type: boolean
+    group_id:
+      description: The ID of a subcloud group. Default is 1.
+      type: integer
+    heartbeat_failure_policy:
+      description: |
+        The failure policy of the peer site
+        heartbeats. (alarm, rehome, delegate)
+      type: string
+    heartbeat_failure_threshold:
+      description: The failure threshold of the peer site heartbeats.
+      type: integer
+    heartbeat_interval:
+      description: |
+        The interval of the message between the
+        peer site heartbeats. (in seconds)
+      type: integer
+    heartbeat_maintenance_timeout:
+      description: |
+        The maintenance timeout of the peer site
+        heartbeats. (in seconds)
+      type: integer
+    install_values:
+      description: |
+        The content of a file containing install variables such as subcloud
+        bootstrap interface and BMC information.
+      format: binary
+      type: string
+    management_state:
+      description: Management state of the subcloud.
+      type: string
+    manager_endpoint:
+      description: The endpoint of the system peer site manager.
+      type: string
+    manager_password:
+      description: The password of the system peer site manager.
+      type: string
+    manager_username:
+      description: The username of the system peer site manager.
+      type: string
+    max_parallel_subclouds:
+      description: The maximum number of subclouds to update in parallel.
+      type: integer
+    max_parallel_workers:
+      description: |
+        The maximum number of workers within a
+        subcloud to update in parallel.
+      type: integer
+    peer_controller_gateway_address:
+      description: |
+        The gateway IP address of the system peer
+        site system controller.
+      type: string
+    peer_group_associations:
+      description: The list of ``peer-group-association`` objects.
+      items:
+        type: string
+      type: array
+    peer_name:
+      description: The name of a peer as a string.
+      type: string
+    peer_uuid:
+      description: The UUID of a peer as a string.
+      type: string
+    release:
+      description: The subcloud software version.
+      type: string
+    software_version:
+      description: The software version for the subcloud.
+      type: string
+    stop_on_failure:
+      description: |
+        Flag to indicate if the update should stop updating additional subclouds
+        if a failure is encountered.
+      type: boolean
+    storage_apply_type:
+      description: |
+        The apply type for the update on storage nodes in a subcloud.
+        Valid values are:  `serial` or `parallel`.
+      type: string
+    subcloud_deploy:
+      description: The dictionary of subcloud deploy files.
+      type: object
+    subcloud_deploy_chart:
+      description: The file name of the deployment manager helm charts.
+      type: string
+      format: binary
+    subcloud_deploy_overrides:
+      description: The file name of the deployment manager overrides.
+      type: string
+      format: binary
+    subcloud_deploy_playbook:
+      description: The file name of the deployment manager playbook.
+      type: string
+      format: binary
+    subcloud_deploy_prestage_images:
+      description: The file name of the deployment manager prestage images.
+      type: string
+      format: binary
+    subcloud_description:
+      description: The description of a subcloud.
+      type: string
+    subcloud_group_description:
+      description: The description of the subcloud group.
+      type: integer
+    group_max_parallel_subclouds:
+      description: |
+        The maximum number of subclouds in the
+        subcloud group to update in parallel.
+      type: integer
+    subcloud_group_name:
+      description: The name of the subcloud group.
+      type: integer
+    subcloud_group_update_apply_type:
+      description: |
+        The method for applying an update to this subcloud group.
+        `serial` or `parallel`.
+      type: string
+    subcloud_groups:
+      description: The list of ``subcloud-group`` objects.
+      items:
+        type: string
+      type: array
+    subcloud_location:
+      description: The location of a subcloud.
+      type: string
+    subcloud_name:
+      description: The name of a subcloud.
+      type: string
+    spg_administrative_state:
+      description: |
+        The administrative state of the subcloud peer group.
+        Valid values: enabled, disabled.
+      type: string
+      enum:
+      - enabled
+      - disabled
+    spg_max_subcloud_rehoming:
+      description: The maximum number of subclouds to rehome in parallel.
+      type: integer
+    subcloud_peer_group_name:
+      description: The NAME of the subcloud peer group.
+      type: string
+    subcloud_peer_group_priority:
+      description: |
+        The priority of the subcloud peer group.
+        Number lower priority is higher.
+      type: integer
+    spg_system_leader_id:
+      description: UUID of the peer system.
+      type: string
+    spg_system_leader_name:
+      description: NAME of the peer system.
+      type: string
+    subcloud_peer_groups:
+      description: The list of ``subcloud-peer-group`` objects.
+      items:
+        type: string
+      type: array
+    subclouds:
+      description: The list of ``subcloud`` objects.
+      items:
+        type: string
+      type: array
+    sw_update_strategy_action:
+      description: |
+        Perform an action on the update strategy.
+        Valid values are: `apply`, or `abort`.
+      type: string
+    sysadmin_password:
+      description: |
+        The sysadmin password of the subcloud.
+        Must be base64 encoded.
+      type: string
+    system_peer_id:
+      description: The ID of a system peer as an integer.
+      type: integer
+    system_peers:
+      description: The list of ``system-peer`` objects.
+      items:
+        type: string
+      type: array
+    with_install:
+      description: |
+        The flag to indicate whether remote
+        install is required or not
+        (e.g. true).
+      type: string
+      enum:
+      - 'true'
+      - 'false'
+    worker_apply_type:
+      description: |
+        The apply type for the update on worker nodes in a subcloud.
+        Valid values are:  `serial` or `parallel`.
+      type: string

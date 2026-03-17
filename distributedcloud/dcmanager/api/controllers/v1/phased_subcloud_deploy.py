@@ -691,6 +691,112 @@ class PhasedSubcloudDeployController(object):
     @utils.synchronized(LOCK_NAME)
     @index.when(method="POST", template="json")
     def post(self):
+        """Create phased subcloud deployment
+
+        ---
+        post:
+          summary: Create phased subcloud deployment
+          description: Initiate a phased deployment for a subcloud
+          operationId: createPhasedSubcloudDeploy
+          tags:
+          - phased-subcloud-deploy
+          requestBody:
+            required: true
+            content:
+              multipart/form-data:
+                schema:
+                  type: object
+                  required:
+                  - name
+                  - bootstrap_values
+                  - bootstrap-address
+                  properties:
+                    name:
+                      $ref: '#/components/schemas/subcloud_name'
+                    group_id:
+                      $ref: '#/components/schemas/group_id'
+                    bootstrap_values:
+                      $ref: '#/components/schemas/bootstrap_values'
+                    bootstrap-address:
+                      $ref: '#/components/schemas/bootstrap_address'
+                    install_values:
+                      $ref: '#/components/schemas/install_values'
+                    deploy_config:
+                      $ref: '#/components/schemas/deploy_config'
+                    bmc_password:
+                      $ref: '#/components/schemas/bmc_password'
+                    sysadmin_password:
+                      $ref: '#/components/schemas/sysadmin_password'
+                    release:
+                      $ref: '#/components/schemas/release'
+                example:
+                  name: subcloud1-main
+                  group_id: 1
+                  bootstrap_values: '@bootstrap-values-subcloud1.yml'
+                  bootstrap-address: 10.10.10.12
+                  install_values: '@install-values-subcloud1.yml'
+                  deploy_config: '@deployment-config-subcloud1.yaml'
+                  bmc_password: YWRtaW4=
+                  sysadmin_password: cGFzc3dvcmQK
+                  release: 25.09
+          responses:
+            200:
+              description: Deployment initiated successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 8
+                    name: subcloud1-main
+                    description: subcloud1
+                    location: Ottawa
+                    software-version: '25.09'
+                    management-state: unmanaged
+                    availability-status: offline
+                    deploy-status: create-complete
+                    backup-status: null
+                    backup-datetime: null
+                    error-description: No errors present
+                    region-name: ccc70d2e1b394254b157e295fbf7e7c7
+                    management-subnet: 192.168.101.0/24
+                    management-start-ip: 192.168.101.2
+                    management-end-ip: 192.168.101.50
+                    management-gateway-ip: 192.168.101.1
+                    openstack-installed: false
+                    prestage-status: null
+                    prestage-versions: null
+                    systemcontroller-gateway-ip: 192.168.204.101
+                    data_install: >-
+                      {"bootstrap_interface": "enp2s1",
+                      "bootstrap_address": "10.10.10.12",
+                      "bootstrap_address_prefix": 23,
+                      "bmc_address": "192.168.122.101",
+                      "bmc_username": "admin",
+                      "install_type": 2,
+                      "console_type": "tty0",
+                      "rootfs_device": "/dev/sda",
+                      "boot_device": "/dev/sda",
+                      "wait_for_timeout": 3600,
+                      "no_check_certificate": true,
+                      "persistent_size": 30000,
+                      "bmc_password": "YWRtaW4=",
+                      "software_version": "25.09",
+                      "image":
+                      "/opt/dc-vault/software/25.09/25.09.iso"}
+                    data_upgrade: null
+                    created-at: '2026-03-12T23:25:45.960747'
+                    updated-at: '2026-03-12T23:25:59.462698'
+                    group_id: 1
+                    peer_group_id: null
+                    rehome_data: null
+            400:
+              description: Bad request - invalid parameters
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
+        """
         context = restcomm.extract_context_from_environ()
         return self._deploy_create(context, pecan.request)
 
@@ -703,6 +809,266 @@ class PhasedSubcloudDeployController(object):
 
         :param verb: Specifies the patch action to be taken
         or subcloud operation
+        ---
+        patch:
+          summary: Update phased subcloud deployment
+          description: |
+            Perform operations on phased subcloud deployment.
+            It's not required to send these values in the
+            request if they're available in the system already.
+
+            install: install_values, bmc_password, release
+            bootstrap: bootstrap_values, description, location
+            configure: deploy_config
+            complete: no request body
+            abort: no request body
+            resume: based on deployment state
+            enroll: bootstrap_values, install_values,
+            optionally cloud_init_config
+          operationId: updatePhasedSubcloudDeploy
+          tags:
+          - phased-subcloud-deploy
+          parameters:
+          - name: subcloud_ref
+            in: query
+            description: ID or name of subcloud
+            required: true
+            schema:
+              type: string
+          - name: verb
+            in: query
+            description: >-
+              Operation to perform: install, bootstrap,
+              configure, complete, abort, resume, enroll
+            required: false
+            schema:
+              type: string
+              enum:
+              - install
+              - bootstrap
+              - configure
+              - complete
+              - abort
+              - resume
+              - enroll
+          requestBody:
+            required: false
+            description: |
+              Request body requirements depend on the verb
+              parameter. It's not required to send these
+              values in the request if they're available
+              in the system already.
+
+              install: install_values, bmc_password, release
+              bootstrap: bootstrap_values, description, location
+              configure: deploy_config
+              complete: no request body
+              abort: no request body
+              resume: based on deployment state
+              enroll: bootstrap_values, install_values,
+              optionally cloud_init_config
+            content:
+              multipart/form-data:
+                schema:
+                  type: object
+                  properties:
+                    bootstrap_values:
+                      $ref: '#/components/schemas/bootstrap_values'
+                    deploy_config:
+                      $ref: '#/components/schemas/deploy_config'
+                    install_values:
+                      $ref: '#/components/schemas/install_values'
+                    sysadmin_password:
+                      $ref: '#/components/schemas/sysadmin_password'
+                    bootstrap-address:
+                      $ref: '#/components/schemas/bootstrap_address'
+                    bmc_password:
+                      $ref: '#/components/schemas/bmc_password'
+                    release:
+                      $ref: '#/components/schemas/release'
+                    description:
+                      $ref: '#/components/schemas/subcloud_description'
+                    location:
+                      $ref: '#/components/schemas/subcloud_location'
+                    cloud_init_config:
+                      $ref: '#/components/schemas/cloud_init_config'
+                examples:
+                  install:
+                    summary: Install operation (verb=install)
+                    value:
+                      install_values: '@install-values-subcloud1.yml'
+                      bmc_password: YWRtaW4=
+                      sysadmin_password: cGFzc3dvcmQK
+                      release: 25.09
+                  bootstrap:
+                    summary: Bootstrap operation (verb=bootstrap)
+                    value:
+                      bootstrap_values: '@bootstrap-values-subcloud1.yml'
+                      bmc_password: YWRtaW4=
+                      sysadmin_password: cGFzc3dvcmQK
+                      release: 25.09
+                      location: Ottawa
+                      description: subcloud1
+                  configure:
+                    summary: Configure operation (verb=configure)
+                    value:
+                      deploy_config: '@deployment-config-subcloud1.yaml'
+                      sysadmin_password: cGFzc3dvcmQK
+                      description: string
+          responses:
+            200:
+              description: Operation completed successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  examples:
+                    install:
+                      summary: Install operation response (verb=install)
+                      value:
+                        id: 8
+                        name: subcloud1-main
+                        description: subcloud1
+                        location: Ottawa
+                        software-version: '25.09'
+                        management-state: unmanaged
+                        availability-status: offline
+                        deploy-status: pre-install
+                        backup-status: null
+                        backup-datetime: null
+                        error-description: No errors present
+                        region-name: ccc70d2e1b394254b157e295fbf7e7c7
+                        management-subnet: 192.168.101.0/24
+                        management-start-ip: 192.168.101.2
+                        management-end-ip: 192.168.101.50
+                        management-gateway-ip: 192.168.101.1
+                        openstack-installed: false
+                        prestage-status: null
+                        prestage-versions: null
+                        systemcontroller-gateway-ip: 192.168.204.101
+                        data_install: >-
+                          {"bootstrap_interface": "enp2s1",
+                          "bootstrap_address": "10.10.10.12",
+                          "bootstrap_address_prefix": 23,
+                          "bmc_address": "192.168.122.101",
+                          "bmc_username": "admin",
+                          "install_type": 2,
+                          "console_type": "tty0",
+                          "rootfs_device": "/dev/sda",
+                          "boot_device": "/dev/sda",
+                          "wait_for_timeout": 3600,
+                          "no_check_certificate": true,
+                          "persistent_size": 30000,
+                          "bmc_password": "YWRtaW4=",
+                          "software_version": "25.09",
+                          "image":
+                          "/opt/dc-vault/software/25.09/25.09.iso"}
+                        data_upgrade: null
+                        created-at: '2026-03-12 23:25:45.960747'
+                        updated-at: '2026-03-12 23:25:59.462698'
+                        group_id: 1
+                        peer_group_id: null
+                        rehome_data: null
+                    bootstrap:
+                      summary: Bootstrap operation response (verb=bootstrap)
+                      value:
+                        id: 9
+                        name: subcloud1-main
+                        description: subcloud1
+                        location: Ottawa
+                        software-version: '25.09'
+                        management-state: unmanaged
+                        availability-status: offline
+                        deploy-status: pre-bootstrap
+                        backup-status: null
+                        backup-datetime: null
+                        error-description: No errors present
+                        region-name: e040681264c44c468a4d8d21528fdd7e
+                        management-subnet: 192.168.101.0/24
+                        management-start-ip: 192.168.101.2
+                        management-end-ip: 192.168.101.50
+                        management-gateway-ip: 192.168.101.1
+                        openstack-installed: false
+                        prestage-status: null
+                        prestage-versions: null
+                        systemcontroller-gateway-ip: 192.168.204.101
+                        data_install: >-
+                          {"bootstrap_interface": "enp2s1",
+                          "bootstrap_address": "10.10.10.12",
+                          "bootstrap_address_prefix": 23,
+                          "bmc_address": "192.168.122.101",
+                          "bmc_username": "admin",
+                          "install_type": 2,
+                          "console_type": "tty0",
+                          "rootfs_device": "/dev/sda",
+                          "boot_device": "/dev/sda",
+                          "wait_for_timeout": 3600,
+                          "no_check_certificate": true,
+                          "persistent_size": 30000,
+                          "bmc_password": "YWRtaW4=",
+                          "software_version": "25.09",
+                          "image":
+                          "/opt/dc-vault/software/25.09/25.09.iso"}
+                        data_upgrade: null
+                        created-at: '2026-03-12 23:41:24.274911'
+                        updated-at: '2026-03-12 23:52:37.243492'
+                        group_id: 1
+                        peer_group_id: null
+                        rehome_data: null
+                    configure:
+                      summary: Configure operation response (verb=configure)
+                      value:
+                        id: 9
+                        name: subcloud1-main
+                        description: subcloud1
+                        location: Ottawa
+                        software-version: '25.09'
+                        management-state: unmanaged
+                        availability-status: offline
+                        deploy-status: pre-config
+                        backup-status: null
+                        backup-datetime: null
+                        error-description: No errors present
+                        region-name: e040681264c44c468a4d8d21528fdd7e
+                        management-subnet: 192.168.101.0/24
+                        management-start-ip: 192.168.101.2
+                        management-end-ip: 192.168.101.50
+                        management-gateway-ip: 192.168.101.1
+                        openstack-installed: false
+                        prestage-status: null
+                        prestage-versions: null
+                        systemcontroller-gateway-ip: 192.168.204.101
+                        data_install: >-
+                          {"bootstrap_interface": "enp2s1",
+                          "bootstrap_address": "10.10.10.12",
+                          "bootstrap_address_prefix": 23,
+                          "bmc_address": "192.168.122.101",
+                          "bmc_username": "admin",
+                          "install_type": 2,
+                          "console_type": "tty0",
+                          "rootfs_device": "/dev/sda",
+                          "boot_device": "/dev/sda",
+                          "wait_for_timeout": 3600,
+                          "no_check_certificate": true,
+                          "persistent_size": 30000,
+                          "bmc_password": "YWRtaW4=",
+                          "software_version": "25.09",
+                          "image":
+                          "/opt/dc-vault/software/25.09/25.09.iso"}
+                        data_upgrade: null
+                        created-at: '2026-03-12 23:41:24.274911'
+                        updated-at: '2026-03-13 00:20:38.055536'
+                        group_id: 1
+                        peer_group_id: null
+                        rehome_data: null
+            400:
+              description: Bad request - invalid parameters
+            404:
+              description: Subcloud not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
         """
 
         context = restcomm.extract_context_from_environ()

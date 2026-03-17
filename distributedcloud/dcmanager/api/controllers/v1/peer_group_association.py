@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -27,7 +27,6 @@ from dcmanager.common import exceptions as exception
 from dcmanager.common.i18n import _
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
-
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -96,6 +95,48 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         """Get details about peer group association.
 
         :param association_id: ID of peer group association
+        ---
+        get:
+          summary: Get peer group associations
+          description: >-
+            Retrieve list of all peer group associations
+            or details of a specific association
+          operationId: getPeerGroupAssociations
+          tags:
+          - peer-group-associations
+          parameters:
+          - name: association_id
+            in: query
+            description: ID of peer group association
+            required: false
+            schema:
+              type: integer
+          responses:
+            200:
+              description: Associations retrieved successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      peer_group_associations:
+                        $ref: '#/components/schemas/peer_group_associations'
+                  example:
+                    peer_group_associations:
+                    - id: 1
+                      peer-group-id: 1
+                      system-peer-id: 1
+                      peer-group-priority: 1
+                      association-type: primary
+                      sync-status: in-sync
+                      created-at: '2026-03-12 19:21:18.992598'
+                      updated-at: '2026-03-12 19:21:20.406960'
+            400:
+              description: Bad request - invalid association ID
+            404:
+              description: Association not found
+            500:
+              description: Internal server error
         """
         policy.authorize(
             peer_group_association_policy.POLICY_ROOT % "get",
@@ -176,7 +217,56 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
 
     @index.when(method="POST", template="json")
     def post(self):
-        """Create a new peer group association."""
+        """Create a new peer group association.
+
+        ---
+        post:
+          summary: Create a new peer group association
+          description: Create a new association between peer groups
+          operationId: createPeerGroupAssociation
+          tags:
+          - peer-group-associations
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    system_peer_id:
+                      $ref: '#/components/schemas/system_peer_id'
+                    peer_group_id:
+                      $ref: '#/components/schemas/association_peer_group_id'
+                    peer_group_priority:
+                      $ref: '#/components/schemas/association_peer_group_priority'
+                example:
+                  system_peer_id: 3
+                  peer_group_id: '1'
+                  peer_group_priority: '1'
+          responses:
+            200:
+              description: Association created successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 2
+                    peer-group-id: '1'
+                    system-peer-id: 3
+                    peer-group-priority: '1'
+                    association-type: primary
+                    sync-status: syncing
+                    sync-message: null
+                    created-at: '2026-03-12 21:00:21.338674'
+                    updated-at: null
+            400:
+              description: Bad request - invalid parameters
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(
@@ -420,6 +510,64 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
 
         :param association_id: ID of peer group association to update
         :param sync: sync action that sync the peer group
+        ---
+        patch:
+          summary: Update a peer group association
+          description: Update peer group association configuration or sync status
+          operationId: updatePeerGroupAssociation
+          tags:
+          - peer-group-associations
+          parameters:
+          - name: association_id
+            in: query
+            description: ID of peer group association
+            required: true
+            schema:
+              type: integer
+          - name: sync
+            in: query
+            description: Sync the association
+            required: false
+            schema:
+              type: boolean
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    peer_group_priority:
+                      $ref: '#/components/schemas/association_peer_group_priority'
+                    sync_status:
+                      $ref: '#/components/schemas/association_sync_status'
+                example:
+                  peer_group_priority: 3
+          responses:
+            200:
+              description: Association updated successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 1
+                    peer-group-id: 1
+                    system-peer-id: 1
+                    peer-group-priority: 3
+                    association-type: primary
+                    sync-status: in-sync
+                    sync-message: null
+                    created-at: '2026-03-12T19:21:18.992598'
+                    updated-at: '2026-03-12T20:24:31.801489'
+            400:
+              description: Bad request - invalid parameters
+            404:
+              description: Association not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
         """
 
         context = restcomm.extract_context_from_environ()
@@ -456,6 +604,35 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         """Delete the peer group association.
 
         :param association_id: ID of peer group association to delete
+        ---
+        delete:
+          summary: Delete a peer group association
+          description: Delete a peer group association
+          operationId: deletePeerGroupAssociation
+          tags:
+          - peer-group-associations
+          parameters:
+          - name: association_id
+            in: query
+            description: ID of peer group association
+            required: true
+            schema:
+              type: integer
+          responses:
+            200:
+              description: Association deleted successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+            400:
+              description: Bad request - cannot delete association
+            404:
+              description: Association not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
         """
 
         context = restcomm.extract_context_from_environ()

@@ -1,4 +1,4 @@
-# Copyright (c) 2021, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -41,6 +41,38 @@ class NotificationsController(object):
 
     @index.when(method="POST", template="json")
     def post(self):
+        """Process notification events
+
+        ---
+        post:
+          summary: Process notification events
+          description: >-
+            Handle notification events from subclouds such as
+            platform-upgrade-completed, k8s-upgrade-completed,
+            and kube-rootca-update-completed to trigger
+            corresponding audits
+          operationId: processNotifications
+          tags:
+          - notifications
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    events:
+                      type: array
+                      items:
+                        type: string
+          responses:
+            200:
+              description: Notification processed successfully
+            400:
+              description: Bad request
+            500:
+              description: Internal server error
+        """
         if "events" not in request.json_body:
             pecan.abort(httpclient.BAD_REQUEST, "Missing required notification events")
 

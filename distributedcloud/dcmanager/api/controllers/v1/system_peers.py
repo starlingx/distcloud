@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -108,6 +108,56 @@ class SystemPeersController(restcomm.GenericPathController):
         :param peer_ref: ID or UUID or Name of system peer
         :param subcloud_peer_groups: If this request should return subcloud
                                      peer groups
+        ---
+        get:
+          summary: Get system peers
+          description: Retrieve list of all system peers or details of a specific peer
+          operationId: getSystemPeers
+          tags:
+          - system-peers
+          parameters:
+          - name: peer_ref
+            in: query
+            description: ID or name of system peer
+            required: false
+            schema:
+              type: string
+          - name: subcloud_peer_groups
+            in: query
+            description: Include subcloud peer groups
+            required: false
+            schema:
+              type: boolean
+          responses:
+            200:
+              description: System peers retrieved successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      system_peers:
+                        $ref: '#/components/schemas/system_peers'
+                  example:
+                    system_peers:
+                    - id: 1
+                      peer-uuid: 22e8ce03-2691-4d6d-8960-59b7c7fc731e
+                      peer-name: DC1-2
+                      manager-endpoint: https://[2620:10a:a001:d41::1208]:5000
+                      manager-username: admin
+                      peer-controller-gateway-address: fd00:8:58::1
+                      administrative-state: enabled
+                      heartbeat-interval: 60
+                      heartbeat-failure-threshold: 3
+                      heartbeat-failure-policy: alarm
+                      heartbeat-maintenance-timeout: 600
+                      availability-state: available
+                      created-at: '2026-03-12 19:17:12.027885'
+                      updated-at: '2026-03-12 19:21:20.423925'
+            404:
+              description: System peer not found
+            500:
+              description: Internal server error
         """
         policy.authorize(
             system_peer_policy.POLICY_ROOT % "get",
@@ -244,7 +294,87 @@ class SystemPeersController(restcomm.GenericPathController):
 
     @index.when(method="POST", template="json")
     def post(self):
-        """Create a new system peer."""
+        """Create a new system peer.
+
+        ---
+        post:
+          summary: Create a new system peer
+          description: Create a new system peer connection
+          operationId: createSystemPeer
+          tags:
+          - system-peers
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    peer_name:
+                      $ref: '#/components/schemas/peer_name'
+                    peer_uuid:
+                      $ref: '#/components/schemas/peer_uuid'
+                    manager_endpoint:
+                      $ref: '#/components/schemas/manager_endpoint'
+                    manager_username:
+                      $ref: '#/components/schemas/manager_username'
+                    manager_password:
+                      $ref: '#/components/schemas/manager_password'
+                    peer_controller_gateway_address:
+                      $ref: '#/components/schemas/peer_controller_gateway_address'
+                    administrative_state:
+                      $ref: '#/components/schemas/administrative_state'
+                    heartbeat_interval:
+                      $ref: '#/components/schemas/heartbeat_interval'
+                    heartbeat_failure_threshold:
+                      $ref: '#/components/schemas/heartbeat_failure_threshold'
+                    heartbeat_failure_policy:
+                      $ref: '#/components/schemas/heartbeat_failure_policy'
+                    heartbeat_maintenance_timeout:
+                      $ref: '#/components/schemas/heartbeat_maintenance_timeout'
+                example:
+                  peer_name: DC1-2-2nd
+                  peer_uuid: 22e8ce03-2691-4d6d-8960-59b7c7fc731e
+                  manager_endpoint: https://[2620:10a:a001:d41::1208]:5000
+                  manager_username: admin
+                  manager_password: password
+                  peer_controller_gateway_address: fd00:8:58::1
+                  administrative_state: enabled
+                  heartbeat_interval: 60
+                  heartbeat_failure_threshold: 3
+                  heartbeat_failure_policy: alarm
+                  heartbeat_maintenance_timeout: 600
+          responses:
+            200:
+              description: System peer created successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 3
+                    peer-uuid: 22e8ce03-2691-4d6d-8960-59b7c7fc731e
+                    peer-name: DC1-2-2nd
+                    manager-endpoint: https://[2620:10a:a001:d41::1208]:5000
+                    manager-username: admin
+                    peer-controller-gateway-address: fd00:8:58::1
+                    administrative-state: enabled
+                    heartbeat-interval: 60
+                    heartbeat-failure-threshold: 3
+                    heartbeat-failure-policy: alarm
+                    heartbeat-maintenance-timeout: 600
+                    availability-state: created
+                    created-at: '2026-03-12 20:41:06.142761'
+                    updated-at: null
+            400:
+              description: Bad request - invalid parameters
+            409:
+              description: Conflict - system peer UUID already exists
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(
@@ -364,6 +494,79 @@ class SystemPeersController(restcomm.GenericPathController):
         """Update a system peer.
 
         :param peer_ref: ID or UUID of system peer to update
+        ---
+        patch:
+          summary: Update a system peer
+          description: Update system peer configuration
+          operationId: updateSystemPeer
+          tags:
+          - system-peers
+          parameters:
+          - name: peer_ref
+            in: query
+            description: ID or name of system peer
+            required: true
+            schema:
+              type: string
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    peer_name:
+                      $ref: '#/components/schemas/peer_name'
+                    manager_endpoint:
+                      $ref: '#/components/schemas/manager_endpoint'
+                    manager_username:
+                      $ref: '#/components/schemas/manager_username'
+                    manager_password:
+                      $ref: '#/components/schemas/manager_password'
+                    peer_controller_gateway_address:
+                      $ref: '#/components/schemas/peer_controller_gateway_address'
+                    administrative_state:
+                      $ref: '#/components/schemas/administrative_state'
+                    heartbeat_interval:
+                      $ref: '#/components/schemas/heartbeat_interval'
+                    heartbeat_failure_threshold:
+                      $ref: '#/components/schemas/heartbeat_failure_threshold'
+                    heartbeat_failure_policy:
+                      $ref: '#/components/schemas/heartbeat_failure_policy'
+                    heartbeat_maintenance_timeout:
+                      $ref: '#/components/schemas/heartbeat_maintenance_timeout'
+                example:
+                  heartbeat_interval: 61
+          responses:
+            200:
+              description: System peer updated successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 3
+                    peer-uuid: 22e8ce03-2691-4d6d-8960-59b7c7fc731e
+                    peer-name: DC1-2-2nd
+                    manager-endpoint: https://[2620:10a:a001:d41::1208]:5000
+                    manager-username: admin
+                    peer-controller-gateway-address: fd00:8:58::1
+                    administrative-state: enabled
+                    heartbeat-interval: 61
+                    heartbeat-failure-threshold: 3
+                    heartbeat-failure-policy: alarm
+                    heartbeat-maintenance-timeout: 600
+                    availability-state: created
+                    created-at: '2026-03-12 20:41:06.142761'
+                    updated-at: '2026-03-12 20:47:38.087695'
+            400:
+              description: Bad request - invalid parameters
+            404:
+              description: System peer not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
         """
 
         context = restcomm.extract_context_from_environ()
@@ -543,7 +746,38 @@ class SystemPeersController(restcomm.GenericPathController):
 
     @index.when(method="delete", template="json")
     def delete(self, peer_ref):
-        """Delete the system peer."""
+        """Delete the system peer.
+
+        ---
+        delete:
+          summary: Delete a system peer
+          description: Delete a system peer connection
+          operationId: deleteSystemPeer
+          tags:
+          - system-peers
+          parameters:
+          - name: peer_ref
+            in: query
+            description: ID or name of system peer
+            required: true
+            schema:
+              type: string
+          responses:
+            200:
+              description: System peer deleted successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+            400:
+              description: Bad request - cannot delete peer
+            404:
+              description: System peer not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(

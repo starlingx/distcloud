@@ -390,6 +390,40 @@ class SubcloudsController(object):
         """Get details about subcloud.
 
         :param subcloud_ref: ID or name of subcloud
+        ---
+        get:
+          summary: Get subclouds
+          description: Retrieve list of all subclouds or details of a specific subcloud
+          operationId: getSubclouds
+          tags:
+          - subclouds
+          parameters:
+          - name: subcloud_ref
+            in: query
+            description: ID or name of subcloud
+            required: false
+            schema:
+              type: string
+          - name: detail
+            in: query
+            description: Include additional details
+            required: false
+            schema:
+              type: string
+          responses:
+            200:
+              description: Subclouds retrieved successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      subclouds:
+                        $ref: '#/components/schemas/subclouds'
+            404:
+              description: Subcloud not found
+            500:
+              description: Internal server error
         """
         policy.authorize(
             subclouds_policy.POLICY_ROOT % "get",
@@ -591,7 +625,150 @@ class SubcloudsController(object):
     @utils.synchronized(LOCK_NAME)
     @index.when(method="POST", template="json")
     def post(self):
-        """Create and deploy a new subcloud."""
+        """Create and deploy a new subcloud.
+
+        ---
+        post:
+          summary: Create, deploy, migrate, or enroll a subcloud
+          description: |
+            Create and deploy a new subcloud with
+            bootstrap, install, and deploy configuration.
+            Also supports subcloud migration, enrollment,
+            and secondary subcloud creation.
+
+            Example request for subcloud enrollment
+            (cloud_init_config is optional, only when
+            enroll is true):
+            ```
+            enroll: true
+            bootstrap_values: @subcloud10_ipv6-bootstrap-values.yaml
+            install_values: @subcloud10-install-values.yaml
+            deploy_config: @subcloud10-deploy-standard.yaml
+            cloud_init_config: @cloud-init-config.tar
+            sysadmin_password: cGFzc3dvcmQK
+            bmc_password: cGFzc3dvcmQK
+            bootstrap-address: 10.10.10.12
+            ```
+          operationId: createSubcloud
+          tags:
+          - subclouds
+          requestBody:
+            required: true
+            content:
+              multipart/form-data:
+                schema:
+                  type: object
+                  properties:
+                    name:
+                      $ref: '#/components/schemas/subcloud_name'
+                    description:
+                      $ref: '#/components/schemas/subcloud_description'
+                    location:
+                      $ref: '#/components/schemas/subcloud_location'
+                    group_id:
+                      $ref: '#/components/schemas/group_id'
+                    bootstrap_values:
+                      $ref: '#/components/schemas/bootstrap_values'
+                    install_values:
+                      $ref: '#/components/schemas/install_values'
+                    deploy_config:
+                      $ref: '#/components/schemas/deploy_config'
+                    cloud_init_config:
+                      $ref: '#/components/schemas/cloud_init_config'
+                    bootstrap-address:
+                      $ref: '#/components/schemas/bootstrap_address'
+                    bmc_password:
+                      $ref: '#/components/schemas/bmc_password'
+                    sysadmin_password:
+                      $ref: '#/components/schemas/sysadmin_password'
+                    release:
+                      $ref: '#/components/schemas/release'
+                    migrate:
+                      type: string
+                      enum:
+                      - 'true'
+                      - 'false'
+                      description: >-
+                        Set to 'true' to create a subcloud
+                        for migration purposes. Requires
+                        matching bootstrap subcloud name
+                    secondary:
+                      type: string
+                      description: >-
+                        Set to create a secondary subcloud.
+                        Secondary subclouds are created
+                        synchronously and do not require
+                        sysadmin password validation
+                    enroll:
+                      type: string
+                      enum:
+                      - 'true'
+                      - 'false'
+                      description: >-
+                        Set to 'true' to enroll the subcloud
+                        after creation. cloud_init_config
+                        is optional only when enroll is true,
+                        rejected with 400 when enroll is false
+                    skip_enroll_init:
+                      type: string
+                      enum:
+                      - 'true'
+                      - 'false'
+                      description: >-
+                        Set to 'true' to skip the initial
+                        enrollment step. Only valid when
+                        enroll is 'true'
+                example:
+                  enroll: "true"
+                  bootstrap_values: "subcloud10_ipv6-bootstrap-values.yaml"
+                  install_values: "subcloud10-install-values.yaml"
+                  deploy_config: "subcloud10-deploy-standard.yaml"
+                  cloud_init_config: "cloud-init-config.tar"
+                  sysadmin_password: "cGFzc3dvcmQK"
+                  bmc_password: "cGFzc3dvcmQK"
+                  bootstrap-address: "10.10.10.12"
+          responses:
+            200:
+              description: Subcloud created successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 9
+                    name: subcloud1-stx-latest
+                    description: subcloud1
+                    location: Kanata
+                    software-version: '26.03'
+                    management-state: unmanaged
+                    availability-status: offline
+                    deploy-status: not-deployed
+                    backup-status: null
+                    backup-datetime: null
+                    error-description: No errors present
+                    region-name: e6f93b0ca0764ca49c0779497bf20f82
+                    management-subnet: 192.168.101.0/24
+                    management-start-ip: 192.168.101.2
+                    management-end-ip: 192.168.101.50
+                    management-gateway-ip: 192.168.101.1
+                    openstack-installed: false
+                    prestage-status: null
+                    prestage-versions: null
+                    systemcontroller-gateway-ip: 192.168.204.101
+                    data_install: {}
+                    data_upgrade: null
+                    created-at: '2026-02-25 18:28:43.715335'
+                    updated-at: null
+                    group_id: 1
+                    peer_group_id: null
+                    rehome_data: null
+            400:
+              description: Bad request
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(
@@ -668,6 +845,211 @@ class SubcloudsController(object):
 
         :param verb: Specifies the patch action to be taken
         or subcloud update operation
+        ---
+        patch:
+          summary: Update a subcloud
+          description: |
+            Update subcloud configuration, management
+            state, or perform operations like redeploy,
+            prestage, update_status, or management network
+            reconfiguration. The verb parameter specifies
+            the operation to perform.
+
+            When verb is not specified, the PATCH method
+            handles:
+            - configuration updates (description, location,
+              group_id, bootstrap values)
+            - management state changes
+            - subcloud rename
+            - management network reconfiguration
+            - peer group updates
+
+            Example prestage request (verb=prestage):
+
+                PATCH /v1.0/subclouds/{subcloud_ref}/prestage
+                Content-Type: application/json
+                {
+                  "sysadmin_password": "<base64-encoded>",
+                  "release": "26.03",
+                  "for_sw_deploy": "true"
+                }
+          operationId: updateSubcloud
+          tags:
+          - subclouds
+          parameters:
+          - name: subcloud_ref
+            in: query
+            description: ID or name of subcloud to update
+            required: true
+            schema:
+              type: string
+          - name: verb
+            in: query
+            description: >-
+              Operation to perform. When null or "redeploy":
+              use multipart/form-data. When "prestage" or
+              "update_status": use application/json
+            required: false
+            schema:
+              type: string
+              enum:
+              - redeploy
+              - prestage
+              - update_status
+          requestBody:
+            required: true
+            description: >-
+              Request body format depends on verb parameter.
+              Use multipart/form-data for no verb or
+              redeploy. Use application/json for prestage
+              or update_status.
+            content:
+              multipart/form-data:
+                schema:
+                  type: object
+                  properties:
+                    name:
+                      $ref: '#/components/schemas/subcloud_name'
+                    description:
+                      $ref: '#/components/schemas/subcloud_description'
+                    location:
+                      $ref: '#/components/schemas/subcloud_location'
+                    management-state:
+                      $ref: '#/components/schemas/management_state'
+                    group_id:
+                      $ref: '#/components/schemas/group_id'
+                    bootstrap_values:
+                      $ref: '#/components/schemas/bootstrap_values'
+                    install_values:
+                      $ref: '#/components/schemas/install_values'
+                    deploy_config:
+                      $ref: '#/components/schemas/deploy_config'
+                    bmc_password:
+                      $ref: '#/components/schemas/bmc_password'
+                    sysadmin_password:
+                      $ref: '#/components/schemas/sysadmin_password'
+                    release:
+                      $ref: '#/components/schemas/release'
+                    force:
+                      $ref: '#/components/schemas/force'
+              application/json:
+                schema:
+                  oneOf:
+                  - title: Prestage Request
+                    description: Request body for verb=prestage
+                    type: object
+                    required:
+                    - sysadmin_password
+                    properties:
+                      sysadmin_password:
+                        $ref: '#/components/schemas/sysadmin_password'
+                      force:
+                        $ref: '#/components/schemas/force'
+                      release:
+                        $ref: '#/components/schemas/release'
+                      for_install:
+                        type: boolean
+                        description: Prestage for installation
+                      for_sw_deploy:
+                        type: boolean
+                        description: Prestage for software deployment
+                    example:
+                      # prestage
+                      sysadmin_password: cGFzc3dvcmQK
+                      release: '25.09'
+                      for_install: true
+                      # update_status
+                      endpoint: dc-cert
+                      status: in-sync
+                  - title: Update Status Request
+                    description: Request body for verb=update_status
+                    type: object
+                    required:
+                    - endpoint
+                    - status
+                    properties:
+                      endpoint:
+                        type: string
+                        enum:
+                        - dc-cert
+                        description: Endpoint type (only dc-cert allowed)
+                      status:
+                        type: string
+                        enum:
+                        - in-sync
+                        - out-of-sync
+                        - unknown
+                        description: Synchronization status
+          responses:
+            200:
+              description: Subcloud updated successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 9
+                    name: subcloud1-stx-latest
+                    description: subcloud1
+                    location: Kanata
+                    software-version: '26.03'
+                    management-state: managed
+                    availability-status: online
+                    deploy-status: complete
+                    backup-status: null
+                    backup-datetime: null
+                    error-description: No errors present
+                    region-name: e6f93b0ca0764ca49c0779497bf20f82
+                    management-subnet: 192.168.101.0/24
+                    management-start-ip: 192.168.101.2
+                    management-end-ip: 192.168.101.50
+                    management-gateway-ip: 192.168.101.1
+                    openstack-installed: false
+                    prestage-status: prestaging
+                    prestage-versions: null
+                    systemcontroller-gateway-ip: 192.168.204.101
+                    data_install: >-
+                      {"software_version": 26.03,
+                      "bootstrap_interface": "enp2s1",
+                      "bootstrap_address": "10.10.10.12",
+                      "bootstrap_address_prefix": 23,
+                      "bmc_address": "192.168.122.101",
+                      "bmc_username": "admin",
+                      "install_type": 2,
+                      "console_type": "tty0",
+                      "rootfs_device": "/dev/sda",
+                      "boot_device": "/dev/sda",
+                      "wait_for_timeout": 3600,
+                      "no_check_certificate": true,
+                      "persistent_size": 30000,
+                      "bmc_password": "YWRtaW4=",
+                      "image":
+                      "/opt/dc-vault/software/26.03/starlingx-intel-x86-64-cd.iso"}
+                    data_upgrade: null
+                    created-at: '2026-02-25 18:28:43.715335'
+                    updated-at: '2026-02-26 11:10:13.287088'
+                    group_id: 1
+                    peer_group_id: null
+                    rehome_data: null
+                    prestage-software-version: '26.03'
+            400:
+              description: Bad request
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    code: 400
+                    title: Bad Request
+                    description: >-
+                      Prestage skipped 'subcloud1-stx-latest':
+                      Subcloud is not managed.
+            404:
+              description: Subcloud not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
         """
         context = restcomm.extract_context_from_environ()
         context.is_admin = self.authorize_user(verb)
@@ -1364,6 +1746,31 @@ class SubcloudsController(object):
         """Delete a subcloud.
 
         :param subcloud_ref: ID or name of subcloud to delete.
+        ---
+        delete:
+          summary: Delete a subcloud
+          description: Delete a subcloud and all its resources
+          operationId: deleteSubcloud
+          tags:
+          - subclouds
+          parameters:
+          - name: subcloud_ref
+            in: query
+            description: ID or name of subcloud to delete
+            required: true
+            schema:
+              type: string
+          responses:
+            200:
+              description: Subcloud deleted successfully
+            400:
+              description: Bad request
+            404:
+              description: Subcloud not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
         """
 
         context = restcomm.extract_context_from_environ()

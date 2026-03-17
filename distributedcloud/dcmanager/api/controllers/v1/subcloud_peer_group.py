@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -28,7 +28,6 @@ from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
-
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -119,6 +118,60 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         :param verb: Specifies the get action to be taken
         to the subcloud-peer-group get operation
         :param group_ref: ID or name of subcloud peer group
+        ---
+        get:
+          summary: Get subcloud peer groups
+          description: |
+            Retrieve list of all subcloud peer groups or details of a specific group.
+
+            Valid verb values:
+            - subclouds: returns subclouds for the peer group
+            - status: returns status information for the peer group
+          operationId: getSubcloudPeerGroups
+          tags:
+          - subcloud-peer-groups
+          parameters:
+          - name: group_ref
+            in: query
+            description: ID or name of subcloud peer group
+            required: false
+            schema:
+              type: string
+          - name: verb
+            in: query
+            description: Additional operation verb
+            required: false
+            schema:
+              type: string
+              enum:
+              - subclouds
+              - status
+          responses:
+            200:
+              description: Peer groups retrieved successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      subcloud_peer_groups:
+                        $ref: '#/components/schemas/subcloud_peer_groups'
+                  example:
+                    subcloud_peer_groups:
+                    - id: 1
+                      peer_group_name: group1
+                      group_priority: 0
+                      group_state: enabled
+                      max_subcloud_rehoming: 10
+                      system_leader_id: fba24562-e071-4c09-8616-a96bc19702f3
+                      system_leader_name: s1-system-controller
+                      migration_status: null
+                      created-at: '2026-03-12 19:20:18.700628'
+                      updated-at: null
+            404:
+              description: Peer group not found
+            500:
+              description: Internal server error
         """
         policy.authorize(
             subcloud_peer_group_policy.POLICY_ROOT % "get",
@@ -149,7 +202,68 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
 
     @index.when(method="POST", template="json")
     def post(self):
-        """Create a new subcloud peer group."""
+        """Create a new subcloud peer group.
+
+        ---
+        post:
+          summary: Create a new subcloud peer group
+          description: |
+            Create a new subcloud peer group with specified configuration.
+            Valid group_state values: enabled, disabled.
+          operationId: createSubcloudPeerGroup
+          tags:
+          - subcloud-peer-groups
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    peer-group-name:
+                      $ref: '#/components/schemas/subcloud_peer_group_name'
+                    group-priority:
+                      $ref: '#/components/schemas/subcloud_peer_group_priority'
+                    group-state:
+                      $ref: '#/components/schemas/spg_administrative_state'
+                    max-subcloud-rehoming:
+                      $ref: '#/components/schemas/spg_max_subcloud_rehoming'
+                    system-leader-id:
+                      $ref: '#/components/schemas/spg_system_leader_id'
+                    system-leader-name:
+                      $ref: '#/components/schemas/spg_system_leader_name'
+                example:
+                  peer-group-name: group2
+                  group-priority: 0
+                  group-state: enabled
+                  max-subcloud-rehoming: 2
+          responses:
+            200:
+              description: Peer group created successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 2
+                    peer_group_name: group2
+                    group_priority: 0
+                    group_state: enabled
+                    max_subcloud_rehoming: 2
+                    system_leader_id: fba24562-e071-4c09-8616-a96bc19702f3
+                    system_leader_name: s1-system-controller
+                    migration_status: null
+                    created-at: '2026-03-12 23:07:01.847344'
+                    updated-at: null
+            400:
+              description: Bad request - invalid parameters
+            409:
+              description: Conflict - peer group name already exists
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
+        """
 
         context = restcomm.extract_context_from_environ()
         context.is_admin = policy.authorize(
@@ -244,6 +358,106 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
         :param verb: Specifies the get action to be taken
         to the subcloud-peer-group patch operation
         :param group_ref: ID or name of subcloud group to update
+        ---
+        patch:
+          summary: Update a subcloud peer group
+          description: |
+            Update subcloud peer group configuration or perform operations.
+            Valid verb values: migrate, audit (or no verb for regular update).
+            When verb=migrate, only sysadmin_password is required in request body.
+            When verb=audit, requires: peer_uuid,
+            peer_group_name, group_priority, group_state,
+            system_leader_id, system_leader_name,
+            migration_status.
+            When verb is omitted, use peer-group-name,
+            group-priority, group-state, or
+            max-subcloud-rehoming.
+          operationId: updateSubcloudPeerGroup
+          tags:
+          - subcloud-peer-groups
+          parameters:
+          - name: group_ref
+            in: query
+            description: ID or name of subcloud peer group
+            required: true
+            schema:
+              type: string
+          - name: verb
+            in: query
+            description: Operation verb (migrate, audit, or omit for regular update)
+            required: false
+            schema:
+              type: string
+              enum:
+              - migrate
+              - audit
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    peer-group-name:
+                      $ref: '#/components/schemas/subcloud_peer_group_name'
+                    group-priority:
+                      $ref: '#/components/schemas/subcloud_peer_group_priority'
+                    group-state:
+                      $ref: '#/components/schemas/spg_administrative_state'
+                    max-subcloud-rehoming:
+                      $ref: '#/components/schemas/spg_max_subcloud_rehoming'
+                    sysadmin_password:
+                      $ref: '#/components/schemas/sysadmin_password'
+                    peer_uuid:
+                      type: string
+                      description: UUID of peer system (required for verb=audit)
+                    peer_group_name:
+                      type: string
+                      description: Peer group name (required for verb=audit)
+                    group_priority:
+                      type: integer
+                      description: Group priority (required for verb=audit)
+                    group_state:
+                      type: string
+                      description: Group state (required for verb=audit)
+                    system_leader_id:
+                      type: string
+                      description: System leader ID (required for verb=audit)
+                    system_leader_name:
+                      type: string
+                      description: System leader name (required for verb=audit)
+                    migration_status:
+                      type: string
+                      description: Migration status (required for verb=audit)
+                example:
+                  peer-group-name: group123
+                  group_priority: 0
+          responses:
+            200:
+              description: Peer group updated successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  example:
+                    id: 1
+                    peer_group_name: group123
+                    group_priority: 0
+                    group_state: enabled
+                    max_subcloud_rehoming: 10
+                    system_leader_id: fba24562-e071-4c09-8616-a96bc19702f3
+                    system_leader_name: s1-system-controller
+                    migration_status: null
+                    created-at: '2026-03-12 19:20:18.700628'
+                    updated-at: '2026-03-12 20:54:15.731299'
+            400:
+              description: Bad request - invalid parameters
+            404:
+              description: Peer group not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
         """
 
         context = restcomm.extract_context_from_environ()
@@ -626,6 +840,38 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
 
     @index.when(method="delete", template="json")
     def delete(self, group_ref):
+        """Delete subcloud peer group
+
+        ---
+        delete:
+          summary: Delete a subcloud peer group
+          description: Delete a subcloud peer group
+          operationId: deleteSubcloudPeerGroup
+          tags:
+          - subcloud-peer-groups
+          parameters:
+          - name: group_ref
+            in: query
+            description: ID or name of subcloud peer group
+            required: true
+            schema:
+              type: string
+          responses:
+            200:
+              description: Peer group deleted successfully
+              content:
+                application/json:
+                  schema:
+                    type: object
+            400:
+              description: Bad request - cannot delete group
+            404:
+              description: Peer group not found
+            422:
+              description: Unprocessable entity
+            500:
+              description: Internal server error
+        """
         """Delete the subcloud peer group."""
 
         context = restcomm.extract_context_from_environ()
