@@ -2146,37 +2146,6 @@ def is_major_release(version):
     return 0 <= MM <= 99 and 0 <= mm <= 99
 
 
-def is_minor_release(version):
-    """Check if a given version is a valid minor release
-
-    The third value in a release format representation,
-    for example MM.mm.pp, is considered a minor release.
-
-    Both the MM part and the mm part must have two digits.
-    The pp part can have one digit or two.
-
-    The third part of the format starting from 1 is considered a minor
-    release, since 0 represents the major release.
-
-    Args:
-        version (str): The requested version value
-
-    Returns:
-        bool: `True` if the version value meets the expected format.
-        `False` if the version format is not valid.
-
-    """
-    pattern = r"^\d{2}\.\d{2}\.\d{1,2}$"
-    if not re.match(pattern, version):
-        return False
-
-    MM, mm, pp = version.split(".")
-    MM = int(MM)
-    mm = int(mm)
-    pp = int(pp)
-    return 0 <= MM <= 99 and 0 <= mm <= 99 and 1 <= pp <= 99
-
-
 def get_major_release(version: str) -> str:
     """Returns the YY.MM portion of the given release version or ID string
 

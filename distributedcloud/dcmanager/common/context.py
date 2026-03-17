@@ -188,17 +188,6 @@ def get_admin_context(show_deleted=False):
     return RequestContext(is_admin=True, show_deleted=show_deleted)
 
 
-def get_service_context(**args):
-    """An abstraction layer for getting service context.
-
-    There could be multiple cloud backends for dcmanager to use. This
-    abstraction layer provides an indirection for dcmanager to get the
-    credentials of 'dcmanager' user on the specific cloud. By default,
-    this credential refers to the credentials built for dcmanager middleware
-    in an OpenStack cloud.
-    """
-
-
 class AuthHook(hooks.PecanHook):
     def before(self, state):
         if state.request.path == ALLOWED_WITHOUT_AUTH:
