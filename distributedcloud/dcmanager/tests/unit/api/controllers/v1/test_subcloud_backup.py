@@ -1030,6 +1030,21 @@ class BaseTestSubcloudBackupPatchRestore(BaseTestSubcloudBackupPatch):
 
         self.url = f"{self.url}/restore"
 
+    def _assert_on_site_incompatible_with(self, param=None):
+        """Assert that on_site is rejected when combined with an incompatible param."""
+        self.params["on_site"] = "True"
+        if param is not None:
+            self.params[param] = "True"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Option on_site cannot be used with any of the following "
+            "options: with_install, factory, auto or group",
+        )
+
 
 class TestSubcloudBackupPatchRestore(BaseTestSubcloudBackupPatchRestore):
     """Test class for patch requests with restore verb"""
@@ -1581,6 +1596,52 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
         self.assertNotIn("backup_index", call_payload)
 
+    def test_patch_restore_on_site_local_only_succeeds(self):
+        """Test on_site restore with local_only succeeds"""
+
+        self.params["on_site"] = "True"
+        self.params["local_only"] = "True"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertTrue(call_payload["on_site"])
+        self.assertTrue(call_payload["local_only"])
+
+    def test_patch_restore_on_site_succeeds(self):
+        """Test on_site restore without local_only succeeds"""
+
+        self.params["on_site"] = "True"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertTrue(call_payload["on_site"])
+
+    def test_patch_restore_on_site_succeeds_with_restore_values(self):
+        """Test on_site restore succeeds when combined with restore_values"""
+
+        self.params["on_site"] = "True"
+        self.params["restore_values"] = FAKE_RESTORE_VALUES_VALID_IP
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_patch_restore_on_site_fails_with_with_install(self):
+        """Test on_site restore fails when combined with with_install"""
+        self._assert_on_site_incompatible_with("with_install")
+
+    def test_patch_restore_on_site_fails_with_factory(self):
+        """Test on_site restore fails when combined with factory"""
+        self._assert_on_site_incompatible_with("factory")
+
+    def test_patch_restore_on_site_fails_with_auto(self):
+        """Test on_site restore fails when combined with auto"""
+        self._assert_on_site_incompatible_with("auto")
+
 
 class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
     """Test class for patch requests with restore verb for group resource"""
@@ -1665,6 +1726,11 @@ class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
         self._assert_pecan_and_response(
             response, http.client.INTERNAL_SERVER_ERROR, "Unable to restore subcloud"
         )
+
+    def test_patch_restore_on_site_fails_with_group(self):
+        """Test on_site restore fails when combined with group"""
+        # group is already set in self.params by setUp
+        self._assert_on_site_incompatible_with()
 
 
 class TestSubcloudBackupGet(BaseTestSubcloudBackupController):

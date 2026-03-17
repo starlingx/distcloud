@@ -99,6 +99,9 @@ ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK = (
 ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK = (
     "/usr/share/ansible/stx-ansible/playbooks/restore_subcloud_backup.yml"
 )
+ANSIBLE_SUBCLOUD_ONSITE_RESTORE_PLAYBOOK = (
+    "/usr/share/ansible/stx-ansible/playbooks/onsite_restore_subcloud.yml"
+)
 ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK = (
     "/usr/share/ansible/stx-ansible/playbooks/rehome_subcloud.yml"
 )
@@ -132,6 +135,7 @@ UPDATE_PLAYBOOK_TIMEOUT = "180"
 SC_INTERMEDIATE_CERT_DURATION = "8760h"  # 1 year = 24 hours x 365
 SC_INTERMEDIATE_CERT_RENEW_BEFORE = "720h"  # 30 days
 CERT_NAMESPACE = "dc-cert"
+
 
 MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
@@ -567,6 +571,43 @@ class SubcloudManager(manager.Manager):
                 backup_command += ["-e", f"{ipmi_sel_event_monitoring=}"]
 
         return backup_command
+
+    def compose_onsite_restore_command(
+        self,
+        subcloud_name,
+        ansible_subcloud_inventory_file,
+        backup_source_path=None,
+        staging_dir=None,
+        restore_timeout=None,
+    ):
+        """Compose ansible command for on-site restore monitoring playbook.
+
+        :param subcloud_name: name of the subcloud
+        :param ansible_subcloud_inventory_file: path to the ansible inventory file
+        :param backup_source_path: path to the backup file on the system controller
+                                   (when not local_only). If None, transfer is skipped.
+        :param staging_dir: destination directory on the subcloud for the backup file
+        :param restore_timeout: timeout in seconds passed to the on-site playbook
+        :returns: ansible-playbook command list
+        """
+        command = [
+            "ansible-playbook",
+            ANSIBLE_SUBCLOUD_ONSITE_RESTORE_PLAYBOOK,
+            "-i",
+            ansible_subcloud_inventory_file,
+            "--limit",
+            subcloud_name,
+        ]
+        if restore_timeout is not None:
+            command += ["-e", f"restore_timeout={int(restore_timeout)}"]
+        if backup_source_path and staging_dir:
+            command += [
+                "-e",
+                f"backup_source_path={backup_source_path}",
+                "-e",
+                f"staging_dir={staging_dir}",
+            ]
+        return command
 
     def compose_update_command(
         self, subcloud_name, ansible_subcloud_inventory_file, software_version=None
@@ -1428,19 +1469,38 @@ class SubcloudManager(manager.Manager):
 
         failed_subclouds = []
         if restore_subclouds:
-            restore_function = functools.partial(
-                self._restore_subcloud_backup,
-                context,
-                payload,
-                archive=archive,
-                subcloud_backup_map=subcloud_backup_map,
-            )
-            restore_pool = greenpool.GreenPool(
-                size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE
-            )
-            failed_subclouds = self._run_parallel_group_operation(
-                "backup restore", restore_function, restore_pool, restore_subclouds
-            )
+            on_site = payload.get("on_site", False)
+            if on_site:
+                # on_site cannot be used with group, should always be a single subcloud
+                if len(restore_subclouds) > 1:
+                    LOG.warning(
+                        "On-site subcloud restore operation found more "
+                        "than a single target subcloud!"
+                    )
+
+                subcloud = restore_subclouds[0]
+                _, success = self._restore_subcloud_backup_on_site(
+                    context,
+                    payload,
+                    subcloud,
+                    archive=archive,
+                )
+                if not success:
+                    failed_subclouds = [subcloud]
+            else:
+                restore_function = functools.partial(
+                    self._restore_subcloud_backup,
+                    context,
+                    payload,
+                    archive=archive,
+                    subcloud_backup_map=subcloud_backup_map,
+                )
+                restore_pool = greenpool.GreenPool(
+                    size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE
+                )
+                failed_subclouds = self._run_parallel_group_operation(
+                    "backup restore", restore_function, restore_pool, restore_subclouds
+                )
 
         restored_subclouds = len(restore_subclouds) - len(failed_subclouds)
         LOG.info(
@@ -3760,6 +3820,147 @@ class SubcloudManager(manager.Manager):
             if restore_ctx:
                 self._cleanup_restore_context(restore_ctx)
 
+    def _restore_subcloud_backup_on_site(
+        self,
+        context,
+        payload: dict,
+        subcloud: Subcloud,
+        archive: SubcloudBackupArchive = None,
+    ):
+        """Prepare and initiate an on-site subcloud restore.
+
+        :param context: request context object
+        :param payload: restore request parameters
+        :param subcloud: subcloud model object
+        :param archive: resolved backup archive (for central backups)
+        :returns: (subcloud, success) tuple
+        """
+        log_file = (
+            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+            + "_playbook_output.log"
+        )
+
+        # Determine backup_source_path for transfer (None means local_only)
+        backup_source_path = None
+        if not payload.get("local_only") and archive:
+            backup_source_path = archive.storage_path
+            LOG.debug(
+                "on-site restore for subcloud %s will transfer backup: %s",
+                subcloud.name,
+                backup_source_path,
+            )
+
+        restore_timeout = int(
+            payload.get("restore_values", {}).get(
+                "restore_timeout", CONF.playbook_timeout * 1.5
+            )
+        )
+
+        try:
+            db_api.subcloud_update(
+                context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_PRE_RESTORE,
+                error_description=consts.ERROR_DESC_EMPTY,
+            )
+            bootstrap_address = self._resolve_bootstrap_address(payload, subcloud)
+            subcloud_inventory_file = self._create_subcloud_inventory_file(
+                subcloud,
+                bootstrap_address=bootstrap_address,
+                sysadmin_password=payload.get("sysadmin_password"),
+            )
+
+            staging_dir = None
+            if backup_source_path:
+                staging_dir = consts.SUBCLOUD_ONSITE_RESTORE_DIR
+
+            onsite_command = self.compose_onsite_restore_command(
+                subcloud.name,
+                subcloud_inventory_file,
+                backup_source_path=backup_source_path,
+                staging_dir=staging_dir,
+                restore_timeout=restore_timeout,
+            )
+        except Exception:
+            LOG.exception(
+                f"Failed to prepare on-site restore for subcloud {subcloud.name}"
+            )
+            db_api.subcloud_update(
+                context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+            )
+            return subcloud, False
+
+        db_api.subcloud_update(
+            context,
+            subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_ONSITE_RESTORING,
+        )
+
+        LOG.info(f"Starting on-site restore monitoring for subcloud {subcloud.name}")
+        success = self._monitor_onsite_restore(
+            context, subcloud, onsite_command, log_file, restore_timeout
+        )
+        return subcloud, success
+
+    def _monitor_onsite_restore(
+        self, context, subcloud, onsite_command, log_file, restore_timeout
+    ):
+        """Runs the on-site restore playbook.
+
+        Runs the onsite_restore_subcloud.yml playbook which optionally transfers
+        the backup file and then waits for the subcloud to signal restore
+        completion via the auto-restore flag file.
+
+        :param context: request context object
+        :param subcloud: subcloud model object
+        :param onsite_command: ansible-playbook command list
+        :param log_file: path to the playbook log file
+        :param restore_timeout: ansible subprocess timeout in seconds
+        :returns: True on success, False on failure
+        """
+        try:
+            ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
+            # 5 extra minutes so the subprocess is not killed too early after
+            # the restore_timeout is reached in the playbook task
+            ansible.run_playbook(
+                log_file,
+                onsite_command,
+                timeout=restore_timeout + 300,
+            )
+            LOG.info(
+                f"On-site restore completed successfully for subcloud {subcloud.name}"
+            )
+            db_api.subcloud_update(
+                context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_DONE,
+            )
+            return True
+        except PlaybookExecutionFailed as e:
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_ONSITE_RESTORING,
+                deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
+            )
+            LOG.error(f"On-site restore failed for subcloud {subcloud.name}: {msg}")
+            return False
+        except Exception:
+            LOG.exception(
+                "Unexpected error during on-site restore monitoring for "
+                f"subcloud {subcloud.name}"
+            )
+            db_api.subcloud_update(
+                context,
+                subcloud.id,
+                deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
+            )
+            return False
+
     @staticmethod
     def _build_subcloud_operation_notice(
         operation, failed_subclouds, invalid_subclouds, skipped_subclouds=None
@@ -3786,7 +3987,11 @@ class SubcloudManager(manager.Manager):
         return notice
 
     def _create_subcloud_inventory_file(
-        self, subcloud, bootstrap_address=None, initial_deployment=False
+        self,
+        subcloud,
+        bootstrap_address=None,
+        initial_deployment=False,
+        sysadmin_password=None,
     ):
         # Ansible inventory filename for the specified subcloud
         ansible_subcloud_inventory_file = self._get_ansible_filename(
@@ -3806,15 +4011,22 @@ class SubcloudManager(manager.Manager):
                 subcloud, admin_session
             )
 
-        # Add parameters used to generate inventory
-        subcloud_params = {
-            "name": subcloud.name,
-            "bootstrap-address": bootstrap_address,
-        }
-
-        utils.create_subcloud_inventory(
-            subcloud_params, ansible_subcloud_inventory_file, initial_deployment
-        )
+        if sysadmin_password:
+            utils.create_subcloud_inventory_with_admin_creds(
+                subcloud.name,
+                ansible_subcloud_inventory_file,
+                bootstrap_address,
+                sysadmin_password,
+                initial_deployment,
+            )
+        else:
+            subcloud_params = {
+                "name": subcloud.name,
+                "bootstrap-address": bootstrap_address,
+            }
+            utils.create_subcloud_inventory(
+                subcloud_params, ansible_subcloud_inventory_file, initial_deployment
+            )
         return ansible_subcloud_inventory_file
 
     @staticmethod
