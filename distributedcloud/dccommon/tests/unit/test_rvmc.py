@@ -406,11 +406,11 @@ class TestSupportedDevice(base.DCCommonTestCase):
             self.assertFalse(rvmc.supported_device(devices))
 
 
-class TestParseTarget(base.DCCommonTestCase):
-    """Test class for parse_target utility function.
+class BaseTestRvmc(base.DCCommonTestCase):
+    """Base test class for RVMC tests.
 
-    Tests the parse_target function which parses BMC configuration
-    and creates a VmcObject for virtual media control operations.
+    Provides common setup functionality for RVMC-related test classes,
+    including mock logger, logging utility, exit handler and test data.
     """
 
     def setUp(self):
@@ -431,31 +431,41 @@ class TestParseTarget(base.DCCommonTestCase):
     def _assert_mock_logger_calls(self, expected_calls):
         """Assert the mock logger was called with expected calls."""
 
-        calls = [
-            # The mock.ANY entries are required because the mock_logger is called
-            # in the conditional statement inside LogginUtil, i.e. if self.logger.
-            mock.ANY,
-            mock.call.debug(f"Parse Target: {self.target_name}:{self.target_dict}"),
-        ]
+        calls = []
 
         for call in expected_calls:
+            # The mock.ANY entries are required because the mock_logger is called
+            # in the conditional statement inside LogginUtil, i.e. if self.logger.
             calls.append(mock.ANY)
             calls.append(call)
 
         self.mock_logger.assert_has_calls(calls)
 
-    def test_parse_target_returns_none_when_password_missing(self):
-        """Verify parse_target returns None when bmc_password is missing"""
 
-        del self.target_dict["bmc_password"]
+class TestParseTarget(BaseTestRvmc):
+    """Test class for parse_target utility function.
 
-        result = rvmc.parse_target(
+    Tests the parse_target function which parses BMC configuration
+    and creates a VmcObject for virtual media control operations.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.parse_config_file_args = (
             self.target_name,
             self.target_dict,
             self.config_file,
             self.logging_util,
             self.exit_handler,
         )
+
+    def test_parse_target_returns_none_when_password_missing(self):
+        """Verify parse_target returns None when bmc_password is missing"""
+
+        del self.target_dict["bmc_password"]
+
+        result = rvmc.parse_target(*self.parse_config_file_args)
 
         self.assertIsNone(result)
         self.mock_logger.error.assert_called_once_with(
@@ -467,17 +477,12 @@ class TestParseTarget(base.DCCommonTestCase):
 
         self.target_dict["bmc_password"] = "invalid_base64!@#"
 
-        result = rvmc.parse_target(
-            self.target_name,
-            self.target_dict,
-            self.config_file,
-            self.logging_util,
-            self.exit_handler,
-        )
+        result = rvmc.parse_target(*self.parse_config_file_args)
 
         self.assertIsNone(result)
         self._assert_mock_logger_calls(
             [
+                mock.call.debug(f"Parse Target: {self.target_name}:{self.target_dict}"),
                 mock.call.error(
                     "Failed to decode bmc password found in config file (Invalid "
                     "base64-encoded string: number of data characters (13) cannot be 1 "
@@ -492,38 +497,27 @@ class TestParseTarget(base.DCCommonTestCase):
 
         del self.target_dict["bmc_address"]
 
-        result = rvmc.parse_target(
-            self.target_name,
-            self.target_dict,
-            self.config_file,
-            self.logging_util,
-            self.exit_handler,
-        )
+        result = rvmc.parse_target(*self.parse_config_file_args)
 
         self.assertIsNone(result)
         self._assert_mock_logger_calls(
             [
+                mock.call.debug(f"Parse Target: {self.target_name}:{self.target_dict}"),
                 mock.call.error(
                     f"Failed to retrieve the bmc_address from {self.config_file}"
-                )
+                ),
             ]
         )
 
     def test_parse_target_creates_vmc_object_with_ipv4_address(self):
         """Verify parse_target creates VmcObject for IPv4 address"""
 
-        result = rvmc.parse_target(
-            self.target_name,
-            self.target_dict,
-            self.config_file,
-            self.logging_util,
-            self.exit_handler,
-        )
+        result = rvmc.parse_target(*self.parse_config_file_args)
 
         self.assertIsNotNone(result)
         self.assertIsInstance(result, rvmc.VmcObject)
         self.assertFalse(result.ipv6)
-        self.assertEqual(result.ip, "192.168.1.1")
+        self.assertEqual(result.ip, self.target_dict["bmc_address"])
         self.assertEqual(result.un, self.target_dict["bmc_username"])
         self.assertEqual(result.pw_encoded, self.target_dict["bmc_password"])
 
@@ -532,17 +526,11 @@ class TestParseTarget(base.DCCommonTestCase):
 
         self.target_dict["bmc_address"] = "2001:db8::1"
 
-        result = rvmc.parse_target(
-            self.target_name,
-            self.target_dict,
-            self.config_file,
-            self.logging_util,
-            self.exit_handler,
-        )
+        result = rvmc.parse_target(*self.parse_config_file_args)
         self.assertIsNotNone(result)
         self.assertIsInstance(result, rvmc.VmcObject)
         self.assertTrue(result.ipv6)
-        self.assertEqual(result.ip, "[2001:db8::1]")
+        self.assertEqual(result.ip, f"[{self.target_dict['bmc_address']}]")
         self.assertEqual(result.un, self.target_dict["bmc_username"])
         self.assertEqual(result.pw_encoded, self.target_dict["bmc_password"])
 
@@ -555,17 +543,12 @@ class TestParseTarget(base.DCCommonTestCase):
 
         del self.target_dict["image"]
 
-        result = rvmc.parse_target(
-            self.target_name,
-            self.target_dict,
-            self.config_file,
-            self.logging_util,
-            self.exit_handler,
-        )
+        result = rvmc.parse_target(*self.parse_config_file_args)
 
         self.assertIsNone(result)
         self._assert_mock_logger_calls(
             [
+                mock.call.debug(f"Parse Target: {self.target_name}:{self.target_dict}"),
                 mock.call.debug(
                     f"Address     : {self.target_dict['bmc_address']} is IPv4"
                 ),
@@ -590,16 +573,160 @@ class TestParseTarget(base.DCCommonTestCase):
 
         self._mock_object(rvmc, "VmcObject", return_value=None)
 
-        result = rvmc.parse_target(
-            self.target_name,
-            self.target_dict,
-            self.config_file,
-            self.logging_util,
-            self.exit_handler,
-        )
+        result = rvmc.parse_target(*self.parse_config_file_args)
 
         self.assertIsNone(result)
         self.mock_logger.error.assert_called_once_with(
             f"Unable to create control object for target:{self.target_dict} ; "
             "skipping ..."
         )
+
+
+class TestParseConfigFile(BaseTestRvmc):
+    """Test class for parse_config_file utility function.
+
+    Tests the parse_config_file function which parses BMC configuration
+    from a YAML file and creates a VmcObject through parse_target.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.config_file = "/tmp/test_config.yaml"
+        self.parse_config_file_args = (
+            self.target_name,
+            self.config_file,
+            self.logging_util,
+            self.exit_handler,
+        )
+
+        self.mock_os_path_exists = self._mock_object(
+            rvmc.os.path, "exists", return_value=True
+        )
+        self.mock_file = mock.MagicMock()
+        self.mock_file.__enter__.return_value = self.mock_file
+        self.mock_open = self._mock_object(rvmc, "open", return_value=self.mock_file)
+        self.mock_yaml_load = self._mock_object(
+            rvmc.yaml, "safe_load", return_value=self.target_dict
+        )
+
+    def test_parse_config_file_returns_none_when_file_not_exists(self):
+        """Verify parse_config_file exits when config file does not exist"""
+
+        self.mock_os_path_exists.return_value = False
+
+        self.assertRaises(
+            RvmcExit, rvmc.parse_config_file, *self.parse_config_file_args
+        )
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.error(
+                    f"Unable to find specified config file: {self.config_file}"
+                ),
+                mock.call.info("Check config file spelling and presence\n\n"),
+            ]
+        )
+
+    def test_parse_config_file_exits_when_file_open_fails(self):
+        """Verify parse_config_file exits when file cannot be opened"""
+
+        self.mock_open.side_effect = PermissionError("Permission denied")
+
+        self.assertRaises(
+            RvmcExit, rvmc.parse_config_file, *self.parse_config_file_args
+        )
+
+        self.mock_open.assert_called_once_with(self.config_file, "r")
+        self._assert_mock_logger_calls(
+            [
+                mock.call.error(
+                    f"Unable to open specified config file: {self.config_file} "
+                    "(Permission denied)"
+                ),
+                mock.call.info("Check config file access and permissions.\n\n"),
+            ]
+        )
+
+    def test_parse_config_file_exits_when_yaml_parsing_fails(self):
+        """Verify parse_config_file exits when YAML parsing fails"""
+
+        self.mock_yaml_load.side_effect = Exception("Invalid YAML")
+
+        self.assertRaises(
+            RvmcExit, rvmc.parse_config_file, *self.parse_config_file_args
+        )
+
+        self.mock_open.assert_called_once_with(self.config_file, "r")
+        self._assert_mock_logger_calls(
+            [
+                mock.call.debug(f"Config File : {self.config_file}"),
+                mock.call.error(
+                    f"Unable to open specified config file: {self.config_file} "
+                    "(Invalid YAML)"
+                ),
+                mock.call.info("Check config file access and permissions.\n\n"),
+            ]
+        )
+
+    def test_parse_config_file_returns_config_and_target_object(self):
+        """Verify parse_config_file returns config data and target object"""
+
+        cfg, target_object = rvmc.parse_config_file(*self.parse_config_file_args)
+
+        self.assertEqual(cfg, self.target_dict)
+        self.assertIsInstance(target_object, rvmc.VmcObject)
+        self.assertEqual(target_object.target, self.target_name)
+        self.assertFalse(target_object.ipv6)
+        self.assertEqual(target_object.ip, self.target_dict["bmc_address"])
+        self.assertEqual(target_object.un, self.target_dict["bmc_username"])
+        self.assertEqual(target_object.pw_encoded, self.target_dict["bmc_password"])
+
+    def test_parse_config_file_returns_config_and_target_object_with_ipv6(self):
+        """Verify parse_config_file returns config data and target object with ipv6"""
+
+        self.target_dict["bmc_address"] = "2001:db8::1"
+        self.mock_yaml_load.return_value = self.target_dict
+
+        cfg, target_object = rvmc.parse_config_file(*self.parse_config_file_args)
+
+        self.assertEqual(cfg, self.target_dict)
+        self.assertIsInstance(target_object, rvmc.VmcObject)
+        self.assertEqual(target_object.target, self.target_name)
+        self.assertTrue(target_object.ipv6)
+        self.assertEqual(target_object.ip, f"[{self.target_dict['bmc_address']}]")
+        self.assertEqual(target_object.un, self.target_dict["bmc_username"])
+        self.assertEqual(target_object.pw_encoded, self.target_dict["bmc_password"])
+
+    def test_parse_config_file_returns_none_target_object_on_parse_target_failure(self):
+        """Verify parse_config_file returns None target_object on parse_target failure
+
+        In this scenario, the configuration is parsed appropriately and returned, but
+        the target object is returned empty.
+        """
+
+        # Create an invalid configuration
+        del self.target_dict["bmc_password"]
+        self.mock_yaml_load.return_value = self.target_dict
+
+        cfg, target_object = rvmc.parse_config_file(*self.parse_config_file_args)
+
+        self.assertEqual(cfg, self.target_dict)
+        self.assertIsNone(target_object)
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.debug(f"Config File : {self.config_file}"),
+                mock.call.debug(f"Config Data : {self.target_dict}"),
+            ]
+        )
+
+    def test_parse_config_file_returns_config_for_empty_config_file(self):
+        """Verify parse_config_file returns config for an empty config file"""
+
+        self.mock_yaml_load.return_value = {}
+
+        cfg, target_object = rvmc.parse_config_file(*self.parse_config_file_args)
+
+        self.assertEqual(cfg, {})
+        self.assertIsNone(target_object)
