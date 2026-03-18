@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2024, 2026 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -33,7 +33,6 @@ from redfish.rest.v1 import InvalidCredentialsError
 import requests
 
 from dccommon import exceptions
-
 
 # Constants
 # ---------
@@ -294,8 +293,8 @@ def parse_target(target_name, target_dict, config_file, logging_util, exit_handl
     :type target_name: str.
     :param target_dict: dictionary of key value config file pairs
     :type target_dict: dictionary
-    :param logging_util: the RVMC config file.
-    :type logging_util: str
+    :param config_file: the RVMC config file.
+    :type config_file: str
     :param logging_util: the logging utility.
     :type logging_util: LoggingUtil
     :param exit_handler: the exit handler.
@@ -320,8 +319,7 @@ def parse_target(target_name, target_dict, config_file, logging_util, exit_handl
 
     address = target_dict.get("bmc_address")
     if address is None:
-        logging_util.elog("Failed to decode bmc password found in %s" % config_file)
-        logging_util.alog("Verify config file's bmc password is base64 encoded")
+        logging_util.elog("Failed to retrieve the bmc_address from %s" % config_file)
         return None
 
     ####################################################################
@@ -359,6 +357,7 @@ def parse_target(target_name, target_dict, config_file, logging_util, exit_handl
             vmc_obj.ipv6 = bmc_ipv6
             return vmc_obj
         else:
+            # TODO(rlima): This code seems to be unrecheable and could be removed.
             logging_util.elog(
                 "Unable to create control object for target:%s ; "
                 "skipping ..." % target_dict
