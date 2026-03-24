@@ -2088,95 +2088,100 @@ class SubcloudManager(manager.Manager):
     def subcloud_deploy_enroll(self, context, subcloud_id, payload: dict):
 
         db_api.subcloud_update(
-            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_PRE_INIT_ENROLL
+            context,
+            subcloud_id,
+            deploy_status=consts.DEPLOY_STATE_PRE_INIT_ENROLL,
         )
 
         subcloud = db_api.subcloud_get(context, subcloud_id)
 
-        if self.subcloud_init_enroll(context, subcloud.id, payload):
-            try:
-                # based upon primary IP of oam dual-stack
-                endpoint = (
-                    "https://"
-                    + utils.format_address(
-                        payload.get("external_oam_floating_address").split(",")[0]
-                    )
-                    + ":6385"
-                )
-                subcloud_region_name = utils.get_region_name(endpoint)
-
-                # The region name in the payload was randomly generated, need to
-                # update to the correct one get from the subcloud
-                payload["region_name"] = subcloud_region_name
-
-                subcloud = db_api.subcloud_update(
-                    context,
-                    subcloud_id,
-                    region_name=subcloud_region_name,
-                    deploy_status=consts.DEPLOY_STATE_PRE_ENROLL,
-                )
-
-                # TODO(glyraper): Use the RPC Transport allow_remote_exmods
-                #  parameter to re-raise serialized remote exceptions.
-                # Subcloud may already be created in dcorch db
-                # in a previous process, if so, we should ignore
-                # the creation.
-                try:
-                    # Inform orchestrator that subcloud has been added
-                    self.dcorch_rpc_client.add_subcloud(
-                        context,
-                        subcloud.region_name,
-                        subcloud.software_version,
-                        subcloud.management_start_ip,
-                    )
-
-                except oslo_message_rpc.client.RemoteError as ex:
-                    if "duplicate key value violates unique constraint" in str(ex):
-                        pass
-
-                self._create_intermediate_ca_cert(payload=payload)
-
-                self._deploy_bootstrap_enroll_prep("enroll", context, payload, subcloud)
-
-                log_file = (
-                    os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
-                    + "_playbook_output.log"
-                )
-                ansible_subcloud_inventory_file = self._get_ansible_filename(
-                    subcloud.name, INVENTORY_FILE_POSTFIX
-                )
-                utils.create_subcloud_inventory_with_admin_creds(
-                    subcloud.name,
-                    ansible_subcloud_inventory_file,
-                    payload[consts.BOOTSTRAP_ADDRESS],
-                    ansible_pass=json.dumps(payload["sysadmin_password"]),
-                )
-
-                enroll_playbook_command = self.compose_enroll_command(
-                    subcloud.name,
-                    subcloud.region_name,
-                    ansible_subcloud_inventory_file,
-                    subcloud.software_version,
-                    state="enroll",
-                )
-                return self._run_subcloud_enroll(
-                    context,
-                    subcloud,
-                    enroll_playbook_command,
-                    log_file,
-                    region_name=subcloud_region_name,
-                )
-
-            except Exception:
-                LOG.exception(f"Failed to enroll subcloud {subcloud.name}")
-                db_api.subcloud_update(
-                    context,
-                    subcloud_id,
-                    deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_FAILED,
-                )
-                return False
-        else:
+        skip_enroll_init = payload.get("skip_enroll_init") == "true"
+        if not skip_enroll_init and not self.subcloud_init_enroll(
+            context, subcloud.id, payload
+        ):
             LOG.error(f"Initial enrollment failed for subcloud {subcloud.name}")
+            return False
+
+        try:
+            # based upon primary IP of oam dual-stack
+            endpoint = (
+                "https://"
+                + utils.format_address(
+                    payload.get("external_oam_floating_address").split(",")[0]
+                )
+                + ":6385"
+            )
+            subcloud_region_name = utils.get_region_name(endpoint)
+
+            # The region name in the payload was randomly generated, need to
+            # update to the correct one get from the subcloud
+            payload["region_name"] = subcloud_region_name
+
+            subcloud = db_api.subcloud_update(
+                context,
+                subcloud_id,
+                region_name=subcloud_region_name,
+                deploy_status=consts.DEPLOY_STATE_PRE_ENROLL,
+            )
+
+            # TODO(glyraper): Use the RPC Transport allow_remote_exmods
+            #  parameter to re-raise serialized remote exceptions.
+            # Subcloud may already be created in dcorch db
+            # in a previous process, if so, we should ignore
+            # the creation.
+            try:
+                # Inform orchestrator that subcloud has been added
+                self.dcorch_rpc_client.add_subcloud(
+                    context,
+                    subcloud.region_name,
+                    subcloud.software_version,
+                    subcloud.management_start_ip,
+                )
+
+            except oslo_message_rpc.client.RemoteError as ex:
+                if "duplicate key value violates unique constraint" in str(ex):
+                    pass
+
+            self._create_intermediate_ca_cert(payload=payload)
+
+            self._deploy_bootstrap_enroll_prep("enroll", context, payload, subcloud)
+
+            log_file = (
+                os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+                + "_playbook_output.log"
+            )
+            ansible_subcloud_inventory_file = self._get_ansible_filename(
+                subcloud.name, INVENTORY_FILE_POSTFIX
+            )
+            utils.create_subcloud_inventory_with_admin_creds(
+                subcloud.name,
+                ansible_subcloud_inventory_file,
+                payload[consts.BOOTSTRAP_ADDRESS],
+                ansible_pass=json.dumps(payload["sysadmin_password"]),
+            )
+
+            enroll_playbook_command = self.compose_enroll_command(
+                subcloud.name,
+                subcloud.region_name,
+                ansible_subcloud_inventory_file,
+                subcloud.software_version,
+                state="enroll",
+            )
+            return self._run_subcloud_enroll(
+                context,
+                subcloud,
+                enroll_playbook_command,
+                log_file,
+                region_name=subcloud_region_name,
+            )
+
+        except Exception:
+            LOG.exception(f"Failed to enroll subcloud {subcloud.name}")
+            db_api.subcloud_update(
+                context,
+                subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_PRE_ENROLL_FAILED,
+            )
             return False
 
     def subcloud_deploy_bootstrap(

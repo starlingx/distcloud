@@ -1707,7 +1707,26 @@ class TestPhasedSubcloudDeployPatchEnroll(BaseTestPhasedSubcloudDeployPatch):
     def test_patch_enroll_succeeds_without_install_values_on_request(self):
         """Test patch enroll succeeds without install values on request"""
 
-        del self.install_payload["install_values"]
+        # Remove install_values from upload_files to simulate missing install_values
+        modified_bootstrap_data = copy.copy(
+            fake_subcloud.FAKE_SUBCLOUD_BOOTSTRAP_PAYLOAD
+        )
+        modified_bootstrap_data.update({"name": "fake_subcloud1"})
+        fake_content = json.dumps(modified_bootstrap_data).encode("utf-8")
+
+        self.upload_files = [
+            ("bootstrap_values", "bootstrap_fake_filename", fake_content),
+        ]
+
+        # Mock populate_payload_with_pre_existing_data to add install_values to payload
+        def mock_populate(payload, subcloud, mandatory_values):
+            if consts.INSTALL_VALUES in mandatory_values:
+                payload[consts.INSTALL_VALUES] = self.data_install
+
+        mock_populate_func = self._mock_object(
+            psd_common, "populate_payload_with_pre_existing_data"
+        )
+        mock_populate_func.side_effect = mock_populate
         self.mock_get_subcloud_db_install_values.return_value = self.data_install
 
         request_response = self._send_request()

@@ -613,6 +613,7 @@ class PhasedSubcloudDeployController(object):
         payload = psd_common.get_request_data(
             request, subcloud, SUBCLOUD_ENROLL_GET_FILE_CONTENTS
         )
+        payload["enroll"] = "true"
 
         # Try to load the existing override values
         override_file = psd_common.get_config_file_path(subcloud.name)
