@@ -455,7 +455,7 @@ class PreCheckState(BaseState):
         )
         time.sleep(DEFAULT_SWACT_SLEEP)
 
-        # Final verification that controller-0 is still active after sleep
+        # Verify the controller-0 is active after swact
         try:
             host = sysinv_client.get_host("controller-0")
             if not utils.is_active_controller(host):
@@ -472,7 +472,37 @@ class PreCheckState(BaseState):
                 exc=exc,
             )
 
-    def _check_health(self, strategy_step, sysinv_client: SysinvClient):
+        self.info_log(strategy_step, "Verifying controller-0 is healthy after swact")
+
+        health_check_fail_count = 0
+        while True:
+            fail_exception = None
+            if self.stopped():
+                raise exceptions.StrategyStoppedException()
+
+            try:
+                self._check_health(strategy_step, sysinv_client, raise_exception=True)
+                break
+            except Exception as exc:
+                health_check_fail_count += 1
+                fail_exception = exc
+                self.info_log(strategy_step, "Host controller-0 is not healthy")
+
+            if health_check_fail_count >= self.max_failed_queries:
+                self.handle_exception(
+                    strategy_step,
+                    "Timeout waiting for controller-0 to become healthy post swact. "
+                    "Check sysinv.log on the subcloud for details.",
+                    exceptions.SoftwarePreCheckFailedException,
+                    exc=fail_exception,
+                )
+            time.sleep(self.sleep_duration)
+
+        self.info_log(strategy_step, "Host controller-0 is healthy. Proceeding...")
+
+    def _check_health(
+        self, strategy_step, sysinv_client: SysinvClient, raise_exception=False
+    ):
         """Check subcloud system health before proceeding with software operations.
 
         Validates system health by checking for failed components and management
@@ -484,6 +514,7 @@ class PreCheckState(BaseState):
         Args:
             strategy_step: The current strategy step.
             sysinv_client: System inventory client for health queries.
+            raise_exception: Whether to raise an exception or handle it internally
 
         Raises:
             SoftwarePreCheckFailedException: If system health check fails due to
@@ -499,6 +530,7 @@ class PreCheckState(BaseState):
         no_mgmt_alarms = re.findall(
             r"\[0\] of which are management affecting", system_health
         )
+        details = None
 
         # The health conditions acceptable for upgrade are:
         # a) subcloud is completely healthy (i.e. no failed checks)
@@ -519,42 +551,30 @@ class PreCheckState(BaseState):
                 "System health check failed. Please run 'system health-query' command "
                 f"on the subcloud or {consts.ERROR_DESC_CMD} on central for details"
             )
-            self.handle_exception(
-                strategy_step,
-                details,
-                exceptions.SoftwarePreCheckFailedException,
-            )
         else:
             if len(fails) == 1:
                 try:
-                    fm_client = self.get_fm_client(strategy_step.subcloud.name)
+                    fm_client = self.get_fm_client(strategy_step.subcloud.region_name)
                 except Exception:
                     # if getting the token times out, the orchestrator may have
                     # restarted and subcloud may be offline; so will attempt
                     # to use the persisted values
-                    message = (
+                    details = (
                         f"Subcloud {strategy_step.subcloud.name} failed to get "
                         "FM client"
                     )
-                    self.handle_exception(
-                        strategy_step,
-                        message,
-                        exceptions.SoftwarePreCheckFailedException,
-                    )
-                # Healthy check failure: exclusively alarms related
-                alarms = fm_client.get_alarms()
-                for alarm in alarms:
-                    if alarm.mgmt_affecting == "True":
-                        details = (
-                            f"System health check failed due to alarm {alarm.alarm_id}."
-                            " Please run 'system health-query' command on the subcloud "
-                            f"or {consts.ERROR_DESC_CMD} on central for details."
-                        )
-                        self.handle_exception(
-                            strategy_step,
-                            details,
-                            exceptions.SoftwarePreCheckFailedException,
-                        )
+
+                if not details:
+                    # Healthy check failure: exclusively alarms related
+                    alarms = fm_client.get_alarms()
+                    for alarm in alarms:
+                        if alarm.mgmt_affecting == "True":
+                            details = (
+                                "System health check failed due to alarm "
+                                f"{alarm.alarm_id}. Please run 'system health-query' "
+                                f"command on the subcloud or {consts.ERROR_DESC_CMD} "
+                                "on central for details."
+                            )
             else:
                 # Multiple failures
                 details = (
@@ -562,8 +582,16 @@ class PreCheckState(BaseState):
                     "Please run 'system health-query' command on the "
                     f"subcloud or {consts.ERROR_DESC_CMD} on central for details."
                 )
-                self.handle_exception(
-                    strategy_step,
-                    details,
-                    exceptions.SoftwarePreCheckFailedException,
+
+        if details:
+            if raise_exception:
+                raise exceptions.SoftwarePreCheckFailedException(
+                    subcloud=strategy_step.subcloud.name,
+                    details=details,
                 )
+
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.SoftwarePreCheckFailedException,
+            )

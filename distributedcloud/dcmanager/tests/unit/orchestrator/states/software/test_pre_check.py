@@ -370,6 +370,38 @@ class TestPreCheckStateDuplex(TestPreCheckStateBase):
         self.sysinv_client.get_host.return_value.id = "1"
         self.mock_is_active_controller.return_value = False
 
+        self.health_fail_alarms = (
+            "System Health:\n"
+            "All hosts are provisioned: [OK]\n"
+            "All hosts are unlocked/enabled: [OK]\n"
+            "All hosts have current configurations: [OK]\n"
+            "All hosts are patch current: [OK]\n"
+            "No alarms: [Fail]\n"
+            "[1] alarms found, [1] of which are management affecting\n"
+            "All kubernetes nodes are ready: [OK]\n"
+            "All kubernetes control plane pods are ready: [OK]\n"
+        )
+        self.health_fail_kubernetes = (
+            "System Health:"
+            "All hosts are provisioned: [OK]"
+            "All hosts are unlocked/enabled: [OK]"
+            "All hosts have current configurations: [OK]"
+            "All hosts are patch current: [OK]"
+            "No alarms: [OK]"
+            "All kubernetes nodes are ready: [Fail]"
+            "All kubernetes control plane pods are ready: [Fail]"
+        )
+        self.health_ok = (
+            "System Health:"
+            "All hosts are provisioned: [OK]"
+            "All hosts are unlocked/enabled: [OK]"
+            "All hosts have current configurations: [OK]"
+            "All hosts are patch current: [OK]"
+            "No alarms: [OK]"
+            "All kubernetes nodes are ready: [OK]"
+            "All kubernetes control plane pods are ready: [OK]"
+        )
+
     def test_check_health_success_completely_healthy(self):
         """Test _check_health when system is completely healthy"""
 
@@ -383,13 +415,7 @@ class TestPreCheckStateDuplex(TestPreCheckStateBase):
     def test_check_health_success_with_non_mgmt_alarms(self):
         """Test _check_health with non-management affecting alarms only"""
 
-        health_output = (
-            "System Health:\n"
-            "No alarms: [Fail]\n"
-            "[1] of which are management affecting\n"
-            "[0] of which are management affecting"
-        )
-        self.sysinv_client.get_system_health.return_value = health_output
+        self.sysinv_client.get_system_health.return_value = self.health_fail_alarms
         # Need 3 calls: initial check, polling loop, and final verification
         self.mock_is_active_controller.side_effect = [False, True, True]
         self.sysinv_client.swact_host.return_value.task = "Swacting"
@@ -399,8 +425,7 @@ class TestPreCheckStateDuplex(TestPreCheckStateBase):
     def test_check_health_fail_with_non_alarm_issues(self):
         """Test _check_health fail with non-alarm related issues"""
 
-        health_output = "System Health:\n[Fail] Kubernetes issue"
-        self.sysinv_client.get_system_health.return_value = health_output
+        self.sysinv_client.get_system_health.return_value = self.health_fail_kubernetes
 
         self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
         self._assert_error(
@@ -412,12 +437,7 @@ class TestPreCheckStateDuplex(TestPreCheckStateBase):
     def test_check_health_fail_with_mgmt_affecting_alarms(self):
         """Test _check_health fail with management affecting alarms"""
 
-        health_output = (
-            "System Health:\n"
-            "No alarms: [Fail]\n"
-            "[1] of which are management affecting"
-        )
-        self.sysinv_client.get_system_health.return_value = health_output
+        self.sysinv_client.get_system_health.return_value = self.health_fail_alarms
 
         # Mock alarm with mgmt_affecting = True
         class MockAlarm:
@@ -439,12 +459,7 @@ class TestPreCheckStateDuplex(TestPreCheckStateBase):
     def test_check_health_fail_fm_client_exception(self):
         """Test _check_health fail when FM client creation fails"""
 
-        health_output = (
-            "System Health:\n"
-            "No alarms: [Fail]\n"
-            "[1] of which are management affecting"
-        )
-        self.sysinv_client.get_system_health.return_value = health_output
+        self.sysinv_client.get_system_health.return_value = self.health_fail_alarms
 
         # Mock get_fm_client to raise exception
         mock_get_fm_client = self._mock_object(BaseState, "get_fm_client")
@@ -577,3 +592,55 @@ class TestPreCheckStateDuplex(TestPreCheckStateBase):
             pre_check.exceptions.SoftwarePreCheckFailedException,
             exc=test_exception,
         )
+
+    def test_check_active_controller_health_check_succeeds_after_swact(self):
+        """Test _check_active_controller health check succeeds after swact"""
+
+        self.sysinv_client.swact_host.return_value.task = "Swacting"
+        self.mock_is_active_controller.side_effect = [False, True, True]
+
+        # First call (pre-swact): healthy.
+        # Second/third calls: unhealthy.
+        # Fourth call: healthy again (post-swact retry succeeds).
+        self.sysinv_client.get_system_health.side_effect = [
+            self.health_ok,
+            self.health_fail_kubernetes,
+            self.health_fail_kubernetes,
+            self.health_ok,
+        ]
+
+        self._setup_and_assert(self.on_success_state_license)
+
+    def test_check_active_controller_health_check_fails_after_timeout(self):
+        """Test _check_active_controller health check fails after timeout"""
+
+        self.sysinv_client.swact_host.return_value.task = "Swacting"
+        self.mock_is_active_controller.side_effect = [False, True, True]
+
+        # Pre-swact health passes, all post-swact health checks fail
+        self.sysinv_client.get_system_health.side_effect = [self.health_ok] + [
+            self.health_fail_kubernetes
+        ] * pre_check.DEFAULT_MAX_FAILED_QUERIES
+
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Failed for subcloud {self.subcloud.name}: "
+            "Timeout waiting for controller-0 to become healthy post swact. Check "
+            "sysinv.log on the subcloud for details."
+        )
+
+    def test_check_active_controller_health_check_post_swact_fails_when_stopped(self):
+        """Test _check_active_controller health check post swact fails when stopped"""
+
+        self.sysinv_client.swact_host.return_value.task = "Swacting"
+        self.mock_is_active_controller.side_effect = [False, True, True]
+
+        # Pre-swact health passes, post-swact health fails triggering the loop
+        self.sysinv_client.get_system_health.side_effect = [self.health_ok]
+
+        mock_stopped = self._mock_object(pre_check.PreCheckState, "stopped")
+        # First call returns False (swact polling loop), second returns True
+        # (post-swact health check loop)
+        mock_stopped.side_effect = [False, True]
+
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
