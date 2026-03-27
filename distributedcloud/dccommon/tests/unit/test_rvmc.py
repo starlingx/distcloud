@@ -752,6 +752,8 @@ class BaseTestVmcObject(BaseTestRvmc):
         )
         self.vmc_obj.redfish_obj = mock.MagicMock()
 
+        self.mock_time_sleep = self._mock_object(rvmc.time, "sleep")
+
     def _generate_log_dump(self, code=1):
         return [
             mock.call.error(f"Code : {code}"),
@@ -1191,7 +1193,6 @@ class TestVmcObjectRedfishClientConnect(BaseTestVmcObject):
         super().setUp()
 
         self.mock_os_system = self._mock_object(rvmc.os, "system", return_value=0)
-        self.mock_time_sleep = self._mock_object(rvmc.time, "sleep")
         self.mock_redfish_client = self._mock_object(
             rvmc.redfish, "redfish_client", return_value=mock.MagicMock()
         )
@@ -1366,3 +1367,123 @@ class TestVmcObjectRedfishRootQuery(BaseTestVmcObject):
 
         self.assertIsNone(self.vmc_obj.root_query_info)
         self.mock_logger.info.assert_called_once_with("Root Query")
+
+
+class TestVmcObjectRedfishCreateSession(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_create_session method.
+
+    Tests the _redfish_create_session method which creates a Redfish
+    communication session by logging into the BMC with retry logic.
+    """
+
+    def test_redfish_create_session_succeeds_on_first_attempt(self):
+        """Verify _redfish_create_session succeeds on first login attempt"""
+
+        self.vmc_obj._redfish_create_session()
+
+        self.vmc_obj.redfish_obj.login.assert_called_once_with(auth="session")
+        self.assertTrue(self.vmc_obj.session)
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Create Communication Session"),
+                mock.call.debug("Session     : Open"),
+            ]
+        )
+
+    def test_redfish_create_session_exits_on_invalid_credentials(self):
+        """Verify _redfish_create_session exits on invalid credentials"""
+
+        self.vmc_obj.redfish_obj.login.side_effect = rvmc.InvalidCredentialsError()
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_create_session)
+
+        expected_calls = [
+            mock.call.info("Create Communication Session"),
+            mock.call.error("Failed to Create session due to invalid credentials."),
+            mock.call.info("Check BMC username and password in config file"),
+        ]
+        expected_calls.extend(self._generate_log_dump(2))
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_create_session_exits_after_max_retries(self):
+        """Verify _redfish_create_session exits after max retry attempts"""
+
+        self.vmc_obj.redfish_obj.login.side_effect = Exception("Connection failed")
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_create_session)
+
+        self.assertEqual(self.vmc_obj.redfish_obj.login.call_count, 3)
+        self.assertEqual(self.mock_time_sleep.call_count, 2)
+        expected_calls = [
+            mock.call.info("Create Communication Session"),
+            mock.call.warning(
+                "Failed to Create session ; Connection failed. Retry (1/2) in 15 secs."
+            ),
+            mock.call.warning(
+                "Failed to Create session ; Connection failed. Retry (2/2) in 15 secs."
+            ),
+            mock.call.error("Failed to Create session ; Connection failed."),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+
+class TestVmcObjectRedfishGetManagers(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_get_managers method.
+
+    Tests the _redfish_get_managers method which queries Redfish Managers
+    to retrieve the Managers URL and Members list from the BMC.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_make_request = self._mock_object(
+            self.vmc_obj, "make_request", return_value=True
+        )
+        self.managers_url = "/redfish/v1/Managers/"
+        self.members_list = [{"@odata.id": "/redfish/v1/Managers/1/"}]
+        self.vmc_obj.response_dict = {
+            "Members": self.members_list,
+            "Managers": {"@odata.id": self.managers_url},
+        }
+
+    def test_redfish_get_managers_succeeds_and_retrieves_members(self):
+        """Verify _redfish_get_managers succeeds and retrieves manager members"""
+
+        self.vmc_obj._redfish_get_managers()
+
+        self.assertEqual(self.vmc_obj.managers_group_url, self.managers_url)
+        self.assertEqual(self.vmc_obj.manager_members_list, self.members_list)
+        self.mock_make_request.assert_called_once_with(
+            operation=rvmc.GET, path=self.managers_url
+        )
+        self.mock_logger.info.assert_called_once_with("Get Managers")
+
+    def test_redfish_get_managers_exits_when_managers_url_is_none(self):
+        """Verify _redfish_get_managers exits when managers_group_url is None"""
+
+        self.vmc_obj.response_dict["Managers"] = {"@odata.id": None}
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_managers)
+
+        expected_calls = [
+            mock.call.info("Get Managers"),
+            mock.call.error("Failed to learn BMC RedFish Managers link"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_get_managers_exits_when_make_request_fails(self):
+        """Verify _redfish_get_managers exits when make_request fails"""
+
+        self.mock_make_request.return_value = False
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_managers)
+
+        expected_calls = [
+            mock.call.info("Get Managers"),
+            mock.call.error(f"Failed GET Managers from {self.managers_url}"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
