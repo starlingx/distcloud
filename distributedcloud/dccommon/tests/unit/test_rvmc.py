@@ -1177,3 +1177,192 @@ class TestVmcObjectExit(BaseTestVmcObject):
             mock.call.info("Check BMC username and password in config file"),
         ]
         self._assert_mock_logger_calls(expected_calls)
+
+
+class TestVmcObjectRedfishClientConnect(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_client_connect method.
+
+    Tests the _redfish_client_connect method which establishes connection
+    to the target Redfish service by verifying ping response and creating
+    a Redfish client object.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_os_system = self._mock_object(rvmc.os, "system", return_value=0)
+        self.mock_time_sleep = self._mock_object(rvmc.time, "sleep")
+        self.mock_redfish_client = self._mock_object(
+            rvmc.redfish, "redfish_client", return_value=mock.MagicMock()
+        )
+
+    def test_redfish_client_connect_succeeds_with_ipv4_on_first_ping(self):
+        """Verify _redfish_client_connect succeeds with IPv4 on first ping"""
+
+        self.vmc_obj._redfish_client_connect()
+
+        self.mock_os_system.assert_called_once_with(
+            f"ping -c 1 {self.vmc_obj.ip} > /dev/null 2>&1"
+        )
+        self.mock_redfish_client.assert_called_once_with(
+            base_url=self.vmc_obj.uri,
+            username=self.vmc_obj.un,
+            password=self.vmc_obj.pw,
+            default_prefix=rvmc.REDFISH_ROOT_PATH,
+        )
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Redfish Client Connection"),
+                mock.call.info(f"BMC Ping Ok : {self.vmc_obj.ip} (0)"),
+            ]
+        )
+
+    def test_redfish_client_connect_succeeds_with_ipv6(self):
+        """Verify _redfish_client_connect succeeds with IPv6
+
+        This test also ensures the execution completes successfully in case the initial
+        ping or redfish_client call fail.
+        """
+
+        self.vmc_obj.ipv6 = True
+        self.vmc_obj.ip = "[2001:db8::1]"
+        self.mock_os_system.side_effect = [1, 0]
+        self.mock_redfish_client.side_effect = [
+            None,
+            True,
+        ]
+
+        self.vmc_obj._redfish_client_connect()
+
+        self.mock_os_system.assert_called_with(
+            f"ping -6 -c 1 {self.vmc_obj.ip[1:-1]} > /dev/null 2>&1"
+        )
+        self.assertEqual(self.mock_os_system.call_count, 2)
+        self.assertEqual(self.mock_redfish_client.call_count, 2)
+        self.assertEqual(self.mock_time_sleep.call_count, 2)
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Redfish Client Connection"),
+                mock.call.info("BMC Ping     : retry (1 of 10)"),
+                mock.call.info(f"BMC Ping Ok : {self.vmc_obj.ip} (1)"),
+                mock.call.warning(
+                    f"Unable to establish Redfish Client Connection to BMC at "
+                    f"{self.vmc_obj.uri}. Retry (1/2) in 15 secs."
+                ),
+            ]
+        )
+
+    def test_redfish_client_connect_exits_when_ping_fails_max_times(self):
+        """Verify _redfish_client_connect exits when ping fails max times"""
+
+        self.mock_os_system.return_value = 1
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_client_connect)
+
+        self.assertEqual(self.mock_os_system.call_count, 10)
+        expected_calls = [
+            mock.call.info("Redfish Client Connection"),
+            mock.call.info("BMC Ping     : retry (1 of 10)"),
+            mock.call.info("BMC Ping     : retry (2 of 10)"),
+            mock.call.info("BMC Ping     : retry (3 of 10)"),
+            mock.call.info("BMC Ping     : retry (4 of 10)"),
+            mock.call.info("BMC Ping     : retry (5 of 10)"),
+            mock.call.info("BMC Ping     : retry (6 of 10)"),
+            mock.call.info("BMC Ping     : retry (7 of 10)"),
+            mock.call.info("BMC Ping     : retry (8 of 10)"),
+            mock.call.info("BMC Ping     : retry (9 of 10)"),
+            mock.call.info("BMC Ping     : retry (10 of 10)"),
+            mock.call.error(f"Unable to ping '{self.vmc_obj.ip}' (10)"),
+            mock.call.info("Check BMC ip address is pingable"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_client_connect_exits_after_max_connection_attempts(self):
+        """Verify _redfish_client_connect exits after max connection attempts"""
+
+        self.mock_redfish_client.side_effect = [
+            None,
+            Exception("Connection error"),
+            Exception("Connection error"),
+        ]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_client_connect)
+
+        self.assertEqual(self.mock_redfish_client.call_count, 3)
+        self.assertEqual(self.mock_time_sleep.call_count, 2)
+        expected_calls = [
+            mock.call.info("Redfish Client Connection"),
+            mock.call.info(f"BMC Ping Ok : {self.vmc_obj.ip} (0)"),
+            mock.call.warning(
+                f"Unable to establish Redfish Client Connection to BMC at "
+                f"{self.vmc_obj.uri}. Retry (1/2) in 15 secs."
+            ),
+            mock.call.warning(
+                f"Unable to establish Redfish Client Connection to BMC at "
+                f"{self.vmc_obj.uri}. Retry (2/2) in 15 secs. (Connection error)"
+            ),
+            mock.call.error(
+                "Unable to establish Redfish Client Connection to BMC at "
+                f"{self.vmc_obj.uri}."
+            ),
+            mock.call.info("Check BMC ip address is pingable and supports Redfish"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+
+class TestVmcObjectRedfishRootQuery(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_root_query method.
+
+    Tests the _redfish_root_query method which performs the Redfish root
+    query to retrieve Systems and Managers URLs from the BMC.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_make_request = self._mock_object(
+            self.vmc_obj, "make_request", return_value=True
+        )
+        self.vmc_obj.response_dict = {
+            "Systems": {"@odata.id": "/redfish/v1/Systems/"},
+            "Managers": {"@odata.id": "/redfish/v1/Managers/"},
+        }
+
+    def test_redfish_root_query_succeeds_and_extracts_urls(self):
+        """Verify _redfish_root_query succeeds and extracts Systems and Managers URLs"""
+
+        self.vmc_obj.response_json = self.vmc_obj.response_dict
+
+        self.vmc_obj._redfish_root_query()
+
+        self.mock_make_request.assert_called_once_with(operation=rvmc.GET, path=None)
+        self.assertEqual(self.vmc_obj.root_query_info, self.vmc_obj.response_json)
+        self.assertEqual(self.vmc_obj.systems_group_url, "/redfish/v1/Systems/")
+        self.assertEqual(self.vmc_obj.managers_group_url, "/redfish/v1/Managers/")
+        self.mock_logger.info.assert_called_once_with("Root Query")
+
+    def test_redfish_root_query_exits_when_make_request_fails(self):
+        """Verify _redfish_root_query exits when make_request fails"""
+
+        self.mock_make_request.return_value = False
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_root_query)
+
+        expected_calls = [
+            mock.call.info("Root Query"),
+            mock.call.error(f"Failed {self.vmc_obj.url} GET request"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_root_query_does_not_set_root_query(self):
+        """Verify _redfish_root_query does not set root_query_info"""
+
+        self.vmc_obj.response_json = None
+
+        self.vmc_obj._redfish_root_query()
+
+        self.assertIsNone(self.vmc_obj.root_query_info)
+        self.mock_logger.info.assert_called_once_with("Root Query")
