@@ -7,6 +7,7 @@
 """
 Tests for the generic utils.
 """
+
 import copy
 import netaddr
 import requests
@@ -167,12 +168,12 @@ class TestCommonUtils(DCManagerTestCase):
             {
                 "address_str": "192.168.0.1",
                 "network_str": "fd00::/64",
-                "error": ("Invalid IP version - must match network version IPv6"),
+                "error": "Invalid IP version - must match network version IPv6",
             },
             {
                 "address_str": "fd00::1",
                 "network_str": "192.168.0.0/24",
-                "error": ("Invalid IP version - must match network version IPv4"),
+                "error": "Invalid IP version - must match network version IPv4",
             },
         ]
 
@@ -351,32 +352,6 @@ class TestCommonUtils(DCManagerTestCase):
         self.assertFalse(utils.is_major_release("01.100"))
         self.assertFalse(utils.is_major_release("100.100"))
         self.assertFalse(utils.is_major_release("20.01.1"))
-
-    def test_is_minor_release_with_valid_format(self):
-        self.assertTrue(utils.is_minor_release("23.09.1"))
-        self.assertTrue(utils.is_minor_release("24.09.2"))
-        self.assertTrue(utils.is_minor_release("24.03.99"))
-        self.assertTrue(utils.is_minor_release("25.03.3"))
-
-    def test_is_minor_release_with_invalid_format(self):
-        self.assertFalse(utils.is_minor_release("1.2.1"))
-        self.assertFalse(utils.is_minor_release("123.45.0"))
-        self.assertFalse(utils.is_minor_release("01.234.3"))
-        self.assertFalse(utils.is_minor_release("24.09.0.0"))
-        self.assertFalse(utils.is_minor_release("1.234.2"))
-        self.assertFalse(utils.is_minor_release("10.2.9"))
-        self.assertFalse(utils.is_minor_release("a1.02.a"))
-        self.assertFalse(utils.is_minor_release("01.b2.8"))
-        self.assertFalse(utils.is_minor_release("01-02.10"))
-        self.assertFalse(utils.is_minor_release("01. 02.1"))
-        self.assertFalse(utils.is_minor_release("24.09"))
-
-    def test_is_minor_release_with_out_of_range_format(self):
-        self.assertFalse(utils.is_minor_release("100.09.1"))
-        self.assertFalse(utils.is_minor_release("01.100.1"))
-        self.assertFalse(utils.is_minor_release("100.100.100"))
-        self.assertFalse(utils.is_minor_release("24.09.100"))
-        self.assertFalse(utils.is_minor_release("24.09.0"))
 
     def test_get_major_release(self):
         self.assertEqual(utils.get_major_release("starlingx-24.09"), "24.09")

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024-2026 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -140,18 +140,6 @@ class RequestContext(base_context.RequestContext):
 
 def get_admin_context(show_deleted=False):
     return RequestContext(is_admin=True, show_deleted=show_deleted)
-
-
-def get_service_context(**args):
-    """An abstraction layer for getting service context.
-
-    There could be multiple cloud backends for dcorch-engine to use. This
-    abstraction layer provides an indirection for dcorch-engine to get the
-    credentials of 'dcorch' user on the specific cloud. By default,
-    this credential refers to the credentials built for keystone middleware
-    in an OpenStack cloud.
-    """
-    pass
 
 
 class AuthHook(hooks.PecanHook):
