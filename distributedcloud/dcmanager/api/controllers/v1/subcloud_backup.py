@@ -86,6 +86,7 @@ class SubcloudBackupController(object):
                 "auto": str,
                 "factory": str,
                 "backup_index": str,
+                "on_site": str,
             }
         else:
             pecan.abort(400, _("Unexpected verb received"))
@@ -409,7 +410,14 @@ class SubcloudBackupController(object):
 
             self._convert_param_to_bool(
                 payload,
-                ("local_only", "with_install", "registry_images", "auto", "factory"),
+                (
+                    "local_only",
+                    "with_install",
+                    "registry_images",
+                    "auto",
+                    "factory",
+                    "on_site",
+                ),
             )
 
             backup_index = payload.get("backup_index")
@@ -476,6 +484,20 @@ class SubcloudBackupController(object):
                         "for releases earlier than %s."
                     )
                     % consts.MINIMUM_AUTO_RESTORE_RELEASE,
+                )
+
+            if payload.get("on_site") and (
+                payload.get("with_install")
+                or payload.get("factory")
+                or payload.get("auto")
+                or payload.get("group")
+            ):
+                pecan.abort(
+                    400,
+                    _(
+                        "Option on_site cannot be used with any of the following "
+                        "options: with_install, factory, auto or group"
+                    ),
                 )
 
             request_entity = self._read_entity_from_request_params(context, payload)

@@ -1129,6 +1129,7 @@ serviceUnavailable (503)
   - restore_values: backup_restore_values
   - auto: auto_restore
   - factory: factory_restore
+  - on_site: on_site_restore
 
 Request Example
 ----------------

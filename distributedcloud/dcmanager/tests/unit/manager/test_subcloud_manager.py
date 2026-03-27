@@ -5697,6 +5697,220 @@ class TestSubcloudBackupRestoreWithIndex(BaseTestSubcloudManager):
         self.mock_parallel_group_operation.assert_not_called()
 
 
+class TestComposeOnsiteRestoreCommand(BaseTestSubcloudManager):
+    """Tests for compose_onsite_restore_command"""
+
+    INVENTORY_FILE = f"{ANS_PATH}/subcloud1_inventory.yml"
+
+    def test_compose_onsite_restore_command_local_only(self):
+        command = self.sm.compose_onsite_restore_command(
+            "subcloud1", self.INVENTORY_FILE
+        )
+        self.assertEqual(
+            command,
+            [
+                "ansible-playbook",
+                subcloud_manager.ANSIBLE_SUBCLOUD_ONSITE_RESTORE_PLAYBOOK,
+                "-i",
+                self.INVENTORY_FILE,
+                "--limit",
+                "subcloud1",
+            ],
+        )
+
+    def test_compose_onsite_restore_command_with_timeout(self):
+        """Test that compose includes the timeout value"""
+        command = self.sm.compose_onsite_restore_command(
+            "subcloud1", self.INVENTORY_FILE, restore_timeout=3600
+        )
+        self.assertIn("-e", command)
+        self.assertIn("restore_timeout=3600", command)
+
+    def test_compose_onsite_restore_command_with_transfer(self):
+        """Test that compose includes backup_source_path and staging_dir"""
+        command = self.sm.compose_onsite_restore_command(
+            "subcloud1",
+            self.INVENTORY_FILE,
+            backup_source_path="/opt/dc-vault/backups/subcloud1/backup.tgz",
+            staging_dir="/opt/platform-backup/onsite-restore",
+        )
+        self.assertIn(
+            "backup_source_path=/opt/dc-vault/backups/subcloud1/backup.tgz", command
+        )
+        self.assertIn("staging_dir=/opt/platform-backup/onsite-restore", command)
+
+    def test_compose_onsite_restore_command_skips_transfer_when_only_source_set(self):
+        """Test that compose omitts the transfer params when staging_dir is missing"""
+        command = self.sm.compose_onsite_restore_command(
+            "subcloud1",
+            self.INVENTORY_FILE,
+            backup_source_path="/opt/dc-vault/backups/subcloud1/backup.tgz",
+        )
+        self.assertNotIn(
+            "backup_source_path=/opt/dc-vault/backups/subcloud1/backup.tgz", command
+        )
+
+
+class TestRestoreSubcloudBackupOnSite(BaseTestSubcloudManager):
+    """Tests for _restore_subcloud_backup_on_site"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_resolve_bootstrap = self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "_resolve_bootstrap_address",
+            return_value="192.168.1.10",
+        )
+
+        self.mock_create_inventory = self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "_create_subcloud_inventory_file",
+            return_value="inventory_file.yml",
+        )
+
+        self.mock_compose_onsite = self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "compose_onsite_restore_command",
+            return_value=["ansible-playbook", "onsite.yml"],
+        )
+
+        self.mock_monitor = self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "_monitor_onsite_restore",
+            return_value=True,
+        )
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+    def _call(self, payload=None, archive=None):
+        payload = payload or {"sysadmin_password": "testpass"}
+        return self.sm._restore_subcloud_backup_on_site(
+            self.ctx, payload, self.subcloud, archive
+        )
+
+    def test_restore_subcloud_backup_on_site_local_only_success(self):
+        """Test that the restore succeeds with local_only as True"""
+        _, success = self._call({"sysadmin_password": "testpass", "local_only": True})
+
+        self.assertTrue(success)
+
+        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_ONSITE_RESTORING, updated.deploy_status)
+        self.mock_monitor.assert_called_once()
+
+        self.mock_compose_onsite.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            backup_source_path=None,
+            staging_dir=None,
+            restore_timeout=mock.ANY,
+        )
+
+    def test_restore_subcloud_backup_on_site_with_transfer_success(self):
+        """Test that restore passes transfer parameters when not local_only"""
+        archive = self._create_backup_archives(1)[0]
+
+        _, success = self._call({"sysadmin_password": "testpass"}, archive=archive)
+
+        self.assertTrue(success)
+        self.mock_compose_onsite.assert_called_once_with(
+            self.subcloud.name,
+            "inventory_file.yml",
+            backup_source_path=archive.storage_path,
+            staging_dir=consts.SUBCLOUD_ONSITE_RESTORE_DIR,
+            restore_timeout=mock.ANY,
+        )
+
+    def test_restore_subcloud_backup_on_site_creates_inventory_with_password(self):
+        """Test that restore forwards password to _create_subcloud_inventory_file"""
+        self._call({"sysadmin_password": "passwd"})
+
+        self.mock_create_inventory.assert_called_once_with(
+            self.subcloud,
+            bootstrap_address="192.168.1.10",
+            sysadmin_password="passwd",
+        )
+
+    def test_restore_subcloud_backup_on_site_prep_failure(self):
+        """Test restore prep failure path"""
+        self.mock_resolve_bootstrap.side_effect = Exception("address lookup failed")
+
+        _, success = self._call()
+
+        self.assertFalse(success)
+        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_RESTORE_PREP_FAILED, updated.deploy_status)
+        self.mock_monitor.assert_not_called()
+
+
+class TestMonitorOnsiteRestore(BaseTestSubcloudManager):
+    """Tests for _monitor_onsite_restore"""
+
+    RESTORE_TIMEOUT = 3600
+
+    def setUp(self):
+        super().setUp()
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_ONSITE_RESTORING,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+    def _call(self):
+        self.sm._monitor_onsite_restore(
+            self.ctx,
+            self.subcloud,
+            ["ansible-playbook", "onsite.yml"],
+            "/tmp/subcloud1_playbook_output.log",
+            restore_timeout=self.RESTORE_TIMEOUT,
+        )
+
+    def test_monitor_onsite_restore_success(self):
+        """Test the restore monitoring playbook success path"""
+        self._call()
+
+        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_DONE, updated.deploy_status)
+        self.mock_ansible_run_playbook.assert_called_once_with(
+            "/tmp/subcloud1_playbook_output.log",
+            mock.ANY,
+            timeout=self.RESTORE_TIMEOUT + 300,
+        )
+
+    @mock.patch.object(subcloud_manager.utils, "find_and_save_ansible_error_msg")
+    def test_monitor_onsite_restore_playbook_execution_failed(self, mock_find_msg):
+        """Test the restore monitoring playbook failure path"""
+        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
+
+        self._call()
+
+        mock_find_msg.assert_called_once_with(
+            self.ctx,
+            self.subcloud,
+            "/tmp/subcloud1_playbook_output.log",
+            exception=mock.ANY,
+            stage=consts.DEPLOY_STATE_ONSITE_RESTORING,
+            deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
+        )
+
+    def test_monitor_onsite_restore_unexpected_exception(self):
+        """Test that the restore monitoring fails with an unexpected exception"""
+        self.mock_ansible_run_playbook.side_effect = Exception("boom")
+
+        self._call()
+
+        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(consts.DEPLOY_STATE_RESTORE_FAILED, updated.deploy_status)
+
+
 class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
     """Test class for testing _stage_auto_restore_files method"""
 
