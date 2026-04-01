@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -46,7 +46,7 @@ class DBAPISubcloudTest(base.OrchestratorTestCase):
         meta.reflect(bind=engine)
 
         for table in reversed(meta.sorted_tables):
-            if table.name == "migrate_version":
+            if table.name in ("migrate_version", "alembic_version"):
                 continue
             engine.execute(table.delete())
 

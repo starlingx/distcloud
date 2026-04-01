@@ -1,7 +1,9 @@
 include AUTHORS
 include ChangeLog
 include dcmanager/db/sqlalchemy/migrate_repo/migrate.cfg
+include dcmanager/db/sqlalchemy/alembic.ini
 include dcorch/db/sqlalchemy/migrate_repo/migrate.cfg
+include dcorch/db/sqlalchemy/alembic.ini
 exclude .gitignore
 exclude .gitreview
 exclude .current.cfg

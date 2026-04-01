@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2022, 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -93,12 +93,7 @@ def get_write_connection():
 
 
 def row2dict(table, row):
-    d = {}
-    for c in table.columns:
-        c_value = row[c.name]
-        d[c.name] = c_value
-
-    return d
+    return dict(row._mapping)
 
 
 def index2column(r_table, index_name):
@@ -116,9 +111,9 @@ def query(connection, table, index_name=None, index_value=None):
 
     if index_name and index_value:
         c = index2column(r_table, index_name)
-        stmt = select([r_table]).where(c == index_value)
+        stmt = select(r_table).where(c == index_value)
     else:
-        stmt = select([r_table])
+        stmt = select(r_table)
 
     records = []
     result = connection.execute(stmt)
