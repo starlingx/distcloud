@@ -709,7 +709,7 @@ class SubcloudsController(object):
                         after creation. cloud_init_config
                         is optional only when enroll is true,
                         rejected with 400 when enroll is false
-                    skip_enroll_init:
+                    on_site:
                       type: string
                       enum:
                       - 'true'

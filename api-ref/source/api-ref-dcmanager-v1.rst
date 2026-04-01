@@ -144,10 +144,10 @@ serviceUnavailable (503)
   - management_start_address: management_start_ip
   - management_subnet: management_subnet
   - migrate: migrate
-  - secondary: secondary
-  - skip_enroll_init: skip_enroll_init
   - name: subcloud_name
+  - on_site: on_site
   - release: release
+  - secondary: secondary
   - sysadmin_password: sysadmin_password
   - systemcontroller_gateway_address: systemcontroller_gateway_ip
   - system_mode: system_mode

@@ -483,6 +483,13 @@ oam_floating_ip:
   in: body
   required: false
   type: string
+on_site:
+  description: |
+    A flag indicating whether to skip the enrollment init step for
+    enrollment on site. Only applicable when enroll is set to "true".
+  in: body
+  required: false
+  type: string
 openstack_installed:
   description: |
     A flag indicating if openstack is installed in the subcloud.
@@ -575,13 +582,6 @@ secondary:
   in: body
   required: false
   type: boolean
-skip_enroll_init:
-  description: |
-    A flag indicating whether to skip the enrollment initialization step.
-    Only applicable when enroll is set to "true".
-  in: body
-  required: false
-  type: string
 software_version:
   description: |
     The software version for the subcloud.

@@ -368,31 +368,31 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
         # Test that boolean parameters are normalized to lowercase
         payload = {
             "enroll": "True",
-            "skip_enroll_init": "False",
+            "on_site": "False",
             "install_values": {"bmc_password": "abc"},
         }
         psd_common.validate_enroll_parameter(payload)
         self.assertEqual(payload["enroll"], "true")
-        self.assertEqual(payload["skip_enroll_init"], "false")
+        self.assertEqual(payload["on_site"], "false")
 
-        # Test that enroll=FALSE with skip_enroll_init=TRUE aborts after normalization
+        # Test that enroll=FALSE with on_site=TRUE aborts after normalization
         payload = {
             "enroll": "FALSE",
-            "skip_enroll_init": "TRUE",
+            "on_site": "TRUE",
             "install_values": {"bmc_password": "abc"},
         }
         with self.assertRaisesRegex(
             Exception,
-            "skip_enroll_init is not allowed with enroll=false",
+            "on_site is not allowed with enroll=false",
         ):
             psd_common.validate_enroll_parameter(payload)
 
-    def test_validate_enroll_parameter_skip_enroll_init_logic(self):
-        # Test the logic error fix: skip_enroll_init=true with enroll=false should fail
-        payload = {"enroll": "false", "skip_enroll_init": "true"}
+    def test_validate_enroll_parameter_on_site_logic(self):
+        # Test the logic error fix: on_site=true with enroll=false should fail
+        payload = {"enroll": "false", "on_site": "true"}
         with self.assertRaisesRegex(
             Exception,
-            "skip_enroll_init is not allowed with enroll=false",
+            "on_site is not allowed with enroll=false",
         ):
             psd_common.validate_enroll_parameter(payload)
 
@@ -570,7 +570,7 @@ class TestInstallValuesValidator(DCManagerTestCase):
         self.payload = {
             "software_version": "22.12",
             "bmc_password": base64.b64encode(b"password").decode("utf-8"),
-            "skip_enroll_init": "false",
+            "on_site": "false",
         }
         self.install_values = {
             "software_version": "22.12",
@@ -585,7 +585,7 @@ class TestInstallValuesValidator(DCManagerTestCase):
         self.assertEqual(validator.payload, self.payload)
         self.assertEqual(validator.install_values, self.install_values)
         self.assertIsNone(validator.subcloud)
-        self.assertFalse(validator.skip_enroll_init)
+        self.assertFalse(validator.on_site)
         self.assertIsNone(validator.original_install_values)
 
     def test_validator_initialization_with_subcloud(self):
@@ -602,7 +602,7 @@ class TestInstallValuesValidator(DCManagerTestCase):
 
     def test_validate_bmc_password_missing_no_skip(self):
         """Test BMC password validation when missing and not skipping."""
-        payload = {"skip_enroll_init": "false"}
+        payload = {"on_site": "false"}
         install_values = {}
         validator = psd_common.InstallValuesValidator(payload, install_values)
 
@@ -613,7 +613,7 @@ class TestInstallValuesValidator(DCManagerTestCase):
         """Test BMC password validation with invalid base64 encoding."""
         payload = {
             "bmc_password": "not-base64!@#",
-            "skip_enroll_init": "false",
+            "on_site": "false",
             "install_values": {},
         }
         install_values = {}
@@ -629,7 +629,7 @@ class TestInstallValuesValidator(DCManagerTestCase):
         encoded_password = base64.b64encode(b"password").decode("utf-8")
         payload = {
             "bmc_password": encoded_password,
-            "skip_enroll_init": "false",
+            "on_site": "false",
             "install_values": {},
         }
         install_values = {}
@@ -767,11 +767,11 @@ class TestInstallValuesValidator(DCManagerTestCase):
         ):
             validator._validate_ip_addresses_and_network()
 
-    def test_validate_mandatory_values_skip_enroll_init(self):
-        """Test mandatory values when skip_enroll_init is true."""
+    def test_validate_mandatory_values_on_site(self):
+        """Test mandatory values when on_site is true."""
         payload = {
             "software_version": "22.12",
-            "skip_enroll_init": "true",
+            "on_site": "true",
             "install_values": {
                 "bootstrap_interface": "eno1",
             },
@@ -780,11 +780,11 @@ class TestInstallValuesValidator(DCManagerTestCase):
         validator = psd_common.InstallValuesValidator(payload, install_values)
         validator._validate_mandatory_values()
 
-    def test_validate_mandatory_values_skip_enroll_init_missing(self):
+    def test_validate_mandatory_values_on_site_missing(self):
         """Test mandatory values fail when bootstrap_interface missing."""
         payload = {
             "software_version": "22.12",
-            "skip_enroll_init": "true",
+            "on_site": "true",
             "install_values": {},
         }
         install_values = payload["install_values"]
@@ -805,7 +805,7 @@ class TestInstallValuesValidator(DCManagerTestCase):
         payload = {
             "software_version": "22.12",
             "bmc_password": base64.b64encode(b"password").decode("utf-8"),
-            "skip_enroll_init": "false",
+            "on_site": "false",
             "install_values": {
                 "software_version": "22.12",
                 "bootstrap_address": "192.168.1.10",
