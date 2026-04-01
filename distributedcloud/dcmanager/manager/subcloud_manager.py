@@ -2155,10 +2155,8 @@ class SubcloudManager(manager.Manager):
 
         subcloud = db_api.subcloud_get(context, subcloud_id)
 
-        skip_enroll_init = payload.get("skip_enroll_init") == "true"
-        if not skip_enroll_init and not self.subcloud_init_enroll(
-            context, subcloud.id, payload
-        ):
+        on_site = payload.get("on_site") == "true"
+        if not on_site and not self.subcloud_init_enroll(context, subcloud.id, payload):
             LOG.error(f"Initial enrollment failed for subcloud {subcloud.name}")
             return False
 

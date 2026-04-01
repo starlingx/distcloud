@@ -221,16 +221,16 @@ def validate_enroll_parameter(payload):
     enroll_str = verify_boolean_str(enroll_str)
     payload["enroll"] = enroll_str
 
-    skip_enroll_init_str = payload.get("skip_enroll_init")
-    if skip_enroll_init_str is not None:
-        skip_enroll_init_str = verify_boolean_str(skip_enroll_init_str)
-        payload["skip_enroll_init"] = skip_enroll_init_str
+    on_site_str = payload.get("on_site")
+    if on_site_str is not None:
+        on_site_str = verify_boolean_str(on_site_str)
+        payload["on_site"] = on_site_str
 
     if enroll_str == "false":
         if dccommon_consts.CLOUD_INIT_CONFIG in payload:
             pecan.abort(400, _("cloud_init_config is not allowed with enroll=false"))
-        elif skip_enroll_init_str == "true":
-            pecan.abort(400, _("skip_enroll_init is not allowed with enroll=false"))
+        elif on_site_str == "true":
+            pecan.abort(400, _("on_site is not allowed with enroll=false"))
         else:
             return
 
@@ -243,7 +243,7 @@ def validate_enroll_parameter(payload):
 
     if "bmc_password" in install_values:
         payload.update({"bmc_password": install_values.get("bmc_password")})
-    elif skip_enroll_init_str != "true":
+    elif on_site_str != "true":
         pecan.abort(400, _("bmc_password is necessary for subcloud enrollment"))
 
 
@@ -757,8 +757,8 @@ class InstallValuesValidator:
         self.payload: dict = payload
         self.install_values: dict = install_values
         self.subcloud: typing.Optional[models.Subcloud] = subcloud
-        skip_enroll_init_str = payload.get("skip_enroll_init", "false")
-        self.skip_enroll_init: bool = skip_enroll_init_str == "true"
+        on_site_str = payload.get("on_site", "false")
+        self.on_site: bool = on_site_str == "true"
         self.original_install_values: typing.Optional[dict] = None
         if subcloud and subcloud.data_install:
             self.original_install_values = json.loads(subcloud.data_install)
@@ -777,7 +777,7 @@ class InstallValuesValidator:
     def _validate_bmc_password(self) -> None:
         """Validate and update BMC password in payload."""
         bmc_password = self.payload.get("bmc_password")
-        if not bmc_password and not self.skip_enroll_init:
+        if not bmc_password and not self.on_site:
             pecan.abort(400, _("subcloud bmc_password required"))
 
         if bmc_password:
@@ -893,7 +893,7 @@ class InstallValuesValidator:
         """Validate all mandatory install values are present."""
         mandatory_install_values = (
             dccommon_consts.MANDATORY_INSTALL_VALUES_FOR_ENROLL
-            if self.skip_enroll_init
+            if self.on_site
             else dccommon_consts.MANDATORY_INSTALL_VALUES
         )
 
@@ -913,7 +913,7 @@ class InstallValuesValidator:
 
     def _validate_and_set_image(self, software_version: str) -> None:
         """Validate install type and set image if not skipping enroll init."""
-        if self.skip_enroll_init:
+        if self.on_site:
             return
 
         matching_iso, err_msg = utils.get_matching_iso(software_version)

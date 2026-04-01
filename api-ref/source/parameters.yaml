@@ -661,10 +661,10 @@ secondary:
   in: body
   required: false
   type: boolean
-skip_enroll_init:
+on_site:
   description: |
-    A flag indicating whether to skip the enrollment initialization step.
-    Only applicable when enroll is set to "true".
+    A flag indicating whether to skip the enrollment init step for
+    enrollment on site. Only applicable when enroll is set to "true".
   in: body
   required: false
   type: string

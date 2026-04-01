@@ -145,7 +145,7 @@ serviceUnavailable (503)
   - management_subnet: management_subnet
   - migrate: migrate
   - secondary: secondary
-  - skip_enroll_init: skip_enroll_init
+  - on_site: on_site
   - name: subcloud_name
   - release: release
   - sysadmin_password: sysadmin_password

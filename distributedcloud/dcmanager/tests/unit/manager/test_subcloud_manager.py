@@ -1644,10 +1644,10 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "subcloud_init_enroll", return_value=True
     )
-    def test_subcloud_deploy_enroll_skip_enroll_init(
+    def test_subcloud_deploy_enroll_on_site(
         self, mock_init_enroll, mock_get_region_name
     ):
-        """When skip_enroll_init=true, subcloud_init_enroll must not be called."""
+        """When on_site=true, subcloud_init_enroll must not be called."""
         mock_get_region_name.return_value = "11111"
         self.mock_ansible_run_playbook.return_value = False
 
@@ -1658,7 +1658,7 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
             data_install=json.dumps(self.fake_payload_enroll["install_values"]),
         )
 
-        payload = dict(self.fake_payload_enroll, skip_enroll_init="true")
+        payload = dict(self.fake_payload_enroll, on_site="true")
         self.sm.subcloud_deploy_enroll(self.ctx, subcloud.id, payload)
 
         mock_init_enroll.assert_not_called()
