@@ -13,6 +13,7 @@
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-black
         - stx-distcloud-tox-cover
+        - stx-distcloud-tox-openapi-check
     gate:
       jobs:
         - openstack-tox-linters
@@ -21,6 +22,7 @@
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-black
         - stx-distcloud-tox-cover
+        - stx-distcloud-tox-openapi-check
     post:
       jobs:
         - stx-distcloud-upload-git-mirror
@@ -86,6 +88,15 @@
       python_version: 3.9
       tox_envlist: black
       tox_extra_args: -c distributedcloud/tox.ini
+
+- job:
+    name: stx-distcloud-tox-openapi-check
+    parent: tox
+    description: Check that the committed OpenAPI spec is up to date
+    nodeset: debian-bullseye
+    vars:
+      python_version: 3.9
+      tox_envlist: openapi-check
 
 - job:
     name: stx-distcloud-tox-cover

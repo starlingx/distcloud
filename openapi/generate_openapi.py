@@ -494,8 +494,11 @@ if __name__ == "__main__":
 
     spec, total_ops = build_openapi_spec()
 
-    # Use relative path for output
-    output_file = os.path.join(get_script_dir(), "dc-openapi.yaml")
+    # Allow overriding output path via command-line argument
+    if len(sys.argv) > 1:
+        output_file = sys.argv[1]
+    else:
+        output_file = os.path.join(get_script_dir(), "dc-openapi.yaml")
 
     raw_yaml = yaml.dump(
         spec.to_dict(),
