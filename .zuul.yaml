@@ -10,6 +10,7 @@
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
         - stx-distcloud-tox-py39
+        - stx-distcloud-tox-py313
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-black
         - stx-distcloud-tox-cover
@@ -46,6 +47,27 @@
       python_version: 3.9
       tox_envlist: py39
       tox_extra_args: -c distributedcloud/tox.ini
+
+- job:
+    name: stx-distcloud-tox-py313
+    parent: tox-py313
+    description: Run py313 for distcloud (non-voting)
+    nodeset: debian-trixie-8GB
+    pre-run:
+      - tools/gate/playbooks/install-postgresql.yaml
+      - tools/gate/playbooks/install-stx-custom-deps.yaml
+    required-projects:
+      - starlingx/fault
+      - starlingx/nfv
+      - starlingx/update
+      - starlingx/config
+      - starlingx/root
+      - starlingx/utilities
+    vars:
+      python_version: 3.13
+      tox_envlist: py313
+      tox_config_file: distributedcloud/tox.ini
+    voting: false
 
 - job:
     name: stx-distcloud-tox-pylint

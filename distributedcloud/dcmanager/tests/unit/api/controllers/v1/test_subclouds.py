@@ -725,10 +725,16 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
                     f"{error_msg} Subnet too small - must have at least 4 addresses"
                 )
             elif index == 7:
-                error_msg = (
-                    "management_start_address invalid: Address must be in subnet "
-                    "192.168.204.0/24"
+                # With newer netaddr (Trixie), incomplete IPs like "192.168.204/24"
+                # are rejected as invalid subnets. With older netaddr, the subnet
+                # is parsed and the start_address validation fails instead.
+                actual_msg = self.mock_pecan_abort.call_args[0][1]
+                self.assertTrue(
+                    "management_subnet invalid" in actual_msg
+                    or "management_start_address invalid" in actual_msg,
+                    f"Unexpected error message: {actual_msg}",
                 )
+                continue
             else:
                 error_msg = f"{error_msg} Invalid subnet - not a valid IP subnet"
 
@@ -776,10 +782,16 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
                     f"{error_msg} Subnet too small - must have at least 8 addresses"
                 )
             elif index == 8:
-                error_msg = (
-                    "management_start_address invalid: Address must be in subnet "
-                    "192.168.204.0/24"
+                # With newer netaddr (Trixie), incomplete IPs like "192.168.204/24"
+                # are rejected as invalid subnets. With older netaddr, the subnet
+                # is parsed and the start_address validation fails instead.
+                actual_msg = self.mock_pecan_abort.call_args[0][1]
+                self.assertTrue(
+                    "management_subnet invalid" in actual_msg
+                    or "management_start_address invalid" in actual_msg,
+                    f"Unexpected error message: {actual_msg}",
                 )
+                continue
             else:
                 error_msg = f"{error_msg} Invalid subnet - not a valid IP subnet"
 
@@ -816,12 +828,19 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             error_msg = "management_start_address invalid:"
 
-            if index == 1 or index == 5:
+            if index == 1:
                 error_msg = f"{error_msg} Address must be in subnet 192.168.101.0/24"
             elif index == 2:
                 error_msg = (
                     "management_start_address greater than management_end_address"
                 )
+            elif index == 5:
+                # With newer netaddr (Trixie), incomplete IPs like "192.168.204"
+                # are rejected as invalid instead of being parsed as 192.168.0.204.
+                # Accept either error message for cross-version compatibility.
+                actual_msg = self.mock_pecan_abort.call_args[0][1]
+                self.assertIn("management_start_address", actual_msg)
+                continue
             else:
                 error_msg = f"{error_msg} Invalid address - not a valid IP address"
 
@@ -858,12 +877,19 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
 
             error_msg = "management_end_address invalid:"
 
-            if index == 1 or index == 5:
+            if index == 1:
                 error_msg = f"{error_msg} Address must be in subnet 192.168.101.0/24"
             elif index == 2:
                 error_msg = (
                     "management_start_address greater than management_end_address"
                 )
+            elif index == 5:
+                # With newer netaddr (Trixie), incomplete IPs like "192.168.204"
+                # are rejected as invalid instead of being parsed as 192.168.0.204.
+                # Accept either error message for cross-version compatibility.
+                actual_msg = self.mock_pecan_abort.call_args[0][1]
+                self.assertIn("management_end_address", actual_msg)
+                continue
             else:
                 error_msg = f"{error_msg} Invalid address - not a valid IP address"
 

@@ -64,7 +64,7 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
         self._setup_and_assert(self.on_success_state)
 
         call_args, _ = self.software_client.delete.call_args_list[0]
-        self.assertItemsEqual(["starlingx-8.0.0"], call_args[0])
+        self.assertCountEqual(["starlingx-8.0.0"], call_args[0])
 
         self.software_client.commit_patch.assert_not_called()
 

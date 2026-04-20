@@ -1,0 +1,12 @@
+# Upper constraints for Trixie (Python 3.13)
+# This file is used until a Trixie-compatible upper-constraints.txt
+# is available upstream at:
+# https://opendev.org/starlingx/root/raw/branch/master/build-tools/requirements/debian/upper-constraints.txt
+#
+# Only pin packages that need specific version overrides for compatibility.
+PyYAML>=6.0.1
+SQLAlchemy<2.0
+oslo.context<6.0.0
+oslo.utils<8.0.0
+paramiko>=2.7.2
+python-cinderclient<9.0.0

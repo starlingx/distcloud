@@ -206,7 +206,7 @@ def validate_network_str(
         try:
             network = netaddr.IPNetwork(network_value)
             networks.append(network)
-        except netaddr.AddrFormatError:
+        except (netaddr.AddrFormatError, TypeError, ValueError):
             raise exceptions.ValidateFail("Invalid subnet - not a valid IP subnet")
 
     if len(network_values) == 2 and networks[0].version == networks[1].version:

@@ -933,9 +933,15 @@ class InstallValuesValidator:
 
     def _validate_ip_address(self, field: str) -> netaddr.IPAddress:
         """Validate IP address field and return IPAddress object."""
+        value = self.install_values.get(field)
+        if value is None:
+            pecan.abort(
+                400,
+                _("%s invalid: failed to detect a valid IP address from None") % field,
+            )
         try:
-            return netaddr.IPAddress(self.install_values[field])
-        except netaddr.AddrFormatError as e:
+            return netaddr.IPAddress(value)
+        except (netaddr.AddrFormatError, TypeError) as e:
             LOG.exception(e)
             pecan.abort(400, _("%s invalid: %s") % (field, e))
 
@@ -1181,7 +1187,7 @@ def format_ip_address(payload):
                     address = netaddr.IPAddress(
                         payload[consts.INSTALL_VALUES].get(k)
                     ).format()
-                except netaddr.AddrFormatError as e:
+                except (netaddr.AddrFormatError, TypeError) as e:
                     LOG.exception(e)
                     pecan.abort(400, _("%s invalid: %s") % (k, e))
                 payload[consts.INSTALL_VALUES].update({k: address})
@@ -1193,7 +1199,7 @@ def format_ip_address(payload):
                 try:
                     address = netaddr.IPAddress(k_value).format()
                     addresses.append(address)
-                except netaddr.AddrFormatError as e:
+                except (netaddr.AddrFormatError, TypeError) as e:
                     LOG.exception(e)
                     pecan.abort(400, _("%s invalid: %s") % (k, e))
             payload.update({k: ",".join(addresses)})
