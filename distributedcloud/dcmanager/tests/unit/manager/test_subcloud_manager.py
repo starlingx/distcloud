@@ -831,6 +831,31 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             updated_subcloud.deploy_status,
         )
 
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager,
+        "_configure_system_controller_network",
+        return_value=False,
+    )
+    def test_run_network_reconfiguration_configure_network_failed(
+        self, mock_configure_network
+    ):
+        self.mock_create_addn_hosts = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_addn_hosts_dc"
+        )
+        self.subcloud["deploy_status"] = consts.DEPLOY_STATE_RECONFIGURING_NETWORK
+
+        self.sm._run_network_reconfiguration(
+            self.subcloud.name, mock.ANY, None, self.payload, self.ctx, self.subcloud
+        )
+
+        mock_configure_network.assert_called_once()
+        self.mock_create_addn_hosts.assert_not_called()
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+            updated_subcloud.deploy_status,
+        )
+
     @mock.patch.object(subcloud_manager.SubcloudManager, "_delete_subcloud_routes")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_update_services_endpoint")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_create_subcloud_route")
@@ -876,10 +901,11 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
         )
 
-        self.sm._configure_system_controller_network(
+        result = self.sm._configure_system_controller_network(
             self.ctx, self.payload, self.subcloud
         )
 
+        self.assertFalse(result)
         self.mock_openstack_driver.assert_called_once()
         mock_create_route.assert_called_once()
         mock_update_endpoints.assert_called_once()
@@ -888,11 +914,6 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             f"Failed to update subcloud {self.subcloud.name} endpoints"
         )
         mock_delete_route.assert_not_called()
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(
-            consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-            updated_subcloud.deploy_status,
-        )
 
     @mock.patch.object(subcloud_manager.SubcloudManager, "_delete_subcloud_routes")
     def test_configure_system_controller_network_failed(self, mock_delete_route):
@@ -904,24 +925,15 @@ class TestSubcloudManager(BaseTestSubcloudManager):
             availability_status=dccommon_consts.AVAILABILITY_ONLINE,
         )
 
-        self.sm._configure_system_controller_network(
+        result = self.sm._configure_system_controller_network(
             self.ctx, self.payload, self.subcloud
         )
 
-        # Verify subcloud was updated with correct values
-        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(
-            consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-            updated_subcloud.deploy_status,
-        )
+        self.assertFalse(result)
         self.mock_openstack_driver.assert_called_once()
         self.assertFalse(mock_delete_route.called)
         self.mock_log_subcloud_manager.exception.assert_called_once_with(
             f"Failed to create route to subcloud {self.subcloud.name}."
-        )
-        self.assertEqual(
-            consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-            updated_subcloud.deploy_status,
         )
 
 
@@ -7385,3 +7397,240 @@ class TestAddAdditionalOverridesForEnroll(BaseTestSubcloudManager):
         self.sm._add_additional_overrides_for_enroll(payload)
         self.assertEqual(payload["bootstrap_vlan"], "100")
         self.assertNotIn("bootstrap_interface", payload)
+
+
+class TestBootstrapEnrollNetworkUpdate(BaseTestSubcloudManager):
+    """Test class for network update during Bootstrap and Enroll Prep"""
+
+    OLD_SUBNET = "192.168.101.0/24"
+    OLD_GATEWAY = "192.168.101.1"
+    OLD_START_IP = "192.168.101.2"
+    OLD_END_IP = "192.168.101.50"
+    OLD_SYS_CONTROLLER_GW = "192.168.204.101"
+
+    NEW_SUBNET = "192.168.102.0/24"
+    NEW_GATEWAY = "192.168.102.1"
+    NEW_START_IP = "192.168.102.2"
+    NEW_END_IP = "192.168.102.50"
+    NEW_SYS_CONTROLLER_GW = "192.168.204.102"
+
+    _OPERATION_MAP = {
+        "bootstrap": consts.DEPLOY_STATE_PRE_BOOTSTRAP,
+        "enroll": consts.DEPLOY_STATE_PRE_ENROLL,
+    }
+
+    _FAILED_STATUS_MAP = {
+        "bootstrap": consts.DEPLOY_STATE_PRE_BOOTSTRAP_FAILED,
+        "enroll": consts.DEPLOY_STATE_PRE_ENROLL_FAILED,
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.mock_update_values_on_yaml_file = self._mock_object(
+            cutils, "update_values_on_yaml_file"
+        )
+        self.mock_update_values_on_yaml_file.return_value = True
+        self.mock_update_install_values = self._mock_object(
+            cutils, "update_install_values_with_new_bootstrap_address"
+        )
+
+        # Let _configure_system_controller_network run for real, but mock
+        # its internal dependencies so we can assert route deletion args.
+        self.mock_create_subcloud_route = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_subcloud_route"
+        )
+        self.mock_update_services_endpoint = self._mock_object(
+            subcloud_manager.SubcloudManager, "_update_services_endpoint"
+        )
+        self.mock_delete_subcloud_routes = self._mock_object(
+            subcloud_manager.SubcloudManager, "_delete_subcloud_routes"
+        )
+
+        # Capture the DB state at the moment _create_addn_hosts_dc is called
+        # so we can verify it sees the *new* management IP (i.e. it runs
+        # after the DB update).
+        self.db_snapshot_at_dns_regen = {}
+
+        def _capture_db_state(context):
+            subclouds = db_api.subcloud_get_all(context)
+            for sc in subclouds:
+                self.db_snapshot_at_dns_regen[sc.name] = {
+                    "management_start_ip": sc.management_start_ip,
+                    "management_subnet": sc.management_subnet,
+                }
+
+        self.mock_create_addn_hosts_dc = self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "_create_addn_hosts_dc",
+            side_effect=_capture_db_state,
+        )
+
+    def _create_subcloud(self, name, deploy_status):
+        return fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=name,
+            deploy_status=deploy_status,
+            management_start_ip=self.OLD_START_IP,
+            management_end_ip=self.OLD_END_IP,
+            management_subnet=self.OLD_SUBNET,
+            management_gateway_ip=self.OLD_GATEWAY,
+            systemcontroller_gateway_ip=self.OLD_SYS_CONTROLLER_GW,
+        )
+
+    def _build_reconfig_network_payload(self):
+        return {
+            "sysadmin_password": "testpass",
+            "management_subnet": self.NEW_SUBNET,
+            "management_gateway_address": self.NEW_GATEWAY,
+            "management_start_address": self.NEW_START_IP,
+            "management_end_address": self.NEW_END_IP,
+            "systemcontroller_gateway_address": self.NEW_SYS_CONTROLLER_GW,
+            "install_values": {"bootstrap_vlan": "100"},
+        }
+
+    def _build_same_network_payload(self, subcloud):
+        return {
+            "sysadmin_password": "testpass",
+            "management_subnet": subcloud.management_subnet,
+            "management_gateway_address": subcloud.management_gateway_ip,
+            "management_start_address": subcloud.management_start_ip,
+            "management_end_address": subcloud.management_end_ip,
+            "systemcontroller_gateway_address": (subcloud.systemcontroller_gateway_ip),
+            "install_values": {"bootstrap_vlan": "100"},
+        }
+
+    def _run_network_reconfig_updates_db(self, operation):
+        subcloud = self._create_subcloud(
+            f"subcloud_reconfig_{operation}", self._OPERATION_MAP[operation]
+        )
+        payload = self._build_reconfig_network_payload()
+
+        self.sm._deploy_bootstrap_enroll_prep(operation, self.ctx, payload, subcloud)
+
+        updated = db_api.subcloud_get(self.ctx, subcloud.id)
+        self.assertEqual(updated.management_subnet, self.NEW_SUBNET)
+        self.assertEqual(updated.management_gateway_ip, self.NEW_GATEWAY)
+        self.assertEqual(updated.management_start_ip, self.NEW_START_IP)
+        self.assertEqual(updated.management_end_ip, self.NEW_END_IP)
+        self.assertEqual(
+            updated.systemcontroller_gateway_ip, self.NEW_SYS_CONTROLLER_GW
+        )
+
+    def test_bootstrap_network_reconfig_updates_db_to_new_network(self):
+        self._run_network_reconfig_updates_db("bootstrap")
+
+    def test_enroll_network_reconfig_updates_db_to_new_network(self):
+        self._run_network_reconfig_updates_db("enroll")
+
+    def _run_network_reconfig_deletes_old_routes(self, operation):
+        subcloud = self._create_subcloud(
+            f"subcloud_reconfig_{operation}_del", self._OPERATION_MAP[operation]
+        )
+        payload = self._build_reconfig_network_payload()
+
+        self.sm._deploy_bootstrap_enroll_prep(operation, self.ctx, payload, subcloud)
+
+        self.mock_delete_subcloud_routes.assert_called_once()
+        call_args = self.mock_delete_subcloud_routes.call_args
+        passed_subcloud = call_args[0][1]
+        self.assertEqual(passed_subcloud.management_subnet, self.OLD_SUBNET)
+        self.assertEqual(
+            passed_subcloud.systemcontroller_gateway_ip, self.OLD_SYS_CONTROLLER_GW
+        )
+
+    def test_bootstrap_prep_network_reconfig_deletes_old_routes(self):
+        self._run_network_reconfig_deletes_old_routes("bootstrap")
+
+    def test_enroll_prep_network_reconfig_deletes_old_routes(self):
+        self._run_network_reconfig_deletes_old_routes("enroll")
+
+    def _run_network_reconfig_creates_new_route(self, operation):
+        subcloud = self._create_subcloud(
+            f"subcloud_reconfig_{operation}_new", self._OPERATION_MAP[operation]
+        )
+        payload = self._build_reconfig_network_payload()
+
+        self.sm._deploy_bootstrap_enroll_prep(operation, self.ctx, payload, subcloud)
+
+        self.mock_create_subcloud_route.assert_called_once()
+        call_args = self.mock_create_subcloud_route.call_args
+        passed_payload = call_args[0][0]
+        self.assertEqual(passed_payload["management_subnet"], self.NEW_SUBNET)
+
+    def test_bootstrap_prep_network_reconfig_creates_new_route(self):
+        self._run_network_reconfig_creates_new_route("bootstrap")
+
+    def test_enroll_prep_network_reconfig_creates_new_route(self):
+        self._run_network_reconfig_creates_new_route("enroll")
+
+    def _run_dns_regen_sees_new_ip_in_db(self, operation):
+        subcloud = self._create_subcloud(
+            f"subcloud_reconfig_{operation}_dns", self._OPERATION_MAP[operation]
+        )
+        payload = self._build_reconfig_network_payload()
+
+        self.sm._deploy_bootstrap_enroll_prep(operation, self.ctx, payload, subcloud)
+
+        self.mock_create_addn_hosts_dc.assert_called_once()
+        snapshot = self.db_snapshot_at_dns_regen[subcloud.name]
+        self.assertEqual(
+            snapshot["management_start_ip"],
+            self.NEW_START_IP,
+            "_create_addn_hosts_dc was called before the DB was updated "
+            "with the new management IP.",
+        )
+        self.assertEqual(snapshot["management_subnet"], self.NEW_SUBNET)
+
+    def test_bootstrap_prep_dns_regen_sees_new_ip_in_db(self):
+        self._run_dns_regen_sees_new_ip_in_db("bootstrap")
+
+    def test_enroll_prep_dns_regen_sees_new_ip_in_db(self):
+        self._run_dns_regen_sees_new_ip_in_db("enroll")
+
+    def _run_no_network_reconfig(self, operation):
+        subcloud = self._create_subcloud(
+            f"subcloud_no_reconfig_{operation}", self._OPERATION_MAP[operation]
+        )
+        payload = self._build_same_network_payload(subcloud)
+
+        self.sm._deploy_bootstrap_enroll_prep(operation, self.ctx, payload, subcloud)
+
+        self.mock_delete_subcloud_routes.assert_not_called()
+        self.mock_create_addn_hosts_dc.assert_not_called()
+
+    def test_bootstrap_prep_no_network_reconfig(self):
+        self._run_no_network_reconfig("bootstrap")
+
+    def test_enroll_prep_no_network_reconfig(self):
+        self._run_no_network_reconfig("enroll")
+
+    def _run_network_reconfig_route_creation_failure(self, operation):
+        self.mock_create_subcloud_route.side_effect = Exception("route failed")
+        subcloud = self._create_subcloud(
+            f"subcloud_reconfig_{operation}_fail", self._OPERATION_MAP[operation]
+        )
+        payload = self._build_reconfig_network_payload()
+
+        self.assertRaises(
+            exceptions.NetworkReconfigFailedException,
+            self.sm._deploy_bootstrap_enroll_prep,
+            operation,
+            self.ctx,
+            payload,
+            subcloud,
+        )
+
+        updated = db_api.subcloud_get(self.ctx, subcloud.id)
+        # DB should still have old network values
+        self.assertEqual(updated.management_subnet, self.OLD_SUBNET)
+        self.assertEqual(updated.management_gateway_ip, self.OLD_GATEWAY)
+        self.assertEqual(updated.management_start_ip, self.OLD_START_IP)
+        self.assertEqual(updated.management_end_ip, self.OLD_END_IP)
+        # DNS regeneration should not be called
+        self.mock_create_addn_hosts_dc.assert_not_called()
+
+    def test_bootstrap_prep_network_reconfig_route_creation_failure(self):
+        self._run_network_reconfig_route_creation_failure("bootstrap")
+
+    def test_enroll_prep_network_reconfig_route_creation_failure(self):
+        self._run_network_reconfig_route_creation_failure("enroll")

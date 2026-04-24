@@ -1388,20 +1388,20 @@ class SubcloudManager(manager.Manager):
         self, operation, context, payload, subcloud, initial_deployment=False
     ):
 
-        network_reconfig = utils.has_network_reconfig(payload, subcloud)
-        if network_reconfig:
-            self._configure_system_controller_network(
-                context, payload, subcloud, update_db=False
-            )
-            # Regenerate the addn_hosts_dc file
-            self._create_addn_hosts_dc(context)
-
         if operation == "bootstrap":
             _deploy_status = consts.DEPLOY_STATE_PRE_BOOTSTRAP
         elif operation == "enroll":
             _deploy_status = consts.DEPLOY_STATE_PRE_ENROLL
         else:
             raise exceptions.InvalidParameterValue
+
+        network_reconfig = utils.has_network_reconfig(payload, subcloud)
+        if network_reconfig:
+            # subcloud contains the old management network info
+            if not self._configure_system_controller_network(
+                context, payload, subcloud
+            ):
+                raise exceptions.NetworkReconfigFailedException(subcloud=subcloud.name)
 
         if subcloud.deploy_status != _deploy_status or network_reconfig:
 
@@ -1422,6 +1422,11 @@ class SubcloudManager(manager.Manager):
                 location=payload.get("location"),
                 deploy_status=_deploy_status,
             )
+
+        if network_reconfig:
+            # Regenerate the addn_hosts_dc file after the DB has been
+            # updated with the new management network info
+            self._create_addn_hosts_dc(context)
 
         # Populate payload with passwords
         payload["ansible_become_pass"] = payload["sysadmin_password"]
@@ -5044,11 +5049,18 @@ class SubcloudManager(manager.Manager):
             LOG.error(msg)
             return
 
-        self._configure_system_controller_network(context, payload, subcloud)
-
-        db_api.subcloud_update(
-            context, subcloud_id, deploy_status=consts.DEPLOY_STATE_DONE
-        )
+        if not self._configure_system_controller_network(context, payload, subcloud):
+            LOG.error(
+                "Failed to reconfigure routes or endpoint map to "
+                f"subcloud {subcloud_name}."
+            )
+            db_api.subcloud_update(
+                context,
+                subcloud_id,
+                deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
+                error_description=consts.ERROR_DESC_EMPTY,
+            )
+            return
 
         # We are interested only in primary of dual-stack, as system controller
         # and subcloud communication is based upon subcloud's primary.
@@ -5063,24 +5075,21 @@ class SubcloudManager(manager.Manager):
             location=payload.get("location", subcloud.location),
             group_id=payload.get("group_id", subcloud.group_id),
             data_install=payload.get("data_install", subcloud.data_install),
+            deploy_status=consts.DEPLOY_STATE_DONE,
         )
 
         # Regenerate the addn_hosts_dc file
         self._create_addn_hosts_dc(context)
 
-    def _configure_system_controller_network(
-        self, context, payload, subcloud, update_db=True
-    ):
+    def _configure_system_controller_network(self, context, payload, subcloud):
         """Configure system controller network
 
         :param context: request context object
         :param payload: subcloud bootstrap configuration
-        :param subcloud: subcloud model object
-        :param update_db: whether it should update the db on success/failure
+        :param subcloud: subcloud model object, contains old mgmt subnet
         """
         subcloud_name = subcloud.name
         subcloud_region = subcloud.region_name
-        subcloud_id = subcloud.id
         sys_controller_gw_ip = payload.get(
             "systemcontroller_gateway_address", subcloud.systemcontroller_gateway_ip
         )
@@ -5093,32 +5102,20 @@ class SubcloudManager(manager.Manager):
             self._create_subcloud_route(payload, m_ks_client, sys_controller_gw_ip)
         except Exception:
             LOG.exception("Failed to create route to subcloud %s." % subcloud_name)
-            if update_db:
-                db_api.subcloud_update(
-                    context,
-                    subcloud_id,
-                    deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-                    error_description=consts.ERROR_DESC_EMPTY,
-                )
-            return
+            return False
         try:
             self._update_services_endpoint(
                 context, payload, subcloud_region, m_ks_client
             )
         except Exception:
             LOG.exception("Failed to update subcloud %s endpoints" % subcloud_name)
-            if update_db:
-                db_api.subcloud_update(
-                    context,
-                    subcloud_id,
-                    deploy_status=consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
-                    error_description=consts.ERROR_DESC_EMPTY,
-                )
-            return
+            return False
 
-        # Delete old routes
+        # Delete old routes, subcloud obj contains old management subnet
         if utils.get_primary_management_subnet(payload) != subcloud.management_subnet:
             self._delete_subcloud_routes(m_ks_client, subcloud)
+
+        return True
 
     def _create_subcloud_route(
         self,

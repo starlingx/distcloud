@@ -342,3 +342,7 @@ class RestorePreparationError(DCManagerException):
     """Exception raised when restore preparation fails."""
 
     message = "Restore preparation failed: %(details)s"
+
+
+class NetworkReconfigFailedException(DCManagerException):
+    message = _("Failed to reconfigure routes or endpoint map to subcloud %(subcloud)s")

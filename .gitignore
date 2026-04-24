@@ -66,4 +66,5 @@ ChangeLog
 .*.swp
 .*sw?
 .vscode
+.kiro
 
