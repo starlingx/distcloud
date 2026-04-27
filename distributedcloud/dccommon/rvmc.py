@@ -108,6 +108,9 @@ HTTP_REQUEST_WAIT = 2
 # and the change is deployed.
 Models_list = ["PowerEdge XR8720t"]
 
+# Manufacturers that support UsbCd boot device
+USBCD_SUPPORTED_MANUFACTURERS = ["Supermicro"]
+
 
 def safe_log(value: Any) -> str:
     """Return a compact, readable string for logs.
@@ -475,6 +478,8 @@ class VmcObject(object):
 
         # Server info from Systems member URL
         self.model = None
+        self.manufacturer = None
+        self.firmware_version = None
 
         # boot control info
         self.boot_control_dict = {}
@@ -1332,6 +1337,15 @@ class VmcObject(object):
                 self.model = self.get_key_value("Model")
                 if self.model:
                     self.logging_util.ilog("Server Model: %s" % (self.model))
+                self.manufacturer = self.get_key_value("Manufacturer")
+                self.firmware_version = self.get_key_value("FirmwareVersion")
+                if self.manufacturer:
+                    self.logging_util.ilog(
+                        "Server Manufacturer: %s FirmwareVersion: %s"
+                        % (self.manufacturer, self.firmware_version)
+                    )
+                else:
+                    self.logging_util.wlog("Server Manufacturer: Unknown")
 
             self.vm_group_url = None
             self.vm_group = self.get_key_value("VirtualMedia")
@@ -1730,6 +1744,10 @@ class VmcObject(object):
             )
             self._exit(1)
 
+    def _is_usbcd_supported(self):
+        """Check if the server manufacturer supports UsbCd boot device."""
+        return self.manufacturer in USBCD_SUPPORTED_MANUFACTURERS
+
     ######################################################################
     # Set Next Boot Override to CD/DVD
     ######################################################################
@@ -1847,34 +1865,22 @@ class VmcObject(object):
         else:
             allowable_label = "BootSourceOverrideMode@Redfish.AllowableValues"
             mode_list = self.get_key_value("Boot", allowable_label)
-            if mode_list is None:
-                payload = {
-                    "Boot": {
-                        "BootSourceOverrideEnabled": "Once",
-                        "BootSourceOverrideTarget": "Cd",
-                    }
-                }
-            else:
-                self.logging_util.dlog1("Boot Override Modes: %s" % mode_list)
 
-                # Prioritize UEFI over Legacy
-                if "UEFI" in mode_list:
-                    payload = {
-                        "Boot": {
-                            "BootSourceOverrideEnabled": "Once",
-                            "BootSourceOverrideMode": "UEFI",
-                            "BootSourceOverrideTarget": "Cd",
-                        }
-                    }
-                elif "Legacy" in mode_list:
-                    payload = {
-                        "Boot": {
-                            "BootSourceOverrideEnabled": "Once",
-                            "BootSourceOverrideMode": "Legacy",
-                            "BootSourceOverrideTarget": "Cd",
-                        }
-                    }
-                else:
+            boot_device = "Cd"
+            target_label = "BootSourceOverrideTarget@Redfish.AllowableValues"
+            target_list = self.get_key_value("Boot", target_label)
+            if self._is_usbcd_supported() and target_list and "UsbCd" in target_list:
+                # Use UsbCd instead of Cd if supported by the manufacturer
+                boot_device = "UsbCd"
+                self.logging_util.ilog("Using UsbCd boot device")
+            self.logging_util.dlog1(
+                "Boot Override Targets: %s, boot_device: %s"
+                % (target_list, boot_device)
+            )
+
+            if mode_list:
+                self.logging_util.dlog1("Boot Override Modes: %s" % mode_list)
+                if "UEFI" not in mode_list and "Legacy" not in mode_list:
                     self.logging_util.elog(
                         "BootSourceOverrideModes %s not supported" % mode_list
                     )
@@ -1882,7 +1888,45 @@ class VmcObject(object):
                     # line below, causing it to fail due to the payload being undefined.
                     self._exit(1)
 
-                self.logging_util.dlog2("Boot Override Payload: %s" % payload)
+            boot_mode = None
+            if boot_device == "UsbCd":
+                # UsbCd represents a USB-attached CD/DVD device and is
+                # preferred over Cd for virtual media boot due to better
+                # performance and broader firmware support.
+                #
+                # Force UEFI mode for UsbCd because Legacy BIOS lacks native
+                # USB drivers and relies on fragile USB-CD emulation, making
+                # virtual media boot unreliable. UEFI provides native USB
+                # support and standardized boot semantics.
+                #
+                # The current BootSourceOverrideMode may report "Legacy"
+                # due to a previous boot override, or the supported mode
+                # list may be absent entirely since
+                # BootSourceOverrideMode@Redfish.AllowableValues is
+                # optional per the Redfish specification. Some BMCs do
+                # not advertise this annotation, resulting in an
+                # undefined mode_list.
+                #
+                # To ensure the boot override follows the correct
+                # firmware path, explicitly set
+                # BootSourceOverrideMode=UEFI in the PATCH payload.
+                boot_mode = "UEFI"
+            elif mode_list:
+                if "UEFI" in mode_list:
+                    boot_mode = "UEFI"
+                elif "Legacy" in mode_list:
+                    boot_mode = "Legacy"
+
+            payload = {
+                "Boot": {
+                    "BootSourceOverrideEnabled": "Once",
+                    "BootSourceOverrideTarget": boot_device,
+                }
+            }
+            if boot_mode:
+                payload["Boot"]["BootSourceOverrideMode"] = boot_mode
+
+            self.logging_util.dlog2("Boot Override Payload: %s" % payload)
 
         if use_settings:
             _systems_member_url = self.systems_member_url.rstrip("/") + "/Settings"

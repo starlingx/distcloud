@@ -1960,6 +1960,7 @@ class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
                 f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
             ),
             mock.call.info(f"Server Model: {self.vmc_obj.response_dict['Model']}"),
+            mock.call.warning("Server Manufacturer: Unknown"),
             mock.call.error("Unable to get Virtual Media Group from None"),
         ]
         expected_calls.extend(self._generate_log_dump())
@@ -2048,6 +2049,7 @@ class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
             mock.call.debug(
                 f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
             ),
+            mock.call.warning("Server Manufacturer: Unknown"),
             mock.call.error(f"No Virtual Media members found at {self.vm_group_url}"),
         ]
         expected_calls.extend(self._generate_log_dump())
@@ -2078,6 +2080,7 @@ class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
                 mock.call.debug(
                     f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
                 ),
+                mock.call.warning("Server Manufacturer: Unknown"),
                 mock.call.warning(message),
                 mock.call.debug("Full vm_url.list [] "),
                 mock.call.error("Failed to find CD or DVD Virtual media type"),
@@ -2101,6 +2104,7 @@ class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
                 f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
             ),
             mock.call.info(f"Server Model: {self.vmc_obj.response_dict['Model']}"),
+            mock.call.warning("Server Manufacturer: Unknown"),
             mock.call.debug(f"Full vm_url.list ['{self.vm_member_url}'] "),
             mock.call.debug(
                 f"No Virtual MediaTypes found at {self.vm_member_url} ; "
@@ -2126,6 +2130,7 @@ class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
                 f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
             ),
             mock.call.info(f"Server Model: {self.vmc_obj.response_dict['Model']}"),
+            mock.call.warning("Server Manufacturer: Unknown"),
             mock.call.debug(f"Full vm_url.list ['{self.vm_member_url}'] "),
             mock.call.debug(
                 f"Virtual Media {self.vm_member_url} does not support CD/DVD ; "
@@ -2153,6 +2158,7 @@ class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
                     f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
                 ),
                 mock.call.info(f"Server Model: {self.vmc_obj.response_dict['Model']}"),
+                mock.call.warning("Server Manufacturer: Unknown"),
                 mock.call.debug(f"Full (sorted) vm_url.list ['{self.vm_member_url}'] "),
                 mock.call.debug(
                     f"Supported Virtual Media found at {self.vm_member_url} ; "
@@ -2637,8 +2643,8 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         self.boot_payload = {
             "Boot": {
                 "BootSourceOverrideEnabled": "Once",
-                "BootSourceOverrideMode": "UEFI",
                 "BootSourceOverrideTarget": "Cd",
+                "BootSourceOverrideMode": "UEFI",
             }
         }
 
@@ -2735,6 +2741,9 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
                 "BootSourceOverrideTarget Device Options: "
                 f"{', '.join(self.boot_allowable_values)}"
             ),
+            mock.call.debug(
+                f"Boot Override Targets: {self.boot_allowable_values}, boot_device: Cd"
+            ),
             mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
             mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
             mock.call.debug(
@@ -2796,6 +2805,7 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         del self.vmc_obj.response_dict["Boot"][
             "BootSourceOverrideMode@Redfish.AllowableValues"
         ]
+        del self.vmc_obj.response_dict["Boot"]["BootSourceOverrideMode"]
 
         self.vmc_obj._redfish_set_boot_override()
 
@@ -2816,6 +2826,44 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         expected_calls = [
             mock.call.info("Set Next Boot Override to CD/DVD"),
             mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:None]"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_uses_uefi_mode_when_only_uefi_available(self):
+        """Test _redfish_set_boot_override uses UEFI when mode_list is ['UEFI']"""
+
+        self.boot_allowable_values = ["UEFI"]
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ] = self.boot_allowable_values
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=self.boot_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
             mock.call.debug(
                 f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
             ),
@@ -2830,6 +2878,7 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         self.vmc_obj.response_dict["Boot"][
             "BootSourceOverrideMode@Redfish.AllowableValues"
         ] = self.boot_allowable_values
+        self.vmc_obj.response_dict["Boot"]["BootSourceOverrideMode"] = "Legacy"
 
         self.vmc_obj._redfish_set_boot_override()
 
@@ -2852,12 +2901,56 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         expected_calls = [
             mock.call.info("Set Next Boot Override to CD/DVD"),
             mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
             mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
             mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
             mock.call.debug(
                 f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
             ),
-            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"),
+            mock.call.info(
+                "Set Next Boot Override to CD/DVD verified [Once:Cd:Legacy]"
+            ),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_uses_no_mode_when_mode_list_is_empty(self):
+        """Test _redfish_set_boot_override omits mode when mode_list is empty"""
+
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ] = []
+        del self.vmc_obj.response_dict["Boot"]["BootSourceOverrideMode"]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        payload_no_mode = {
+            "Boot": {
+                "BootSourceOverrideEnabled": "Once",
+                "BootSourceOverrideTarget": "Cd",
+            }
+        }
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=payload_no_mode,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Payload: {payload_no_mode}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {payload_no_mode}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:None]"),
         ]
         self._assert_mock_logger_calls(expected_calls)
 
@@ -2883,6 +2976,7 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         expected_calls = [
             mock.call.info("Set Next Boot Override to CD/DVD"),
             mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
             mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
             mock.call.error(
                 f"BootSourceOverrideModes {self.boot_allowable_values} not supported"
@@ -2905,6 +2999,8 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         expected_calls = [
             mock.call.info("Set Next Boot Override to CD/DVD"),
             mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
             mock.call.debug(
                 f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
             ),
@@ -2946,6 +3042,8 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         expected_calls = [
             mock.call.info("Set Next Boot Override to CD/DVD"),
             mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
             mock.call.debug(
                 f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
             ),
@@ -2992,6 +3090,8 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         expected_calls = [
             mock.call.info("Set Next Boot Override to CD/DVD"),
             mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
             mock.call.debug(
                 f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
             ),
@@ -3014,3 +3114,331 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         ]
         expected_calls.extend(self._generate_log_dump())
         self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_uses_usbcd_for_supermicro_with_uefi(self):
+        """Test _redfish_set_boot_override uses UsbCd for Supermicro with UEFI mode"""
+
+        self.vmc_obj.manufacturer = "Supermicro"
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideTarget@Redfish.AllowableValues"
+        ] = ["Cd", "UsbCd"]
+        self.vmc_obj.response_dict["Boot"]["BootSourceOverrideTarget"] = "UsbCd"
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        usbcd_payload = {
+            "Boot": {
+                "BootSourceOverrideEnabled": "Once",
+                "BootSourceOverrideTarget": "UsbCd",
+                "BootSourceOverrideMode": "UEFI",
+            }
+        }
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=usbcd_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        target_list = ["Cd", "UsbCd"]
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.info("Using UsbCd boot device"),
+            mock.call.debug(
+                f"Boot Override Targets: {target_list}, boot_device: UsbCd"
+            ),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {usbcd_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {usbcd_payload}"
+            ),
+            mock.call.info(
+                "Set Next Boot Override to CD/DVD verified [Once:UsbCd:UEFI]"
+            ),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_uses_usbcd_for_supermicro_with_legacy(self):
+        """Test _redfish_set_boot_override uses UsbCd with UEFI override for Legacy"""
+
+        self.vmc_obj.manufacturer = "Supermicro"
+        self.boot_allowable_values = ["Legacy"]
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ] = self.boot_allowable_values
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideTarget@Redfish.AllowableValues"
+        ] = ["Cd", "UsbCd"]
+        self.vmc_obj.response_dict["Boot"]["BootSourceOverrideTarget"] = "UsbCd"
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        usbcd_payload = {
+            "Boot": {
+                "BootSourceOverrideEnabled": "Once",
+                "BootSourceOverrideTarget": "UsbCd",
+                "BootSourceOverrideMode": "UEFI",
+            }
+        }
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=usbcd_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        target_list = ["Cd", "UsbCd"]
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.info("Using UsbCd boot device"),
+            mock.call.debug(
+                f"Boot Override Targets: {target_list}, boot_device: UsbCd"
+            ),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {usbcd_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {usbcd_payload}"
+            ),
+            mock.call.info(
+                "Set Next Boot Override to CD/DVD verified [Once:UsbCd:UEFI]"
+            ),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_uses_usbcd_for_supermicro_without_mode(self):
+        """Test _redfish_set_boot_override uses UsbCd with UEFI when no mode list"""
+
+        self.vmc_obj.manufacturer = "Supermicro"
+        del self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ]
+        del self.vmc_obj.response_dict["Boot"]["BootSourceOverrideMode"]
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideTarget@Redfish.AllowableValues"
+        ] = ["Cd", "UsbCd"]
+        self.vmc_obj.response_dict["Boot"]["BootSourceOverrideTarget"] = "UsbCd"
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        usbcd_payload = {
+            "Boot": {
+                "BootSourceOverrideEnabled": "Once",
+                "BootSourceOverrideTarget": "UsbCd",
+                "BootSourceOverrideMode": "UEFI",
+            }
+        }
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=usbcd_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        target_list = ["Cd", "UsbCd"]
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.info("Using UsbCd boot device"),
+            mock.call.debug(
+                f"Boot Override Targets: {target_list}, boot_device: UsbCd"
+            ),
+            mock.call.debug(f"Boot Override Payload: {usbcd_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {usbcd_payload}"
+            ),
+            mock.call.info(
+                "Set Next Boot Override to CD/DVD verified [Once:UsbCd:None]"
+            ),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_skips_usbcd_for_non_supermicro(self):
+        """Test _redfish_set_boot_override does not use UsbCd for non-Supermicro"""
+
+        self.vmc_obj.manufacturer = "Dell Inc."
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideTarget@Redfish.AllowableValues"
+        ] = ["Cd", "UsbCd"]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=self.boot_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        target_list = ["Cd", "UsbCd"]
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(f"Boot Override Targets: {target_list}, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_supermicro_without_usbcd_in_allowable_values(
+        self,
+    ):
+        """Test _redfish_set_boot_override uses Cd when Supermicro but no UsbCd"""
+
+        self.vmc_obj.manufacturer = "Supermicro"
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideTarget@Redfish.AllowableValues"
+        ] = ["Cd"]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=self.boot_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        target_list = ["Cd"]
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(f"Boot Override Targets: {target_list}, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_supermicro_none_target(self):
+        """Test _redfish_set_boot_override Supermicro with no target_list"""
+
+        self.vmc_obj.manufacturer = "Supermicro"
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=self.boot_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_supermicro_none_target_mode(
+        self,
+    ):
+        """Test _redfish_set_boot_override Supermicro no target/mode list"""
+
+        self.vmc_obj.manufacturer = "Supermicro"
+        del self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ]
+        del self.vmc_obj.response_dict["Boot"]["BootSourceOverrideMode"]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        payload_no_mode = {
+            "Boot": {
+                "BootSourceOverrideEnabled": "Once",
+                "BootSourceOverrideTarget": "Cd",
+            }
+        }
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=payload_no_mode,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Payload: {payload_no_mode}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {payload_no_mode}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:None]"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+
+class TestIsUsbcdSupported(BaseTestVmcObject):
+    """Test class for VmcObject _is_usbcd_supported method."""
+
+    def test_is_usbcd_supported_returns_true_for_supermicro(self):
+        """Test _is_usbcd_supported returns True for Supermicro"""
+        self.vmc_obj.manufacturer = "Supermicro"
+        self.assertTrue(self.vmc_obj._is_usbcd_supported())
+
+    def test_is_usbcd_supported_returns_false_for_other_manufacturers(self):
+        """Test _is_usbcd_supported returns False for non-Supermicro"""
+        for manufacturer in ["Dell Inc.", "HPE", "Lenovo", "Unknown", None]:
+            self.vmc_obj.manufacturer = manufacturer
+            self.assertFalse(
+                self.vmc_obj._is_usbcd_supported(),
+                f"Expected False for manufacturer={manufacturer}",
+            )
