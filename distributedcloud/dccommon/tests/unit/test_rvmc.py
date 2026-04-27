@@ -750,17 +750,13 @@ class BaseTestVmcObject(BaseTestRvmc):
             logging_util=self.logging_util,
             exit_handler=self.exit_handler,
         )
-        self.vmc_obj.redfish_obj = mock.MagicMock()
 
         self.systems_url = "/redfish/v1/Systems"
-        self.vmc_obj.systems_group_url = self.systems_url
-        self.vmc_obj.systems_members = 1
         self.systems_members_url = f"{self.systems_url}/v1"
-        self.vmc_obj.systems_members_list = [
-            {"@odata.id": f"{self.systems_members_url}"}
-        ]
+
         self.managers_url = "/redfish/v1/Managers"
         self.members_list = [{"@odata.id": f"{self.managers_url}/1/"}]
+
         self.reset_command_list = [
             "On",
             "ForceOff",
@@ -771,6 +767,18 @@ class BaseTestVmcObject(BaseTestRvmc):
         self.reset_command_url = (
             f"{self.systems_members_url}/Actions/ComputerSystem.Reset/"
         )
+
+        self.vm_group_url = f"{self.managers_url}/1/VirtualMedia"
+        self.vm_member_url = f"{self.vm_group_url}/1/"
+
+        self.vmc_obj.redfish_obj = mock.MagicMock()
+        self.vmc_obj.systems_group_url = self.systems_url
+        self.vmc_obj.systems_members = 1
+        self.vmc_obj.systems_members_list = [
+            {"@odata.id": f"{self.systems_members_url}"}
+        ]
+        self.vmc_obj.manager_members_list = self.members_list
+        # This object is storing data from several different requests
         self.vmc_obj.response_dict = {
             "Systems": {"@odata.id": self.systems_url},
             "Managers": {"@odata.id": self.managers_url},
@@ -779,9 +787,22 @@ class BaseTestVmcObject(BaseTestRvmc):
                 "#ComputerSystem.Reset": {
                     "target": f"{self.reset_command_url}",
                     "ResetType@Redfish.AllowableValues": self.reset_command_list,
-                }
+                },
+                "#VirtualMedia.InsertMedia": {
+                    "target": f"{self.vm_member_url}Actions/VirtualMedia.InsertMedia"
+                },
+                "#VirtualMedia.EjectMedia": {
+                    "target": f"{self.vm_member_url}Actions/VirtualMedia.EjectMedia"
+                },
             },
             "PowerState": rvmc.POWER_OFF,
+            # VM member response
+            "@odata.id": self.vm_member_url,
+            "MediaTypes": ["CD"],
+            "Inserted": False,
+            # Member response
+            "VirtualMedia": {"@odata.id": self.vm_group_url},
+            "Model": "TestModel",
         }
 
         # Store the original make_request method for its tests
@@ -1835,3 +1856,291 @@ class TestVmcObjectRedfishPowerctlHost(BaseTestVmcObject):
 
             self.mock_make_request.reset_mock()
             self.mock_logger.reset_mock()
+
+
+class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_get_vm_url method.
+
+    Tests the _redfish_get_vm_url method which discovers CD/DVD Virtual Media
+    URLs by iterating through Systems and Managers members, querying their
+    VirtualMedia groups, and identifying supported media devices.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        # Reset the value as it would conflict with the one in BaseTestVmcObject
+        self.vmc_obj.response_dict["Members"] = [{"@odata.id": self.vm_member_url}]
+
+    def test_get_vm_url_continues_when_both_members_lists_are_none(self):
+        """Test _redfish_get_vm_url continues when both members lists are None"""
+
+        self.vmc_obj.systems_members_list = None
+        self.vmc_obj.manager_members_list = None
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+        self.mock_make_request.assert_not_called()
+        expected_calls = [
+            mock.call.info("Get CD/DVD Virtual Media"),
+            mock.call.debug("Members: []"),
+            mock.call.error("Failed to find CD or DVD Virtual media type"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_get_vm_url_continues_when_member_is_empty_or_has_no_odata_id(self):
+        """Test _redfish_get_vm_url continues when member is empty or has no odata.id"""
+
+        self.vmc_obj.systems_members_list = [{}]
+        self.vmc_obj.manager_members_list = [{"odata.id": None}]
+        members = []
+        members.extend(self.vmc_obj.systems_members_list)
+        members.extend(self.vmc_obj.manager_members_list)
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+        self.mock_make_request.assert_not_called()
+        expected_calls = [
+            mock.call.info("Get CD/DVD Virtual Media"),
+            mock.call.debug(f"Members: {members}"),
+            mock.call.error("Failed to find CD or DVD Virtual media type"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_get_vm_url_exits_when_member_make_request_fails(self):
+        """Test _redfish_get_vm_url exits when make_request fails for a member"""
+
+        self.vmc_obj.systems_members_list = None
+        self.mock_make_request.return_value = False
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+        expected_calls = [
+            mock.call.info("Get CD/DVD Virtual Media"),
+            mock.call.debug(f"Members: {self.members_list}"),
+            mock.call.error(
+                f"Unable to get Member from {self.members_list[0].get('@odata.id')}"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_get_vm_url_exits_when_vm_group_get_odata_id_raises_exception(self):
+        """Test _redfish_get_vm_url exits when vm_group.get raises exception"""
+
+        self.vmc_obj.response_dict["VirtualMedia"] = ""
+
+        self.vmc_obj.manager_members_list = None
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+        expected_calls = [
+            mock.call.info("Get CD/DVD Virtual Media"),
+            mock.call.debug(f"Members: {self.vmc_obj.systems_members_list}"),
+            mock.call.debug(
+                f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
+            ),
+            mock.call.info(f"Server Model: {self.vmc_obj.response_dict['Model']}"),
+            mock.call.error("Unable to get Virtual Media Group from None"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_get_vm_url_continues_when_vm_group_is_none(self):
+        """Test _redfish_get_vm_url continues when vm_group is none"""
+
+        self.vmc_obj.model = "Test"
+        del self.vmc_obj.response_dict["VirtualMedia"]
+
+        members = []
+        members.extend(self.vmc_obj.systems_members_list)
+        members.extend(self.vmc_obj.manager_members_list)
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+        expected_calls = [
+            mock.call.info("Get CD/DVD Virtual Media"),
+            mock.call.debug(f"Members: {members}"),
+            mock.call.debug("Virtual Media not supported by member 0"),
+            mock.call.warning(f"Virtual Media not supported by {self.managers_url}/1/"),
+            mock.call.error("Failed to find CD or DVD Virtual media type"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_get_vm_url_continues_when_make_request_to_vm_group_url_fails(self):
+        """Test _get_vm_url continues when make_request to vm_group_url fails"""
+
+        self.vmc_obj.model = "Test"
+        self.vmc_obj.manager_members_list = None
+
+        requests = [
+            (
+                [True, False],
+                [
+                    mock.call.error(
+                        "Failed to GET Virtual Media Service group from "
+                        f"{self.vm_group_url}"
+                    )
+                ],
+            ),
+            (
+                [True, True, False],
+                [
+                    mock.call.debug(f"Full vm_url.list ['{self.vm_member_url}'] "),
+                    mock.call.error(
+                        "Failed to GET Virtual Media Service group from "
+                        f"{self.vm_member_url}"
+                    ),
+                ],
+            ),
+        ]
+
+        for request, mock_assertions in requests:
+            self.mock_make_request.side_effect = request
+
+            self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+            expected_calls = [
+                mock.call.info("Get CD/DVD Virtual Media"),
+                mock.call.debug(f"Members: {self.vmc_obj.systems_members_list}"),
+            ]
+            expected_calls.extend(mock_assertions)
+            expected_calls.append(
+                mock.call.error("Failed to find CD or DVD Virtual media type")
+            )
+
+            expected_calls.extend(self._generate_log_dump())
+            self._assert_mock_logger_calls(expected_calls)
+            self.mock_logger.reset_mock()
+
+    def test_get_vm_url_exits_when_vm_members_array_is_empty(self):
+        """Test _redfish_get_vm_url exits when vm_members_array is empty"""
+
+        self.vmc_obj.response_dict["Model"] = None
+        del self.vmc_obj.response_dict["Members"]
+        self.vmc_obj.manager_members_list = None
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+        expected_calls = [
+            mock.call.info("Get CD/DVD Virtual Media"),
+            mock.call.debug(f"Members: {self.vmc_obj.systems_members_list}"),
+            mock.call.debug(
+                f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
+            ),
+            mock.call.error(f"No Virtual Media members found at {self.vm_group_url}"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_get_vm_url_warns_when_vm_member_is_not_a_dict_or_is_missing_odata_id(self):
+        """Test _redfish_get_vm_url warns when VM member is not a dict or miss odata.id
+
+        The unit test consolidates two scenarios, which is why each needs its unique
+        message validation.
+        """
+
+        self.vmc_obj.response_dict["Model"] = None
+        members = [
+            (["not_a_dict"], f"VM member[0] not a dict: {type('not_a_dict')}"),
+            ([{"other_key": "value"}], "VM member[0] missing @odata.id"),
+        ]
+
+        for member, message in members:
+            self.vmc_obj.response_dict["Members"] = member
+            self.vmc_obj.manager_members_list = None
+
+            self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+            expected_calls = [
+                mock.call.info("Get CD/DVD Virtual Media"),
+                mock.call.debug(f"Members: {self.vmc_obj.systems_members_list}"),
+                mock.call.debug(
+                    f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
+                ),
+                mock.call.warning(message),
+                mock.call.debug("Full vm_url.list [] "),
+                mock.call.error("Failed to find CD or DVD Virtual media type"),
+            ]
+            expected_calls.extend(self._generate_log_dump())
+            self._assert_mock_logger_calls(expected_calls)
+            self.mock_logger.reset_mock()
+
+    def test_get_vm_url_continues_when_media_types_is_none(self):
+        """Test _redfish_get_vm_url continues when MediaTypes is None"""
+
+        self.vmc_obj.response_dict["MediaTypes"] = None
+        self.vmc_obj.manager_members_list = None
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+        expected_calls = [
+            mock.call.info("Get CD/DVD Virtual Media"),
+            mock.call.debug(f"Members: {self.vmc_obj.systems_members_list}"),
+            mock.call.debug(
+                f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
+            ),
+            mock.call.info(f"Server Model: {self.vmc_obj.response_dict['Model']}"),
+            mock.call.debug(f"Full vm_url.list ['{self.vm_member_url}'] "),
+            mock.call.debug(
+                f"No Virtual MediaTypes found at {self.vm_member_url} ; "
+                "trying other members"
+            ),
+            mock.call.error("Failed to find CD or DVD Virtual media type"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_get_vm_url_continues_when_no_supported_device_is_found(self):
+        """Test _redfish_get_vm_url continues when no supported device is found"""
+
+        self.vmc_obj.manager_members_list = None
+        self.vmc_obj.response_dict["MediaTypes"] = ["USB"]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_get_vm_url)
+
+        expected_calls = [
+            mock.call.info("Get CD/DVD Virtual Media"),
+            mock.call.debug(f"Members: {self.vmc_obj.systems_members_list}"),
+            mock.call.debug(
+                f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
+            ),
+            mock.call.info(f"Server Model: {self.vmc_obj.response_dict['Model']}"),
+            mock.call.debug(f"Full vm_url.list ['{self.vm_member_url}'] "),
+            mock.call.debug(
+                f"Virtual Media {self.vm_member_url} does not support CD/DVD ; "
+                "trying other members"
+            ),
+            mock.call.error("Failed to find CD or DVD Virtual media type"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_get_vm_url_succeeds_with_supported_devices(self):
+        """Test _redfish_get_vm_url finds supported devices"""
+
+        self.vmc_obj.manager_members_list = None
+        self.vmc_obj.response_dict["Model"] = "PowerEdge XR8720t"
+        self.vmc_obj.response_dict["MediaTypes"] = ["CD", "DVD"]
+
+        self.vmc_obj._redfish_get_vm_url()
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Get CD/DVD Virtual Media"),
+                mock.call.debug(f"Members: {self.vmc_obj.systems_members_list}"),
+                mock.call.debug(
+                    f"Systems Data from {self.vmc_obj.systems_members_list[0]}\nNone\n"
+                ),
+                mock.call.info(f"Server Model: {self.vmc_obj.response_dict['Model']}"),
+                mock.call.debug(f"Full (sorted) vm_url.list ['{self.vm_member_url}'] "),
+                mock.call.debug(
+                    f"Supported Virtual Media found at {self.vm_member_url} ; "
+                    f"{self.vmc_obj.response_dict['MediaTypes']}"
+                ),
+                mock.call.debug(f"Supported VM URLs ['{self.vm_member_url}']"),
+            ]
+        )
