@@ -1523,7 +1523,7 @@ class VmcObject(object):
             while eject_retry_count < MAX_EJECT_POST_RETRY_COUNT and ejecting:
                 eject_retry_count = eject_retry_count + 1
                 self.logging_util.dlog1(
-                    "Eject Try %d or %d"
+                    "Eject Try %d of %d"
                     % (eject_retry_count, MAX_EJECT_POST_RETRY_COUNT)
                 )
                 vm_eject = vm_actions.get(eject_media_label)

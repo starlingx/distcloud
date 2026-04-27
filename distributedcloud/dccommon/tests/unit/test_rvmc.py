@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import copy
 import datetime
 import sys
 
@@ -2176,3 +2177,188 @@ class TestVmcObjectRedfishPoweroffHost(BaseTestVmcObject):
                 rvmc.POWER_OFF, verify, request_command
             )
             self.mock_powerctl_host.reset_mock()
+
+
+@mock.patch.object(rvmc, "MAX_EJECT_POLL_COUNT", 1)
+@mock.patch.object(rvmc, "EJECT_POLL_DELAY_SECS", 0)
+@mock.patch.object(rvmc, "MAX_EJECT_POST_RETRY_COUNT", 2)
+class TestVmcObjectRedfishEjectImage(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_eject_image method.
+
+    Tests the _redfish_eject_image method which ejects the currently inserted virtual
+    media image by iterating through vm_url_data_list, posting eject requests and
+    pooling for completion with retry logic.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.vm_url_data = {
+            "@odata.id": self.vm_member_url,
+            "Inserted": True,
+            "Image": "http://example.com/image.iso",
+            "Actions": {
+                "#VirtualMedia.EjectMedia": {
+                    "target": f"{self.vm_member_url}Actions/VirtualMedia.EjectMedia",
+                }
+            },
+        }
+        self.eject_media_url = self.vm_url_data["Actions"]["#VirtualMedia.EjectMedia"][
+            "target"
+        ]
+        self.vmc_obj.vm_url_data_list = [self.vm_url_data]
+
+    def test_redfish_eject_image_returns_when_vm_url_data_list_is_empty(self):
+        """Test _redfish_eject_image returns when vm_url_data_list isempty"""
+
+        self.vmc_obj.vm_url_data_list = []
+
+        self.vmc_obj._redfish_eject_image()
+
+        self.mock_make_request.assert_not_called()
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Eject Image"),
+            ]
+        )
+
+    def test_redfish_eject_image_when_not_inserted(self):
+        """Test _redfish_eject_image breaks when not inserted"""
+
+        self.vm_url_data["Inserted"] = False
+
+        for eject_all_images in [True, False]:
+            self.vmc_obj.eject_all_images = eject_all_images
+
+            self.vmc_obj._redfish_eject_image()
+
+            self.mock_make_request.assert_not_called()
+            self._assert_mock_logger_calls(
+                [
+                    mock.call.info("Eject Image"),
+                    mock.call.info(f"No media found {self.vm_member_url}"),
+                ]
+            )
+            self.mock_logger.reset_mock()
+
+    def test_redfish_eject_image_continues_when_actions_key_is_missing(self):
+        """Test _redfish_eject_image continues when Actions key is missing"""
+
+        del self.vm_url_data["Actions"]
+
+        self.vmc_obj._redfish_eject_image()
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Eject Image"),
+                mock.call.info(f"No vm actions found {self.vm_url_data}"),
+            ]
+        )
+
+    def test_redfish_eject_image_breaks_when_eject_media_label_is_missing(self):
+        """Test _redfish_eject_image breaks when eject media label is missing"""
+
+        self.vm_url_data["Actions"] = {"fake_key": "fake value"}
+
+        self.vmc_obj._redfish_eject_image()
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Eject Image"),
+                mock.call.debug("Eject Try 1 of 2"),
+                mock.call.error(
+                    f"Failed to get #VirtualMedia.EjectMedia with {self.vm_member_url}"
+                ),
+            ]
+        )
+
+    def test_redfish_eject_image_breaks_when_eject_target_url_is_missing(self):
+        """Test _redfish_eject_image breaks when eject target url is missing"""
+
+        self.vm_url_data["Actions"]["#VirtualMedia.EjectMedia"] = {"target": ""}
+
+        self.vmc_obj._redfish_eject_image()
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Eject Image"),
+                mock.call.debug("Eject Try 1 of 2"),
+                mock.call.error(
+                    "Failed to get eject target from "
+                    f"{self.vm_url_data['Actions']['#VirtualMedia.EjectMedia']} with "
+                    f"{self.vm_member_url}"
+                ),
+            ]
+        )
+
+    def test_redfish_eject_image_sets_skip_managers_on_systems_url_eject_all(self):
+        """Test _redfish_eject_image sets skip managers on systems url eject all("""
+
+        self.vmc_obj.eject_all_images = True
+
+        systems_vm_data = copy.deepcopy(self.vm_url_data)
+        systems_vm_data["@odata.id"] = f"{self.systems_url}/1/VirtualMedia/1/"
+        self.vmc_obj.vm_url_data_list = [
+            systems_vm_data,
+            self.vm_url_data,
+        ]
+
+        self.vmc_obj._redfish_eject_image()
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Eject Image"),
+                mock.call.debug("Eject Try 1 of 2"),
+                mock.call.info(f"Eject Image {self.vm_url_data['Image']}"),
+                mock.call.debug(f"Eject URL {self.eject_media_url}"),
+                mock.call.debug(
+                    f"Polling for Eject complete {systems_vm_data['@odata.id']}"
+                ),
+                mock.call.info(f"Ejected from {systems_vm_data['@odata.id']}"),
+                mock.call.debug("Skipping Managers"),
+                mock.call.debug(f"Skipping eject from {self.vm_url_data['@odata.id']}"),
+            ]
+        )
+
+    def test_redfish_eject_image_logs_eject_request_failure_and_continues_to_poll(self):
+        """Test _redfish_eject_image logs eject request failure and continues to poll"""
+
+        self.vmc_obj.response_dict["Inserted"] = True
+        self.vmc_obj.response_dict["Image"] = self.vm_url_data["Image"]
+
+        self.mock_make_request.side_effect = [False, True, False, False]
+        del self.vm_url_data["Image"]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_eject_image)
+
+        expected_calls = [
+            mock.call.info("Eject Image"),
+            mock.call.debug("Eject Try 1 of 2"),
+            mock.call.error(f"Eject request failed {self.eject_media_url}"),
+            mock.call.debug(
+                f"Polling for Eject complete {self.vm_url_data['@odata.id']}"
+            ),
+            mock.call.debug(
+                f"Eject Wait ; Image Present  ; {self.vmc_obj.response_dict['Image']}"
+            ),
+            mock.call.error(
+                f"Eject Image try 1 timeout on {self.vm_url_data['@odata.id']}"
+            ),
+            mock.call.debug("Eject Try 2 of 2"),
+            mock.call.error(f"Eject request failed {self.eject_media_url}"),
+            mock.call.debug(
+                f"Polling for Eject complete {self.vm_url_data['@odata.id']}"
+            ),
+            mock.call.error(
+                f"Failed to query vm state from {self.vm_url_data['@odata.id']}"
+            ),
+            mock.call.error(
+                f"Eject Image try 2 timeout on {self.vm_url_data['@odata.id']}"
+            ),
+            mock.call.error(
+                f"Eject Image full timeout on {self.vm_url_data['@odata.id']}"
+            ),
+            mock.call.error("Eject Image overall timeout"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
