@@ -2144,3 +2144,35 @@ class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
                 mock.call.debug(f"Supported VM URLs ['{self.vm_member_url}']"),
             ]
         )
+
+
+class TestVmcObjectRedfishPoweroffHost(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_poweroff_host method.
+
+    Tests the _redfish_poweroff_host method which powers off the host by delegating to
+    _redfish_powerctl_host with the POWER_OFF state and forwarding the verify and
+    request_command parameters.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_powerctl_host = self._mock_object(
+            self.vmc_obj, "_redfish_powerctl_host"
+        )
+
+    def test_poweroff_host_delegates_parameters(self):
+        """Test _redfish_poweroff_host parameters"""
+
+        for verify, request_command in [
+            (True, None),
+            (False, None),
+            (True, "ForceOff"),
+            (False, "GracefulShutdown"),
+        ]:
+            self.vmc_obj._redfish_poweroff_host(verify, request_command)
+
+            self.mock_powerctl_host.assert_called_once_with(
+                rvmc.POWER_OFF, verify, request_command
+            )
+            self.mock_powerctl_host.reset_mock()
