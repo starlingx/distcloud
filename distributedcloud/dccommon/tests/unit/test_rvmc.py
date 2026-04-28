@@ -806,6 +806,21 @@ class BaseTestVmcObject(BaseTestRvmc):
             "Model": "TestModel",
         }
 
+        self.vm_url_data = {
+            "@odata.id": self.vm_member_url,
+            "Inserted": True,
+            "Image": "http://example.com/image.iso",
+            "Actions": {
+                "#VirtualMedia.EjectMedia": {
+                    "target": f"{self.vm_member_url}Actions/VirtualMedia.EjectMedia",
+                },
+                "#VirtualMedia.InsertMedia": {
+                    "target": f"{self.vm_member_url}Actions/VirtualMedia.InsertMedia",
+                },
+            },
+        }
+        self.vmc_obj.vm_url_data_list = [self.vm_url_data]
+
         # Store the original make_request method for its tests
         self.original_make_request = self.vmc_obj.make_request
         self.mock_make_request = self._mock_object(
@@ -2193,20 +2208,9 @@ class TestVmcObjectRedfishEjectImage(BaseTestVmcObject):
     def setUp(self):
         super().setUp()
 
-        self.vm_url_data = {
-            "@odata.id": self.vm_member_url,
-            "Inserted": True,
-            "Image": "http://example.com/image.iso",
-            "Actions": {
-                "#VirtualMedia.EjectMedia": {
-                    "target": f"{self.vm_member_url}Actions/VirtualMedia.EjectMedia",
-                }
-            },
-        }
         self.eject_media_url = self.vm_url_data["Actions"]["#VirtualMedia.EjectMedia"][
             "target"
         ]
-        self.vmc_obj.vm_url_data_list = [self.vm_url_data]
 
     def test_redfish_eject_image_returns_when_vm_url_data_list_is_empty(self):
         """Test _redfish_eject_image returns when vm_url_data_list isempty"""
@@ -2359,6 +2363,256 @@ class TestVmcObjectRedfishEjectImage(BaseTestVmcObject):
                 f"Eject Image full timeout on {self.vm_url_data['@odata.id']}"
             ),
             mock.call.error("Eject Image overall timeout"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+
+@mock.patch.object(rvmc, "MAX_INSERT_POLL_COUNT", 2)
+@mock.patch.object(rvmc, "RETRY_DELAY_SECS", 0)
+class TestVmcObjectRedfishInsertImage(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_insert_image method.
+
+    Tests the _redfish_insert_image method which inserts an ISO image into
+    Virtual Media CD/DVD by iterating through vm_url_data_list, posting insert
+    requests and polling for completion.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.insert_media_url = self.vm_url_data["Actions"][
+            "#VirtualMedia.InsertMedia"
+        ]["target"]
+
+        self.mock_check_image_url = self._mock_object(
+            self.vmc_obj, "check_image_url", return_value=True
+        )
+
+    def test_redfish_insert_image_exits_when_vm_url_data_list_is_empty(self):
+        """Test _redfish_insert_image exits when vm_url_data_list is empty"""
+
+        self.vmc_obj.vm_url_data_list = []
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_insert_image)
+
+        self.mock_make_request.assert_not_called()
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.error(
+                "Failed to insert image ; "
+                "no valid vm profile "
+                "or accessible image\n[]\n"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_continues_when_vm_actions_is_none(self):
+        """Test _redfish_insert_image continues when Actions key is missing"""
+
+        del self.vm_url_data["Actions"]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_insert_image)
+
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.error(
+                f"Unable to get Virtual Media Actions from {self.vm_member_url} "
+                f"\n{self.vm_url_data}\n"
+            ),
+            mock.call.error(
+                "Failed to insert image ; no valid vm profile "
+                f"or accessible image\n{self.vmc_obj.vm_url_data_list}\n"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_continues_when_insert_media_label_is_missing(self):
+        """Test _redfish_insert_image continues when InsertMedia label is missing"""
+
+        self.vm_url_data["Actions"] = {"fake_key": "fake_value"}
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_insert_image)
+
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.error(
+                f"Unable to get Virtual Media Insert label from {self.vm_member_url}"
+                f"\n{self.vm_url_data['Actions']}\n"
+            ),
+            mock.call.error(
+                "Failed to insert image ; no valid vm profile "
+                f"or accessible image\n{self.vmc_obj.vm_url_data_list}\n"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_continues_when_insert_target_url_is_none(self):
+        """Test _redfish_insert_image continues when insert target URL is None"""
+
+        self.vm_url_data["Actions"]["#VirtualMedia.InsertMedia"] = {"target": None}
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_insert_image)
+
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.error(
+                "Unable to get Virtual Media Insertion URL\n"
+                f"{self.vm_url_data['Actions']['#VirtualMedia.InsertMedia']}\n"
+            ),
+            mock.call.error(
+                "Failed to insert image ; no valid vm profile "
+                f"or accessible image\n{self.vmc_obj.vm_url_data_list}\n"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_continues_when_check_image_url_fails(self):
+        """Test _redfish_insert_image continues when image URL check fails"""
+
+        self.mock_check_image_url.return_value = False
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_insert_image)
+
+        self.mock_check_image_url.assert_called_once_with(self.vmc_obj.img)
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.error(f"Failed image url access check: {self.vmc_obj.img}"),
+            mock.call.error(
+                "Failed to insert image ; no valid vm profile "
+                f"or accessible image\n{self.vmc_obj.vm_url_data_list}\n"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_continues_when_post_request_fails(self):
+        """Test _redfish_insert_image continues when POST insert request fails"""
+
+        self.mock_make_request.return_value = False
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_insert_image)
+
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.info(f"Insert URL {self.insert_media_url}"),
+            mock.call.error(f"Failed to Insert Media {self.insert_media_url}"),
+            mock.call.error(
+                "Failed to insert image ; no valid vm profile "
+                f"or accessible image\n{self.vmc_obj.vm_url_data_list}\n"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_exits_when_poll_get_request_fails(self):
+        """Test _redfish_insert_image exits when polling GET request fails"""
+
+        self.mock_make_request.side_effect = [True, False]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_insert_image)
+
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.info(f"Insert URL {self.insert_media_url}"),
+            mock.call.error(f"Unable to verify Image insertion ({self.vm_member_url})"),
+            mock.call.debug(f"Image URI   : {self.vmc_obj.response_dict.get('Image')}"),
+            mock.call.debug(
+                f"ImageName   : {self.vmc_obj.response_dict.get('ImageName')}"
+            ),
+            mock.call.debug(
+                f"Inserted    : {self.vmc_obj.response_dict.get('Inserted')}"
+            ),
+            mock.call.debug(
+                f"Protected   : {self.vmc_obj.response_dict.get('WriteProtected')}"
+            ),
+            mock.call.error(
+                "Failed to insert image ; no valid vm profile "
+                f"or accessible image\n{self.vmc_obj.vm_url_data_list}\n"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_succeeds_when_image_inserted_on_first_poll(self):
+        """Test _redfish_insert_image succeeds when image is inserted on first poll"""
+
+        self.vmc_obj.response_dict["Image"] = self.vmc_obj.img
+        self.vmc_obj.response_dict["Inserted"] = True
+
+        self.vmc_obj._redfish_insert_image()
+
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.info(f"Insert URL {self.insert_media_url}"),
+            mock.call.debug(
+                f"Image Insertion with {self.vm_member_url} (took 0 seconds)"
+            ),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_succeeds_when_image_inserted_on_second_poll(self):
+        """Test _redfish_insert_image succeeds when image is inserted on second poll"""
+
+        self.vmc_obj.response_dict["Inserted"] = True
+        images = ["Fake", self.vmc_obj.img]
+        self._mock_object(
+            self.vmc_obj,
+            "get_key_value",
+            side_effect=lambda key: (
+                images.pop(0) if key == "Image" else self.vmc_obj.response_dict.get(key)
+            ),
+        )
+
+        self.vmc_obj._redfish_insert_image()
+
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.info(f"Insert URL {self.insert_media_url}"),
+            mock.call.debug("Image Insertion Wait ;   0 secs (  1 of   2)"),
+            mock.call.debug(
+                f"Image Insertion with {self.vm_member_url} (took 0 seconds)"
+            ),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_insert_image_exits_on_poll_timeout(self):
+        """Test _redfish_insert_image exits on polling timeout"""
+
+        self.vmc_obj.response_dict["Inserted"] = True
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_insert_image)
+
+        expected_calls = [
+            mock.call.info("Insert Image into Virtual Media CD/DVD"),
+            mock.call.debug(f"Try insert on vm URL {self.vm_member_url}"),
+            mock.call.info(f"Insert URL {self.insert_media_url}"),
+            mock.call.debug("Image Insertion Wait ;   0 secs (  1 of   2)"),
+            mock.call.debug("Image Insertion Wait ;   0 secs (  2 of   2)"),
+            mock.call.error("Image insertion timeout"),
+            mock.call.info(f"Expected Image: {self.vmc_obj.img}"),
+            mock.call.info(
+                f"Detected Image: {self.vmc_obj.response_dict.get('Image')}"
+            ),
+            mock.call.info(
+                f"Inserted      : {self.vmc_obj.response_dict.get('Inserted')}"
+            ),
+            mock.call.error(
+                "Failed to insert image ; no valid vm profile "
+                f"or accessible image\n{self.vmc_obj.vm_url_data_list}\n"
+            ),
         ]
         expected_calls.extend(self._generate_log_dump())
         self._assert_mock_logger_calls(expected_calls)
