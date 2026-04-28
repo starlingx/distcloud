@@ -1785,6 +1785,7 @@ class VmcObject(object):
                 # Look for Settings
                 _RedfishSettings = self.get_key_value("@Redfish.Settings")
                 if _RedfishSettings:
+                    _SettingsUrl = None
 
                     self.logging_util.dlog1("Redfish Settings: %s" % _RedfishSettings)
 
@@ -1877,7 +1878,9 @@ class VmcObject(object):
                     self.logging_util.elog(
                         "BootSourceOverrideModes %s not supported" % mode_list
                     )
-                    self._exit(0)
+                    # This needs to exit with 1, otherwise the code will move on to the
+                    # line below, causing it to fail due to the payload being undefined.
+                    self._exit(1)
 
                 self.logging_util.dlog2("Boot Override Payload: %s" % payload)
 

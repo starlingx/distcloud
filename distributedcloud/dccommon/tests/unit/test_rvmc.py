@@ -819,6 +819,7 @@ class BaseTestVmcObject(BaseTestRvmc):
                 },
             },
         }
+        self.vmc_obj.vm_media_types = ["CD"]
         self.vmc_obj.vm_url_data_list = [self.vm_url_data]
 
         # Store the original make_request method for its tests
@@ -2139,7 +2140,7 @@ class TestVmcObjectRedfishGetVmUrl(BaseTestVmcObject):
         """Test _redfish_get_vm_url finds supported devices"""
 
         self.vmc_obj.manager_members_list = None
-        self.vmc_obj.response_dict["Model"] = "PowerEdge XR8720t"
+        self.vmc_obj.response_dict["Model"] = rvmc.Models_list[0]
         self.vmc_obj.response_dict["MediaTypes"] = ["CD", "DVD"]
 
         self.vmc_obj._redfish_get_vm_url()
@@ -2613,6 +2614,403 @@ class TestVmcObjectRedfishInsertImage(BaseTestVmcObject):
                 "Failed to insert image ; no valid vm profile "
                 f"or accessible image\n{self.vmc_obj.vm_url_data_list}\n"
             ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+
+@mock.patch.object(rvmc, "MAX_HTTP_TRANSIENT_ERROR_RETRIES", 3)
+@mock.patch.object(rvmc, "HTTP_REQUEST_RETRY_INTERVAL", 0)
+@mock.patch.object(rvmc, "HTTP_REQUEST_WAIT", 0)
+class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
+    """Test class for VmcObject _redfish_set_boot_override method.
+
+    Tests the _redfish_set_boot_override method which sets the next boot
+    override to CD/DVD by iterating through systems members to find boot
+    support, building the appropriate payload based on allowable boot modes
+    and PATCHing the boot override with verification retry logic.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.boot_payload = {
+            "Boot": {
+                "BootSourceOverrideEnabled": "Once",
+                "BootSourceOverrideMode": "UEFI",
+                "BootSourceOverrideTarget": "Cd",
+            }
+        }
+
+        self.vmc_obj.response_dict["Boot"] = copy.deepcopy(self.boot_payload["Boot"])
+        self.boot_allowable_values = ["UEFI", "Legacy"]
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ] = self.boot_allowable_values
+
+        self.redfish_settings = {
+            "SupportedApplyTimes": ["OnReset"],
+            "@odata.id": "/redfish/v1/settings_version",
+            "SettingsObject": {"@odata.id": f"{self.systems_members_url}/Settings"},
+        }
+        self.vmc_obj.response_dict["@Redfish.Settings"] = self.redfish_settings
+
+    def test_redfish_set_boot_override_exits_when_systems_member_url_is_none(self):
+        """Test _redfish_set_boot_override exits when systems_member_url is None"""
+
+        self.vmc_obj.systems_members_list = [{"@odata.id": None}]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_set_boot_override)
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.error(
+                "Unable to get Systems Boot Member from "
+                f"{self.vmc_obj.systems_members_list}"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_exits_when_get_member_request_fails(self):
+        """Test _redfish_set_boot_override exits when GET member request fails"""
+
+        self.mock_make_request.return_value = False
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_set_boot_override)
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.error(
+                f"Unable to get Systems Boot Member from {self.systems_members_url}"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_uses_settings_url_for_model_in_models_list(self):
+        """Test _redfish_set_boot_override uses settings url for model in models list"""
+
+        self.vmc_obj.model = rvmc.Models_list[0]
+        self.vmc_obj.response_dict["Name"] = "System"
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideTarget@Redfish.AllowableValues"
+        ] = self.boot_allowable_values
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.GET, path=f"{self.systems_members_url}/Settings"
+                ),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}/Settings",
+                    payload=self.boot_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(f"Redfish Settings: {self.redfish_settings}"),
+            mock.call.debug(
+                "Settings Apply Times: "
+                f"{self.redfish_settings['SupportedApplyTimes'][0]}"
+            ),
+            mock.call.debug(f"Settings Version: {self.redfish_settings['@odata.id']}"),
+            mock.call.debug(
+                f"Settings Url : {self.redfish_settings['SettingsObject']['@odata.id']}"
+            ),
+            mock.call.debug(
+                "System Settings for "
+                f"{self.redfish_settings['SettingsObject']['@odata.id']} \nNone\n"
+            ),
+            mock.call.debug(
+                "BootSourceOverrideTarget Device Options: "
+                f"{', '.join(self.boot_allowable_values)}"
+            ),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url}/Settings : {self.boot_payload}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_exits_on_empty_boot_control_dict(self):
+        """Test _redfish_set_boot_override exits on empty boot control dict"""
+
+        self.vmc_obj.model = rvmc.Models_list[0]
+        del self.vmc_obj.response_dict["Boot"]
+        self.mock_make_request.side_effect = [True, False]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_set_boot_override)
+
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.GET, path=f"{self.systems_members_url}/Settings"
+                ),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(f"Redfish Settings: {self.redfish_settings}"),
+            mock.call.debug(
+                "Settings Apply Times: "
+                f"{self.redfish_settings['SupportedApplyTimes'][0]}"
+            ),
+            mock.call.debug(f"Settings Version: {self.redfish_settings['@odata.id']}"),
+            mock.call.debug(
+                f"Settings Url : {self.redfish_settings['SettingsObject']['@odata.id']}"
+            ),
+            mock.call.debug(
+                "Failed to get Settings from "
+                f"{self.redfish_settings['SettingsObject']['@odata.id']}"
+            ),
+            mock.call.debug(
+                "System Settings for "
+                f"{self.redfish_settings['SettingsObject']['@odata.id']} \nNone\n"
+            ),
+            mock.call.error(
+                "Unable to get Systems Boot Member from "
+                f"{self.vmc_obj.systems_member_url}"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_uses_payload_without_mode(self):
+        """Test _redfish_set_boot_override uses payload without mode"""
+
+        del self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        del self.boot_payload["Boot"]["BootSourceOverrideMode"]
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=self.boot_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_uses_legacy_mode_when_uefi_not_available(self):
+        """Test _redfish_set_boot_override uses legacy mode when UEFI not available"""
+
+        self.boot_allowable_values = ["Legacy"]
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ] = self.boot_allowable_values
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self.boot_payload["Boot"]["BootSourceOverrideMode"] = (
+            self.boot_allowable_values[0]
+        )
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+                mock.call(
+                    operation=rvmc.PATCH,
+                    path=f"{self.systems_members_url}",
+                    payload=self.boot_payload,
+                    retry=3,
+                ),
+                mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"),
+        ]
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_exits_when_mode_is_unsupported(self):
+        """Test _redfish_set_boot_override exits when mode is unsupported"""
+
+        self.boot_allowable_values = ["Unsupported"]
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ] = self.boot_allowable_values
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_set_boot_override)
+
+        self.boot_payload["Boot"]["BootSourceOverrideMode"] = (
+            self.boot_allowable_values[0]
+        )
+        self.mock_make_request.assert_has_calls(
+            [
+                mock.call(operation=rvmc.GET, path=self.systems_members_url),
+            ]
+        )
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.error(
+                f"BootSourceOverrideModes {self.boot_allowable_values} not supported"
+            ),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_exits_when_patch_request_fails(self):
+        """Test _redfish_set_boot_override exits when PATCH request fails"""
+
+        self.mock_make_request.side_effect = [True, False, True, False, True, False]
+        del self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_set_boot_override)
+
+        del self.boot_payload["Boot"]["BootSourceOverrideMode"]
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.error(
+                f"Unable to PATCH Boot Override ({self.systems_members_url})"
+            ),
+            mock.call.error(
+                f"Unable to verify Set Boot Override ({self.systems_members_url})"
+            ),
+            mock.call.error(
+                f"Unable to verify Set Boot Override ({self.systems_members_url})"
+            ),
+            mock.call.error("Unable to verify Set Boot Override - max retries reached"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_fails_when_not_enabled_once(self):
+        """Test _redfish_set_boot_override fails when not enabled once"""
+
+        self.vmc_obj.response_dict["Boot"]["BootSourceOverrideEnabled"] = "Fake"
+
+        self.mock_make_request.side_effect = [
+            True,
+            True,
+            False,
+            True,
+            False,
+            True,
+            True,
+        ]
+        del self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_set_boot_override)
+
+        del self.boot_payload["Boot"]["BootSourceOverrideMode"]
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.error(
+                f"Unable to verify Set Boot Override ({self.systems_members_url})"
+            ),
+            mock.call.error(
+                f"Unable to verify Set Boot Override ({self.systems_members_url})"
+            ),
+            mock.call.warning(
+                "Unable to verify Set Boot Override ["
+                f"{self.vmc_obj.response_dict['Boot'].get('BootSourceOverrideEnabled')}"
+                ":Cd:UEFI] - try 2"
+            ),
+            mock.call.info(
+                f"Media Types Found: {self.vmc_obj.vm_media_types}  Supported: "
+                f"{rvmc.SUPPORTED_VIRTUAL_MEDIA_DEVICES}"
+            ),
+            mock.call.error("Unable to verify Set Boot Override - max retries reached"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_redfish_set_boot_override_fails_when_device_not_supported(self):
+        """Test _redfish_set_boot_override fails when device not supported"""
+
+        self.mock_make_request.side_effect = [
+            True,
+            True,
+            False,
+            True,
+            False,
+            True,
+            True,
+        ]
+        self.vmc_obj.vm_media_types = ["Floppy"]
+        del self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_set_boot_override)
+
+        del self.boot_payload["Boot"]["BootSourceOverrideMode"]
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.error(
+                f"Unable to verify Set Boot Override ({self.systems_members_url})"
+            ),
+            mock.call.error(
+                f"Unable to verify Set Boot Override ({self.systems_members_url})"
+            ),
+            mock.call.warning(
+                "Unable to verify Set Boot Override ["
+                f"{self.vmc_obj.response_dict['Boot'].get('BootSourceOverrideEnabled')}"
+                ":Cd:UEFI] - try 2"
+            ),
+            mock.call.info(
+                f"Media Types Found: {self.vmc_obj.vm_media_types}  Supported: "
+                f"{rvmc.SUPPORTED_VIRTUAL_MEDIA_DEVICES}"
+            ),
+            mock.call.error("Unable to verify Set Boot Override - max retries reached"),
         ]
         expected_calls.extend(self._generate_log_dump())
         self._assert_mock_logger_calls(expected_calls)
