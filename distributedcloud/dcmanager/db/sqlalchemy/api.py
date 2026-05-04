@@ -38,9 +38,7 @@ from sqlalchemy import insert
 from sqlalchemy import or_
 from sqlalchemy.orm import exc
 from sqlalchemy.orm import joinedload
-from sqlalchemy.orm import load_only
 from sqlalchemy.sql.expression import true
-from sqlalchemy import update
 
 from dccommon import consts as dccommon_consts
 from dcmanager.common import consts
@@ -210,7 +208,7 @@ class Connection(object):
     @staticmethod
     def db_sync(engine, version=None):
         """Migrate the database to `version` or the most recent version."""
-        retVal = migration.db_sync(engine, version=version)
+        retVal = migration.db_sync(engine, version=version)  # pylint: disable=E1111
         # returns None if migration has completed
         if retVal is None:
             initialize_db_defaults(engine)
@@ -428,7 +426,6 @@ class Connection(object):
         with write_session() as session:
             result = (
                 session.query(models.SubcloudAudits)
-                .options(load_only("deleted", "audit_started_at", "audit_finished_at"))
                 .filter_by(deleted=0)
                 .filter(models.SubcloudAudits.audit_finished_at < last_audit_threshold)
                 .filter(
@@ -946,7 +943,7 @@ class Connection(object):
         for subcloud_status in subcloud_statuses:
             update_list.append(
                 {
-                    "_id": subcloud_status.id,
+                    "pk_id": subcloud_status.id,
                     "sync_status": endpoint_list[subcloud_status.endpoint_type],
                 }
             )
@@ -957,9 +954,14 @@ class Connection(object):
         # endpoints with each of them having one of three values:
         # in-sync, out-of-sync and unknown.
         with write_session() as session:
+            # Use Core table update to avoid SQLAlchemy 2.0 ORM bulk update
+            # restrictions that require primary key values.
+            # 'pk_id' is used as the bindparam key to avoid conflict with
+            # the column name 'id'.
+            table = models.SubcloudStatus.__table__
             statement = (
-                update(models.SubcloudStatus)
-                .where(models.SubcloudStatus.id == bindparam("_id"))
+                table.update()
+                .where(table.c.id == bindparam("pk_id"))
                 .values(sync_status=bindparam("sync_status"))
             )
 
