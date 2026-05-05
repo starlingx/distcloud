@@ -63,6 +63,17 @@ FAKE_SUBCLOUD_RELEASES_DEPLOYED_AVAILABLE = [
     {"release_id": "starlingx-25.09.4", "state": "available", "sw_version": "25.09.4"},
 ]
 
+FAKE_SUBCLOUD_RELEASES_NO_DEPLOYED = [
+    {"release_id": "starlingx-25.09.0", "state": "available", "sw_version": "25.09.0"},
+    {"release_id": "starlingx-25.09.1", "state": "available", "sw_version": "25.09.1"},
+]
+
+FAKE_SUBCLOUD_RELEASES_DEPLOYED_MISMATCH = [
+    {"release_id": "starlingx-25.09.0", "state": "deployed", "sw_version": "25.09.0"},
+    {"release_id": "starlingx-25.09.1", "state": "available", "sw_version": "25.09.1"},
+    {"release_id": "starlingx-25.09.2", "state": "deployed", "sw_version": "25.09.2"},
+]
+
 
 class TestPreCheckStateBase(TestSoftwareOrchestrator):
     """Base class with common setup for all pre-check tests"""
@@ -644,3 +655,34 @@ class TestPreCheckStateDuplex(TestPreCheckStateBase):
         mock_stopped.side_effect = [False, True]
 
         self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+
+    def test_pre_check_no_deployed_releases(self):
+        """Test pre-check when no releases are in deployed state (line 248).
+
+        When highest_deployed_release defaults to None, the deployed check
+        is skipped and normal flow continues.
+        """
+
+        self.mock_is_active_controller.return_value = True
+        self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_NO_DEPLOYED
+
+        self._setup_and_assert(self.on_success_state_license)
+
+        self.software_client.list.assert_called()
+
+    def test_pre_check_highest_deployed_release_mismatch(self):
+        """Test pre-check when highest deployed release doesn't match target.
+
+        When highest_deployed_release is not None but its release_id differs
+        from the target release, the deployed check is skipped and normal flow
+        continues.
+        """
+
+        self.mock_is_active_controller.return_value = True
+        self.software_client.list.return_value = (
+            FAKE_SUBCLOUD_RELEASES_DEPLOYED_MISMATCH
+        )
+
+        self._setup_and_assert(self.on_success_state_license)
+
+        self.software_client.list.assert_called()
