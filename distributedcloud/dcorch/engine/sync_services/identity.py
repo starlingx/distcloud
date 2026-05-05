@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -121,7 +121,9 @@ class IdentitySyncThread(SyncThread):
         super().initialize_sc_clients()
 
         self.sc_ks_client = keystoneclient.Client(
-            session=self.sc_admin_session, region_name=self.region_name
+            session=self.sc_admin_session,
+            region_name=self.region_name,
+            interface=dccommon_consts.KS_ENDPOINT_ADMIN,
         )
         self.sc_dbs_client = Client(
             endpoint_type=consts.DBS_ENDPOINT_ADMIN, session=self.sc_admin_session

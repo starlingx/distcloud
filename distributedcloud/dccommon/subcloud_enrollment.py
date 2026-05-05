@@ -1,9 +1,8 @@
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import crypt
 import os
 import tarfile
 import tempfile
@@ -13,6 +12,7 @@ import yaml
 from eventlet.green import subprocess
 from oslo_config import cfg
 from oslo_log import log as logging
+from passlib.hash import sha512_crypt
 
 from dccommon import consts
 from dccommon import exceptions
@@ -170,8 +170,8 @@ class SubcloudEnrollmentInit(object):
         os.makedirs(scripts_dir, exist_ok=True)
 
         # Create 10-platform-reconfig script for enroll-init-reconfigure
-        hashed_password = crypt.crypt(
-            iso_values["sysadmin_password"], crypt.mksalt(crypt.METHOD_SHA512)
+        hashed_password = sha512_crypt.using(rounds=5000).hash(
+            iso_values["sysadmin_password"]
         )
 
         enroll_utils = "/usr/local/bin/"

@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2019, 2024 Wind River Systems, Inc.
+# Copyright (c) 2019, 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -101,6 +101,10 @@ def get_rpc_client(**kwargs):
     """Return a configured oslo_messaging RPCClient."""
     target = oslo_messaging.Target(**kwargs)
     serializer = RequestContextSerializer(JsonPayloadSerializer())
+    # Use get_rpc_client if available (oslo.messaging >= 14.1.0),
+    # otherwise fall back to RPCClient for older versions (Bullseye).
+    if hasattr(oslo_messaging, "get_rpc_client"):
+        return oslo_messaging.get_rpc_client(TRANSPORT, target, serializer=serializer)
     return oslo_messaging.RPCClient(TRANSPORT, target, serializer=serializer)
 
 
