@@ -1572,6 +1572,9 @@ def pre_deploy_install(payload: dict, validate_password=False):
     # Update the install values in payload
     if not payload.get("bmc_password"):
         payload.update({"bmc_password": install_values.get("bmc_password")})
+    else:
+        install_values["bmc_password"] = payload["bmc_password"]
+
     payload.update({"install_values": install_values})
 
 

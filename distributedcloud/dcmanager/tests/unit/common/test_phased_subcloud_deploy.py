@@ -820,3 +820,72 @@ class TestInstallValuesValidator(DCManagerTestCase):
 
         psd_common.validate_install_values(payload)
         self.assertEqual(payload["install_values"]["image"], "test.iso")
+
+    def test_pre_deploy_install_bmc_password_override(self):
+        """Test that user-supplied bmc_password overrides stale DB value.
+
+        When --bmc-password is provided during subcloud redeploy, the value
+        should be merged into install_values, overriding the stale password
+        stored in the database.
+        """
+        self._mock_object(psd_common.utils, "get_matching_iso").return_value = (
+            "test.iso",
+            None,
+        )
+
+        stale_password = base64.b64encode(b"old_wrong_password").decode("utf-8")
+        user_password = base64.b64encode(b"superuser").decode("utf-8")
+
+        payload = {
+            "software_version": "26.09",
+            "bmc_password": user_password,
+            "install_values": {
+                "software_version": "26.09",
+                "bmc_password": stale_password,
+                "bmc_address": "192.168.1.20",
+                "bmc_username": "admin",
+                "bootstrap_address": "192.168.1.10",
+                "bootstrap_address_prefix": 24,
+                "install_type": 0,
+                "bootstrap_interface": "eno1",
+            },
+        }
+
+        psd_common.pre_deploy_install(payload)
+
+        # The user-supplied password should override the stale DB value
+        self.assertEqual(payload["install_values"]["bmc_password"], user_password)
+        self.assertEqual(payload["bmc_password"], user_password)
+
+    def test_pre_deploy_install_bmc_password_from_install_values(self):
+        """Test that bmc_password falls back to install_values when not provided.
+
+        When --bmc-password is NOT provided, the existing value from
+        install_values (database) should be used.
+        """
+        self._mock_object(psd_common.utils, "get_matching_iso").return_value = (
+            "test.iso",
+            None,
+        )
+
+        db_password = base64.b64encode(b"db_password").decode("utf-8")
+
+        payload = {
+            "software_version": "26.09",
+            "install_values": {
+                "software_version": "26.09",
+                "bmc_password": db_password,
+                "bmc_address": "192.168.1.20",
+                "bmc_username": "admin",
+                "bootstrap_address": "192.168.1.10",
+                "bootstrap_address_prefix": 24,
+                "install_type": 0,
+                "bootstrap_interface": "eno1",
+            },
+        }
+
+        psd_common.pre_deploy_install(payload)
+
+        # Should use the password from install_values (DB)
+        self.assertEqual(payload["bmc_password"], db_password)
+        self.assertEqual(payload["install_values"]["bmc_password"], db_password)
