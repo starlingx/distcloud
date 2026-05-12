@@ -882,12 +882,6 @@ class InstallValuesValidator:
                 400,
                 _("The install value extra_boot_params must not be empty."),
             )
-        if " " in extra_boot_params:
-            msg = (
-                f"Invalid install value 'extra_boot_params={extra_boot_params}'. "
-                "Spaces are not allowed (use ',' to separate multiple arguments)"
-            )
-            pecan.abort(400, _(msg))
 
     def _validate_mandatory_values(self) -> None:
         """Validate all mandatory install values are present."""
