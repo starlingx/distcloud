@@ -233,11 +233,8 @@ class AuthHook(hooks.PecanHook):
                 auditLOG.debug("OIDC configuration incomplete")
                 return False
 
-            with _oidc_cache_lock:
-                token_bucket = _oidc_cache.setdefault("oidc_tokens", {})
-
             token_claims = oidc_utils.validate_oidc_token(
-                oidc_token, token_bucket, issuer_url, client_id
+                oidc_token, issuer_url, client_id
             )
 
             return token_claims is not None
