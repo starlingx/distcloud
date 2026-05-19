@@ -99,12 +99,9 @@ def parse_oidc_token_claims(oidc_token):
     """Return (username, roles) using a tiny shared cache."""
 
     oidc_config = k_context.get_oidc_args_cached(k_context._oidc_cache)
-    with k_context._oidc_cache_lock:
-        token_bucket = k_context._oidc_cache.setdefault("oidc_tokens", {})
 
     claims = oidc_utils.validate_oidc_token(
         oidc_token,
-        token_bucket,
         oidc_config["oidc-issuer-url"],
         oidc_config["oidc-client-id"],
     )
