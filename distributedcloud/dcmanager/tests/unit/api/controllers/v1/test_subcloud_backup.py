@@ -973,6 +973,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self.mock_os_listdir = self._mock_object(os, "listdir")
         self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
 
+        self.mock_rpc_client().restore_subcloud_from_backup_on_site.return_value = None
+
         self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
         self.mock_os_path_isdir.return_value = True
 
@@ -1290,7 +1292,7 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         )
 
     def test_patch_restore_on_site_local_only_succeeds(self):
-        """Test on_site restore with local_only succeeds"""
+        """Test on_site restore with local_only dispatches to the sync RPC"""
 
         self.params["on_site"] = "True"
         self.params["local_only"] = "True"
@@ -1298,19 +1300,25 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_response(response)
-        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+        call_payload = (
+            self.mock_rpc_client().restore_subcloud_from_backup_on_site.call_args[0][1]
+        )
         self.assertTrue(call_payload["on_site"])
         self.assertTrue(call_payload["local_only"])
 
     def test_patch_restore_on_site_succeeds(self):
-        """Test on_site restore without local_only succeeds"""
+        """Test on_site restore without local_only dispatches to the sync RPC"""
 
         self.params["on_site"] = "True"
 
         response = self._send_request()
 
         self._assert_response(response)
-        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+        call_payload = (
+            self.mock_rpc_client().restore_subcloud_from_backup_on_site.call_args[0][1]
+        )
         self.assertTrue(call_payload["on_site"])
 
     def test_patch_restore_on_site_succeeds_with_restore_values(self):
@@ -1322,6 +1330,19 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         response = self._send_request()
 
         self._assert_response(response)
+
+    def test_patch_restore_on_site_invalid_restore_timeout(self):
+        """Test on_site restore fails with non-numeric restore_timeout"""
+        self.params["on_site"] = "True"
+        self.params["restore_values"] = {"restore_timeout": "non-numeric"}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "restore_timeout in restore_values must be a numeric value in seconds.",
+        )
 
     def test_patch_restore_on_site_fails_with_with_install(self):
         """Test on_site restore fails when combined with with_install"""

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2022, 2024, 2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -26,6 +26,7 @@ class SubprocessCleanup(object):
 
     LOCK_NAME = "subprocess-cleanup"
     SUBPROCESS_GROUPS = {}
+    _IS_SHUTTING_DOWN = False
 
     @staticmethod
     def register_subprocess_group(subprocess_p):
@@ -38,7 +39,12 @@ class SubprocessCleanup(object):
     @staticmethod
     @lockutils.synchronized(LOCK_NAME)
     def shutdown_cleanup(origin="service"):
+        SubprocessCleanup._IS_SHUTTING_DOWN = True
         SubprocessCleanup._shutdown_subprocess_groups(origin)
+
+    @staticmethod
+    def is_shutting_down():
+        return SubprocessCleanup._IS_SHUTTING_DOWN
 
     @staticmethod
     def _shutdown_subprocess_groups(origin):
