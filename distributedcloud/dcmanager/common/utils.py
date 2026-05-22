@@ -1907,22 +1907,29 @@ def has_network_reconfig(payload, subcloud):
 
 
 def set_open_file_limit(new_soft_limit: int):
-    """Adjust the maximum number of open files for this process (soft limit)"""
+    """Adjust the maximum number of open files for this process.
+
+    Raises both the soft and hard limits as needed.
+
+    This function must handle the case where the hard limit is still at
+    the system default (e.g., 1024).
+    """
     try:
-        current_soft, current_hard = sys_resource.getrlimit(sys_resource.RLIMIT_NOFILE)
-        if new_soft_limit > current_hard:
-            LOG.error(
-                f"New process open file soft limit [{new_soft_limit}] exceeds the "
-                f"hard limit [{current_hard}]. Setting to hard limit instead."
-            )
-            new_soft_limit = current_hard
-        if new_soft_limit != current_soft:
+        current_soft_limit, current_hard_limit = sys_resource.getrlimit(
+            sys_resource.RLIMIT_NOFILE
+        )
+        # Ensure the hard limit is at least as high as the desired soft limit.
+        # On Python 3.13 the hard limit may still be at the system default
+        # (e.g., 1024) since the interpreter no longer raises it automatically.
+        new_hard_limit = max(current_hard_limit, new_soft_limit)
+        if new_soft_limit != current_soft_limit or new_hard_limit != current_hard_limit:
             LOG.info(
-                f"Setting process open file limit to {new_soft_limit} "
-                f"(from {current_soft})"
+                f"Setting process open file limit to "
+                f"soft_limit={new_soft_limit}, hard_limit={new_hard_limit} from "
+                f"(soft_limit={current_soft_limit}, hard_limit={current_hard_limit})"
             )
             sys_resource.setrlimit(
-                sys_resource.RLIMIT_NOFILE, (new_soft_limit, current_hard)
+                sys_resource.RLIMIT_NOFILE, (new_soft_limit, new_hard_limit)
             )
     except Exception as ex:
         LOG.exception(f"Failed to set NOFILE resource limit: {ex}")
