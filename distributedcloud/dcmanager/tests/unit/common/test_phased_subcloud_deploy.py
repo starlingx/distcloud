@@ -691,12 +691,10 @@ class TestInstallValuesValidator(DCManagerTestCase):
             validator._validate_extra_boot_params()
 
     def test_validate_extra_boot_params_with_spaces(self):
-        """Test extra boot params validation with spaces."""
-        install_values = {"extra_boot_params": "param1 param2"}
+        """Test extra boot params validation with spaces is allowed."""
+        install_values = {"extra_boot_params": "console=ttyS1,115200 debug loglevel=7"}
         validator = psd_common.InstallValuesValidator({}, install_values)
-
-        with self.assertRaisesRegex(Exception, "Spaces are not allowed"):
-            validator._validate_extra_boot_params()
+        validator._validate_extra_boot_params()
 
     def test_validate_extra_boot_params_valid(self):
         """Test extra boot params validation with valid value."""
