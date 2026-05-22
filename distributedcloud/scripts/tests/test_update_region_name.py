@@ -24,28 +24,6 @@ def _generate_region():
     return uuidutils.generate_uuid().replace("-", "")
 
 
-class TestGetSwVersion(base.DCCommonTestCase):
-    """Test class for get_sw_version function."""
-
-    def test_get_sw_version_returns_version(self):
-        """Test get_sw_version returns version from platform.conf."""
-        conf_content = "sw_version=m.n\nsystem_mode=simplex\n"
-        with mock.patch("builtins.open", mock.mock_open(read_data=conf_content)):
-            result = update_region_name.get_sw_version()
-        self.assertEqual(result, "m.n")
-
-    def test_get_sw_version_exits_when_not_found(self):
-        """Test get_sw_version exits when sw_version not in file."""
-        conf_content = "system_mode=simplex\n"
-        with mock.patch("builtins.open", mock.mock_open(read_data=conf_content)):
-            self.assertRaises(SystemExit, update_region_name.get_sw_version)
-
-    def test_get_sw_version_exits_on_io_error(self):
-        """Test get_sw_version exits on IOError."""
-        with mock.patch("builtins.open", side_effect=IOError("No such file")):
-            self.assertRaises(SystemExit, update_region_name.get_sw_version)
-
-
 class TestGetVersionedFiles(base.DCCommonTestCase):
     """Test class for get_versioned_files function."""
 

@@ -107,8 +107,10 @@ override_dh_install:
 	install -p -D -m 700 scripts/ipmi_sel_event_monitor.py $(ROOT)/usr/local/bin
 	install -p -D -m 700 scripts/execute-restore.sh $(ROOT)/usr/local/bin
 
-	# install update_region_name.py
+	# install scripts for update UUIDs
+	install -p -D -m 644 scripts/dc_script_common.py $(ROOT)/usr/local/bin
 	install -p -D -m 700 scripts/update_region_name.py $(ROOT)/usr/local/bin
+	install -p -D -m 700 scripts/post_clone_identity_reset.py $(ROOT)/usr/local/bin
 
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dcmanagerclient/tests
 	rm -rf $(ROOT)/usr/lib/python3/dist-packages/dccommon/tests
