@@ -436,6 +436,7 @@ def create_subcloud_inventory(subcloud, inventory_file, initial_deployment=False
             "  vars:\n"
             "    ansible_ssh_user: sysadmin\n"
             '    ansible_ssh_extra_args: "-o UserKnownHostsFile=/dev/null"\n'
+            "    ansible_python_interpreter: /usr/bin/python3\n"
             "    initial_deployment: " + str(initial_deployment) + "\n"
             "  hosts:\n"
             "    " + subcloud["name"] + ":\n"
@@ -468,6 +469,7 @@ def create_subcloud_inventory_with_admin_creds(
                 "    ansible_ssh_pass: {0}\n"
                 "    ansible_become_pass: {0}\n"
                 '    ansible_ssh_extra_args: "-o UserKnownHostsFile=/dev/null"\n'
+                "    ansible_python_interpreter: /usr/bin/python3\n"
                 "    initial_deployment: " + str(initial_deployment) + "\n"
                 "  hosts:\n"
                 "    {1}:\n"
