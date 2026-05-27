@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -82,24 +82,12 @@ class SoftwareClient(base.DriverBase):
         response = self.request(url, "GET", timeout)
         return self._handle_response(response, operation="List")
 
-    def show(self, release, timeout=REST_SHOW_TIMEOUT):
-        """Show release"""
-        url = self.endpoint + f"/release/{release}"
-        response = self.request(url, "GET", timeout)
-        return self._handle_response(response, operation="Show")
-
     def delete(self, releases, timeout=REST_DELETE_TIMEOUT):
         """Delete release"""
         release_str = "/".join(releases)
         url = self.endpoint + f"/release/{release_str}"
         response = self.request(url, "DELETE", timeout)
         return self._handle_response(response, operation="Delete")
-
-    def deploy_precheck(self, deployment, timeout=REST_DEFAULT_TIMEOUT):
-        """Deploy precheck"""
-        url = self.endpoint + f"/deploy/{deployment}/precheck"
-        response = self.request(url, "POST", timeout)
-        return self._handle_response(response, operation="Deploy precheck")
 
     def show_deploy(self, timeout=REST_DEFAULT_TIMEOUT):
         """Show deploy"""
@@ -118,13 +106,6 @@ class SoftwareClient(base.DriverBase):
         url = self.endpoint + "/deploy"
         response = self.request(url, "DELETE", timeout)
         return self._handle_response(response, operation="Deploy delete")
-
-    def commit_patch(self, releases, timeout=REST_DEFAULT_TIMEOUT):
-        """Commit patch"""
-        release_str = "/".join(releases)
-        url = self.endpoint + f"/commit_patch/{release_str}"
-        response = self.request(url, "POST", timeout)
-        return self._handle_response(response, operation="Commit patch")
 
     def _handle_response(self, response, operation):
         if response.status_code != 200:
