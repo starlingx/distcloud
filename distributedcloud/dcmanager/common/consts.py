@@ -459,7 +459,14 @@ CERT_NAMESPACE_PLATFORM_CA_CERTS = "cert-manager"
 # The ansible playbook base directories
 ANSIBLE_CURRENT_VERSION_BASE_PATH = "/usr/share/ansible/stx-ansible/playbooks"
 ANSIBLE_PREVIOUS_VERSION_BASE_PATH = "/opt/dc-vault/playbooks"
+ANSIBLE_COMPAT_PATH = "/opt/stx-ansible-compat"
 ANSIBLE_SUBCLOUD_PLAYBOOK = "/usr/share/ansible/stx-ansible/playbooks/bootstrap.yml"
+
+# The last software version whose playbooks require an older ansible runtime.
+# Releases up to and including this version were written for Ansible 2.10.x
+# which is incompatible with the ansible-core 2.19+ shipped in 26.09+.
+# TODO(ecandotti) Remove once this version is no longer supported as N-2.
+LAST_SW_VERSION_REQUIRING_ANSIBLE_COMPAT = "26.03"
 
 # Subcloud backup locations
 CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"

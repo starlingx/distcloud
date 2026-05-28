@@ -433,7 +433,7 @@ class SubcloudManager(manager.Manager):
         software_version=None,
     ):
         bootstrap_command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             utils.get_playbook_for_software_version(
                 ANSIBLE_SUBCLOUD_PLAYBOOK, software_version
             ),

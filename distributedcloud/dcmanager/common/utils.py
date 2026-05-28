@@ -1958,6 +1958,44 @@ def get_playbook_for_software_version(playbook_filename, software_version=None):
     return playbook_filename
 
 
+# TODO(ecandotti) Remove once 26.03 version is no longer supported as N-2.
+def get_ansible_playbook_command(software_version=None):
+    """Get the ansible-playbook binary path for the given software version.
+
+    For same-release or releases that are compatible with the current
+    ansible-core, returns the default system 'ansible-playbook'.
+
+    For releases at or below LAST_SW_VERSION_REQUIRING_ANSIBLE_COMPAT,
+    returns the path to a version-compatible ansible-playbook binary
+    installed under the compat directory. This is needed because those
+    older release playbooks use Ansible syntax that has been removed
+    in ansible-core 2.19+.
+
+    :param software_version: target software version for the subcloud
+    :returns: path to the ansible-playbook binary to use
+    """
+    if (
+        software_version
+        and software_version != tsc.SW_VERSION
+        and software_version <= consts.LAST_SW_VERSION_REQUIRING_ANSIBLE_COMPAT
+    ):
+        compat_bin = os.path.join(
+            consts.ANSIBLE_COMPAT_PATH,
+            consts.LAST_SW_VERSION_REQUIRING_ANSIBLE_COMPAT,
+            "bin",
+            "ansible-playbook",
+        )
+        if os.path.isfile(compat_bin):
+            return compat_bin
+        LOG.warning(
+            "Compat ansible-playbook required for release %s but not found "
+            "at %s. Falling back to system ansible-playbook which may fail.",
+            software_version,
+            compat_bin,
+        )
+    return "ansible-playbook"
+
+
 def get_value_from_yaml_file(filename, key):
     """Get corresponding value for a key in the given yaml file.
 
