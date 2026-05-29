@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1191,7 +1191,7 @@ class IdentityAPIController(APIController):
                 resource_info = {"token_revoke_event": {"audit_id": resource_id}}
         elif resource_type == consts.RESOURCE_TYPE_IDENTITY_USERS_PASSWORD:
             resource_id = self.get_resource_id_from_link(
-                request_header.strip("/password")
+                request_header.removesuffix("/password")
             )
             # user change password (POST) is an update to the user
             if operation_type == consts.OPERATION_TYPE_POST:
