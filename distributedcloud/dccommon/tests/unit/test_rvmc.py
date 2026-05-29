@@ -1080,6 +1080,7 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
         for i in range(len(expected_calls) - 1):
             expected_calls.append(expected_calls[i])
 
+        expected_calls.append(mock.call.error("max transient error retries reached"))
         expected_calls.extend(self._generate_log_dump())
         self._assert_mock_logger_calls(expected_calls)
 
@@ -1118,6 +1119,159 @@ class TestVmcObjectMakeRequest(BaseTestVmcObject):
             mock.call.error("Response: not a json"),
         ]
         self._assert_mock_logger_calls(expected_calls)
+
+
+class TestVmcObjectMakeRequestETag(BaseTestVmcObject):
+    """Test class for VmcObject make_request ETag handling.
+
+    Tests ETag capture from GET responses, If-Match header injection
+    in PATCH operations, and 412 Precondition Failed handling.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_make_request.side_effect = self.original_make_request
+
+        self.mock_response = mock.MagicMock()
+        self.mock_response.status = 200
+        self.mock_response.read = '{"key": "value"}'
+        self.mock_response.getheader = mock.MagicMock(return_value=None)
+
+        self.vmc_obj.redfish_obj.get.return_value = self.mock_response
+        self.vmc_obj.redfish_obj.post.return_value = self.mock_response
+        self.vmc_obj.redfish_obj.patch.return_value = self.mock_response
+
+    def test_get_stores_etag_from_response_header(self):
+        """Test make_request GET stores ETag from response header"""
+
+        self.mock_response.getheader = mock.MagicMock(return_value='"etag-abc123"')
+
+        self.vmc_obj.make_request(operation=rvmc.GET)
+
+        self.assertEqual(self.vmc_obj.etag, '"etag-abc123"')
+
+    def test_get_no_etag_header_leaves_etag_none(self):
+        """Test make_request GET without ETag header leaves etag unchanged"""
+
+        self.vmc_obj.etag = None
+        self.mock_response.getheader = mock.MagicMock(return_value=None)
+
+        self.vmc_obj.make_request(operation=rvmc.GET)
+
+        self.assertIsNone(self.vmc_obj.etag)
+
+    def test_get_updates_existing_etag(self):
+        """Test make_request GET updates previously stored ETag"""
+
+        self.vmc_obj.etag = '"old-etag"'
+        self.mock_response.getheader = mock.MagicMock(return_value='"new-etag"')
+
+        self.vmc_obj.make_request(operation=rvmc.GET)
+
+        self.assertEqual(self.vmc_obj.etag, '"new-etag"')
+
+    def test_patch_includes_if_match_when_etag_set(self):
+        """Test make_request PATCH includes If-Match header when ETag is set"""
+
+        self.vmc_obj.etag = '"my-etag-value"'
+
+        self.vmc_obj.make_request(
+            operation=rvmc.PATCH, payload={"key": "value"}, use_etag=True
+        )
+
+        call_kwargs = self.vmc_obj.redfish_obj.patch.call_args
+        headers = call_kwargs[1]["headers"]
+        self.assertEqual(headers.get("If-Match"), '"my-etag-value"')
+
+    def test_patch_omits_if_match_when_etag_none(self):
+        """Test make_request PATCH omits If-Match header when ETag is None"""
+
+        self.vmc_obj.etag = None
+
+        self.vmc_obj.make_request(operation=rvmc.PATCH, payload={"key": "value"})
+
+        call_kwargs = self.vmc_obj.redfish_obj.patch.call_args
+        headers = call_kwargs[1]["headers"]
+        self.assertNotIn("If-Match", headers)
+
+    def test_patch_omits_if_match_when_use_etag_false(self):
+        """Test make_request PATCH omits If-Match when use_etag=False"""
+
+        self.vmc_obj.etag = '"should-not-appear"'
+
+        self.vmc_obj.make_request(
+            operation=rvmc.PATCH, payload={"key": "value"}, use_etag=False
+        )
+
+        call_kwargs = self.vmc_obj.redfish_obj.patch.call_args
+        headers = call_kwargs[1]["headers"]
+        self.assertNotIn("If-Match", headers)
+
+    def test_post_never_includes_if_match(self):
+        """Test make_request POST never includes If-Match header"""
+
+        self.vmc_obj.etag = '"should-not-appear"'
+
+        self.vmc_obj.make_request(operation=rvmc.POST, payload={"key": "value"})
+
+        call_kwargs = self.vmc_obj.redfish_obj.post.call_args
+        headers = call_kwargs[1]["headers"]
+        self.assertNotIn("If-Match", headers)
+
+    def test_412_on_patch_returns_false_with_max_retry(self):
+        """Test make_request PATCH 412 returns False when retry=MAX"""
+
+        self.mock_response.status = 412
+        self.mock_response.dict = {"error": "precondition failed"}
+        self.vmc_obj.etag = '"stale-etag"'
+
+        result = self.vmc_obj.make_request(
+            operation=rvmc.PATCH,
+            payload={"key": "value"},
+            retry=rvmc.MAX_HTTP_TRANSIENT_ERROR_RETRIES,
+        )
+
+        self.assertFalse(result)
+
+    def test_412_on_patch_does_not_trigger_non_transient_exit(self):
+        """Test make_request PATCH 412 does not exit as non-transient error"""
+
+        self.mock_response.status = 412
+        self.mock_response.dict = {"error": "precondition failed"}
+        self.vmc_obj.etag = '"stale-etag"'
+
+        # retry=0 with status 412: should NOT call _exit (412 is excluded
+        # from the non-transient error path). It should increment retry
+        # and recurse. With MAX=5, retry goes 0->1->2->3->4->5>=MAX -> False
+        result = self.vmc_obj.make_request(
+            operation=rvmc.PATCH,
+            payload={"key": "value"},
+            retry=0,
+        )
+
+        self.assertFalse(result)
+        # Should have retried MAX times (6 total PATCH calls: 0,1,2,3,4,5)
+        self.assertEqual(
+            self.vmc_obj.redfish_obj.patch.call_count,
+            rvmc.MAX_HTTP_TRANSIENT_ERROR_RETRIES + 1,
+        )
+
+    def test_412_logs_etag_precondition_failed(self):
+        """Test make_request PATCH 412 logs ETag precondition message"""
+
+        self.mock_response.status = 412
+        self.mock_response.dict = {"error": "precondition failed"}
+        self.vmc_obj.etag = '"stale"'
+
+        self.vmc_obj.make_request(
+            operation=rvmc.PATCH,
+            payload={"key": "value"},
+            retry=rvmc.MAX_HTTP_TRANSIENT_ERROR_RETRIES,
+            use_etag=True,
+        )
+
+        self.mock_logger.info.assert_any_call("ETag precondition failed")
 
 
 class TestVmcObjectCheckImageUrl(BaseTestVmcObject):
@@ -2712,10 +2866,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
                     operation=rvmc.GET, path=f"{self.systems_members_url}/Settings"
                 ),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=f"{self.systems_members_url}/Settings",
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}/Settings",
                     payload=self.boot_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -2814,10 +2974,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=self.boot_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -2849,10 +3015,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=self.boot_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -2889,10 +3061,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=self.boot_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -2933,10 +3111,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=payload_no_mode,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -2988,7 +3172,15 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
     def test_redfish_set_boot_override_exits_when_patch_request_fails(self):
         """Test _redfish_set_boot_override exits when PATCH request fails"""
 
-        self.mock_make_request.side_effect = [True, False, True, False, True, False]
+        self.mock_make_request.side_effect = [
+            True,
+            True,
+            False,
+            True,
+            False,
+            True,
+            False,
+        ]
         del self.vmc_obj.response_dict["Boot"][
             "BootSourceOverrideMode@Redfish.AllowableValues"
         ]
@@ -3008,10 +3200,10 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
                 f"Unable to PATCH Boot Override ({self.systems_members_url})"
             ),
             mock.call.error(
-                f"Unable to verify Set Boot Override ({self.systems_members_url})"
+                f"Unable to PATCH Boot Override ({self.systems_members_url})"
             ),
             mock.call.error(
-                f"Unable to verify Set Boot Override ({self.systems_members_url})"
+                f"Unable to PATCH Boot Override ({self.systems_members_url})"
             ),
             mock.call.error("Unable to verify Set Boot Override - max retries reached"),
         ]
@@ -3026,9 +3218,12 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         self.mock_make_request.side_effect = [
             True,
             True,
-            False,
             True,
             False,
+            True,
+            True,
+            False,
+            True,
             True,
             True,
         ]
@@ -3073,9 +3268,12 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
         self.mock_make_request.side_effect = [
             True,
             True,
-            False,
             True,
             False,
+            True,
+            True,
+            False,
+            True,
             True,
             True,
         ]
@@ -3137,10 +3335,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=usbcd_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -3191,10 +3395,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=usbcd_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -3245,10 +3455,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=usbcd_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -3286,10 +3502,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=self.boot_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -3325,10 +3547,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=self.boot_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -3359,10 +3587,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=self.boot_payload,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -3404,10 +3638,16 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             [
                 mock.call(operation=rvmc.GET, path=self.systems_members_url),
                 mock.call(
+                    operation=rvmc.GET,
+                    path=self.systems_members_url,
+                    retry=0,
+                ),
+                mock.call(
                     operation=rvmc.PATCH,
                     path=f"{self.systems_members_url}",
                     payload=payload_no_mode,
                     retry=3,
+                    use_etag=True,
                 ),
                 mock.call(operation=rvmc.GET, path=self.systems_members_url, retry=3),
             ]
@@ -3424,6 +3664,164 @@ class TestVmcObjectRedfishSetBootOverride(BaseTestVmcObject):
             mock.call.info("Set Next Boot Override to CD/DVD verified [Once:Cd:None]"),
         ]
         self._assert_mock_logger_calls(expected_calls)
+
+
+@mock.patch.object(rvmc, "MAX_HTTP_TRANSIENT_ERROR_RETRIES", 3)
+@mock.patch.object(rvmc, "HTTP_REQUEST_RETRY_INTERVAL", 0)
+@mock.patch.object(rvmc, "HTTP_REQUEST_WAIT", 0)
+class TestVmcObjectRedfishSetBootOverrideETag(BaseTestVmcObject):
+    """Test class for _redfish_set_boot_override ETag retry behavior.
+
+    Tests the ETag refresh GET before PATCH, retry on ETag GET failure,
+    and successful recovery after 412 Precondition Failed.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.boot_payload = {
+            "Boot": {
+                "BootSourceOverrideEnabled": "Once",
+                "BootSourceOverrideTarget": "Cd",
+                "BootSourceOverrideMode": "UEFI",
+            }
+        }
+
+        self.vmc_obj.response_dict["Boot"] = copy.deepcopy(self.boot_payload["Boot"])
+        self.boot_allowable_values = ["UEFI", "Legacy"]
+        self.vmc_obj.response_dict["Boot"][
+            "BootSourceOverrideMode@Redfish.AllowableValues"
+        ] = self.boot_allowable_values
+
+    def test_set_boot_override_retries_when_etag_get_fails(self):
+        """Test _redfish_set_boot_override retries when ETag refresh GET fails"""
+
+        # Sequence: GET(member)=True, GET(ETag)=False -> retry,
+        #           GET(ETag)=True, PATCH=True, GET(verify)=True -> success
+        self.mock_make_request.side_effect = [True, False, True, True, True]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Set Next Boot Override to CD/DVD"),
+                mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+                mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+                mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+                mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+                mock.call.debug(
+                    f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+                ),
+                mock.call.error(
+                    "Unable to get current state for Boot Override (%s)"
+                    % self.systems_members_url
+                ),
+                mock.call.info(
+                    "Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"
+                ),
+            ]
+        )
+
+    def test_set_boot_override_exits_when_all_etag_gets_fail(self):
+        """Test _redfish_set_boot_override exits when all ETag GETs fail"""
+
+        # Sequence: GET(member)=True, then 3 iterations of GET(ETag)=False
+        self.mock_make_request.side_effect = [True, False, False, False]
+
+        self.assertRaises(RvmcExit, self.vmc_obj._redfish_set_boot_override)
+
+        expected_calls = [
+            mock.call.info("Set Next Boot Override to CD/DVD"),
+            mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+            mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+            mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+            mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+            mock.call.debug(
+                f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+            ),
+            mock.call.error(
+                "Unable to get current state for Boot Override (%s)"
+                % self.systems_members_url
+            ),
+            mock.call.error(
+                "Unable to get current state for Boot Override (%s)"
+                % self.systems_members_url
+            ),
+            mock.call.error(
+                "Unable to get current state for Boot Override (%s)"
+                % self.systems_members_url
+            ),
+            mock.call.error("Unable to verify Set Boot Override - max retries reached"),
+        ]
+        expected_calls.extend(self._generate_log_dump())
+        self._assert_mock_logger_calls(expected_calls)
+
+    def test_set_boot_override_succeeds_after_etag_get_retry(self):
+        """Test _redfish_set_boot_override succeeds after initial ETag GET failure"""
+
+        # First ETag GET fails, second succeeds, PATCH succeeds, verify succeeds
+        self.mock_make_request.side_effect = [True, False, True, True, True]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        # Verify 5 make_request calls total
+        self.assertEqual(self.mock_make_request.call_count, 5)
+
+    def test_set_boot_override_patch_fails_then_etag_refresh_succeeds(self):
+        """Test _redfish_set_boot_override recovers after PATCH failure"""
+
+        # GET(member)=True, GET(ETag)=True, PATCH=False -> retry,
+        # GET(ETag)=True, PATCH=True, GET(verify)=True -> success
+        self.mock_make_request.side_effect = [True, True, False, True, True, True]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Set Next Boot Override to CD/DVD"),
+                mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+                mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+                mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+                mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+                mock.call.debug(
+                    f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+                ),
+                mock.call.error(
+                    "Unable to PATCH Boot Override (%s)" % self.systems_members_url
+                ),
+                mock.call.info(
+                    "Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"
+                ),
+            ]
+        )
+
+    def test_set_boot_override_verify_fails_then_etag_refresh_succeeds(self):
+        """Test _redfish_set_boot_override recovers after verify GET failure"""
+
+        # GET(member)=True, GET(ETag)=True, PATCH=True, GET(verify)=False -> retry,
+        # GET(ETag)=True, PATCH=True, GET(verify)=True -> success
+        self.mock_make_request.side_effect = [True, True, True, False, True, True, True]
+
+        self.vmc_obj._redfish_set_boot_override()
+
+        self._assert_mock_logger_calls(
+            [
+                mock.call.info("Set Next Boot Override to CD/DVD"),
+                mock.call.debug(f"Systems Url {self.systems_members_url} \nNone\n"),
+                mock.call.debug("Boot Override Targets: None, boot_device: Cd"),
+                mock.call.debug(f"Boot Override Modes: {self.boot_allowable_values}"),
+                mock.call.debug(f"Boot Override Payload: {self.boot_payload}"),
+                mock.call.debug(
+                    f"VM Settings:{self.systems_members_url} : {self.boot_payload}"
+                ),
+                mock.call.error(
+                    "Unable to verify Set Boot Override (%s)" % self.systems_members_url
+                ),
+                mock.call.info(
+                    "Set Next Boot Override to CD/DVD verified [Once:Cd:UEFI]"
+                ),
+            ]
+        )
 
 
 class TestIsUsbcdSupported(BaseTestVmcObject):

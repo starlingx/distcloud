@@ -42,16 +42,15 @@ POWER_OFF = "Off"
 REDFISH_ROOT_PATH = "/redfish/v1"
 SUPPORTED_VIRTUAL_MEDIA_DEVICES = ["CD", "DVD"]  # Maybe add USB to list
 
-# headers for each request type
-HDR_CONTENT_TYPE = "'Content-Type': 'application/json'"
-HDR_ACCEPT = "'Accept': 'application/json'"
+# HTTP headers - proper dictionary format
+BASE_HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
+
+# All request types use the same base headers
+GET_HEADERS = BASE_HEADERS
+POST_HEADERS = BASE_HEADERS
+PATCH_HEADERS = BASE_HEADERS
 
 CONTENT_TYPE = "Content-Type"
-
-# they all happen to be the same right now
-GET_HEADERS = {HDR_CONTENT_TYPE, HDR_ACCEPT}
-POST_HEADERS = {HDR_CONTENT_TYPE, HDR_ACCEPT}
-PATCH_HEADERS = {HDR_CONTENT_TYPE, HDR_ACCEPT}
 
 # HTTP request types ; only 3 are required by this tool
 POST = "POST"
@@ -451,6 +450,7 @@ class VmcObject(object):
         self.response = None  # holds response from last http request
         self.response_json = None  # json formatted version of above response
         self.response_dict = None  # dictionary version of above response
+        self.etag = None  # holds ETag from last GET response for conditional operations
 
         # redfish root query response
         self.root_query_info = None  # json version of the full root query
@@ -501,7 +501,27 @@ class VmcObject(object):
         self.logging_util.dlog1("Password    : %s" % self.pw_encoded)
         self.logging_util.dlog1("Image       : %s" % self.img)
 
-    def make_request(self, operation=None, path=None, payload=None, retry=-1):
+    def _get_headers_with_etag(self, base_headers, operation, include_etag=True):
+        """Create headers dictionary with optional ETag for conditional operations.
+
+        :param base_headers: Base headers dictionary
+        :type base_headers: dict
+        :param include_etag: Whether to include If-Match header with ETag
+        :type include_etag: bool
+        :returns: Headers dictionary with optional ETag
+        :rtype: dict
+        """
+        headers = base_headers.copy()
+        if include_etag and self.etag:
+            headers["If-Match"] = self.etag
+            self.logging_util.ilog(
+                "%s request is using eTag:%s" % (operation, self.etag)
+            )
+        return headers
+
+    def make_request(
+        self, operation=None, path=None, payload=None, retry=-1, use_etag=False
+    ):
         """Issue a Redfish http request
 
         Check response,
@@ -519,6 +539,8 @@ class VmcObject(object):
          [0 .. MAX_HTTP_TRANSIENT_ERROR_RETRIES), the retry will be executed
          at most (MAX_HTTP_TRANSIENT_ERROR_RETRIES - retry) time(s).
         :type retry: int
+        :param use_etag: Whether to use ETag for conditional operations
+        :type use_etag: bool
         :returns True if request succeeded (200,202(accepted),204(no content)
         """
         self.response = None
@@ -531,20 +553,42 @@ class VmcObject(object):
         request_log = "Request     : %s %s" % (operation, url)
         try:
             if operation == GET:
-                request_log += "\nHeaders     : %s : %s" % (operation, GET_HEADERS)
-                self.response = self.redfish_obj.get(url, headers=GET_HEADERS)
+
+                # Clear the current/last ETag before any GET request
+                self.etag = None
+
+                headers = GET_HEADERS
+                request_log += "\nHeaders     : %s : %s" % (operation, headers)
+                self.response = self.redfish_obj.get(url, headers=headers)
 
             elif operation == POST:
-                request_log += "\nHeaders     : %s : %s" % (operation, POST_HEADERS)
+                # ETag/If-Match not applied to POST operations.
+                # Per Redfish spec DSP0266, ETags represent resource state
+                # for conditional updates (PATCH/PUT). POST to action URIs
+                # (e.g. Reset, EjectMedia, InsertMedia) are commands, not
+                # resource modifications, and have no ETag semantics.
+                # Sending a stale or cross-resource ETag here would cause
+                # a 412 Precondition Failed on BMCs that validate If-Match,
+                # aborting the operation (eject, insert, or power reset)
+                # with no recovery path since 412 handling only covers PATCH.
+                headers = POST_HEADERS
+                request_log += "\nHeaders     : %s : %s" % (operation, headers)
                 request_log += "\nPayload     : %s" % payload
                 self.response = self.redfish_obj.post(
-                    url, body=payload, headers=POST_HEADERS
+                    url, body=payload, headers=headers
                 )
             elif operation == PATCH:
-                request_log += "\nHeaders     : %s : %s" % (operation, PATCH_HEADERS)
+                # Add If-Match header for PATCH operations
+                # if ETag is available and requested
+                headers = self._get_headers_with_etag(
+                    PATCH_HEADERS, operation, use_etag
+                )
+                if use_etag and self.etag:
+                    request_log += "\nETag        : %s" % self.etag
+                request_log += "\nHeaders     : %s : %s" % (operation, headers)
                 request_log += "\nPayload     : %s" % payload
                 self.response = self.redfish_obj.patch(
-                    url, body=payload, headers=PATCH_HEADERS
+                    url, body=payload, headers=headers
                 )
             else:
                 self.logging_util.dlog3(request_log)
@@ -561,10 +605,43 @@ class VmcObject(object):
             delta = after_request_time - before_request_time
             # if we got a response, check its status
             if self.check_ok_status(url, operation, delta.seconds) is False:
-                self.logging_util.elog("Got an error response for: \n%s" % request_log)
-                if retry < 0 or retry >= MAX_HTTP_TRANSIENT_ERROR_RETRIES:
+                # Handle ETag precondition failures (412)
+                # by refreshing ETag and retrying
+                if self.response.status == 412 and use_etag and operation in [PATCH]:
+                    # 412 is expected when ETag is stale; caller's retry
+                    # loop will refresh ETag via GET and retry the PATCH.
+                    self.logging_util.ilog("ETag precondition failed")
+                else:
+                    self.logging_util.elog(
+                        "Got an error response for: \n%s" % request_log
+                    )
+
+                if retry < 0:
+                    # Any failure with retry less than 0 calls for immediate exit
+                    # ... regardless of the request type ; even PATCH.
+                    self.logging_util.elog(
+                        "%s failure while retry=%d" % (operation, retry)
+                    )
                     self._exit(1)
-                elif self.response.status < 500:
+
+                elif retry >= MAX_HTTP_TRANSIENT_ERROR_RETRIES:
+                    if operation != PATCH:
+                        self.logging_util.elog("max transient error retries reached")
+                        self._exit(1)
+                    else:
+                        # PATCH retries are handled by the caller.
+                        # Return False without exiting so the caller can
+                        # refresh state (e.g. ETag via GET) before retrying.
+                        # Without the explicit return, execution would fall
+                        # through to format_response() which could return
+                        # True for a parseable error body, causing the caller
+                        # to miss the failure.
+                        self.logging_util.wlog(
+                            "Patch request, likely setBootOverride, failed (%s %s %s)"
+                            % (operation, url, self.response.status)
+                        )
+                        return False
+                elif self.response.status < 500 and self.response.status != 412:
                     self.logging_util.ilog(
                         "Stop retrying for the non-transient error (%s)."
                         % self.response.status
@@ -582,7 +659,11 @@ class VmcObject(object):
                     )
                     time.sleep(HTTP_REQUEST_RETRY_INTERVAL)
                     return self.make_request(
-                        operation=operation, path=path, payload=payload, retry=retry
+                        operation=operation,
+                        path=path,
+                        payload=payload,
+                        retry=retry,
+                        use_etag=use_etag,
                     )
 
             # handle 204 success with no content ; clear last response
@@ -591,12 +672,20 @@ class VmcObject(object):
                 return True
             try:
                 if self.format_response() is True:
+                    # Log the ETag from GET responses for
+                    # future conditional operations
+                    if operation == GET and hasattr(self.response, "getheader"):
+                        etag_header = self.response.getheader("ETag")
+                        if etag_header:
+                            self.etag = etag_header
+                            self.logging_util.dlog3("ETag: %s" % self.etag)
                     self.logging_util.dlog4("Response:\n%s\n" % self.response_json)
                     return True
                 else:
                     self.logging_util.elog(
                         "Failed to parse BMC %s response '%s'" % (operation, url)
                     )
+
             # TODO(rlima): this code seems unrecheable since both resp_dict and
             # format_response methods have a try catch statement for their exceptions
             except Exception as ex:
@@ -1943,12 +2032,32 @@ class VmcObject(object):
             if _retry > 1:
                 time.sleep(HTTP_REQUEST_RETRY_INTERVAL)
 
+            # Get current state with ETag before attempting PATCH
+            # Allow full retries on the GET request
+            if (
+                self.make_request(
+                    operation=GET,
+                    path=_systems_member_url,
+                    retry=0,
+                )
+                is False
+            ):
+                self.logging_util.elog(
+                    "Unable to get current state for Boot Override (%s)"
+                    % _systems_member_url
+                )
+                _retry += 1
+                continue
+
             if (
                 self.make_request(
                     operation=PATCH,
                     path=_systems_member_url,
                     payload=payload,
+                    # Disables internal retries; retries are handled
+                    # here by the outer loop which refreshes the ETag.
                     retry=MAX_HTTP_TRANSIENT_ERROR_RETRIES,
+                    use_etag=True,
                 )
                 is False
             ):
