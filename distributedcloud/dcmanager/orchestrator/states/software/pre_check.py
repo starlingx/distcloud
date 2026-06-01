@@ -304,13 +304,17 @@ class PreCheckState(BaseState):
                 if release["state"] == software_v1.DEPLOYED
             ),
             key=lambda release: release["sw_version"],
+            default=None,
         )
 
         # If the software audit did not run due to an invalid deploy_status,
         # leaving the subcloud out-of-sync, but the highest release in the list is the
         # same as the user specified release and the release state is in 'deployed'
         # state, we can just mark it as complete.
-        if highest_deployed_release["release_id"] == release["release_id"]:
+        if (
+            highest_deployed_release is not None
+            and highest_deployed_release["release_id"] == release["release_id"]
+        ):
             details = f"Release {release_id} is already deployed in subcloud."
             self.warn_log(strategy_step, details)
             # If the highest release is in the 'available' state we should delete
