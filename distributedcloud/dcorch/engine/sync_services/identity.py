@@ -17,6 +17,7 @@
 import base64
 from collections import namedtuple
 import json
+import keyring
 
 from keystoneauth1 import exceptions as keystone_exceptions
 from keystoneclient.v3 import client as keystoneclient
@@ -2499,6 +2500,19 @@ class IdentitySyncThread(SyncThread):
                 "will update".format(resource_type, sc_r.id),
                 extra=self.log_extra,
             )
+
+            # For the admin user, first sync via Keystone API to update
+            # the subcloud's keyring, then sync via dcdbsync to write the
+            # exact hash (preventing an infinite audit loop).
+            if resource_type == consts.RESOURCE_TYPE_IDENTITY_USERS:
+                self._schedule_admin_password_sync(m_resource)
+
+            # IMPORTANT: The patch must be scheduled before the put. Work
+            # orders are processed in ID order (ascending), so the keyring
+            # update (patch) executes before the hash sync (put). If this
+            # order is broken, the put would write the SC hash first, then
+            # the patch would generate a new hash on the subcloud, causing
+            # a permanent audit mismatch loop.
             self.schedule_work(
                 self.endpoint_type,
                 resource_type,
@@ -2506,9 +2520,40 @@ class IdentitySyncThread(SyncThread):
                 consts.OPERATION_TYPE_PUT,
                 self.get_resource_info(resource_type, sc_r, consts.OPERATION_TYPE_PUT),
             )
+
             return False
 
         return True
+
+    def _schedule_admin_password_sync(self, m_resource):
+        """Schedule a Keystone API password update for the admin user.
+
+        The dcdbsync path (put) updates the Keystone DB directly, bypassing
+        the STX-patched Keystone that updates the keyring. This method
+        schedules a patch via Keystone API to trigger the keyring update.
+        """
+        if m_resource.local_user.name != dccommon_consts.ADMIN_USER_NAME:
+            LOG.debug(
+                f"Ignoring password update for user {m_resource.local_user.name}",
+                extra=self.log_extra,
+            )
+            return
+
+        keyring_password = keyring.get_password("CGCS", "admin")
+        if not keyring_password:
+            LOG.error(
+                "Password not found in the keyring for user admin", extra=self.log_extra
+            )
+            return
+
+        resource_info = jsonutils.dumps({"user": {"password": keyring_password}})
+        self.schedule_work(
+            self.endpoint_type,
+            consts.RESOURCE_TYPE_IDENTITY_USERS,
+            m_resource.id,
+            consts.OPERATION_TYPE_PATCH,
+            resource_info,
+        )
 
     def map_subcloud_resource(self, resource_type, m_r, m_rsrc_db, sc_resources):
         # Map an existing subcloud resource to an existing master resource.
