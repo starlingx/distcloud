@@ -71,7 +71,7 @@ from dcorch.rpc import client as dcorch_rpc_client
 sys.modules["fm_core"] = mock.Mock()
 
 ANS_PATH = dccommon_consts.ANSIBLE_OVERRIDES_PATH
-FAKE_PREVIOUS_SW_VERSION = "21.12"
+FAKE_PREVIOUS_SW_VERSION = "26.03"
 FAKE_SW_VERSION = "22.12"
 FAKE_ADMIN_USER_ID = 1
 FAKE_SYSINV_USER_ID = 2
@@ -3260,7 +3260,7 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
         self.assertEqual(
             bootstrap_command,
             [
-                "ansible-playbook",
+                cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
                 cutils.get_playbook_for_software_version(
                     subcloud_manager.ANSIBLE_SUBCLOUD_PLAYBOOK, FAKE_PREVIOUS_SW_VERSION
                 ),
