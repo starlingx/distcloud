@@ -116,6 +116,16 @@ override_dh_install:
 
 	dh_install
 
+override_dh_installsystemd:
+	# Do not auto-enable or auto-start dc* services.
+	# These services are managed by SM (Service Manager) and puppet,
+	# which enable them only on systems with the appropriate
+	# distributed_cloud_role (systemcontroller or subcloud).
+	# Without this override, dh_installsystemd unconditionally enables
+	# services with WantedBy=multi-user.target, causing dc* services
+	# to run on standalone systems and consume all platform CPUs.
+	dh_installsystemd --no-enable --no-start
+
 override_dh_auto_test:
 	echo "do nothing..."
 
