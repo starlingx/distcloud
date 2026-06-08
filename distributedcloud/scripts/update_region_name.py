@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 
+from dc_script_common import get_sw_version
 from keystoneauth1.identity import v3
 from keystoneauth1 import session
 from keystoneclient import exceptions as ks_exceptions
@@ -511,22 +512,6 @@ def verify_services(sm_services: list[str]):
     verify_systemd_services(SERVICES_TO_RESTART_SYSTEMD)
 
 
-def get_sw_version() -> str:
-    """Get sw_version from /etc/platform/platform.conf."""
-    try:
-        with open(PLATFORM_CONF_PATH, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("sw_version="):
-                    version = line.strip().split("=", 1)[1]
-                    if version:
-                        return version
-        LOG.critical("sw_version not found in %s.", PLATFORM_CONF_PATH)
-        sys.exit(1)
-    except IOError as e:
-        LOG.critical("Failed to read %s: %s", PLATFORM_CONF_PATH, e)
-        sys.exit(1)
-
-
 def get_versioned_files(sw_version: str) -> list[str]:
     """Return version-dependent file paths to update."""
     return [
@@ -541,7 +526,11 @@ def main():
     new_region_name = uuidutils.generate_uuid().replace("-", "")
     LOG.info("Generated new region name: %s", new_region_name)
 
-    sw_version = get_sw_version()
+    try:
+        sw_version = get_sw_version()
+    except RuntimeError as e:
+        LOG.critical("%s", e)
+        sys.exit(1)
     all_files = FILES_TO_UPDATE + get_versioned_files(sw_version)
     sm_services = list(SERVICES_TO_RESTART_SM)
 

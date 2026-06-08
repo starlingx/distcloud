@@ -5,5 +5,7 @@ usr/lib/python3/dist-packages/distributedcloud-*.egg-info
 usr/local/bin/rvmc_install.py
 usr/local/bin/ipmi_sel_event_monitor.py
 usr/local/bin/execute-restore.sh
+usr/local/bin/dc_script_common.py
 usr/local/bin/update_region_name.py
+usr/local/bin/post_clone_identity_reset.py
 usr/lib/systemd/system/dc-auto-restore.service
