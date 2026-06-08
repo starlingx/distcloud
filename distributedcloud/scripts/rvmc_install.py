@@ -116,11 +116,12 @@
 ###############################################################################
 
 import argparse
-import eventlet
 import os
 import signal
 import sys
 import time
+
+import eventlet
 
 from dccommon import rvmc
 
