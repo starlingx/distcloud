@@ -29,6 +29,7 @@ import json
 import os
 from pathlib import Path
 import random
+import shlex
 import shutil
 import tempfile
 import threading
@@ -37,6 +38,7 @@ from typing import Optional, Any
 
 from eventlet.green import subprocess
 from eventlet import greenpool
+from eventlet import greenthread
 from fm_api import constants as fm_const
 from fm_api import fm_api
 import keyring
@@ -60,6 +62,7 @@ from dccommon.exceptions import SubcloudNotFound
 from dccommon import kubeoperator
 from dccommon.subcloud_enrollment import SubcloudEnrollmentInit
 from dccommon.subcloud_install import SubcloudInstall
+from dccommon.subprocess_cleanup import SubprocessCleanup
 from dccommon import utils as dccommon_utils
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
@@ -138,6 +141,9 @@ CERT_NAMESPACE = "dc-cert"
 MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE = 250
 MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE = 100
+
+# Timeout for the synchronous rsync transfer in on-site restores.
+RSYNC_TRANSFER_TIMEOUT = 120  # 2 minutes
 
 # Values for the exponential backoff retry to get subcloud's
 # certificate secret.
@@ -566,18 +572,20 @@ class SubcloudManager(manager.Manager):
         self,
         subcloud_name,
         ansible_subcloud_inventory_file,
-        backup_source_path=None,
-        staging_dir=None,
         restore_timeout=None,
+        resume_mode=False,
     ):
         """Compose ansible command for on-site restore monitoring playbook.
 
+        The backup transfer (when not local_only) is handled directly by
+        dcmanager via _transfer_backup_to_subcloud before this command is
+        composed (the playbook is monitor-only).
+
         :param subcloud_name: name of the subcloud
         :param ansible_subcloud_inventory_file: path to the ansible inventory file
-        :param backup_source_path: path to the backup file on the system controller
-                                   (when not local_only). If None, transfer is skipped.
-        :param staging_dir: destination directory on the subcloud for the backup file
         :param restore_timeout: timeout in seconds passed to the on-site playbook
+        :param resume_mode: when True, the playbook skips the "wait for subcloud to
+            go offline" step (used when resuming monitoring after a swact)
         :returns: ansible-playbook command list
         """
         command = [
@@ -590,13 +598,8 @@ class SubcloudManager(manager.Manager):
         ]
         if restore_timeout is not None:
             command += ["-e", f"restore_timeout={int(restore_timeout)}"]
-        if backup_source_path and staging_dir:
-            command += [
-                "-e",
-                f"backup_source_path={backup_source_path}",
-                "-e",
-                f"staging_dir={staging_dir}",
-            ]
+        if resume_mode:
+            command += ["-e", "resume_mode=true"]
         return command
 
     def compose_update_command(
@@ -1307,35 +1310,17 @@ class SubcloudManager(manager.Manager):
         )
 
         if restore_subclouds:
-            on_site = payload.get("on_site", False)
-            if on_site:
-                # on_site cannot be used with group, should always be a single subcloud
-                if len(restore_subclouds) > 1:
-                    LOG.warning(
-                        "On-site subcloud restore operation found more "
-                        "than a single target subcloud!"
-                    )
-
-                subcloud = restore_subclouds[0]
-                _, success = self._restore_subcloud_backup_on_site(
-                    context,
-                    payload,
-                    subcloud,
-                )
-                if not success:
-                    failed_subclouds = [subcloud]
-            else:
-                restore_function = functools.partial(
-                    self._restore_subcloud_backup,
-                    context,
-                    payload,
-                )
-                restore_pool = greenpool.GreenPool(
-                    size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE
-                )
-                failed_subclouds = self._run_parallel_group_operation(
-                    "backup restore", restore_function, restore_pool, restore_subclouds
-                )
+            restore_function = functools.partial(
+                self._restore_subcloud_backup,
+                context,
+                payload,
+            )
+            restore_pool = greenpool.GreenPool(
+                size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE
+            )
+            failed_subclouds = self._run_parallel_group_operation(
+                "backup restore", restore_function, restore_pool, restore_subclouds
+            )
 
         restored_subclouds = len(restore_subclouds) - len(failed_subclouds)
         LOG.info(
@@ -1347,6 +1332,36 @@ class SubcloudManager(manager.Manager):
         return self._subcloud_operation_notice(
             "restore", restore_subclouds, failed_subclouds, invalid_subclouds
         )
+
+    def restore_subcloud_from_backup_on_site(self, context, payload):
+        """Synchronous on-site restore of a single subcloud.
+
+        Runs the rsync backup transfer (when not local_only), then spawns the
+        restore monitoring as a background thread. Returns only after the
+        transfer is complete (if not local-only).
+
+        :param context: request context object
+        :param payload: restore backup subcloud detail
+        """
+        payload["local_only"] = str(payload.get("local_only")).strip().lower() in (
+            "true",
+            "yes",
+            "1",
+            "on",
+        )
+
+        subcloud_id = payload.get("subcloud")
+        subcloud = db_api.subcloud_get(context, subcloud_id)
+
+        bootstrap_address_dict = payload.get("restore_values", {}).get(
+            "bootstrap_address", {}
+        )
+
+        # raises ValidateFail if subcloud isn't restorable.
+        utils.is_valid_for_backup_operation("restore", subcloud, bootstrap_address_dict)
+
+        if not self._restore_subcloud_backup_on_site(context, payload, subcloud):
+            raise exceptions.SubcloudBackupOperationFailed(operation="restore")
 
     def _deploy_bootstrap_prep(
         self,
@@ -3306,6 +3321,123 @@ class SubcloudManager(manager.Manager):
             if restore_ctx:
                 self._cleanup_restore_context(restore_ctx)
 
+    def _transfer_backup_to_subcloud(
+        self,
+        subcloud: Subcloud,
+        bootstrap_address: str,
+        sysadmin_password: str,
+        backup_source_path: str,
+        staging_dir: str,
+        rsync_timeout: int,
+    ) -> bool:
+        """Rsync a central backup archive to the subcloud."""
+        ssh_opts = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+        rsync_host = (
+            f"[{bootstrap_address}]"
+            if netaddr.IPAddress(bootstrap_address).version == 6
+            else bootstrap_address
+        )
+
+        quoted_dir = shlex.quote(staging_dir)
+
+        remote_setup_cmd = "sudo -S -p '' sh -c " + shlex.quote(
+            f"mkdir -p {quoted_dir} && "
+            f"chown sysadmin: {quoted_dir} && "
+            f"chmod 0775 {quoted_dir}"
+        )
+
+        # Pass the password via the SSHPASS env var so it does not appear
+        # in the process command line (sshpass -e reads from $SSHPASS).
+        sshpass_env = {**os.environ, "SSHPASS": sysadmin_password}
+        rsync_cmd = [
+            "sshpass",
+            "-e",
+            "rsync",
+            "-a",
+            "--omit-dir-times",
+            "--no-perms",
+            "--rsh",
+            ssh_opts,
+            str(backup_source_path),
+            f"sysadmin@{rsync_host}:{staging_dir}/",
+        ]
+
+        for attempt in range(1, 4):
+            try:
+                subprocess.run(
+                    [
+                        "sshpass",
+                        "-e",
+                        "ssh",
+                        "-T",
+                        "-o",
+                        "StrictHostKeyChecking=no",
+                        "-o",
+                        "UserKnownHostsFile=/dev/null",
+                        f"sysadmin@{bootstrap_address}",
+                        remote_setup_cmd,
+                    ],
+                    input=f"{sysadmin_password}\n",
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=True,
+                    env=sshpass_env,
+                )
+                subprocess.run(
+                    rsync_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=rsync_timeout,
+                    check=True,
+                    env=sshpass_env,
+                )
+                if attempt > 1:
+                    LOG.info(
+                        f"Backup transfer to subcloud {subcloud.name} succeeded "
+                        f"on attempt {attempt}/3"
+                    )
+                return True
+            except Exception as e:
+                # The reason to not catch the excpetions directly is beacuse the
+                # eventlet monkey patching has a few issues causing the exception
+                # to be caugh as a generic Exception:
+                # https://github.com/eventlet/eventlet/issues/413
+                # https://github.com/eventlet/eventlet/issues/624
+                if type(e).__name__ == "TimeoutExpired":
+                    LOG.warning(
+                        f"Backup transfer to subcloud {subcloud.name} attempt "
+                        f"{attempt}/3 timed out"
+                    )
+                    if attempt == 3:
+                        LOG.error(
+                            f"Backup transfer to subcloud {subcloud.name} timed out "
+                            f"after 3 attempts"
+                        )
+                        return False
+                elif type(e).__name__ == "CalledProcessError":
+                    LOG.warning(
+                        f"Backup transfer to subcloud {subcloud.name} attempt "
+                        f"{attempt}/3 failed: rc={e.returncode} stdout={e.stdout} "
+                        f"stderr={e.stderr}"
+                    )
+                    if attempt == 3:
+                        LOG.error(
+                            f"Backup transfer to subcloud {subcloud.name} failed "
+                            f"after 3 attempts"
+                        )
+                        return False
+                else:
+                    LOG.exception(
+                        "Unexpected error transferring backup to subcloud "
+                        f"{subcloud.name}"
+                    )
+                    return False
+            # Pause between attempts so the subcloud has time to recover.
+            time.sleep(10)
+        return False
+
     def _restore_subcloud_backup_on_site(
         self,
         context,
@@ -3314,11 +3446,14 @@ class SubcloudManager(manager.Manager):
     ):
         """Prepare and initiate an on-site subcloud restore.
 
+        For remote restores the backup archive is rsynced to the subcloud
+        synchronously. Restore monitoring is spawned as a background
+        greenthread so the API can return after the transfer.
+
         :param context: request context object
         :param payload: restore request parameters
         :param subcloud: subcloud model object
-        :param archive: resolved backup archive (for central backups)
-        :returns: (subcloud, success) tuple
+        :returns: bool
         """
         log_file = (
             os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
@@ -3357,15 +3492,9 @@ class SubcloudManager(manager.Manager):
                 sysadmin_password=payload.get("sysadmin_password"),
             )
 
-            staging_dir = None
-            if backup_source_path:
-                staging_dir = consts.SUBCLOUD_ONSITE_RESTORE_DIR
-
             onsite_command = self.compose_onsite_restore_command(
                 subcloud.name,
                 subcloud_inventory_file,
-                backup_source_path=backup_source_path,
-                staging_dir=staging_dir,
                 restore_timeout=restore_timeout,
             )
         except Exception:
@@ -3377,7 +3506,28 @@ class SubcloudManager(manager.Manager):
                 subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
             )
-            return subcloud, False
+            return False
+
+        if backup_source_path:
+            LOG.info(
+                f"Transferring backup to subcloud {subcloud.name}: "
+                f"{backup_source_path} -> {consts.SUBCLOUD_AUTO_RESTORE_DIR}"
+            )
+            transfer_ok = self._transfer_backup_to_subcloud(
+                subcloud,
+                bootstrap_address,
+                payload.get("sysadmin_password"),
+                backup_source_path,
+                consts.SUBCLOUD_AUTO_RESTORE_DIR,
+                rsync_timeout=RSYNC_TRANSFER_TIMEOUT,
+            )
+            if not transfer_ok:
+                db_api.subcloud_update(
+                    context,
+                    subcloud.id,
+                    deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
+                )
+                return False
 
         db_api.subcloud_update(
             context,
@@ -3385,20 +3535,25 @@ class SubcloudManager(manager.Manager):
             deploy_status=consts.DEPLOY_STATE_ONSITE_RESTORING,
         )
 
-        LOG.info(f"Starting on-site restore monitoring for subcloud {subcloud.name}")
-        success = self._monitor_onsite_restore(
-            context, subcloud, onsite_command, log_file, restore_timeout
+        LOG.info(f"Spawning on-site restore monitoring for subcloud {subcloud.name}")
+        greenthread.spawn_n(
+            self._monitor_onsite_restore,
+            context,
+            subcloud,
+            onsite_command,
+            log_file,
+            restore_timeout,
         )
-        return subcloud, success
+        return True
 
     def _monitor_onsite_restore(
         self, context, subcloud, onsite_command, log_file, restore_timeout
     ):
         """Runs the on-site restore playbook.
 
-        Runs the onsite_restore_subcloud.yml playbook which optionally transfers
-        the backup file and then waits for the subcloud to signal restore
-        completion via the auto-restore flag file.
+        Runs the onsite_restore_subcloud.yml playbook, which monitors the
+        restore by waiting for the subcloud to signal restore completion via
+        the auto-restore flag file.
 
         :param context: request context object
         :param subcloud: subcloud model object
@@ -3426,6 +3581,16 @@ class SubcloudManager(manager.Manager):
             )
             return True
         except PlaybookExecutionFailed as e:
+            # If we're shutting down (e.g. systemcontroller swact), don't fail
+            # the restore, leave deploy_status as ONSITE_RESTORING so the
+            # active controller's resume handler picks up.
+            if SubprocessCleanup.is_shutting_down():
+                LOG.info(
+                    f"On-site restore monitor for {subcloud.name} interrupted by "
+                    "shutdown; leaving deploy_status untouched for resume."
+                )
+                return False
+
             msg = utils.find_and_save_ansible_error_msg(
                 context,
                 subcloud,
@@ -3447,6 +3612,39 @@ class SubcloudManager(manager.Manager):
                 deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
             )
             return False
+
+    def _resume_onsite_restore_after_swact(self, subcloud):
+        """Recover an on-site restore that was in progress at swact/restart.
+
+        An on-site restore is owned by the subcloud, not dcmanager, so a
+        restart or swact must not fail it out. The controller re-spawns the
+        monitor with resume_mode=true.
+
+        :param subcloud: subcloud model object
+        """
+        LOG.info(f"Resuming on-site restore monitoring for subcloud {subcloud.name}")
+        log_file = (
+            os.path.join(consts.DC_ANSIBLE_LOG_DIR, subcloud.name)
+            + "_playbook_output.log"
+        )
+        restore_timeout = int(CONF.playbook_timeout * 1.5)
+        inventory_file = self._get_ansible_filename(
+            subcloud.name, INVENTORY_FILE_POSTFIX
+        )
+        onsite_command = self.compose_onsite_restore_command(
+            subcloud.name,
+            inventory_file,
+            restore_timeout=restore_timeout,
+            resume_mode=True,
+        )
+        greenthread.spawn_n(
+            self._monitor_onsite_restore,
+            self.context,
+            subcloud,
+            onsite_command,
+            log_file,
+            restore_timeout,
+        )
 
     @staticmethod
     def _build_subcloud_operation_notice(
@@ -5272,6 +5470,16 @@ class SubcloudManager(manager.Manager):
         subclouds = db_api.subcloud_get_all(self.context)
 
         for subcloud in subclouds:
+            # An on-site restore is owned by the subcloud, not dcmanager, so
+            # don't fail it out on swact/restart, resume monitoring instead.
+            if subcloud.deploy_status == consts.DEPLOY_STATE_ONSITE_RESTORING:
+                LOG.info(
+                    f"Subcloud {subcloud.name} is in {subcloud.deploy_status}; "
+                    "resuming monitoring instead of failing it out."
+                )
+                greenthread.spawn_n(self._resume_onsite_restore_after_swact, subcloud)
+                continue
+
             # Identify subclouds in transitory states
             new_deploy_status = consts.TRANSITORY_STATES.get(subcloud.deploy_status)
             new_backup_status = consts.TRANSITORY_BACKUP_STATES.get(

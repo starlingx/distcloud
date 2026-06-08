@@ -257,6 +257,17 @@ class DCManagerService(service.Service):
         return self.subcloud_manager.restore_subcloud_backups(context, payload)
 
     @request_context
+    def restore_subcloud_from_backup_on_site(self, context, payload):
+        # Synchronous on-site restore for a single subcloud.
+        LOG.info(
+            "Handling restore_subcloud_from_backup_on_site request for subcloud: %s"
+            % payload.get("subcloud")
+        )
+        return self.subcloud_manager.restore_subcloud_from_backup_on_site(
+            context, payload
+        )
+
+    @request_context
     def update_subcloud_sync_endpoint_type(
         self, context, subcloud_name, endpoint_type_list, openstack_installed
     ):

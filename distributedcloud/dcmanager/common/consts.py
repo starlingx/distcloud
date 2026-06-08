@@ -17,6 +17,7 @@
 
 RPC_API_VERSION = "1.0"
 RPC_SUBCLOUD_BACKUP_TIMEOUT = 120
+RPC_ON_SITE_RESTORE_TIMEOUT = 500
 
 TOPIC_DC_MANAGER = "dcmanager"
 TOPIC_DC_MANAGER_STATE = "dcmanager-state"
@@ -473,7 +474,6 @@ CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
 SUBCLOUD_LOCAL_BACKUP_DIR = "/opt/platform-backup/backups"
 SUBCLOUD_AUTO_RESTORE_DIR = "/opt/platform-backup/auto-restore"
 SUBCLOUD_FACTORY_BACKUP_DIR = "/opt/platform-backup/factory"
-SUBCLOUD_ONSITE_RESTORE_DIR = "/opt/platform-backup/onsite-restore"
 
 FACTORY_BACKUP_PREFIX = "factory_backup"
 FACTORY_BACKUP_REGISTRY_FILESYSTEM_PREFIX = "localhost_image_registry_backup"

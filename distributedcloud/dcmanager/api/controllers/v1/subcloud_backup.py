@@ -675,6 +675,20 @@ class SubcloudBackupController(object):
                     ),
                 )
 
+            if payload.get("on_site"):
+                raw_timeout = payload.get("restore_values", {}).get("restore_timeout")
+                if raw_timeout is not None:
+                    try:
+                        int(raw_timeout)
+                    except (TypeError, ValueError):
+                        pecan.abort(
+                            400,
+                            _(
+                                "restore_timeout in restore_values must be "
+                                "a numeric value in seconds."
+                            ),
+                        )
+
             if payload.get("factory"):
                 auto_restore_mode = "factory"
             elif payload.get("auto"):
@@ -735,10 +749,15 @@ class SubcloudBackupController(object):
                 # pylint: disable-next=consider-using-enumerate
                 for i in range(len(restore_subclouds)):
                     restore_subclouds[i].deploy_status = consts.DEPLOY_STATE_PRE_RESTORE
-                message = self.dcmanager_rpc_client.restore_subcloud_backups(
-                    context, payload
-                )
+
+                if payload.get("on_site"):
+                    self.dcmanager_rpc_client.restore_subcloud_from_backup_on_site(
+                        context, payload
+                    )
+                else:
+                    self.dcmanager_rpc_client.restore_subcloud_backups(context, payload)
                 return utils.subcloud_db_list_to_dict(restore_subclouds)
+
             except RemoteError as e:
                 pecan.abort(422, e.value)
             except Exception:

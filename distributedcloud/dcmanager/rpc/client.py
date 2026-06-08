@@ -42,10 +42,15 @@ class RPCClient(object):
     def make_msg(method, **kwargs):
         return method, kwargs
 
-    def call(self, ctxt, msg, version=None):
+    def call(self, ctxt, msg, version=None, timeout=None):
         method, kwargs = msg
+        prepare_kwargs = {}
         if version is not None:
-            client = self._client.prepare(version=version)
+            prepare_kwargs["version"] = version
+        if timeout is not None:
+            prepare_kwargs["timeout"] = timeout
+        if prepare_kwargs:
+            client = self._client.prepare(**prepare_kwargs)
         else:
             client = self._client
         return client.call(ctxt, method, **kwargs)
@@ -274,6 +279,13 @@ class ManagerClient(RPCClient):
     def restore_subcloud_backups(self, ctxt, payload):
         return self.cast(
             ctxt, self.make_msg("restore_subcloud_backups", payload=payload)
+        )
+
+    def restore_subcloud_from_backup_on_site(self, ctxt, payload):
+        return self.call(
+            ctxt,
+            self.make_msg("restore_subcloud_from_backup_on_site", payload=payload),
+            timeout=consts.RPC_ON_SITE_RESTORE_TIMEOUT,
         )
 
     def update_subcloud_sync_endpoint_type(
