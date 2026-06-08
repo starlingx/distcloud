@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -998,3 +998,74 @@ class TestIdentitySyncThreadRevokeEventsForUserDelete(
             ],
             any_order=False,
         )
+
+
+@mock.patch("dcorch.engine.sync_services.identity.keyring")
+class TestScheduleAdminPasswordSync(BaseTestIdentitySyncThread):
+    """Test _schedule_admin_password_sync method."""
+
+    def setUp(self):
+        super().setUp()
+        self.m_resource = mock.MagicMock()
+        self.m_resource.id = "cbf165cf3cfb4fedb6011e072c0f9852"
+        self.m_resource.local_user.name = "admin"
+        self.mock_schedule_work = self._mock_object(
+            self.identity_sync_thread, "schedule_work"
+        )
+
+    def test_schedules_patch_for_admin_user(self, mock_keyring):
+        mock_keyring.get_password.return_value = "AdminPass123"
+
+        self.identity_sync_thread._schedule_admin_password_sync(self.m_resource)
+
+        mock_keyring.get_password.assert_called_once_with("CGCS", "admin")
+        self.mock_schedule_work.assert_called_once_with(
+            self.identity_sync_thread.endpoint_type,
+            "users",
+            self.m_resource.id,
+            "patch",
+            jsonutils.dumps({"user": {"password": "AdminPass123"}}),
+        )
+
+    def test_skips_non_admin_user(self, mock_keyring):
+        self.m_resource.local_user.name = "sysinv"
+
+        self.identity_sync_thread._schedule_admin_password_sync(self.m_resource)
+
+        mock_keyring.get_password.assert_not_called()
+        self.mock_schedule_work.assert_not_called()
+
+    def test_skips_when_keyring_password_not_found(self, mock_keyring):
+        mock_keyring.get_password.return_value = None
+
+        self.identity_sync_thread._schedule_admin_password_sync(self.m_resource)
+
+        self.mock_schedule_work.assert_not_called()
+        self.mock_log.error.assert_called_once_with(
+            "Password not found in the keyring for user admin", extra=mock.ANY
+        )
+
+    def test_audit_discrepancy_schedules_patch_before_put(self, mock_keyring):
+        mock_keyring.get_password.return_value = "AdminPass123"
+        mock_has_same_ids = self._mock_object(self.identity_sync_thread, "has_same_ids")
+        mock_has_same_ids.return_value = True
+        mock_get_resource_id = self._mock_object(
+            self.identity_sync_thread, "get_resource_id"
+        )
+        mock_get_resource_id.return_value = self.m_resource.id
+        mock_get_resource_info = self._mock_object(
+            self.identity_sync_thread, "get_resource_info"
+        )
+        mock_get_resource_info.return_value = "{}"
+        sc_resource = mock.MagicMock()
+        sc_resource.id = self.m_resource.id
+
+        self.identity_sync_thread.audit_discrepancy(
+            "users", self.m_resource, [sc_resource]
+        )
+
+        calls = self.mock_schedule_work.call_args_list
+        self.assertEqual(2, len(calls))
+        # Patch (keyring update) must be scheduled before put (hash sync)
+        self.assertEqual(calls[0][0][3], "patch")
+        self.assertEqual(calls[1][0][3], "put")
