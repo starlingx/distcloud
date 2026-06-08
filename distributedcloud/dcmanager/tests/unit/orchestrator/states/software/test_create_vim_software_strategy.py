@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -107,10 +107,10 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             **strategy_params,
         )
 
-    def test_create_vim_software_strategy_success_with_delete(self):
-        """Test create vim software strategy with_delete."""
+    def test_create_vim_software_strategy_success_delete(self):
+        """Test create vim software strategy delete."""
         payload = {
-            consts.EXTRA_ARGS_WITH_DELETE: True,
+            consts.EXTRA_ARGS_DELETE: True,
         }
 
         strategy_params = {
@@ -125,11 +125,11 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             **strategy_params,
         )
 
-    def test_create_vim_software_strategy_success_with_delete_and_snapshot(self):
+    def test_create_vim_software_strategy_success_delete_and_snapshot(self):
         """Test create vim software strategy with delete and snapshot."""
         payload = {
             consts.EXTRA_ARGS_SNAPSHOT: True,
-            consts.EXTRA_ARGS_WITH_DELETE: True,
+            consts.EXTRA_ARGS_DELETE: True,
         }
 
         strategy_params = {
@@ -137,6 +137,25 @@ class TestCreateVIMSoftwareStrategyState(TestSoftwareOrchestrator):
             "snapshot": True,
             "rollback": False,
             "delete": True,
+        }
+
+        self.base_create_vim_software_strategy_success(
+            payload=payload,
+            **strategy_params,
+        )
+
+    def test_create_vim_software_strategy_success_with_kube_upgrade(self):
+        """Test create vim software strategy with kube_upgrade."""
+        payload = {
+            consts.EXTRA_ARGS_KUBE_UPGRADE: "v1.29.1",
+        }
+
+        strategy_params = {
+            "release": RELEASE_ID,
+            "snapshot": False,
+            "rollback": False,
+            "delete": False,
+            "kube_upgrade": "v1.29.1",
         }
 
         self.base_create_vim_software_strategy_success(

@@ -84,7 +84,7 @@ class TestPreCheckStateBase(TestSoftwareOrchestrator):
         self.on_success_state = consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY
         self.on_success_state_license = consts.STRATEGY_STATE_SW_INSTALL_LICENSE
         self.on_success_state_complete = consts.STRATEGY_STATE_COMPLETE
-        self.on_success_state_available_or_delete_only = (
+        self.on_success_state_available_or_cleanup = (
             consts.STRATEGY_STATE_SW_FINISH_STRATEGY
         )
         self.current_state = consts.STRATEGY_STATE_SW_PRE_CHECK
@@ -142,7 +142,7 @@ class TestPreCheckState(TestPreCheckStateBase):
 
         self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_AVAILABLE
 
-        self._setup_and_assert(self.on_success_state_available_or_delete_only)
+        self._setup_and_assert(self.on_success_state_available_or_cleanup)
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_not_called()
@@ -350,20 +350,96 @@ class TestPreCheckState(TestPreCheckStateBase):
         self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
         self.software_client.list.assert_called()
 
-    def test_pre_check_success_with_extra_args_delete_only(self):
-        """Test pre-check success with delete only extra args"""
+    def test_pre_check_success_with_extra_args_cleanup(self):
+        """Test pre-check success with cleanup extra args"""
 
         self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
 
+        self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_DEPLOYING
+
         self.strategy = fake_strategy.update_fake_strategy(
-            self.ctx, additional_args={consts.EXTRA_ARGS_DELETE_ONLY: True}
+            self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
         )
 
-        self._setup_and_assert(self.on_success_state_available_or_delete_only)
+        self._setup_and_assert(self.on_success_state_available_or_cleanup)
 
         self.vim_client.get_current_strategy.assert_called_once()
         self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
-        self.software_client.list.assert_not_called()
+        self.software_client.list.assert_called()
+
+    def test_pre_check_success_with_kube_upgrade_simplex(self):
+        """Test pre-check success with kube_upgrade on simplex subcloud"""
+
+        self.sysinv_client.get_system.return_value.system_mode = (
+            consts.SYSTEM_MODE_SIMPLEX
+        )
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx,
+            additional_args={consts.EXTRA_ARGS_KUBE_UPGRADE: "v1.29.1"},
+        )
+
+        self._setup_and_assert(self.on_success_state)
+
+        self.software_client.list.assert_called()
+
+    def test_pre_check_cleanup_no_override_when_release_above_minimum(self):
+        """Test cleanup doesn't override state when release >= 26.09"""
+
+        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
+        self.software_client.list.return_value = [
+            {
+                "release_id": "starlingx-26.09.0",
+                "state": "deploying",
+                "sw_version": "26.09.0",
+            },
+        ]
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
+        )
+
+        self._setup_and_assert(self.on_success_state)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
+
+    def test_pre_check_cleanup_no_deploying_release(self):
+        """Test cleanup goes to finish_strategy when all releases are deployed"""
+
+        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
+        self.software_client.list.return_value = FAKE_SUBCLOUD_RELEASES_DEPLOYED
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
+        )
+
+        self._setup_and_assert(self.on_success_state_available_or_cleanup)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
+        self.software_client.list.assert_called()
+
+    def test_pre_check_cleanup_overrides_state_when_release_below_minimum(self):
+        """Test cleanup overrides state to finish when release < 26.09"""
+
+        self.vim_client.get_current_strategy.return_value = FAKE_VALID_CURRENT_STRATEGY
+        self.software_client.list.return_value = [
+            {
+                "release_id": "starlingx-26.03.0",
+                "state": "deploying",
+                "sw_version": "26.03.0",
+            },
+        ]
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
+        )
+
+        self._setup_and_assert(self.on_success_state_available_or_cleanup)
+
+        self.vim_client.get_current_strategy.assert_called_once()
+        self.vim_client.delete_strategy.assert_called_once_with("sw-upgrade")
 
 
 class TestPreCheckStateDuplex(TestPreCheckStateBase):

@@ -62,7 +62,7 @@ class FinishStrategyState(BaseState):
 
         self.info_log(strategy_step, "Finishing software strategy")
 
-        if self._handle_extra_args_delete_only(
+        if self._handle_extra_args_cleanup(
             strategy_step, self.get_software_client(self.region_name)
         ):
             return self.next_state
@@ -137,25 +137,32 @@ class FinishStrategyState(BaseState):
     def _handle_deploy_commit(self, strategy_step, software_client, releases_to_commit):
         raise NotImplementedError()
 
-    def _handle_extra_args_delete_only(
+    def _handle_extra_args_cleanup(
         self, strategy_step: str, software_client: software_v1.SoftwareClient
     ) -> bool:
-        """Handle the delete_only extra args for software deploy strategies."""
+        """Handle the cleanup extra args for software deploy strategies."""
         extra_args = self.strategy.extra_args
-        if extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
-            self.info_log(
-                strategy_step,
-                "Executing 'software deploy delete' operation on the subcloud: "
-                f"{strategy_step.subcloud.name} (delete_only requested).",
-            )
-            try:
-                software_client.deploy_delete()
-            except Exception as exc:
-                details = "Cannot delete release from subcloud."
-                self.handle_exception(
+        if not extra_args.get(consts.EXTRA_ARGS_CLEANUP):
+            return False
+        try:
+            active_deployment = software_client.show_deploy()
+            if active_deployment:
+                self.info_log(
                     strategy_step,
-                    details,
-                    exceptions.SoftwareFinishStrategyException,
-                    exc=exc,
+                    "Executing 'software deploy delete' operation on the subcloud",
                 )
-            return True
+                software_client.deploy_delete()
+            else:
+                self.info_log(
+                    strategy_step,
+                    "No active deployment found on the subcloud",
+                )
+        except Exception as exc:
+            details = "Cannot delete release from subcloud."
+            self.handle_exception(
+                strategy_step,
+                details,
+                exceptions.SoftwareFinishStrategyException,
+                exc=exc,
+            )
+        return True

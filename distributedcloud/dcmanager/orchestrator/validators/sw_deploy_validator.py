@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -36,9 +36,8 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
         :param payload: strategy request payload
         """
         ret_dict = {
-            consts.EXTRA_ARGS_DELETE_ONLY: payload.get(
-                consts.EXTRA_ARGS_DELETE_ONLY, False
-            ),
+            consts.EXTRA_ARGS_CLEANUP: payload.get(consts.EXTRA_ARGS_CLEANUP, False),
+            consts.EXTRA_ARGS_KUBE_UPGRADE: payload.get(consts.EXTRA_ARGS_KUBE_UPGRADE),
             consts.EXTRA_ARGS_RELEASE_ID: payload.get(consts.EXTRA_ARGS_RELEASE_ID),
             consts.EXTRA_ARGS_ROLLBACK: payload.get(consts.EXTRA_ARGS_ROLLBACK, False),
             consts.EXTRA_ARGS_SNAPSHOT: payload.get(consts.EXTRA_ARGS_SNAPSHOT, False),
@@ -48,9 +47,7 @@ class SoftwareDeployStrategyValidator(StrategyValidationBase):
             consts.EXTRA_ARGS_WITH_PRESTAGE: payload.get(
                 consts.EXTRA_ARGS_WITH_PRESTAGE, False
             ),
-            consts.EXTRA_ARGS_WITH_DELETE: payload.get(
-                consts.EXTRA_ARGS_WITH_DELETE, False
-            ),
+            consts.EXTRA_ARGS_DELETE: payload.get(consts.EXTRA_ARGS_DELETE, False),
         }
 
         # Update sw-deploy extra_args with the required options for prestage.

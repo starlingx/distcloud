@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -46,3 +46,45 @@ class TestSoftwareDeployValidator(
         return {
             consts.EXTRA_ARGS_RELEASE_ID: "stx-10.0.0",
         }
+
+    def test_build_extra_args_includes_kube_upgrade(self):
+        """Test build_extra_args includes kube_upgrade when provided"""
+
+        payload = {
+            consts.EXTRA_ARGS_RELEASE_ID: "stx-10.0.0",
+            consts.EXTRA_ARGS_KUBE_UPGRADE: "v1.29.1",
+        }
+
+        extra_args = self.validator.build_extra_args(payload)
+
+        self.assertEqual(extra_args[consts.EXTRA_ARGS_KUBE_UPGRADE], "v1.29.1")
+        self.assertEqual(extra_args[consts.EXTRA_ARGS_RELEASE_ID], "stx-10.0.0")
+
+    def test_build_extra_args_includes_cleanup(self):
+        """Test build_extra_args includes cleanup when provided"""
+
+        payload = {
+            consts.EXTRA_ARGS_CLEANUP: True,
+        }
+
+        extra_args = self.validator.build_extra_args(payload)
+
+        self.assertTrue(extra_args[consts.EXTRA_ARGS_CLEANUP])
+
+    def test_build_extra_args_defaults_kube_upgrade_to_none(self):
+        """Test build_extra_args defaults kube_upgrade to None"""
+
+        payload = {consts.EXTRA_ARGS_RELEASE_ID: "stx-10.0.0"}
+
+        extra_args = self.validator.build_extra_args(payload)
+
+        self.assertIsNone(extra_args[consts.EXTRA_ARGS_KUBE_UPGRADE])
+
+    def test_build_extra_args_defaults_cleanup_to_false(self):
+        """Test build_extra_args defaults cleanup to False"""
+
+        payload = {consts.EXTRA_ARGS_RELEASE_ID: "stx-10.0.0"}
+
+        extra_args = self.validator.build_extra_args(payload)
+
+        self.assertFalse(extra_args[consts.EXTRA_ARGS_CLEANUP])

@@ -112,9 +112,23 @@ class PreCheckState(BaseState):
         if self._validate_extra_args_rollback(extra_args, strategy_step):
             return self.next_state
 
-        if extra_args.get(consts.EXTRA_ARGS_DELETE_ONLY):
-            self.info_log(strategy_step, "Delete only requested.")
-            self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
+        if extra_args.get(consts.EXTRA_ARGS_CLEANUP):
+            max_deploying_release = self._get_max_deploying_subcloud_release(
+                strategy_step
+            )
+            if not max_deploying_release or (
+                max_deploying_release < consts.MINIMUM_SOFTWARE_STRATEGY_CLEANUP_RELEASE
+            ):
+                # If there's no deploying release (all deployed) or the deploying
+                # release is below the minimum cleanup version, go to finish_strategy.
+                # The cleanup option is only supported starting 26.09, so we need
+                # to support the case where the deployment didn't have this version
+                # as destination.
+                # TODO(vgluzrom): Remove this once N-2 is compatible with cleanup
+                self.info_log(strategy_step, "Cleanup requested.")
+                self.override_next_state(consts.STRATEGY_STATE_SW_FINISH_STRATEGY)
+            else:
+                self.override_next_state(consts.STRATEGY_STATE_SW_CREATE_VIM_STRATEGY)
             return self.next_state
 
         release_id = extra_args.get(consts.EXTRA_ARGS_RELEASE_ID)
@@ -219,6 +233,35 @@ class PreCheckState(BaseState):
                 exceptions.SoftwarePreCheckFailedException,
                 exc=exc,
             )
+
+    def _get_max_deploying_subcloud_release(
+        self, strategy_step, subcloud_releases=None
+    ) -> str:
+        """Retrieve the highest subcloud software releases in DEPLOYING state.
+
+        Fetches the list of subcloud software releases using _get_subcloud_releases
+        if not provided and return the highest release in the DEPLOYING state.
+
+        Args:
+            strategy_step: The current strategy step, used for logging and exception.
+        Returns:
+            str: The subcloud software release in DEPLOYING state.
+        """
+        if subcloud_releases is None:
+            subcloud_releases = self._get_subcloud_releases(strategy_step)
+        highest_deploying_release = max(
+            [
+                release["sw_version"]
+                for release in subcloud_releases
+                if release["state"] == software_v1.DEPLOYING
+            ],
+            default=None,
+        )
+        self.debug_log(
+            strategy_step,
+            f"Subcloud release in DEPLOYING state: {highest_deploying_release}",
+        )
+        return highest_deploying_release
 
     def _check_prestaged_data(
         self,

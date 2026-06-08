@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Ericsson AB
-# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -550,15 +550,15 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
     RELEASE_ID_ERROR = "Release ID is required for strategy type: sw-deploy."
     SNAPSHOT_ERROR = (
         "Option snapshot cannot be used with any of the following options: "
-        "rollback or delete_only."
+        "rollback or cleanup."
     )
-    WITH_DELETE_ERROR = (
-        "Option with_delete cannot be used with any of the following options: "
-        "rollback or delete_only."
+    DELETE_ERROR = (
+        "Option delete cannot be used with any of the following options: "
+        "rollback or cleanup."
     )
     ROLLBACK_ERROR = (
         "Option rollback cannot be used with any of the following options: "
-        "release_id, delete_only or with_prestage."
+        "release_id, cleanup, kube_upgrade or with_prestage."
     )
 
     def base_post_software_succeeds_extra_args(
@@ -566,6 +566,8 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
         release_id=None,
         snapshot=None,
         rollback=None,
+        delete=None,
+        cleanup=None,
         with_delete=None,
         delete_only=None,
     ):
@@ -577,10 +579,12 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
             "max-parallel-subclouds": "10",
             "stop-on-failure": "true",
             consts.EXTRA_ARGS_RELEASE_ID: release_id,
-            consts.EXTRA_ARGS_WITH_DELETE: with_delete,
+            consts.EXTRA_ARGS_DELETE: delete,
             consts.EXTRA_ARGS_SNAPSHOT: snapshot,
-            consts.EXTRA_ARGS_DELETE_ONLY: delete_only,
+            consts.EXTRA_ARGS_CLEANUP: cleanup,
             consts.EXTRA_ARGS_ROLLBACK: rollback,
+            consts.EXTRA_ARGS_WITH_DELETE: with_delete,
+            consts.EXTRA_ARGS_DELETE_ONLY: delete_only,
         }
         response = self._send_request()
 
@@ -593,9 +597,10 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
         release_id=None,
         snapshot=None,
         rollback=None,
-        with_delete=None,
-        delete_only=None,
+        delete=None,
+        cleanup=None,
         with_prestage=None,
+        kube_upgrade=None,
     ):
         """Base post test case of software strategy fails with extra args"""
 
@@ -605,21 +610,22 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
             "max-parallel-subclouds": "10",
             "stop-on-failure": "true",
             consts.EXTRA_ARGS_RELEASE_ID: release_id,
-            consts.EXTRA_ARGS_WITH_DELETE: with_delete,
+            consts.EXTRA_ARGS_DELETE: delete,
             consts.EXTRA_ARGS_SNAPSHOT: snapshot,
-            consts.EXTRA_ARGS_DELETE_ONLY: delete_only,
+            consts.EXTRA_ARGS_CLEANUP: cleanup,
             consts.EXTRA_ARGS_ROLLBACK: rollback,
             consts.EXTRA_ARGS_WITH_PRESTAGE: with_prestage,
+            consts.EXTRA_ARGS_KUBE_UPGRADE: kube_upgrade,
         }
         response = self._send_request()
         self._assert_pecan_and_response(response, http.client.BAD_REQUEST, error_msg)
         self.create_update_strategy.assert_not_called()
 
-    def test_post_software_succeeds_with_delete(self):
+    def test_post_software_succeeds_delete(self):
         """Test post of software strategy succeeds with delete"""
 
         self.base_post_software_succeeds_extra_args(
-            release_id=fake_consts.RELEASE_ID, with_delete=True
+            release_id=fake_consts.RELEASE_ID, delete=True
         )
 
     def test_post_software_succeeds_snapshot(self):
@@ -629,13 +635,13 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
             release_id=fake_consts.RELEASE_ID, snapshot=True
         )
 
-    def test_post_software_succeeds_with_delete_and_snapshot(self):
-        """Test post of software strategy succeeds with_delete and snapshot"""
+    def test_post_software_succeeds_delete_and_snapshot(self):
+        """Test post of software strategy succeeds delete and snapshot"""
 
         self.base_post_software_succeeds_extra_args(
             release_id=fake_consts.RELEASE_ID,
             snapshot=True,
-            with_delete=True,
+            delete=True,
         )
 
     def test_post_software_succeeds_rollback(self):
@@ -643,10 +649,10 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
 
         self.base_post_software_succeeds_extra_args(rollback=True)
 
-    def test_post_software_succeeds_delete_only(self):
-        """Test post of software strategy succeeds with delete_only"""
+    def test_post_software_succeeds_cleanup(self):
+        """Test post of software strategy succeeds with cleanup"""
 
-        self.base_post_software_succeeds_extra_args(delete_only=True)
+        self.base_post_software_succeeds_extra_args(cleanup=True)
 
     def test_post_software_fails_without_extra_args(self):
         """Test post of software strategy fails without extra args"""
@@ -663,33 +669,33 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
             rollback=True,
         )
 
-    def test_post_software_fails_snapshot_and_delete_only(self):
-        """Test post of software strategy fails with snapshot and delete_only"""
+    def test_post_software_fails_snapshot_and_cleanup(self):
+        """Test post of software strategy fails with snapshot and cleanup"""
 
         self.base_post_software_fails_extra_args(
             self.SNAPSHOT_ERROR,
             release_id=fake_consts.RELEASE_ID,
             snapshot=True,
-            delete_only=True,
+            cleanup=True,
         )
 
-    def test_post_software_fails_with_delete_and_rollback(self):
-        """Test post of software strategy fails with rollback and with_delete"""
+    def test_post_software_fails_delete_and_rollback(self):
+        """Test post of software strategy fails with rollback and delete"""
 
         self.base_post_software_fails_extra_args(
-            self.WITH_DELETE_ERROR,
+            self.DELETE_ERROR,
             rollback=True,
-            with_delete=True,
+            delete=True,
         )
 
-    def test_post_software_fails_with_delete_and_delete_only(self):
-        """Test post of software strategy fails with_delete and delete_only"""
+    def test_post_software_fails_delete_and_cleanup(self):
+        """Test post of software strategy fails delete and cleanup"""
 
         self.base_post_software_fails_extra_args(
-            self.WITH_DELETE_ERROR,
+            self.DELETE_ERROR,
             release_id=fake_consts.RELEASE_ID,
-            with_delete=True,
-            delete_only=True,
+            delete=True,
+            cleanup=True,
         )
 
     def test_post_software_fails_rollback_and_release(self):
@@ -701,13 +707,13 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
             rollback=True,
         )
 
-    def test_post_software_fails_rollback_and_delete_only(self):
-        """Test post of software strategy fails with rollback and delete_only"""
+    def test_post_software_fails_rollback_and_cleanup(self):
+        """Test post of software strategy fails with rollback and cleanup"""
 
         self.base_post_software_fails_extra_args(
             self.ROLLBACK_ERROR,
             rollback=True,
-            delete_only=True,
+            cleanup=True,
         )
 
     def test_post_software_fails_rollback_and_with_prestage(self):
@@ -718,6 +724,74 @@ class TestSwUpdateStrategyPostSoftware(BaseTestSwUpdateStrategyPost):
             rollback=True,
             with_prestage=True,
         )
+
+    def test_post_software_fails_kube_upgrade_and_rollback(self):
+        """Test post of software strategy fails with kube_upgrade and rollback"""
+
+        self.base_post_software_fails_extra_args(
+            self.ROLLBACK_ERROR,
+            release_id=fake_consts.RELEASE_ID,
+            kube_upgrade="v1.29.1",
+            rollback=True,
+        )
+
+    def test_post_software_fails_cleanup_with_release_id(self):
+        """Test post of software strategy fails with cleanup and release_id"""
+
+        self.base_post_software_fails_extra_args(
+            "Option cleanup cannot be used with any of the following options: "
+            "release_id, with_prestage or kube_upgrade.",
+            cleanup=True,
+            release_id=fake_consts.RELEASE_ID,
+        )
+
+    def test_post_software_fails_cleanup_with_kube_upgrade(self):
+        """Test post of software strategy fails with cleanup and kube_upgrade"""
+
+        self.base_post_software_fails_extra_args(
+            "Option cleanup cannot be used with any of the following options: "
+            "release_id, with_prestage or kube_upgrade.",
+            cleanup=True,
+            kube_upgrade="v1.29.1",
+        )
+
+    def test_post_software_fails_cleanup_with_prestage(self):
+        """Test post of software strategy fails with cleanup and with_prestage"""
+
+        self.base_post_software_fails_extra_args(
+            "Option cleanup cannot be used with any of the following options: "
+            "release_id, with_prestage or kube_upgrade.",
+            cleanup=True,
+            with_prestage=True,
+        )
+
+    def test_post_software_succeeds_kube_upgrade(self):
+        """Test post of software strategy succeeds with kube_upgrade"""
+
+        self.params = {
+            "type": consts.SW_UPDATE_TYPE_SOFTWARE,
+            "subcloud-apply-type": consts.SUBCLOUD_APPLY_TYPE_PARALLEL,
+            "max-parallel-subclouds": "10",
+            "stop-on-failure": "true",
+            consts.EXTRA_ARGS_RELEASE_ID: fake_consts.RELEASE_ID,
+            consts.EXTRA_ARGS_KUBE_UPGRADE: "v1.29.1",
+        }
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.create_update_strategy.assert_called_once()
+
+    def test_post_software_succeeds_backward_compat_with_delete(self):
+        """Test with_delete is treated as delete for backward compatibility"""
+
+        self.base_post_software_succeeds_extra_args(
+            release_id=fake_consts.RELEASE_ID, with_delete=True
+        )
+
+    def test_post_software_succeeds_backward_compat_delete_only(self):
+        """Test delete_only is treated as cleanup for backward compatibility"""
+
+        self.base_post_software_succeeds_extra_args(delete_only=True)
 
 
 class TestSwUpdateStrategyPostActions(BaseTestSwUpdateStrategyController):

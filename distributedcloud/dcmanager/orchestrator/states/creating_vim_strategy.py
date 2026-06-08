@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -34,9 +34,11 @@ class CreatingVIMStrategyState(BaseState):
     def _create_vim_strategy(self, strategy_step, region):
         self.info_log(strategy_step, "Creating (%s) VIM strategy" % self.strategy_name)
 
-        # Get the update options
-        opts_dict = utils.get_sw_update_opts(
-            self.context, for_sw_update=True, subcloud_id=strategy_step.subcloud_id
+        # Get the update options (copy to avoid mutating shared defaults)
+        opts_dict = dict(
+            utils.get_sw_update_opts(
+                self.context, for_sw_update=True, subcloud_id=strategy_step.subcloud_id
+            )
         )
 
         # Get release parameter data for sw-deploy strategy
@@ -52,8 +54,17 @@ class CreatingVIMStrategyState(BaseState):
                     consts.EXTRA_ARGS_SNAPSHOT
                 )
                 opts_dict[consts.EXTRA_ARGS_DELETE] = extra_args.get(
-                    consts.EXTRA_ARGS_WITH_DELETE
+                    consts.EXTRA_ARGS_DELETE
                 )
+            else:
+                opts_dict[consts.EXTRA_ARGS_SNAPSHOT] = False
+                opts_dict[consts.EXTRA_ARGS_DELETE] = False
+            kube_upgrade = extra_args.get(consts.EXTRA_ARGS_KUBE_UPGRADE)
+            if kube_upgrade:
+                opts_dict[consts.EXTRA_ARGS_KUBE_UPGRADE] = kube_upgrade
+            cleanup = extra_args.get(consts.EXTRA_ARGS_CLEANUP)
+            if cleanup:
+                opts_dict[consts.EXTRA_ARGS_CLEANUP] = cleanup
 
         try:
             release_id = opts_dict.get(consts.EXTRA_ARGS_RELEASE_ID)
@@ -63,6 +74,11 @@ class CreatingVIMStrategyState(BaseState):
                 "rollback": opts_dict.get(consts.EXTRA_ARGS_ROLLBACK),
                 "delete": opts_dict.get(consts.EXTRA_ARGS_DELETE),
             }
+
+            if kube_upgrade:
+                strategy_params[consts.EXTRA_ARGS_KUBE_UPGRADE] = kube_upgrade
+            if cleanup:
+                strategy_params[consts.EXTRA_ARGS_CLEANUP] = cleanup
 
             # Remove the snapshot parameter for releases < 25.09
             # as it is not supported by the N-1 API and will cause
