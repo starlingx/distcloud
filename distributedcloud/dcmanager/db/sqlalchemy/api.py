@@ -730,6 +730,7 @@ class Connection(object):
         prestage_status=None,
         prestage_versions=None,
         region_name=None,
+        enrolled_with_vcsr=None,
     ):
         with write_session() as session:
             subcloud_ref = self.subcloud_get(subcloud_id)
@@ -794,6 +795,8 @@ class Connection(object):
                 subcloud_ref.prestage_versions = prestage_versions
             if region_name is not None:
                 subcloud_ref.region_name = region_name
+            if enrolled_with_vcsr is not None:
+                subcloud_ref.enrolled_with_vcsr = enrolled_with_vcsr
             subcloud_ref.save(session)
             return subcloud_ref
 

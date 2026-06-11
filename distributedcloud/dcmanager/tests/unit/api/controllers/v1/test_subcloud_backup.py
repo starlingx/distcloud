@@ -13,6 +13,7 @@ from oslo_messaging import RemoteError
 
 from dccommon import consts as dccommon_consts
 from dccommon.endpoint_cache import EndpointCache
+from dccommon import utils as dccommon_utils
 from dcmanager.common import consts
 import dcmanager.common.utils
 from dcmanager.db import api as db_api
@@ -97,6 +98,11 @@ class BaseTestSubcloudBackupController(DCManagerApiTest):
         self.mock_sysinv_client = self._mock_object(
             dcmanager.common.utils, "SysinvClient"
         )
+        # Default the BMC reachability to True
+        self.mock_bmc_is_reachable = self._mock_object(
+            dccommon_utils, "bmc_is_reachable"
+        )
+        self.mock_bmc_is_reachable.return_value = True
 
     def _update_subcloud(
         self,
@@ -1082,7 +1088,7 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
 
         self.params["with_install"] = "True"
 
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace("/", '"')
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
             data_install=data_install,
@@ -1098,7 +1104,7 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self.params["with_install"] = "True"
         self.params["release"] = "22.12"
 
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace("/", '"')
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
             data_install=data_install,
@@ -1117,7 +1123,7 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
 
         self.params["release"] = "22.12"
 
-        data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace("/", '"')
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
         self._update_subcloud(
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
             data_install=data_install,
@@ -1356,6 +1362,75 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         """Test on_site restore fails when combined with auto"""
         self._assert_on_site_incompatible_with("auto")
 
+    def test_individual_restore_with_install_blocked_vcsr_with_bmc(self):
+        """Test individual restore-with-install fails with vCSR + BMC info."""
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=data_install,
+            enrolled_with_vcsr=True,
+        )
+        self.params["with_install"] = "True"
+        self.mock_bmc_is_reachable.return_value = True
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} is vCSR-enrolled; "
+            "restore-with-install is not supported.",
+        )
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+
+    def test_individual_restore_with_install_blocked_vcsr_no_bmc(self):
+        """Test individual restore-with-install fails with vCSR and no BMC info."""
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=data_install,
+            enrolled_with_vcsr=True,
+        )
+        self.params["with_install"] = "True"
+        self.mock_bmc_is_reachable.return_value = False
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} is vCSR-enrolled; restore-with-install "
+            "is not supported.",
+        )
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+
+    def test_individual_restore_with_install_blocked_bmc_unreachable(self):
+        """Test Non-vCSR + with_install + BMC unreachable fails."""
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=data_install,
+            enrolled_with_vcsr=False,
+        )
+        self.params["with_install"] = "True"
+        self.mock_bmc_is_reachable.return_value = False
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} BMC is not reachable; cannot perform "
+            "restore-with-install.",
+        )
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+
 
 class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
     """Test class for patch requests with restore verb for group resource"""
@@ -1367,6 +1442,11 @@ class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
             "sysadmin_password": self._create_password(),
             "group": str(self.subcloud.id),
         }
+
+        self.group_all_invalid_msg = (
+            f"None of the subclouds in group {self.subcloud.id} "
+            "are in a valid state for subcloud-backup restore"
+        )
 
     def test_patch_restore_group_succeeds(self):
         """Test patch restore group succeeds"""
@@ -1445,3 +1525,47 @@ class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
         """Test on_site restore fails when combined with group"""
         # group is already set in self.params by setUp
         self._assert_on_site_incompatible_with()
+
+    def test_group_restore_with_install_blocked_vcsr_with_bmc(self):
+        """Test group restore-with-install fails with vCSR + BMC info."""
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=data_install,
+            enrolled_with_vcsr=True,
+        )
+        self.params["with_install"] = "True"
+        self.mock_bmc_is_reachable.return_value = True
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            self.group_all_invalid_msg,
+        )
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+
+    def test_group_restore_with_install_blocked_vcsr_no_bmc(self):
+        """Test group restore-with-install fails with vCSR no BMC info."""
+        data_install = json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=data_install,
+            enrolled_with_vcsr=True,
+        )
+        self.params["with_install"] = "True"
+        self.mock_bmc_is_reachable.return_value = False
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            self.group_all_invalid_msg,
+        )
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()

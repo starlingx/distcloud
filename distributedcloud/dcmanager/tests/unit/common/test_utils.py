@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,10 +12,13 @@ import copy
 import netaddr
 import requests
 
+from dccommon import consts as dccommon_consts
 from dcmanager.common import exceptions
 from dcmanager.common import utils
+from dcmanager.db import api as db_api
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.base import mock
+from dcmanager.tests.unit.common import fake_subcloud
 
 SOFTWARE_LIST = [
     {
@@ -486,4 +489,119 @@ class TestGetRegionName(DCManagerTestCase):
             exceptions.NotFound,
             self.get_region_name_func,
             "https://10.10.10.12:6385",
+        )
+
+
+class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
+    """Tests for vCSR + BMC checks in _is_valid_for_backup_restore."""
+
+    def setUp(self):
+        super().setUp()
+        # Real DB row + model so prestage_status, backup_status, and any
+        # other attributes the validator touches are present.
+        # create_fake_subcloud doesn't accept management_state (it isn't a
+        # subcloud_create kwarg), so apply it via subcloud_update.
+        self.subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        self.subcloud = db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+    def _set_vcsr(self, value: bool):
+        self.subcloud = db_api.subcloud_update(
+            self.ctx, self.subcloud.id, enrolled_with_vcsr=value
+        )
+
+    def _bootstrap_dict(self):
+        return {self.subcloud.name: "10.0.0.50"}
+
+    def test_vcsr_with_install_standard_blocks(self):
+        """vCSR + with_install + no auto_restore_mode → ValidateFail."""
+        self._set_vcsr(True)
+        self.assertRaises(
+            exceptions.ValidateFail,
+            utils._is_valid_for_backup_restore,
+            self.subcloud,
+            self._bootstrap_dict(),
+            None,
+            requires_bmc=True,
+            bmc_reachable=True,
+        )
+
+    def test_vcsr_with_install_auto_mode_allowed(self):
+        """vCSR + with_install + auto_restore_mode=auto → carve-out."""
+        self._set_vcsr(True)
+        self.assertTrue(
+            utils._is_valid_for_backup_restore(
+                self.subcloud,
+                self._bootstrap_dict(),
+                auto_restore_mode="auto",
+                requires_bmc=True,
+                bmc_reachable=True,
+            )
+        )
+
+    def test_vcsr_with_install_factory_mode_allowed(self):
+        """vCSR + with_install + auto_restore_mode=factory → carve-out."""
+        self._set_vcsr(True)
+        self.assertTrue(
+            utils._is_valid_for_backup_restore(
+                self.subcloud,
+                self._bootstrap_dict(),
+                auto_restore_mode="factory",
+                requires_bmc=True,
+                bmc_reachable=True,
+            )
+        )
+
+    def test_bmc_unreachable_blocks_standard(self):
+        """non-vCSR + with_install + bmc_reachable=False → ValidateFail."""
+        self._set_vcsr(False)
+        self.assertRaises(
+            exceptions.ValidateFail,
+            utils._is_valid_for_backup_restore,
+            self.subcloud,
+            self._bootstrap_dict(),
+            None,
+            requires_bmc=True,
+            bmc_reachable=False,
+        )
+
+    def test_bmc_unreachable_blocks_under_carve_out(self):
+        """vCSR + with_install + auto + bmc_reachable=False → still blocked."""
+        self._set_vcsr(True)
+        self.assertRaises(
+            exceptions.ValidateFail,
+            utils._is_valid_for_backup_restore,
+            self.subcloud,
+            self._bootstrap_dict(),
+            "auto",
+            requires_bmc=True,
+            bmc_reachable=False,
+        )
+
+    def test_without_with_install_skips_new_checks(self):
+        """No with_install → vCSR + BMC are not consulted."""
+        self._set_vcsr(True)
+        self.assertTrue(
+            utils._is_valid_for_backup_restore(
+                self.subcloud,
+                self._bootstrap_dict(),
+                None,
+                bmc_reachable=False,
+            )
+        )
+
+    def test_bmc_reachable_none_means_skip(self):
+        """bmc_reachable=None (no probe performed) → check is not enforced."""
+        self._set_vcsr(False)
+        self.assertTrue(
+            utils._is_valid_for_backup_restore(
+                self.subcloud,
+                self._bootstrap_dict(),
+                None,
+                requires_bmc=True,
+                bmc_reachable=None,
+            )
         )

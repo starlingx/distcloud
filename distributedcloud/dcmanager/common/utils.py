@@ -1151,6 +1151,8 @@ def is_valid_for_backup_operation(
     bootstrap_address_dict=None,
     auto_restore_mode=None,
     local_delete=False,
+    requires_bmc=False,
+    bmc_reachable=None,
 ):
     """Validate if a subcloud is ready for a backup operation
 
@@ -1161,6 +1163,10 @@ def is_valid_for_backup_operation(
             addresses. Defaults to None
         auto_restore_mode: The auto-restore mode if applicable. Defaults to None
         local_delete: If True, delete operation is local_only. Defaults to False
+        requires_bmc: True when the restore path needs the BMC to be reachable.
+            Enables the vCSR + BMC reachability checks. Defaults to False.
+        bmc_reachable: Reachability state (True or False) for the subcloud's
+            BMC. None skips the check.
 
     Returns:
         bool: True if the subcloud is valid for the operation
@@ -1175,7 +1181,11 @@ def is_valid_for_backup_operation(
         return _is_valid_for_backup_delete(subcloud, local_delete)
     elif operation == "restore":
         return _is_valid_for_backup_restore(
-            subcloud, bootstrap_address_dict, auto_restore_mode
+            subcloud,
+            bootstrap_address_dict,
+            auto_restore_mode,
+            requires_bmc=requires_bmc,
+            bmc_reachable=bmc_reachable,
         )
     else:
         msg = "Invalid operation %s" % operation
@@ -1255,7 +1265,11 @@ def get_bootstrap_values(subcloud: models.Subcloud) -> dict:
 
 
 def _is_valid_for_backup_restore(
-    subcloud, bootstrap_address_dict=None, auto_restore_mode=None
+    subcloud,
+    bootstrap_address_dict=None,
+    auto_restore_mode=None,
+    requires_bmc=False,
+    bmc_reachable=None,
 ):
     """Validate if a subcloud is ready for backup restoration.
 
@@ -1265,16 +1279,30 @@ def _is_valid_for_backup_restore(
             addresses. Defaults to None.
         auto_restore_mode: The auto-restore mode. If specified, validates that
             the subcloud is simplex. Defaults to None.
+        requires_bmc: True when the restore path needs the BMC to be reachable.
+            Enables the vCSR + BMC reachability checks. Defaults to False.
+        bmc_reachable: Reachability state (True or False) for the subcloud's
+            BMC. None skips the check.
 
     Returns:
         bool: True if validation passes.
 
     Raises:
-        exceptions.ValidateFail: If subcloud is not unmanaged, has invalid
-            deploy state, lacks bootstrap address, has invalid bootstrap address,
-            is in transient state, or if auto_restore_mode is set and subcloud
-            is not simplex.
+        exceptions.ValidateFail: If subcloud is not in a valid state for
+            backup-restore.
     """
+
+    if requires_bmc:
+        if auto_restore_mode not in ("auto", "factory") and subcloud.enrolled_with_vcsr:
+            raise exceptions.ValidateFail(
+                f"Subcloud {subcloud.name} is vCSR-enrolled; "
+                "restore-with-install is not supported."
+            )
+        if bmc_reachable is False:
+            raise exceptions.ValidateFail(
+                f"Subcloud {subcloud.name} BMC is not reachable; cannot "
+                "perform restore-with-install."
+            )
 
     msg = None
     ansible_subcloud_inventory_file = get_ansible_filename(

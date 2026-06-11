@@ -297,6 +297,7 @@ def subcloud_update(
     prestage_status=None,
     prestage_versions=None,
     region_name=None,
+    enrolled_with_vcsr=None,
 ):
     """Update a subcloud or raise if it does not exist."""
     return IMPL.Connection(context).subcloud_update(
@@ -329,6 +330,7 @@ def subcloud_update(
         prestage_status,
         prestage_versions,
         region_name,
+        enrolled_with_vcsr,
     )
 
 

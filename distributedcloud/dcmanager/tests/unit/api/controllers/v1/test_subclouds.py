@@ -1642,6 +1642,11 @@ class BaseTestSubcloudsPatch(BaseTestSubcloudsController):
         )
         self.mock_vim_client = self._mock_object(subclouds.vim, "VimClient")
 
+        self.mock_bmc_is_reachable = self._mock_object(
+            subclouds.cutils, "bmc_is_reachable"
+        )
+        self.mock_bmc_is_reachable.return_value = True
+
         self.mock_get_vault_load_files.return_value = (
             FAKE_SUBCLOUD_INSTALL_VALUES["image"],
             "fake_sig",
@@ -3025,6 +3030,34 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
         self._assert_pecan_and_response(
             response, http.client.INTERNAL_SERVER_ERROR, "Unable to redeploy subcloud"
         )
+
+    def test_patch_redeploy_fails_when_subcloud_is_vcsr_enrolled(self):
+        """Test redeploy is blocked for vCSR-enrolled subclouds."""
+        self._update_subcloud(enrolled_with_vcsr=True)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Redeploy is not supported for vCSR-enrolled subclouds",
+        )
+        self.mock_rpc_client().redeploy_subcloud.assert_not_called()
+
+    def test_patch_redeploy_fails_when_bmc_unreachable(self):
+        """Test redeploy of a non-vCSR subcloud with unreachable BMC fails."""
+        self.mock_bmc_is_reachable.return_value = False
+
+        response = self._send_request()
+
+        bmc_addr = self.install_data["bmc_address"]
+        self._assert_pecan_and_response(
+            response,
+            http.client.UNPROCESSABLE_ENTITY,
+            f"Cannot reach the subcloud BMC ({bmc_addr}); verify "
+            "connectivity and credentials before retrying.",
+        )
+        self.mock_rpc_client().redeploy_subcloud.assert_not_called()
 
 
 class BaseTestSubcloudsPatchPrestage(BaseTestSubcloudsPatch):

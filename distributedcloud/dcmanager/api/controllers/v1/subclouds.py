@@ -1617,6 +1617,13 @@ class SubcloudsController(object):
                 LOG.warning(msg)
                 pecan.abort(400, msg)
 
+            # vCSR-enrolled subclouds cannot be redeployed: the post-install
+            # bootstrap address is unreachable until vCSR is restored.
+            if subcloud.enrolled_with_vcsr:
+                msg = _("Redeploy is not supported for vCSR-enrolled subclouds")
+                LOG.warning(msg)
+                pecan.abort(400, msg)
+
             payload["software_version"] = utils.get_sw_version(payload.get("release"))
 
             # Don't load previously stored bootstrap_values if they are present in
@@ -1632,6 +1639,26 @@ class SubcloudsController(object):
             psd_common.populate_payload_with_pre_existing_data(
                 payload, subcloud, files_for_redeploy
             )
+
+            # Redeploy can't start if the BMC is unreachable.
+            install_values = payload.get("install_values") or {}
+            if not cutils.bmc_is_reachable(install_values):
+                bmc_addr = install_values.get("bmc_address")
+                if bmc_addr:
+                    msg = (
+                        _(
+                            "Cannot reach the subcloud BMC (%s); verify "
+                            "connectivity and credentials before retrying."
+                        )
+                        % bmc_addr
+                    )
+                else:
+                    msg = _(
+                        "Subcloud install values are missing or have no BMC "
+                        "address; cannot start the redeploy."
+                    )
+                LOG.warning(msg)
+                pecan.abort(422, msg)
 
             payload["bootstrap-address"] = payload["install_values"][
                 "bootstrap_address"
