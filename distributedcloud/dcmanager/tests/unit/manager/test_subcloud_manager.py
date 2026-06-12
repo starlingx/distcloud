@@ -3164,7 +3164,7 @@ class TestSubcloudUpdate(BaseTestSubcloudManager):
         self.assertEqual(
             subcloud_update_command,
             [
-                "ansible-playbook",
+                cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
                 subcloud_manager.ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK,
                 "-i",
                 f"{ANS_PATH}/subcloud1_inventory.yml",
@@ -3219,7 +3219,7 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
         self.assertEqual(
             install_command,
             [
-                "ansible-playbook",
+                cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
                 dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
                 "-i",
                 f"{ANS_PATH}/subcloud1_inventory.yml",
@@ -3284,7 +3284,7 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
         self.assertEqual(
             config_command,
             [
-                "ansible-playbook",
+                cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
                 "test_playbook.yaml",
                 "-e",
                 f"@{ANS_PATH}/subcloud1_deploy_values.yml",
@@ -3311,7 +3311,7 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
         self.assertEqual(
             rehome_command,
             [
-                "ansible-playbook",
+                cutils.get_ansible_playbook_command(SW_VERSION),
                 subcloud_manager.ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
                 "-i",
                 f"{ANS_PATH}/subcloud1_inventory.yml",
@@ -3334,7 +3334,7 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
         self.assertEqual(
             backup_command,
             [
-                "ansible-playbook",
+                cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
                 subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK,
                 "-i",
                 f"{ANS_PATH}/subcloud1_inventory.yml",
@@ -3354,7 +3354,7 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
         self.assertEqual(
             backup_delete_command,
             [
-                "ansible-playbook",
+                cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
                 "/usr/share/ansible/stx-ansible/playbooks/delete_subcloud_backup.yml",
                 "-e",
                 "subcloud_bnr_overrides={}/subcloud1_backup_delete_values.yml".format(
@@ -4000,7 +4000,7 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         self.assertEqual(
             backup_delete_command,
             [
-                "ansible-playbook",
+                cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
                 "/usr/share/ansible/stx-ansible/playbooks/delete_subcloud_backup.yml",
                 "-e",
                 "subcloud_bnr_overrides={}/subcloud1_backup_delete_values.yml".format(
@@ -4951,7 +4951,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             "subcloud1", f"{ANS_PATH}/subcloud1_inventory.yml"
         )
         expected = [
-            "ansible-playbook",
+            cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
             subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
             "-i",
             f"{ANS_PATH}/subcloud1_inventory.yml",
@@ -4967,7 +4967,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             "subcloud1", f"{ANS_PATH}/subcloud1_inventory.yml", auto_restore_mode="auto"
         )
         expected = [
-            "ansible-playbook",
+            cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
             subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
             "-i",
             f"{ANS_PATH}/subcloud1_inventory.yml",
@@ -4992,7 +4992,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             auto_restore_mode="factory",
         )
         expected = [
-            "ansible-playbook",
+            cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
             subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
             "-i",
             f"{ANS_PATH}/subcloud1_inventory.yml",
@@ -5016,7 +5016,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             with_install=True,
         )
         expected = [
-            "ansible-playbook",
+            cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
             subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
             "-i",
             f"{ANS_PATH}/subcloud1_inventory.yml",
@@ -5300,6 +5300,7 @@ class TestRestoreSubcloudBackupOnSite(BaseTestSubcloudManager):
             self.subcloud.name,
             "inventory_file.yml",
             restore_timeout=mock.ANY,
+            software_version=self.subcloud.software_version,
         )
 
     @mock.patch.object(cutils, "find_central_subcloud_backup")
@@ -5838,6 +5839,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             "factory",
             True,  # with_install
             False,  # ipmi_sel_event_monitoring
+            software_version=self.subcloud.software_version,
         )
 
         # Verify compose_install_command was called with skip_install_monitoring=True
@@ -5872,6 +5874,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             "factory",  # auto_restore_mode
             True,  # with_install
             True,  # ipmi_sel_event_monitoring
+            software_version=self.subcloud.software_version,
         )
 
         # Verify compose_install_command was called with skip_install_monitoring=False
@@ -5915,6 +5918,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             "auto",  # auto_restore_mode
             None,  # with_install
             False,  # ipmi_sel_event_monitoring
+            software_version=self.subcloud.software_version,
         )
 
         # Verify compose_install_command was not called
@@ -5995,6 +5999,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             "factory",
             True,  # with_install
             True,  # ipmi_sel_event_monitoring (default)
+            software_version=self.subcloud.software_version,
         )
 
         self.assertEqual(result, (self.subcloud, True))

@@ -330,7 +330,7 @@ class SubcloudManager(manager.Manager):
         skip_monitoring=None,
     ):
         install_command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             dccommon_consts.ANSIBLE_SUBCLOUD_INSTALL_PLAYBOOK,
             "-i",
             ansible_subcloud_inventory_file,
@@ -411,7 +411,7 @@ class SubcloudManager(manager.Manager):
             )
 
             enroll_command = [
-                "ansible-playbook",
+                utils.get_ansible_playbook_command(software_version),
                 dccommon_consts.ANSIBLE_SUBCLOUD_ENROLL_PLAYBOOK,
                 "-i",
                 ansible_subcloud_inventory_file,
@@ -464,10 +464,14 @@ class SubcloudManager(manager.Manager):
         return bootstrap_command
 
     def compose_config_command(
-        self, subcloud_name, ansible_subcloud_inventory_file, payload
+        self,
+        subcloud_name,
+        ansible_subcloud_inventory_file,
+        payload,
+        software_version=None,
     ):
         config_command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             payload[consts.DEPLOY_PLAYBOOK],
             "-e",
             "@%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH
@@ -481,9 +485,14 @@ class SubcloudManager(manager.Manager):
         ]
         return config_command
 
-    def compose_backup_command(self, subcloud_name, ansible_subcloud_inventory_file):
+    def compose_backup_command(
+        self,
+        subcloud_name,
+        ansible_subcloud_inventory_file,
+        software_version=None,
+    ):
         backup_command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             ANSIBLE_SUBCLOUD_BACKUP_CREATE_PLAYBOOK,
             "-i",
             ansible_subcloud_inventory_file,
@@ -501,10 +510,13 @@ class SubcloudManager(manager.Manager):
         return backup_command
 
     def compose_backup_delete_command(
-        self, subcloud_name, ansible_subcloud_inventory_file=None
+        self,
+        subcloud_name,
+        ansible_subcloud_inventory_file=None,
+        software_version=None,
     ):
         backup_command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             ANSIBLE_SUBCLOUD_BACKUP_DELETE_PLAYBOOK,
             "-e",
             "subcloud_bnr_overrides=%s" % dccommon_consts.ANSIBLE_OVERRIDES_PATH
@@ -529,9 +541,10 @@ class SubcloudManager(manager.Manager):
         auto_restore_mode=None,
         with_install=False,
         ipmi_sel_event_monitoring=None,
+        software_version=None,
     ):
         backup_command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
             "-i",
             ansible_subcloud_inventory_file,
@@ -574,6 +587,7 @@ class SubcloudManager(manager.Manager):
         ansible_subcloud_inventory_file,
         restore_timeout=None,
         resume_mode=False,
+        software_version=None,
     ):
         """Compose ansible command for on-site restore monitoring playbook.
 
@@ -586,10 +600,11 @@ class SubcloudManager(manager.Manager):
         :param restore_timeout: timeout in seconds passed to the on-site playbook
         :param resume_mode: when True, the playbook skips the "wait for subcloud to
             go offline" step (used when resuming monitoring after a swact)
+        :param software_version: software version used to select the ansible-playbook
         :returns: ansible-playbook command list
         """
         command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             ANSIBLE_SUBCLOUD_ONSITE_RESTORE_PLAYBOOK,
             "-i",
             ansible_subcloud_inventory_file,
@@ -606,7 +621,7 @@ class SubcloudManager(manager.Manager):
         self, subcloud_name, ansible_subcloud_inventory_file, software_version=None
     ):
         subcloud_update_command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             ANSIBLE_SUBCLOUD_UPDATE_PLAYBOOK,
             "-i",
             ansible_subcloud_inventory_file,
@@ -644,7 +659,7 @@ class SubcloudManager(manager.Manager):
         )
 
         rehome_command = [
-            "ansible-playbook",
+            utils.get_ansible_playbook_command(software_version),
             ANSIBLE_SUBCLOUD_REHOME_PLAYBOOK,
             "-i",
             ansible_subcloud_inventory_file,
@@ -1535,7 +1550,10 @@ class SubcloudManager(manager.Manager):
         )
 
         config_command = self.compose_config_command(
-            subcloud.name, ansible_subcloud_inventory_file, payload
+            subcloud.name,
+            ansible_subcloud_inventory_file,
+            payload,
+            subcloud.software_version,
         )
         return config_command
 
@@ -2468,7 +2486,9 @@ class SubcloudManager(manager.Manager):
                 "create", payload, subcloud.name
             )
             backup_command = self.compose_backup_command(
-                subcloud.name, subcloud_inventory_file
+                subcloud.name,
+                subcloud_inventory_file,
+                subcloud.software_version,
             )
 
             self._clear_subcloud_backup_failure_alarm_if_exists(subcloud)
@@ -2516,7 +2536,9 @@ class SubcloudManager(manager.Manager):
             if payload["override_values"]["local"]:
                 inventory_file = self._create_subcloud_inventory_file(subcloud)
             delete_command = self.compose_backup_delete_command(
-                subcloud.name, inventory_file
+                subcloud.name,
+                inventory_file,
+                software_version=subcloud.software_version,
             )
         except Exception:
             LOG.exception(
@@ -2983,6 +3005,7 @@ class SubcloudManager(manager.Manager):
                 restore_mode.auto_restore_mode,
                 payload.get("with_install"),
                 ipmi_sel_event_monitoring,
+                software_version=subcloud.software_version,
             )
 
             return RestoreContext(
@@ -3496,6 +3519,7 @@ class SubcloudManager(manager.Manager):
                 subcloud.name,
                 subcloud_inventory_file,
                 restore_timeout=restore_timeout,
+                software_version=subcloud.software_version,
             )
         except Exception:
             LOG.exception(
@@ -3636,6 +3660,7 @@ class SubcloudManager(manager.Manager):
             inventory_file,
             restore_timeout=restore_timeout,
             resume_mode=True,
+            software_version=subcloud.software_version,
         )
         greenthread.spawn_n(
             self._monitor_onsite_restore,
