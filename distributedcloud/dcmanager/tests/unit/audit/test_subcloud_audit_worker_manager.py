@@ -876,6 +876,83 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         # Verify alarm update is not called
         self.mock_alarm_aggr().update_alarm_summary.assert_not_called()
 
+    def test_audit_subcloud_offline_managed(self):
+        """Verify that a managed offline subcloud receives the full audit payload.
+
+        This test ensures that when a subcloud is managed with
+        first_identity_sync_complete=True but has availability_status=offline,
+        the dcagent request payload still includes all additional audit types
+        (firmware, kubernetes, kube_rootca, software) rather than only BASE_AUDIT.
+        """
+        self.mock_dcagent_client().audit.return_value = {
+            dccommon_consts.BASE_AUDIT: {
+                "availability": dccommon_consts.AVAILABILITY_OFFLINE
+            },
+            dccommon_consts.FIRMWARE_AUDIT: dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.KUBERNETES_AUDIT: dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.KUBE_ROOTCA_AUDIT: dccommon_consts.SYNC_STATUS_IN_SYNC,
+            dccommon_consts.SOFTWARE_AUDIT: dccommon_consts.SYNC_STATUS_IN_SYNC,
+        }
+
+        subcloud = self.create_subcloud_static(self.ctx, name="subcloud1")
+        self.assertIsNotNone(subcloud)
+
+        # Set the subcloud to managed/offline with identity sync complete
+        subcloud = db_api.subcloud_update(
+            self.ctx,
+            subcloud.id,
+            management_state="managed",
+            first_identity_sync_complete=True,
+            availability_status=dccommon_consts.AVAILABILITY_OFFLINE,
+        )
+
+        am = subcloud_audit_manager.SubcloudAuditManager()
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+
+        # Audit the subcloud with all audits enabled
+        do_firmware_audit = True
+        do_kubernetes_audit = True
+        do_kube_rootca_update_audit = True
+        do_software_audit = True
+        use_cache = True
+        (
+            firmware_audit_data,
+            kubernetes_audit_data,
+            kube_rootca_update_audit_data,
+            software_audit_data,
+        ) = am._get_audit_data(
+            do_firmware_audit,
+            do_kubernetes_audit,
+            do_kube_rootca_update_audit,
+            do_software_audit,
+        )
+
+        wm._audit_subcloud(
+            subcloud,
+            update_subcloud_state=False,
+            firmware_audit_data=firmware_audit_data,
+            kubernetes_audit_data=kubernetes_audit_data,
+            kube_rootca_update_audit_data=kube_rootca_update_audit_data,
+            software_audit_data=software_audit_data,
+            do_firmware_audit=do_firmware_audit,
+            do_kubernetes_audit=do_kubernetes_audit,
+            do_kube_rootca_update_audit=do_kube_rootca_update_audit,
+            do_software_audit=do_software_audit,
+            use_cache=use_cache,
+        )
+
+        # Verify the request payload sent to dcagent includes all audit types
+        self.mock_dcagent_client().audit.assert_called_once()
+        actual_payload = self.mock_dcagent_client().audit.call_args[0][0]
+        expected_audit_types = {
+            dccommon_consts.BASE_AUDIT,
+            dccommon_consts.FIRMWARE_AUDIT,
+            dccommon_consts.KUBERNETES_AUDIT,
+            dccommon_consts.KUBE_ROOTCA_AUDIT,
+            dccommon_consts.SOFTWARE_AUDIT,
+        }
+        self.assertEqual(set(actual_payload.keys()), expected_audit_types)
+
     @mock.patch.object(scheduler.ThreadGroupManager, "start")
     @mock.patch.object(
         subcloud_audit_worker_manager.db_api, "subcloud_audits_bulk_end_audit"

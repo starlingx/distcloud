@@ -17,6 +17,8 @@
 # of an applicable Wind River license agreement.
 #
 
+from typing import Optional
+
 from fm_api import constants as fm_const
 from fm_api import fm_api
 from oslo_log import log as logging
@@ -380,7 +382,7 @@ class SubcloudStateManager(manager.Manager):
             cutils.log_subcloud_msg(LOG.debug, msg, subcloud_name)
 
         if availability_data:
-            self.update_subcloud_availability(
+            updated_subcloud = self.update_subcloud_availability(
                 context,
                 subcloud.name,
                 subcloud.region_name,
@@ -389,6 +391,7 @@ class SubcloudStateManager(manager.Manager):
                 availability_data["audit_fail_count"],
                 subcloud,
             )
+            subcloud = updated_subcloud or subcloud
         if endpoint_data:
             self._bulk_update_subcloud_endpoint_status(context, subcloud, endpoint_data)
 
@@ -615,7 +618,8 @@ class SubcloudStateManager(manager.Manager):
         update_state_only: bool = False,
         audit_fail_count: int = None,
         subcloud: models.Subcloud = None,
-    ) -> None:
+    ) -> Optional[models.Subcloud]:
+        updated_subcloud = None
         if subcloud is None:
             try:
                 subcloud = db_api.subcloud_get_by_region_name(context, subcloud_region)
@@ -715,3 +719,5 @@ class SubcloudStateManager(manager.Manager):
                 updated_subcloud.management_state,
                 availability_status,
             )
+
+        return updated_subcloud
