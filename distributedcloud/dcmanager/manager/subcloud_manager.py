@@ -1321,7 +1321,9 @@ class SubcloudManager(manager.Manager):
         )
 
         restore_subclouds, invalid_subclouds = self._validate_subclouds_for_backup(
-            subclouds, "restore", bootstrap_address_dict
+            subclouds,
+            "restore",
+            bootstrap_address_dict,
         )
 
         if restore_subclouds:
@@ -2046,6 +2048,8 @@ class SubcloudManager(manager.Manager):
             LOG.error(f"Initial enrollment failed for subcloud {subcloud.name}")
             return False
 
+        enrolled_with_vcsr = on_site or dccommon_consts.CLOUD_INIT_CONFIG in payload
+
         try:
             # based upon primary IP of oam dual-stack
             endpoint = (
@@ -2066,6 +2070,7 @@ class SubcloudManager(manager.Manager):
                 subcloud_id,
                 region_name=subcloud_region_name,
                 deploy_status=consts.DEPLOY_STATE_PRE_ENROLL,
+                enrolled_with_vcsr=enrolled_with_vcsr,
             )
 
             # TODO(glyraper): Use the RPC Transport allow_remote_exmods
@@ -2281,7 +2286,11 @@ class SubcloudManager(manager.Manager):
                 i += 1
 
     def _validate_subclouds_for_backup(
-        self, subclouds, operation, bootstrap_address_dict=None, local_delete=False
+        self,
+        subclouds,
+        operation,
+        bootstrap_address_dict=None,
+        local_delete=False,
     ):
         valid_subclouds = []
         invalid_subclouds = []
@@ -2296,7 +2305,8 @@ class SubcloudManager(manager.Manager):
                 ):
                     is_valid = True
 
-            except exceptions.ValidateFail:
+            except exceptions.ValidateFail as e:
+                LOG.info(f"Subcloud {subcloud.name} rejected for {operation}: {e}")
                 is_valid = False
 
             if is_valid:

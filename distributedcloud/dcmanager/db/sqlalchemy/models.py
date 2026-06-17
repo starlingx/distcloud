@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -191,6 +191,7 @@ class Subcloud(BASE, DCManagerBase):
     group_id = Column(Integer, ForeignKey("subcloud_group.id"))
     group = relationship(SubcloudGroup, backref=backref("subcloud"))
     rehomed = Column(Boolean, default=False)
+    enrolled_with_vcsr = Column(Boolean, nullable=False, default=False)
 
 
 class SubcloudAudits(BASE, DCManagerBase):

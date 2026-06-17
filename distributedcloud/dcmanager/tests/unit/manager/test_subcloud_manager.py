@@ -405,6 +405,7 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self.mock_os_path_exists = self._mock_object(os.path, "exists")
         self.mock_os_remove = self._mock_object(os, "remove")
         self._mock_object(ostree_mount, "validate_ostree_iso_mount")
+
         self.sm = subcloud_manager.SubcloudManager()
 
         self.subcloud = self.create_subcloud_static(self.ctx)
@@ -5031,6 +5032,82 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
         ]
         self.assertEqual(restore_command, expected)
+
+
+class TestSubcloudDeployEnrollVcsrFlag(BaseTestSubcloudManager):
+    """Tests that enrollment persists the enrolled_with_vcsr marker."""
+
+    def setUp(self):
+        super().setUp()
+        self._mock_object(
+            subcloud_manager.utils, "format_address", return_value="10.10.10.10"
+        )
+        self._mock_object(
+            subcloud_manager.utils, "get_region_name", return_value="region1"
+        )
+        # Force to fail after the flag is written, so we don't have to mock the
+        # rest of the enrollment process.
+        self.sm.dcorch_rpc_client.add_subcloud.side_effect = RuntimeError(
+            "stop after flag"
+        )
+
+        self.mock_subcloud_update = self._mock_object(
+            subcloud_manager.db_api, "subcloud_update"
+        )
+
+        self.mock_subcloud_get = self._mock_object(
+            subcloud_manager.db_api, "subcloud_get"
+        )
+        self.mock_subcloud_get.return_value = self.subcloud
+
+    def _call(self, payload):
+        self.sm.subcloud_deploy_enroll(self.ctx, self.subcloud.id, payload)
+
+    def _flag_from_last_update(self):
+        # subcloud_update is called twice so we need to search the calls for the
+        # one carrying enrolled_with_vcsr.
+        for call in self.mock_subcloud_update.call_args_list:
+            if "enrolled_with_vcsr" in call.kwargs:
+                return call.kwargs["enrolled_with_vcsr"]
+        return None
+
+    def test_on_site_true_sets_flag(self):
+        """Test that flag is true if on_site is true"""
+        payload = {
+            "on_site": "true",
+            "external_oam_floating_address": "10.10.10.10",
+        }
+        self._call(payload)
+        self.assertTrue(self._flag_from_last_update())
+
+    def test_cloud_init_config_sets_flag(self):
+        """Test that flag is true if cloud_init_config exists"""
+        self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "subcloud_init_enroll",
+            return_value=True,
+        )
+        payload = {
+            "on_site": "false",
+            dccommon_consts.CLOUD_INIT_CONFIG: "fake-tar-content",
+            "external_oam_floating_address": "10.10.10.10",
+        }
+        self._call(payload)
+        self.assertTrue(self._flag_from_last_update())
+
+    def test_neither_does_not_set_flag(self):
+        """Test that flag is false if neither is true/exists"""
+        self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "subcloud_init_enroll",
+            return_value=True,
+        )
+        payload = {
+            "on_site": "false",
+            "external_oam_floating_address": "10.10.10.10",
+        }
+        self._call(payload)
+        self.assertFalse(self._flag_from_last_update())
 
 
 class TestComposeOnsiteRestoreCommand(BaseTestSubcloudManager):

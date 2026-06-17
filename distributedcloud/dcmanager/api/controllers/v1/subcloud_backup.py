@@ -17,6 +17,7 @@ from pecan import expose
 from pecan import request as pecan_request
 from pecan import response
 
+from dccommon import utils as dccommon_utils
 from dcmanager.api.controllers import restcomm
 from dcmanager.api.policies import subcloud_backup as subcloud_backup_policy
 from dcmanager.api import policy
@@ -188,6 +189,8 @@ class SubcloudBackupController(object):
         bootstrap_address_dict=None,
         auto_restore_mode=None,
         local_delete=False,
+        requires_bmc=False,
+        bmc_reachable_by_id=None,
     ):
         """Validate the subcloud according to the operation
 
@@ -201,6 +204,9 @@ class SubcloudBackupController(object):
 
         If it's an auto-restore, the subcloud must be aio-simplex.
 
+        When requires_bmc=True the validator rejects vCSR-enrolled subclouds
+        and BMC-unreachable subclouds.
+
         If none of the subclouds are valid, the operation will be aborted.
 
         Args:
@@ -212,6 +218,11 @@ class SubcloudBackupController(object):
         has_valid_subclouds = False
         valid_subclouds = list()
         for subcloud in subclouds:
+            bmc_reachable = (
+                bmc_reachable_by_id.get(subcloud.id)
+                if bmc_reachable_by_id is not None
+                else None
+            )
             try:
                 is_valid = utils.is_valid_for_backup_operation(
                     operation,
@@ -219,6 +230,8 @@ class SubcloudBackupController(object):
                     bootstrap_address_dict,
                     auto_restore_mode,
                     local_delete,
+                    requires_bmc=requires_bmc,
+                    bmc_reachable=bmc_reachable,
                 )
                 if is_valid:
                     valid_subclouds.append(subcloud)
@@ -696,8 +709,24 @@ class SubcloudBackupController(object):
             else:
                 auto_restore_mode = None
 
+            requires_bmc = bool(
+                payload.get("with_install")
+                or payload.get("auto")
+                or payload.get("factory")
+            )
+            bmc_reachable_by_id = None
+            if requires_bmc:
+                bmc_reachable_by_id = dccommon_utils.probe_bmcs_in_parallel(
+                    request_entity.subclouds
+                )
+
             restore_subclouds = self._validate_subclouds(
-                request_entity, verb, bootstrap_address_dict, auto_restore_mode
+                request_entity,
+                verb,
+                bootstrap_address_dict,
+                auto_restore_mode,
+                requires_bmc=requires_bmc,
+                bmc_reachable_by_id=bmc_reachable_by_id,
             )
 
             payload[request_entity.type] = request_entity.id

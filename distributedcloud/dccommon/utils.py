@@ -16,6 +16,7 @@
 import collections
 from datetime import datetime
 import functools
+import json
 import multiprocessing
 import os
 import random
@@ -24,10 +25,12 @@ import time
 from typing import Callable
 
 from eventlet.green import subprocess
+from eventlet import greenpool
 import netaddr
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import timeutils
+import requests
 
 from dccommon import consts
 from dccommon.exceptions import PlaybookExecutionFailed
@@ -52,6 +55,8 @@ STALE_TOKEN_DURATION_STEP = 20
 
 # Exitcode from 'timeout' command on timeout:
 TIMEOUT_EXITCODE = 124
+
+MAX_PARALLEL_SUBCLOUD_BMC_PROBE = 100
 
 
 class CachingWrapper:
@@ -484,6 +489,63 @@ def send_subcloud_shutdown_signal(subcloud_name: str):
     status, result = result_queue.get_nowait()
     if status != "success":
         raise RuntimeError(result)
+
+
+def safe_parse_install_values(data_install) -> dict:
+    if not data_install:
+        return {}
+    try:
+        return json.loads(data_install)
+    except (TypeError, ValueError):
+        return {}
+
+
+def bmc_is_reachable(install_values, timeout_seconds: int = 3) -> bool:
+    """Verify if BMC is reachable through Redfish request."""
+    if not install_values:
+        return False
+    bmc_address = install_values.get("bmc_address")
+    if not bmc_address:
+        return False
+    try:
+        is_v6 = netaddr.IPAddress(bmc_address).version == 6
+    except (netaddr.AddrFormatError, ValueError):
+        return False
+
+    host = f"[{bmc_address}]" if is_v6 else bmc_address
+    url = f"https://{host}/redfish/v1/"
+
+    try:
+        resp = requests.get(
+            url,
+            timeout=timeout_seconds,
+            verify=False,
+            allow_redirects=False,
+        )
+    except (
+        requests.exceptions.ConnectTimeout,
+        requests.exceptions.ReadTimeout,
+        requests.exceptions.ConnectionError,
+        requests.exceptions.SSLError,
+    ):
+        return False
+
+    return resp.status_code < 400
+
+
+def probe_bmcs_in_parallel(
+    subclouds: list, pool_size: int = MAX_PARALLEL_SUBCLOUD_BMC_PROBE
+) -> dict:
+    """Probe each subcloud's BMC in parallel."""
+    if not subclouds:
+        return {}
+
+    def _probe(subcloud):
+        install_values = safe_parse_install_values(subcloud.data_install)
+        return subcloud.id, bmc_is_reachable(install_values)
+
+    pool = greenpool.GreenPool(size=min(len(subclouds), pool_size))
+    return dict(pool.imap(_probe, subclouds))
 
 
 def subcloud_has_dcagent(software_version: str):
