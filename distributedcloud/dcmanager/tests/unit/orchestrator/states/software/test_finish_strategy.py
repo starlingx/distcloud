@@ -9,6 +9,7 @@ import mock
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.base import BaseState
 from dcmanager.orchestrator.states.software.finish_strategy import FinishStrategyState
+from dcmanager.tests.unit.common import fake_strategy
 from dcmanager.tests.unit.orchestrator.states.software.test_base import (
     TestSoftwareOrchestrator,
 )
@@ -137,4 +138,47 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
             None,
             None,
             None,
+        )
+
+    def test_finish_strategy_cleanup_with_active_deployment(self):
+        """Test cleanup calls deploy_delete when show_deploy returns data"""
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
+        )
+        self.software_client.show_deploy.return_value = {"some": "deployment"}
+
+        self._setup_and_assert(self.on_success_state)
+
+        self.software_client.show_deploy.assert_called_once()
+        self.software_client.deploy_delete.assert_called_once()
+        self.software_client.list.assert_not_called()
+
+    def test_finish_strategy_cleanup_without_active_deployment(self):
+        """Test cleanup skips deploy_delete when show_deploy returns empty"""
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
+        )
+        self.software_client.show_deploy.return_value = None
+
+        self._setup_and_assert(self.on_success_state)
+
+        self.software_client.show_deploy.assert_called_once()
+        self.software_client.deploy_delete.assert_not_called()
+        self.software_client.list.assert_not_called()
+
+    def test_finish_strategy_cleanup_fails_on_exception(self):
+        """Test cleanup fails when deploy_delete raises exception"""
+
+        self.strategy = fake_strategy.update_fake_strategy(
+            self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
+        )
+        self.software_client.show_deploy.return_value = {"some": "deployment"}
+        self.software_client.deploy_delete.side_effect = Exception()
+
+        self._setup_and_assert(consts.STRATEGY_STATE_FAILED)
+        self._assert_error(
+            f"{self.current_state}: Failed for subcloud {self.subcloud.name}: "
+            "Cannot delete release from subcloud."
         )

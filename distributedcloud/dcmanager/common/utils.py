@@ -2567,18 +2567,33 @@ def validate_software_strategy(payload: dict):
     delete_only = payload.get(consts.EXTRA_ARGS_DELETE_ONLY)
     with_prestage = payload.get(consts.EXTRA_ARGS_WITH_PRESTAGE)
     sysadmin_password = payload.get(consts.EXTRA_ARGS_SYSADMIN_PASSWORD)
+    kube_upgrade = payload.get(consts.EXTRA_ARGS_KUBE_UPGRADE)
+    cleanup = payload.get(consts.EXTRA_ARGS_CLEANUP)
+    delete = payload.get(consts.EXTRA_ARGS_DELETE)
 
     validate_bool_param(consts.EXTRA_ARGS_SNAPSHOT, snapshot)
     validate_bool_param(consts.EXTRA_ARGS_ROLLBACK, rollback)
     validate_bool_param(consts.EXTRA_ARGS_WITH_DELETE, with_delete)
     validate_bool_param(consts.EXTRA_ARGS_DELETE_ONLY, delete_only)
     validate_bool_param(consts.EXTRA_ARGS_WITH_PRESTAGE, with_prestage)
+    validate_bool_param(consts.EXTRA_ARGS_CLEANUP, cleanup)
+    validate_bool_param(consts.EXTRA_ARGS_DELETE, delete)
+
+    # Merge "with_delete" into "delete" for backward compatibility
+    if with_delete:
+        delete = True
+        payload[consts.EXTRA_ARGS_DELETE] = True
+
+    # Merge "delete_only" into "cleanup" for backward compatibility
+    if delete_only:
+        cleanup = True
+        payload[consts.EXTRA_ARGS_CLEANUP] = True
 
     if sysadmin_password and not with_prestage:
         message = "The with_prestage option is required when using sysadmin_password"
         pecan.abort(400, _(message))
 
-    if not (rollback or delete_only):
+    if not (rollback or cleanup):
         if not release_id:
             message = (
                 "Release ID is required for strategy type: "
@@ -2592,31 +2607,31 @@ def validate_software_strategy(payload: dict):
             )
             pecan.abort(400, _(message))
 
-    if snapshot and (rollback or delete_only):
+    if snapshot and (rollback or cleanup):
         message = (
             "Option snapshot cannot be used with any of the following options: "
-            "rollback or delete_only."
+            "rollback or cleanup."
         )
         pecan.abort(400, _(message))
 
-    if with_delete and (rollback or delete_only):
+    if delete and (rollback or cleanup):
         message = (
-            "Option with_delete cannot be used with any of the following options: "
-            "rollback or delete_only."
+            "Option delete cannot be used with any of the following options: "
+            "rollback or cleanup."
         )
         pecan.abort(400, _(message))
 
-    if rollback and (release_id or delete_only or with_prestage):
+    if rollback and (release_id or cleanup or kube_upgrade or with_prestage):
         message = (
             "Option rollback cannot be used with any of the following options: "
-            "release_id, delete_only or with_prestage."
+            "release_id, cleanup, kube_upgrade or with_prestage."
         )
         pecan.abort(400, _(message))
 
-    if delete_only and (release_id or with_prestage):
+    if cleanup and (release_id or with_prestage or kube_upgrade):
         message = (
-            "Option delete_only cannot be used with any of the following options: "
-            "release_id or with_prestage."
+            "Option cleanup cannot be used with any of the following options: "
+            "release_id, with_prestage or kube_upgrade."
         )
         pecan.abort(400, _(message))
 

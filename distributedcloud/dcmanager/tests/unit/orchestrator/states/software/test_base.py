@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -19,10 +19,10 @@ class TestSoftwareOrchestrator(TestSwUpdate):
         self.strategy_type = consts.SW_UPDATE_TYPE_SOFTWARE
         extra_args = {
             consts.EXTRA_ARGS_RELEASE_ID: RELEASE_ID,
-            consts.EXTRA_ARGS_DELETE_ONLY: False,
+            consts.EXTRA_ARGS_CLEANUP: False,
             consts.EXTRA_ARGS_SNAPSHOT: False,
             consts.EXTRA_ARGS_ROLLBACK: False,
-            consts.EXTRA_ARGS_WITH_DELETE: False,
+            consts.EXTRA_ARGS_DELETE: False,
         }
         self.strategy = fake_strategy.create_fake_strategy(
             self.ctx, self.strategy_type, extra_args=extra_args

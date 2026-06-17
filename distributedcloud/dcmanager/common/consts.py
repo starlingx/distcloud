@@ -332,13 +332,17 @@ EXTRA_ARGS_SUBJECT = "subject"
 EXTRA_ARGS_SYSADMIN_PASSWORD = "sysadmin_password"
 
 # extra_args for software
-EXTRA_ARGS_DELETE_ONLY = "delete_only"
+EXTRA_ARGS_CLEANUP = "cleanup"
 EXTRA_ARGS_DELETE = "delete"
+EXTRA_ARGS_KUBE_UPGRADE = "kube_upgrade"
 EXTRA_ARGS_RELEASE_ID = "release_id"
 EXTRA_ARGS_ROLLBACK = "rollback"
 EXTRA_ARGS_SNAPSHOT = "snapshot"
-EXTRA_ARGS_WITH_DELETE = "with_delete"
 EXTRA_ARGS_WITH_PRESTAGE = "with_prestage"
+# TODO(vgluzrom): remove delete_only and with_delete when backwards compatibility
+# with them is no longer supported
+EXTRA_ARGS_DELETE_ONLY = "delete_only"
+EXTRA_ARGS_WITH_DELETE = "with_delete"
 
 # http request/response arguments for prestage
 PRESTAGE_SOFTWARE_VERSION = "prestage-software-version"
@@ -531,6 +535,7 @@ HEARTBEAT_FAILURE_POLICY_ALARM = "alarm"
 SOFTWARE_VERSION_24_09 = "24.09"
 SNAPSHOT_SUPPORTED_VERSION = "25.09"
 MINIMUM_AUTO_RESTORE_RELEASE = "26.03"
+MINIMUM_SOFTWARE_STRATEGY_CLEANUP_RELEASE = "26.09"
 
 # The maximum number of parallel subclouds in an orchestration process
 MAX_PARALLEL_SUBCLOUDS_LIMIT = 5000

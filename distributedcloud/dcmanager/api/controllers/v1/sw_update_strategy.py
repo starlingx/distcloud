@@ -337,7 +337,7 @@ class SwUpdateStrategyController(object):
                                 description: |
                                   Release ID for software deployment operations.
                                   Required when type is 'sw-deploy'
-                                  (unless rollback or delete_only
+                                  (unless rollback or cleanup
                                   is true).
                                   Example: "starlingx-11"
                               rollback:
@@ -350,13 +350,13 @@ class SwUpdateStrategyController(object):
                                 description: |
                                   Create snapshot before software deployment.
                                   Only applicable for sw-deploy strategy type.
-                              with_delete:
+                              delete:
                                 type: boolean
                                 description: |
                                   Delete the software deployment post successful
                                   strategy application.
                                   Only applicable for sw-deploy strategy type.
-                              delete_only:
+                              cleanup:
                                 type: boolean
                                 description: |
                                   Delete the software deployment without
@@ -404,7 +404,7 @@ class SwUpdateStrategyController(object):
                                 type: "sw-deploy"
                                 release_id: "starlingx-26.03.0"
                                 subcloud_group: "21"
-                                with_delete: "true"
+                                delete: "true"
                             prestage_strategy:
                               summary: Create Prestage Strategy
                               description: >-
@@ -487,13 +487,13 @@ class SwUpdateStrategyController(object):
                               created-at: '2026-03-04T14:24:47.698157'
                               updated-at: '2026-03-04T14:57:18.049556'
                               extra-args:
-                                delete_only: false
+                                cleanup: false
                                 release_id: starlingx-11
                                 rollback: false
                                 snapshot: false
                                 sysadmin_password: null
                                 with_prestage: false
-                                with_delete: true
+                                delete: true
                       400:
                         description: Bad request
                       422:
