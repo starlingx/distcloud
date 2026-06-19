@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -125,6 +125,17 @@ class SubcloudList(ovo_base.ObjectListBase, base.OrchestratorObject):
     }
 
     @classmethod
-    def get_all(cls, context):
-        subclouds = db_api.subcloud_get_all(context)
+    def get_all(
+        cls,
+        context,
+        management_state=None,
+        availability_status=None,
+        initial_sync_state=None,
+    ):
+        subclouds = db_api.subcloud_get_all(
+            context,
+            management_state=management_state,
+            availability_status=availability_status,
+            initial_sync_state=initial_sync_state,
+        )
         return ovo_base.obj_make_list(context, cls(context), Subcloud, subclouds)
