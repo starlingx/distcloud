@@ -15,6 +15,10 @@
 #    under the License.
 #
 
+import os
+import tempfile
+from unittest import mock
+
 from dcmanager.common import utils
 from dcmanager.tests import base
 
@@ -85,3 +89,83 @@ class TestUtils(base.DCManagerTestCase):
             utils.get_primary_management_gateway_address(payload),
             payload["admin_gateway_address"],
         )
+
+    def _create_log_file(self, content):
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False)
+        tmp.write(content)
+        tmp.close()
+        self.addCleanup(os.unlink, tmp.name)
+        return tmp.name
+
+    @mock.patch("dcmanager.common.utils.add_latest_rotated_file")
+    def test_get_msg_output_info_double_quote_format(self, mock_rotated):
+        log_file = self._create_log_file(
+            "TASK [prestage/prepare-env : Some setup task] ***\n"
+            'ok: [subcloud1] => {"msg": "some other output"}\n'
+            "TASK [prestage/get-prestage-versions : Print prestage versions] ***\n"
+            'ok: [subcloud1] => {"msg": "prestage_versions: '
+            'for-install: None - for-sw-deploy: 26.09"}\n'
+            "TASK [prestage/cleanup : Remove temp files] ***\n"
+            'ok: [subcloud1] => {"msg": "cleanup done"}\n'
+            "PLAY RECAP ***\n"
+        )
+        mock_rotated.return_value = [log_file]
+        result = utils.get_msg_output_info(
+            log_file,
+            r"prestage\/get-prestage-versions : Print prestage versions",
+            "prestage_versions: ",
+        )
+        self.assertEqual(result, "for-install: None - for-sw-deploy: 26.09")
+
+    @mock.patch("dcmanager.common.utils.add_latest_rotated_file")
+    def test_get_msg_output_info_single_quote_format(self, mock_rotated):
+        log_file = self._create_log_file(
+            "TASK [prestage/sync-software-metadata : debug] ***\n"
+            "ok: [subcloud1] => {msg: 'some unrelated msg'}\n"
+            "TASK [prestage/get-prestage-versions : Print prestage versions] ***\n"
+            "ok: [subcloud1] => {msg: 'prestage_versions: "
+            "for-install: None - for-sw-deploy: 26.09'}\n"
+            "TASK [prestage/cleanup : Remove temp files] ***\n"
+            "ok: [subcloud1] => {msg: 'cleanup done'}\n"
+            "PLAY RECAP ***\n"
+        )
+        mock_rotated.return_value = [log_file]
+        result = utils.get_msg_output_info(
+            log_file,
+            r"prestage\/get-prestage-versions : Print prestage versions",
+            "prestage_versions: ",
+        )
+        self.assertEqual(result, "for-install: None - for-sw-deploy: 26.09")
+
+    @mock.patch("dcmanager.common.utils.add_latest_rotated_file")
+    def test_get_msg_output_info_not_found(self, mock_rotated):
+        log_file = self._create_log_file(
+            "TASK [other-task : Something] ***\nPLAY RECAP ***\n"
+        )
+        mock_rotated.return_value = [log_file]
+        result = utils.get_msg_output_info(
+            log_file,
+            r"prestage\/get-prestage-versions : Print prestage versions",
+            "prestage_versions: ",
+        )
+        self.assertFalse(result)
+
+    @mock.patch("dcmanager.common.utils.add_latest_rotated_file")
+    def test_get_msg_output_info_multiple_play_recaps(self, mock_rotated):
+        log_file = self._create_log_file(
+            "TASK [prestage/get-prestage-versions : Print prestage versions] ***\n"
+            'ok: [subcloud1] => {"msg": "prestage_versions: '
+            'for-install: None - for-sw-deploy: 25.09"}\n'
+            "PLAY RECAP ***\n"
+            "TASK [prestage/get-prestage-versions : Print prestage versions] ***\n"
+            'ok: [subcloud1] => {"msg": "prestage_versions: '
+            'for-install: None - for-sw-deploy: 26.09"}\n'
+            "PLAY RECAP ***\n"
+        )
+        mock_rotated.return_value = [log_file]
+        result = utils.get_msg_output_info(
+            log_file,
+            r"prestage\/get-prestage-versions : Print prestage versions",
+            "prestage_versions: ",
+        )
+        self.assertEqual(result, "for-install: None - for-sw-deploy: 26.09")

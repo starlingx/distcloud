@@ -2468,29 +2468,36 @@ def get_msg_output_info(log_file, target_task, target_str):
     Returns the msg output
     """
 
-    # awk command to get the last occurrence string after 'msg: {target_str}'
-    # between 'TASK \[{target_task}' and 'PLAY RECAP' delimiters.
-    awk_script = rf"""
-    /TASK \[{target_task}/,/PLAY RECAP/ {{
-        if ($0 ~ /msg: '{target_str}(.+)'/) {{
-            result = $0
-        }}
-    }}
-    END {{
-        if (result) {{
-            match(result, /msg: '{target_str}(.+)'/, arr)
-            print arr[1]
-        }}
-    }}
-    """
+    # Search for the last msg output matching target_str within the
+    # target_task block (between 'TASK [...]' and 'PLAY RECAP').
+    # The msg value can be enclosed in single quotes, double quotes, or
+    # no quotes depending on the Ansible version and callback plugin.
+    patterns = [
+        rf"msg: '{target_str}([^']+)'",
+        rf'msg: "{target_str}([^"]+)"',
+        rf'"msg": "{target_str}([^"]+)"',
+        rf"msg: {target_str}(.+)",
+    ]
     try:
         # necessary check since is possible to have
         # the message in rotated ansible log
         files_for_search = add_latest_rotated_file(log_file)
-        awk_cmd = ["awk", awk_script] + files_for_search
-        # Run the AWK script using subprocess
-        result = subprocess.run(awk_cmd, capture_output=True, text=True, check=True)
-        return result.stdout.strip()
+        in_task = False
+        result = None
+        for file_path in files_for_search:
+            with open(file_path, "r") as f:
+                for line in f:
+                    if re.search(rf"TASK \[{target_task}", line):
+                        in_task = True
+                    elif "PLAY RECAP" in line:
+                        in_task = False
+                    elif in_task:
+                        for pattern in patterns:
+                            m = re.search(pattern, line)
+                            if m:
+                                result = m.group(1)
+                                break
+        return result.strip() if result else result
     except Exception as e:
         LOG.error(
             "Failed getting msg output by searching '%s' from task '%s': %s"
