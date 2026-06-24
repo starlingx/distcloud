@@ -63,6 +63,28 @@ class SubprocessCleanup(object):
             )
 
 
+def _get_children_recursive(pid):
+    """Recursively find all descendant PIDs via /proc."""
+    children = []
+    try:
+        tasks_dir = "/proc/%d/task" % pid
+        if not os.path.exists(tasks_dir):
+            return children
+        for tid in os.listdir(tasks_dir):
+            children_file = "%s/%s/children" % (tasks_dir, tid)
+            try:
+                with open(children_file, "r") as f:
+                    for child_pid_str in f.read().split():
+                        child_pid = int(child_pid_str)
+                        children.append(child_pid)
+                        children.extend(_get_children_recursive(child_pid))
+            except (FileNotFoundError, ValueError, PermissionError):
+                pass
+    except (FileNotFoundError, PermissionError):
+        pass
+    return children
+
+
 def kill_subprocess_group(subp, logmsg=None):
     """Kill the subprocess and any children."""
     exitcode = subp.poll()
@@ -79,8 +101,21 @@ def kill_subprocess_group(subp, logmsg=None):
         LOG.warn(logmsg)
     else:
         LOG.warn("Killing subprocess group for pid: %s, args: %s", subp.pid, subp.args)
-    # Send a SIGTERM (normal kill). We do not verify if the processes
-    # are shutdown (best-effort), since we don't want to wait around before
-    # issueing a SIGKILL (fast shutdown)
+
+    # Send SIGTERM to the process group (best-effort graceful shutdown)
     os.killpg(subp.pid, signal.SIGTERM)
+
+    # Also SIGKILL the entire process tree. This handles ansible-core >= 2.18
+    # where workers call os.setsid() and escape the original process group,
+    # making them unreachable via killpg. We don't wait around since we need
+    # fast shutdown.
+    children = _get_children_recursive(subp.pid)
+    if children:
+        LOG.info("Sending SIGKILL to %d descendant PIDs of %s", len(children), subp.pid)
+        for child_pid in children:
+            try:
+                os.kill(child_pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+
     return True
