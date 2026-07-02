@@ -5139,20 +5139,6 @@ class TestComposeOnsiteRestoreCommand(BaseTestSubcloudManager):
         self.assertIn("-e", command)
         self.assertIn("restore_timeout=3600", command)
 
-    def test_compose_onsite_restore_command_resume_mode(self):
-        """Test that compose emits resume_mode=true when resume_mode is set"""
-        command = self.sm.compose_onsite_restore_command(
-            "subcloud1", self.INVENTORY_FILE, resume_mode=True
-        )
-        self.assertIn("resume_mode=true", command)
-
-    def test_compose_onsite_restore_command_no_resume_by_default(self):
-        """Test that compose omits resume_mode when not requested"""
-        command = self.sm.compose_onsite_restore_command(
-            "subcloud1", self.INVENTORY_FILE
-        )
-        self.assertNotIn("resume_mode=true", command)
-
 
 class TestTransferBackupToSubcloud(BaseTestSubcloudManager):
     """Tests for _transfer_backup_to_subcloud"""
@@ -5621,8 +5607,8 @@ class TestResumeOnsiteRestoreAfterSwact(BaseTestSubcloudManager):
             deploy_status=consts.DEPLOY_STATE_ONSITE_RESTORING,
         )
 
-    def test_resume_spawns_monitor_with_resume_mode(self):
-        """Resume re-spawns the monitor with resume_mode and a default budget"""
+    def test_resume_spawns_monitor_playbook(self):
+        """Resume re-spawns the monitor playbook"""
         self.sm._resume_onsite_restore_after_swact(self.subcloud)
 
         self.mock_spawn_n.assert_called_once()
@@ -5637,7 +5623,6 @@ class TestResumeOnsiteRestoreAfterSwact(BaseTestSubcloudManager):
 
         # The resumed monitor uses the default timeout (CONF.playbook_timeout * 1.5)
         self.assertEqual(restore_timeout, int(DEFAULT_RESTORE_TIMEOUT))
-        self.assertIn("resume_mode=true", onsite_command)
         self.assertIn(f"restore_timeout={int(DEFAULT_RESTORE_TIMEOUT)}", onsite_command)
         self.assertTrue(log_file.endswith("subcloud1_playbook_output.log"))
         # The inventory file is reused, not recreated

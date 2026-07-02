@@ -586,7 +586,6 @@ class SubcloudManager(manager.Manager):
         subcloud_name,
         ansible_subcloud_inventory_file,
         restore_timeout=None,
-        resume_mode=False,
         software_version=None,
     ):
         """Compose ansible command for on-site restore monitoring playbook.
@@ -598,8 +597,6 @@ class SubcloudManager(manager.Manager):
         :param subcloud_name: name of the subcloud
         :param ansible_subcloud_inventory_file: path to the ansible inventory file
         :param restore_timeout: timeout in seconds passed to the on-site playbook
-        :param resume_mode: when True, the playbook skips the "wait for subcloud to
-            go offline" step (used when resuming monitoring after a swact)
         :param software_version: software version used to select the ansible-playbook
         :returns: ansible-playbook command list
         """
@@ -613,8 +610,6 @@ class SubcloudManager(manager.Manager):
         ]
         if restore_timeout is not None:
             command += ["-e", f"restore_timeout={int(restore_timeout)}"]
-        if resume_mode:
-            command += ["-e", "resume_mode=true"]
         return command
 
     def compose_update_command(
@@ -3652,7 +3647,7 @@ class SubcloudManager(manager.Manager):
 
         An on-site restore is owned by the subcloud, not dcmanager, so a
         restart or swact must not fail it out. The controller re-spawns the
-        monitor with resume_mode=true.
+        monitor, which simply reconnects and waits for the completion flag.
 
         :param subcloud: subcloud model object
         """
@@ -3669,7 +3664,6 @@ class SubcloudManager(manager.Manager):
             subcloud.name,
             inventory_file,
             restore_timeout=restore_timeout,
-            resume_mode=True,
             software_version=subcloud.software_version,
         )
         greenthread.spawn_n(
