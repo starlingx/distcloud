@@ -320,7 +320,7 @@ def user_update(context, user_id, payload):
             if user_options:
                 for user_option in user_options:
                     user_option["user_id"] = new_user_id
-                insert(conn, "user_option", user_option)
+                    insert(conn, "user_option", user_option)
         # local_user table
         table = "local_user"
         if table in payload:
