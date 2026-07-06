@@ -147,12 +147,12 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
             self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
         )
         self.software_client.show_deploy.return_value = {"some": "deployment"}
+        self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
         self._setup_and_assert(self.on_success_state)
 
         self.software_client.show_deploy.assert_called_once()
         self.software_client.deploy_delete.assert_called_once()
-        self.software_client.list.assert_not_called()
 
     def test_finish_strategy_cleanup_without_active_deployment(self):
         """Test cleanup skips deploy_delete when show_deploy returns empty"""
@@ -161,12 +161,12 @@ class TestFinishStrategyState(TestSoftwareOrchestrator):
             self.ctx, additional_args={consts.EXTRA_ARGS_CLEANUP: True}
         )
         self.software_client.show_deploy.return_value = None
+        self.software_client.list.side_effect = [SUBCLOUD_RELEASES]
 
         self._setup_and_assert(self.on_success_state)
 
         self.software_client.show_deploy.assert_called_once()
         self.software_client.deploy_delete.assert_not_called()
-        self.software_client.list.assert_not_called()
 
     def test_finish_strategy_cleanup_fails_on_exception(self):
         """Test cleanup fails when deploy_delete raises exception"""

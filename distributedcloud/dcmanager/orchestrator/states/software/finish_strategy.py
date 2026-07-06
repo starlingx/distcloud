@@ -62,10 +62,9 @@ class FinishStrategyState(BaseState):
 
         self.info_log(strategy_step, "Finishing software strategy")
 
-        if self._handle_extra_args_cleanup(
+        self._handle_extra_args_cleanup(
             strategy_step, self.get_software_client(self.region_name)
-        ):
-            return self.next_state
+        )
 
         try:
             # Retrieve deployed releases id from RegionOne cache
@@ -139,11 +138,11 @@ class FinishStrategyState(BaseState):
 
     def _handle_extra_args_cleanup(
         self, strategy_step: str, software_client: software_v1.SoftwareClient
-    ) -> bool:
+    ):
         """Handle the cleanup extra args for software deploy strategies."""
         extra_args = self.strategy.extra_args
         if not extra_args.get(consts.EXTRA_ARGS_CLEANUP):
-            return False
+            return
         try:
             active_deployment = software_client.show_deploy()
             if active_deployment:
@@ -165,4 +164,3 @@ class FinishStrategyState(BaseState):
                 exceptions.SoftwareFinishStrategyException,
                 exc=exc,
             )
-        return True
