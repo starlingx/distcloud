@@ -105,7 +105,7 @@ HTTP_REQUEST_WAIT = 2
 # The Models_list and this workaround will be removed in
 # the next release once the vendor fixes MediaType reporting
 # and the change is deployed.
-Models_list = ["PowerEdge XR8720t"]
+Models_list = ["PowerEdge XR8720t", "PowerEdge R670"]
 
 # Manufacturers that support UsbCd boot device
 USBCD_SUPPORTED_MANUFACTURERS = ["Supermicro"]
