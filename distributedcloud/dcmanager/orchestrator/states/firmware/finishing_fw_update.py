@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -87,9 +87,9 @@ class FinishingFwUpdateState(BaseState):
                             enabled_host_device_list.append(device)
                 break
             except Exception:
+                fail_counter += 1
                 if fail_counter >= self.max_failed_queries:
                     raise Exception("Timeout waiting to query subcloud hosts")
-                fail_counter += 1
                 time.sleep(self.failed_sleep_duration)
 
         if not enabled_host_device_list:
@@ -117,14 +117,11 @@ class FinishingFwUpdateState(BaseState):
                 ).get_device_image_states()
                 break
             except Exception:
-                # TODO(rlima): Invert the fail counter with the validation to fix
-                # the unit tests, because it's always greater than the
-                # DEFAULT_MAX_FAILED_QUERIES
+                fail_counter += 1
                 if fail_counter >= self.max_failed_queries:
                     raise Exception(
                         "Timeout waiting to query subcloud device image info"
                     )
-                fail_counter += 1
                 time.sleep(self.failed_sleep_duration)
 
         device_map = utils.to_uuid_map(enabled_host_device_list)
