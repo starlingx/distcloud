@@ -63,7 +63,8 @@ class SubcloudGroupAPIMixin(APIMixin):
                 "update_apply_type", SAMPLE_SUBCLOUD_GROUP_UPDATE_APPLY_TYPE
             ),
             "max_parallel_subclouds": kw.get(
-                "max_parallel_subclouds", SAMPLE_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS
+                "max_parallel_subclouds",
+                SAMPLE_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS,
             ),
         }
 
@@ -211,7 +212,9 @@ class TestSubcloudGroupPost(BaseTestSubcloudGroupController, PostJSONMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Invalid group update_apply_type"
+            response,
+            http.client.BAD_REQUEST,
+            "Invalid group update_apply_type",
         )
 
     def test_post_fails_without_update_apply_type(self):
@@ -222,7 +225,9 @@ class TestSubcloudGroupPost(BaseTestSubcloudGroupController, PostJSONMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Invalid group update_apply_type"
+            response,
+            http.client.BAD_REQUEST,
+            "Invalid group update_apply_type",
         )
 
     def test_post_fails_with_invalid_max_parallel_subclouds(self):
@@ -321,6 +326,26 @@ class TestSubcloudGroupGet(BaseTestSubcloudGroupGet, GetMixin):
         response = self._send_request()
 
         self._assert_response(response)
+
+    def test_list_includes_subcloud_count(self):
+        """Test the group list includes the number of subclouds per group"""
+
+        self.url = self.API_PREFIX
+
+        # No subclouds associated with the default group yet
+        response = self._send_request()
+        self._assert_response(response)
+        groups = response.json.get(self.RESULT_KEY)
+        self.assertEqual(1, len(groups))
+        self.assertEqual(0, groups[0]["subcloud_count"])
+
+        # Associate a subcloud with the default group
+        fake_subcloud.create_fake_subcloud(self.ctx)
+
+        response = self._send_request()
+        self._assert_response(response)
+        groups = response.json.get(self.RESULT_KEY)
+        self.assertEqual(1, groups[0]["subcloud_count"])
 
 
 class TestSubcloudGroupGetSubclouds(BaseTestSubcloudGroupGet):
@@ -425,7 +450,9 @@ class TestSubcloudGroupPatch(BaseTestSubcloudGroupController, UpdateMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Default group name cannot be changed"
+            response,
+            http.client.BAD_REQUEST,
+            "Default group name cannot be changed",
         )
 
     def test_patch_fails_with_invalid_update_apply_type(self):
@@ -436,7 +463,9 @@ class TestSubcloudGroupPatch(BaseTestSubcloudGroupController, UpdateMixin):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Invalid group update_apply_type"
+            response,
+            http.client.BAD_REQUEST,
+            "Invalid group update_apply_type",
         )
 
     def test_patch_fails_with_invalid_max_parallel_subclouds(self):
@@ -539,9 +568,8 @@ class TestSubcloudGroupDelete(BaseTestSubcloudGroupController, DeleteMixin):
 
         self._assert_pecan_and_response(
             response,
-            http.client.INTERNAL_SERVER_ERROR,
-            "Unable to delete subcloud group",
-            call_count=2,
+            http.client.BAD_REQUEST,
+            "Subcloud Group not empty",
         )
 
     @mock.patch.object(db_api, "subcloud_group_destroy")
