@@ -319,12 +319,16 @@ class EndpointCache(object):
 
             try:
                 self.keystone_client = ks_client.Client(
-                    session=self.admin_session, region_name=region_name
+                    session=self.admin_session,
+                    region_name=region_name,
+                    interface=consts.KS_ENDPOINT_ADMIN,
                 )
             except Exception:
                 LOG.error(f"Retrying keystone client creation for {region_name}")
                 self.keystone_client = ks_client.Client(
-                    session=self.admin_session, region_name=region_name
+                    session=self.admin_session,
+                    region_name=region_name,
+                    interface=consts.KS_ENDPOINT_ADMIN,
                 )
             self.external_auth_url = sc_auth_url
 
@@ -633,7 +637,9 @@ class EndpointCache(object):
 
     def _create_master_cached_data(self) -> None:
         EndpointCache.master_keystone_client = ks_client.Client(
-            session=self.admin_session, region_name=utils.get_region_one_name()
+            session=self.admin_session,
+            region_name=utils.get_region_one_name(),
+            interface=consts.KS_ENDPOINT_INTERNAL,
         )
         try:
             EndpointCache.master_token = (
