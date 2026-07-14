@@ -16,6 +16,8 @@
 #
 
 import http.client as httpclient
+import json
+
 from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
@@ -49,7 +51,6 @@ MAX_SUBCLOUD_GROUP_MAX_PARALLEL_SUBCLOUDS = 5000
 
 
 class SubcloudGroupsController(restcomm.GenericPathController):
-
     def __init__(self):
         super(SubcloudGroupsController, self).__init__()
         self.rpc_client = rpc_client.ManagerClient()
@@ -69,6 +70,8 @@ class SubcloudGroupsController(restcomm.GenericPathController):
 
         for group in groups:
             group_dict = db_api.subcloud_group_db_model_to_dict(group)
+            subclouds = db_api.subcloud_get_for_group(context, group.id)
+            group_dict["subcloud_count"] = len(subclouds)
             subcloud_group_list.append(group_dict)
 
         result = dict()
@@ -228,7 +231,10 @@ class SubcloudGroupsController(restcomm.GenericPathController):
             restcomm.extract_credentials_for_policy(),
         )
 
-        payload = eval(request.body)
+        try:
+            payload = json.loads(request.body)
+        except ValueError:
+            payload = None
         if not payload:
             pecan.abort(httpclient.BAD_REQUEST, _("Body required"))
 
@@ -248,11 +254,16 @@ class SubcloudGroupsController(restcomm.GenericPathController):
             pecan.abort(httpclient.BAD_REQUEST, _("Invalid group update_apply_type"))
         if not self._validate_max_parallel_subclouds(max_parallel_subclouds):
             pecan.abort(
-                httpclient.BAD_REQUEST, _("Invalid group max_parallel_subclouds")
+                httpclient.BAD_REQUEST,
+                _("Invalid group max_parallel_subclouds"),
             )
         try:
             group_ref = db_api.subcloud_group_create(
-                context, name, description, update_apply_type, max_parallel_subclouds
+                context,
+                name,
+                description,
+                update_apply_type,
+                max_parallel_subclouds,
             )
             return db_api.subcloud_group_db_model_to_dict(group_ref)
         except db_exc.DBDuplicateEntry:
@@ -266,7 +277,8 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         except Exception as e:
             LOG.exception(e)
             pecan.abort(
-                httpclient.INTERNAL_SERVER_ERROR, _("Unable to create subcloud group")
+                httpclient.INTERNAL_SERVER_ERROR,
+                _("Unable to create subcloud group"),
             )
 
     @index.when(method="PATCH", template="json")
@@ -338,7 +350,10 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         if group_ref is None:
             pecan.abort(httpclient.BAD_REQUEST, _("Subcloud Group Name or ID required"))
 
-        payload = eval(request.body)
+        try:
+            payload = json.loads(request.body)
+        except ValueError:
+            payload = None
         if not payload:
             pecan.abort(httpclient.BAD_REQUEST, _("Body required"))
 
@@ -363,7 +378,8 @@ class SubcloudGroupsController(restcomm.GenericPathController):
             # Special case. Default group name cannot be changed
             if group.id == consts.DEFAULT_SUBCLOUD_GROUP_ID:
                 pecan.abort(
-                    httpclient.BAD_REQUEST, _("Default group name cannot be changed")
+                    httpclient.BAD_REQUEST,
+                    _("Default group name cannot be changed"),
                 )
 
         if description:
@@ -372,12 +388,14 @@ class SubcloudGroupsController(restcomm.GenericPathController):
         if update_apply_type:
             if not self._validate_update_apply_type(update_apply_type):
                 pecan.abort(
-                    httpclient.BAD_REQUEST, _("Invalid group update_apply_type")
+                    httpclient.BAD_REQUEST,
+                    _("Invalid group update_apply_type"),
                 )
         if max_parallel_str:
             if not self._validate_max_parallel_subclouds(max_parallel_str):
                 pecan.abort(
-                    httpclient.BAD_REQUEST, _("Invalid group max_parallel_subclouds")
+                    httpclient.BAD_REQUEST,
+                    _("Invalid group max_parallel_subclouds"),
                 )
 
         try:
@@ -396,7 +414,8 @@ class SubcloudGroupsController(restcomm.GenericPathController):
             # additional exceptions.
             LOG.exception(e)
             pecan.abort(
-                httpclient.INTERNAL_SERVER_ERROR, _("Unable to update subcloud group")
+                httpclient.INTERNAL_SERVER_ERROR,
+                _("Unable to update subcloud group"),
             )
 
     @index.when(method="delete", template="json")
@@ -448,20 +467,24 @@ class SubcloudGroupsController(restcomm.GenericPathController):
             pecan.abort(httpclient.NOT_FOUND, _("Subcloud Group not found"))
         if group.name == consts.DEFAULT_SUBCLOUD_GROUP_NAME:
             pecan.abort(
-                httpclient.BAD_REQUEST, _("Default Subcloud Group may not be deleted")
+                httpclient.BAD_REQUEST,
+                _("Default Subcloud Group may not be deleted"),
             )
+        # a subcloud group may not be deleted if it is in use by any subclouds.
+        # This check is kept outside the try/except below so that the
+        # BAD_REQUEST abort is not caught and masked as an internal server error.
+        subclouds = db_api.subcloud_get_for_group(context, group.id)
+        if len(subclouds) > 0:
+            pecan.abort(httpclient.BAD_REQUEST, _("Subcloud Group not empty"))
         try:
-            # a subcloud group may not be deleted if it is use by any subclouds
-            subclouds = db_api.subcloud_get_for_group(context, group.id)
-            if len(subclouds) > 0:
-                pecan.abort(httpclient.BAD_REQUEST, _("Subcloud Group not empty"))
             db_api.subcloud_group_destroy(context, group.id)
         except RemoteError as e:
             pecan.abort(httpclient.UNPROCESSABLE_ENTITY, e.value)
         except Exception as e:
             LOG.exception(e)
             pecan.abort(
-                httpclient.INTERNAL_SERVER_ERROR, _("Unable to delete subcloud group")
+                httpclient.INTERNAL_SERVER_ERROR,
+                _("Unable to delete subcloud group"),
             )
         # This should return nothing
         return None
