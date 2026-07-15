@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2022, 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -95,9 +95,9 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         # verify the query was actually attempted
         self.sysinv_client.get_hosts.assert_called()
 
-        # verified the query was tried max retries + 1
+        # verified the query was tried max retries
         self.assertEqual(
-            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
+            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES,
             self.sysinv_client.get_hosts.call_count,
         )
 
@@ -187,13 +187,11 @@ class TestFwUpdateFinishingFwUpdateStage(TestFwUpdateState):
         self.sysinv_client.get_host_device_list.assert_called_once()
         self.assertEqual(
             self.sysinv_client.get_device_images.call_count,
-            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
+            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES,
         )
-        # TODO(rlima): update the code to fix the error where the call_count is
-        # always greater than the DEFAULT_MAX_FAILED_QUERIES
         self.assertEqual(
             self.sysinv_client.get_device_image_states.call_count,
-            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES + 1,
+            finishing_fw_update.DEFAULT_MAX_FAILED_QUERIES,
         )
 
     def test_finishing_fw_update_fails_with_pending_image_state(self):
