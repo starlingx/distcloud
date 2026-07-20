@@ -247,11 +247,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
     @staticmethod
     def _should_perform_additional_audit(
-        subcloud_management_state, subcloud_avail_status, first_identity_sync_complete
+        subcloud_management_state, first_identity_sync_complete
     ):
         return (
             subcloud_management_state == dccommon_consts.MANAGEMENT_MANAGED
-            and subcloud_avail_status == dccommon_consts.AVAILABILITY_ONLINE
             and first_identity_sync_complete
         )
 
@@ -359,12 +358,11 @@ class SubcloudAuditWorkerManager(manager.Manager):
         LOG.debug(f"Starting dcagent audit for subcloud: {subcloud_name}")
         # If we don't have the audit data, we won't send the request to the
         # dcagent service, so we set the status to "in sync"
-        shoud_perform_additional_audit = self._should_perform_additional_audit(
+        should_perform_additional_audit = self._should_perform_additional_audit(
             subcloud.management_state,
-            avail_status_current,
             subcloud.first_identity_sync_complete,
         )
-        if shoud_perform_additional_audit:
+        if should_perform_additional_audit:
             if do_firmware_audit and not firmware_audit_data:
                 endpoint_data[dccommon_consts.ENDPOINT_TYPE_FIRMWARE] = (
                     dccommon_consts.SYNC_STATUS_IN_SYNC
@@ -391,7 +389,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             f"RegionOne audit data is not available: {audits_done}"
         )
         audit_payload = self._build_dcagent_payload(
-            shoud_perform_additional_audit,
+            should_perform_additional_audit,
             firmware_audit_data,
             kubernetes_audit_data,
             kube_rootca_update_audit_data,
