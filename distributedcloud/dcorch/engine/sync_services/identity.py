@@ -173,6 +173,7 @@ class IdentitySyncThread(SyncThread):
                     "failed_auth_at": obj_dict["local_user"]["failed_auth_at"],
                 },
                 "password": obj_dict["password"],
+                "user_option": obj_dict.get("user_option", []),
             }
         elif isinstance(obj, Group):
             wrapped_record = {
@@ -756,17 +757,38 @@ class IdentitySyncThread(SyncThread):
         user_id = user_subcloud_rsrc.subcloud_resource_id
         original_user_ref = UserReferenceWrapper(id=user_id)
 
+        # Build kwargs for keystoneclient users.update(), only including
+        # fields that are actually present in the update dict.
+        # This avoids sending an empty user body which Keystone rejects.
+        update_kwargs = {}
+        field_map = {
+            "name": "name",
+            "domain": "domain",
+            "project": "project",
+            "password": "password",
+            "email": "email",
+            "description": "description",
+            "enabled": "enabled",
+            "default_project": "default_project",
+            "options": "options",
+        }
+        for key, kwarg_name in field_map.items():
+            value = user_update_dict.pop(key, None)
+            if value is not None:
+                update_kwargs[kwarg_name] = value
+
+        if not update_kwargs:
+            LOG.info(
+                "No actionable fields in user update for {}:{}, skipping.".format(
+                    rsrc.id, user_id
+                ),
+                extra=self.log_extra,
+            )
+            return
+
         # Update the user in the subcloud
         user_ref = self.get_sc_ks_client().users.update(
-            original_user_ref,
-            name=user_update_dict.pop("name", None),
-            domain=user_update_dict.pop("domain", None),
-            project=user_update_dict.pop("project", None),
-            password=user_update_dict.pop("password", None),
-            email=user_update_dict.pop("email", None),
-            description=user_update_dict.pop("description", None),
-            enabled=user_update_dict.pop("enabled", None),
-            default_project=user_update_dict.pop("default_project", None),
+            original_user_ref, **update_kwargs
         )
 
         if user_ref.id == user_id:
@@ -2127,8 +2149,8 @@ class IdentitySyncThread(SyncThread):
         LOG.debug("master={}, subcloud={}".format(m, sc), extra=self.log_extra)
         # For user the comparison is DB records by DB records.
         # The user DB records are from multiple tables, including user,
-        # local_user, and password tables. If any of them are not matched,
-        # it is considered as a different identity resource.
+        # local_user, password, and user_option tables. If any of them are
+        # not matched, it is considered as a different identity resource.
         # Note that the user id is compared, since user id has to be synced
         # to the subcloud too.
         same_user = (
@@ -2163,7 +2185,29 @@ class IdentitySyncThread(SyncThread):
             # All are found
             else:
                 result = True
-        return result
+
+        if not result:
+            return False
+
+        # Compare user_option records (e.g., ignore_password_expiry,
+        # ignore_lockout_failure_attempts)
+        m_options = m.user_option
+        sc_options = sc.user_option
+        if len(m_options) != len(sc_options):
+            return False
+
+        # Compare as sets of frozen dicts (ignore user_id since it may differ
+        # during ID replacement scenarios — the relevant fields are the option
+        # identifier and value columns)
+        def _option_key(opt):
+            return {k: v for k, v in opt.items() if k != "user_id"}
+
+        m_opt_set = sorted([str(_option_key(o)) for o in m_options])
+        sc_opt_set = sorted([str(_option_key(o)) for o in sc_options])
+        if m_opt_set != sc_opt_set:
+            return False
+
+        return True
 
     def _same_identity_group_resource(self, m, sc):
         LOG.debug("master={}, subcloud={}".format(m, sc), extra=self.log_extra)

@@ -222,6 +222,8 @@ def user_get_all(context):
         local_users = query(conn, "local_user")
         # password table
         passwords = query(conn, "password")
+        # user_option table
+        user_options = query(conn, "user_option")
 
     for local_user in local_users:
         user = {"user": user for user in users if user["id"] == local_user["user_id"]}
@@ -232,10 +234,16 @@ def user_get_all(context):
                 if password["local_user_id"] == local_user["id"]
             ]
         }
+        user_opts = {
+            "user_option": [
+                opt for opt in user_options if opt["user_id"] == local_user["user_id"]
+            ]
+        }
         user_consolidated = dict(
             list({"local_user": local_user}.items())
             + list(user.items())
             + list(user_passwords.items())
+            + list(user_opts.items())
         )
         result.append(user_consolidated)
 
@@ -263,6 +271,8 @@ def user_get(context, user_id):
             result["password"] = query(
                 conn, "password", "local_user_id", result["local_user"].get("id")
             )
+        # user_option table
+        result["user_option"] = query(conn, "user_option", "user_id", user_id)
 
     return result
 
@@ -272,6 +282,7 @@ def user_create(context, payload):
     users = [payload["user"]]
     local_users = [payload["local_user"]]
     passwords = payload["password"]
+    user_options = payload.get("user_option", [])
 
     with get_write_connection() as conn:
         insert(conn, "user", users)
@@ -294,6 +305,12 @@ def user_create(context, payload):
             password["local_user_id"] = inserted_local_users[0]["id"]
 
         insert(conn, "password", passwords)
+
+        # user_option table
+        if user_options:
+            for user_option in user_options:
+                user_option["user_id"] = payload["user"]["id"]
+            insert(conn, "user_option", user_options)
 
     return user_get(context, payload["user"]["id"])
 
@@ -321,6 +338,16 @@ def user_update(context, user_id, payload):
                 for user_option in user_options:
                     user_option["user_id"] = new_user_id
                     insert(conn, "user_option", user_option)
+        # user_option table - sync options from payload
+        # This handles propagation of user options (e.g., ignore_password_expiry)
+        # from the SystemController to subclouds.
+        if "user_option" in payload:
+            delete(conn, "user_option", "user_id", new_user_id)
+            user_options_payload = payload["user_option"]
+            for user_option in user_options_payload:
+                user_option["user_id"] = new_user_id
+            if user_options_payload:
+                insert(conn, "user_option", user_options_payload)
         # local_user table
         table = "local_user"
         if table in payload:
