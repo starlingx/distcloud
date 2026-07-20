@@ -1239,7 +1239,7 @@ class Connection(object):
     ):
         with write_session() as session:
             subquery = (
-                select([models.SubcloudSync.id])
+                select(models.SubcloudSync.id)
                 .where(models.SubcloudSync.subcloud_name == models.Subcloud.region_name)
                 .where(models.Subcloud.management_state == management_state)
                 .where(models.SubcloudSync.endpoint_type == endpoint_type)
