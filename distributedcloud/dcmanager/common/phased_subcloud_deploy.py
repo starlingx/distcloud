@@ -1515,6 +1515,13 @@ def pre_deploy_create(payload: dict, context: RequestContext, request: pecan.Req
 
     validate_system_controller_deploy_status("create")
 
+    # If the subcloud is not secondary, a unique UUID
+    # for the subcloud region will be generated.
+    # If it's a rehoming operation, it will connect to the
+    # subcloud to get its current region name
+    if "secondary" not in payload:
+        subcloud_region_create(payload, context)
+
     validate_subcloud_config(context, payload)
 
     # install_values of secondary subclouds are validated on peer site

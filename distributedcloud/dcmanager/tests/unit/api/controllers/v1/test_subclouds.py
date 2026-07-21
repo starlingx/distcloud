@@ -525,6 +525,11 @@ class BaseTestSubcloudsPost(BaseTestSubcloudsController):
         self.mock_get_network_address_pools.return_value = [
             FakeAddressPool("192.168.204.0", 24, "192.168.204.2", "192.168.204.100")
         ]
+        self.mock_subcloud_region_create = self._mock_object(
+            psd_common,
+            "subcloud_region_create",
+            wraps=psd_common.subcloud_region_create,
+        )
 
     def set_oam_params_ipv4(self):
         self.params["external_oam_subnet"] = "10.10.10.0/24"
@@ -551,6 +556,7 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         self._assert_response(response)
         self.mock_rpc_client().add_subcloud.assert_called_once()
         self.mock_rpc_client().add_secondary_subcloud.assert_not_called()
+        self.mock_subcloud_region_create.assert_called_once()
 
     def test_post_fails_with_wrong_url(self):
         """Test post fails with wrong url"""
@@ -608,7 +614,7 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
                 self._assert_pecan_and_response(
                     response,
                     http.client.BAD_REQUEST,
-                    "Unable to generate subcloud region for subcloud None",
+                    "name required",
                     index,
                 )
             else:
@@ -922,6 +928,7 @@ class TestSubcloudsPost(BaseTestSubcloudsPost, PostMixin):
         self._assert_response(response)
         self.mock_rpc_client().add_subcloud.assert_not_called()
         self.mock_rpc_client().add_secondary_subcloud.assert_called_once()
+        self.mock_subcloud_region_create.assert_not_called()
 
     def test_post_fails_with_rpc_client_remote_error(self):
         """Test post fails with rpc client remote error"""

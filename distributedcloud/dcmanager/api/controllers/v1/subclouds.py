@@ -802,11 +802,8 @@ class SubcloudsController(object):
                 )
 
         # No need sysadmin_password when add a secondary subcloud
-        # If the subcloud is not secondary, a unique UUID
-        # for the subcloud region will be generated.
         if "secondary" not in payload:
             utils.validate_sysadmin_password(payload)
-            psd_common.subcloud_region_create(payload, context)
 
         psd_common.pre_deploy_create(payload, context, request)
 

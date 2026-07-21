@@ -109,6 +109,11 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
         self.mock_rpc_client().subcloud_deploy_create.side_effect = (
             self.subcloud_deploy_create
         )
+        self.mock_subcloud_region_create = self._mock_object(
+            psd_common,
+            "subcloud_region_create",
+            wraps=psd_common.subcloud_region_create,
+        )
 
         self._setup_mock_playbook_exists(
             consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
@@ -126,6 +131,7 @@ class TestPhasedSubcloudDeployPost(BaseTestPhasedSubcloudDeployController):
 
         self._assert_response(response)
         self.mock_rpc_client().subcloud_deploy_create.assert_called_once()
+        self.mock_subcloud_region_create.assert_called_once()
 
     def test_post_fails_without_payload(self):
         """Test post fails without payload"""
