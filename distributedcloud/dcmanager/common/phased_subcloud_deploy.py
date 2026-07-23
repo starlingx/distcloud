@@ -5,13 +5,15 @@
 #
 
 import base64
+import ipaddress
 import json
 import os
 import tarfile
 import tempfile
 import typing
 
-import ipaddress
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 import netaddr
 from oslo_log import log as logging
 from oslo_utils import uuidutils
@@ -1168,6 +1170,34 @@ def validate_k8s_version(payload):
             )
 
 
+def validate_platform_issuer_for_sw_version(payload):
+    """Validate whether the subcloud is compatible with the CA key type.
+
+    If the specified release is an older version, the system controller
+    must be configured with an RSA CA key.
+    """
+    software_version = payload["software_version"]
+
+    if software_version < consts.FIRST_SW_VERSION_SUPPORTING_ECDSA:
+        _tls_crt, tls_key, _ca_crt = utils.get_certificate_from_secret(
+            consts.LOCAL_CA_SECRET_NAME,
+            consts.CERT_NAMESPACE_PLATFORM_CA_CERTS,
+        )
+
+        priv_key = serialization.load_pem_private_key(tls_key.encode(), None)
+
+        if not isinstance(priv_key, rsa.RSAPrivateKey):
+            pecan.abort(
+                400,
+                _(
+                    "Deploying subclouds with software version below %s requires "
+                    "the system controller platform issuer (system-local-ca) to "
+                    "use an RSA key."
+                )
+                % consts.FIRST_SW_VERSION_SUPPORTING_ECDSA,
+            )
+
+
 def format_ip_address(payload):
     """Format IP addresses in 'bootstrap_values' and 'install_values'.
 
@@ -1529,6 +1559,7 @@ def pre_deploy_create(payload: dict, context: RequestContext, request: pecan.Req
         validate_install_values(payload)
 
     validate_bootstrap_playbook_for_sw_version(payload)
+    validate_platform_issuer_for_sw_version(payload)
     validate_k8s_version(payload)
 
     format_ip_address(payload)
@@ -1610,6 +1641,7 @@ def pre_deploy_bootstrap(
     # again:
     validate_system_controller_deploy_status("bootstrap")
     validate_bootstrap_playbook_for_sw_version(payload)
+    validate_platform_issuer_for_sw_version(payload)
     validate_k8s_version(payload)
 
 

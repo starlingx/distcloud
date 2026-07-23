@@ -452,8 +452,7 @@ TRANSITORY_PRESTAGE_STATES = {
 
 VIM_ORCHESTRATION_IN_PROGRESS_STATES = [DEPLOY_STATE_SW_DEPLOY_IN_PROGRESS]
 
-# The k8s secret that holds openldap CA certificate
-OPENLDAP_CA_CERT_SECRET_NAME = "system-local-ca"
+LOCAL_CA_SECRET_NAME = "system-local-ca"
 
 CERT_NAMESPACE_PLATFORM_CA_CERTS = "cert-manager"
 
@@ -468,6 +467,11 @@ ANSIBLE_SUBCLOUD_PLAYBOOK = "/usr/share/ansible/stx-ansible/playbooks/bootstrap.
 # which is incompatible with the ansible-core 2.19+ shipped in 26.09+.
 # TODO(ecandotti) Remove once this version is no longer supported as N-2.
 LAST_SW_VERSION_REQUIRING_ANSIBLE_COMPAT = "26.03"
+
+# Subclouds running releases below this version do not support ECDSA
+# keys for the platform issuer certificate.
+# TODO(rdossant) Remove once the N-2 release supports non-RSA keys.
+FIRST_SW_VERSION_SUPPORTING_ECDSA = "26.10"
 
 # Subcloud backup locations
 CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"

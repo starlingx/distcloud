@@ -13,6 +13,7 @@ import os
 import tarfile
 import tempfile
 
+import mock
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
@@ -20,6 +21,7 @@ from dccommon.endpoint_cache import EndpointCache
 from dcmanager.common import consts
 from dcmanager.common import phased_subcloud_deploy as psd_common
 from dcmanager.tests.base import DCManagerTestCase
+from dcmanager.tests.unit.common import fake_certificate
 from dcmanager.tests.unit.common import fake_subcloud
 
 
@@ -395,6 +397,40 @@ class TestCommonPhasedSubcloudDeploy(DCManagerTestCase):
             "on_site is not allowed with enroll=false",
         ):
             psd_common.validate_enroll_parameter(payload)
+
+    def test_validate_platform_issuer_for_sw_version_supported_version(self):
+        payload = {"software_version": "26.10"}
+        psd_common.validate_platform_issuer_for_sw_version(payload)
+
+    def test_validate_platform_issuer_for_sw_version_rsa_older_version(self):
+        payload = {"software_version": "26.03"}
+        mock_get_cert = self._mock_object(
+            psd_common.utils, "get_certificate_from_secret"
+        )
+        mock_get_cert.return_value = (
+            None,
+            fake_certificate.get_fake_rsa_private_key_pem(),
+            None,
+        )
+
+        psd_common.validate_platform_issuer_for_sw_version(payload)
+
+    def test_validate_platform_issuer_for_sw_version_ecdsa_older_version(self):
+        payload = {"software_version": "26.03"}
+        mock_get_cert = self._mock_object(
+            psd_common.utils, "get_certificate_from_secret"
+        )
+        mock_get_cert.return_value = (
+            None,
+            fake_certificate.get_fake_ecdsa_private_key_pem(),
+            None,
+        )
+
+        with self.assertRaisesRegex(Exception, "requires .* RSA key"):
+            psd_common.validate_platform_issuer_for_sw_version(payload)
+
+        self.mock_pecan_abort.assert_called_once()
+        self.mock_pecan_abort.assert_called_with(400, mock.ANY)
 
     def test_validate_tarball_not_tar(self):
         bad_data = b"not a tarfile"

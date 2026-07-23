@@ -356,6 +356,8 @@ class TestPhasedSubcloudDeployPatchBootstrap(
             ("bootstrap_values", "bootstrap_fake_filename", fake_content)
         ]
 
+        self._mock_object(psd_common, "validate_platform_issuer_for_sw_version")
+
     def _assert_payload(self):
         expected_payload = {
             **fake_subcloud.FAKE_BOOTSTRAP_VALUE,
@@ -490,6 +492,8 @@ class TestPhasedSubcloudDeployPatchBootstrapMgmt(
             consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
             fake_subcloud.FAKE_SOFTWARE_VERSION,
         )
+
+        self._mock_object(psd_common, "validate_platform_issuer_for_sw_version")
 
     def test_patch_bootstrap_mgmt_succeeds_default_config(self):
         """Test patch bootstrap succeeds with default management"""
@@ -704,6 +708,8 @@ class TestPhasedSubcloudDeployPatchBootstrapAdmin(
             consts.ANSIBLE_SUBCLOUD_PLAYBOOK,
             fake_subcloud.FAKE_SOFTWARE_VERSION,
         )
+
+        self._mock_object(psd_common, "validate_platform_issuer_for_sw_version")
 
     def test_patch_bootstrap_admin_succeeds_default_config(self):
         """Test patch bootstrap succeeds with default admin config"""
@@ -1069,6 +1075,7 @@ class TestPhasedSubcloudDeployPatchInstall(BaseTestPhasedSubcloudDeployPatch):
             psd_common, "get_subcloud_db_install_values"
         )
         self._mock_object(psd_common, "validate_k8s_version")
+        self._mock_object(psd_common, "validate_platform_issuer_for_sw_version")
         self.mock_get_request_data = self._mock_object(psd_common, "get_request_data")
 
         self.mock_get_subcloud_db_install_values.return_value = self.data_install
@@ -1414,6 +1421,7 @@ class TestPhasedSubcloudDeployPatchResume(BaseTestPhasedSubcloudDeployPatch):
             psd_common, "get_subcloud_db_install_values"
         )
         self._mock_object(psd_common, "validate_k8s_version")
+        self._mock_object(psd_common, "validate_platform_issuer_for_sw_version")
         self.mock_get_request_data = self._mock_object(psd_common, "get_request_data")
         self._setup_mock_get_request_data()
         self.mock_load_yaml_file = self._mock_object(dutils, "load_yaml_file")
