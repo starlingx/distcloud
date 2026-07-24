@@ -112,6 +112,7 @@ class User(base.Resource):
         last_active_at,
         local_user,
         extra={},
+        user_option=None,
     ):
         self.manager = manager
         self.id = id
@@ -122,6 +123,7 @@ class User(base.Resource):
         self.last_active_at = last_active_at
         self.extra = extra
         self.local_user = local_user
+        self.user_option = user_option if user_option is not None else []
 
     def to_dict(self):
         return {
@@ -136,6 +138,7 @@ class User(base.Resource):
             },
             "local_user": self.local_user.to_dict(),
             "password": [p.to_dict() for p in self.local_user.passwords],
+            "user_option": self.user_option,
         }
 
     def info(self):
@@ -222,6 +225,7 @@ class identity_user_manager(base.ResourceManager):
                 last_active_at=json_object["user"]["last_active_at"],
                 extra=json_object["user"]["extra"],
                 local_user=local_user,
+                user_option=json_object.get("user_option", []),
             )
 
             users.append(user)

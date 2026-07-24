@@ -202,7 +202,9 @@ class TestIdentitySyncThreadUsersPatch(
         super().setUp()
 
         self.method = self.identity_sync_thread.patch_users
-        self.request.orch_job.resource_info = f'{{"{self.resource_name}": {{}}}}'
+        self.request.orch_job.resource_info = (
+            f'{{"{self.resource_name}": {{"name": "updated"}}}}'
+        )
         self.resource_keystone_update = (
             self.identity_sync_thread.get_sc_ks_client().users.update
         )
