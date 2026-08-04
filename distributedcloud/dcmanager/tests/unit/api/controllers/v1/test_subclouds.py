@@ -270,6 +270,8 @@ class BaseTestSubcloudsController(DCManagerApiTest, SubcloudAPIMixin):
 
         self.mock_os_path_isfile = self._mock_object(os.path, "isfile")
 
+        self._mock_object(psd_common, "validate_platform_issuer_for_sw_version")
+
     def _update_subcloud(self, **kwargs):
         self.subcloud = db_api.subcloud_update(self.ctx, self.subcloud.id, **kwargs)
 
