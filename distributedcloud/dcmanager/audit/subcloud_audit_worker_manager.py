@@ -122,6 +122,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
 
         LOG.debug("PID: %s, subclouds to audit: %s" % (self.pid, subcloud_ids))
 
+        # Read the OIDC login config once per audit batch to avoid
+        # reading the file for each subcloud thread.
+        oidc_login_config = self._get_oidc_login_config()
+
         for subcloud_id in subcloud_ids:
             # Retrieve the subcloud and subcloud audit info
             try:
@@ -168,6 +172,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     do_kube_rootca_update_audit,
                     do_software_audit,
                     use_cache,
+                    oidc_login_config,
                 )
             )
 
@@ -215,6 +220,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         do_kube_rootca_update_audit: bool,
         do_software_audit: bool,
         use_cache: bool,
+        oidc_login_config=None,
     ):
         audits_done = list()
         # Do the actual subcloud audit.
@@ -231,6 +237,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
                 do_kube_rootca_update_audit,
                 do_software_audit,
                 use_cache,
+                oidc_login_config,
             )
         except Exception:
             LOG.exception("Got exception auditing subcloud: %s" % subcloud.name)
@@ -255,6 +262,22 @@ class SubcloudAuditWorkerManager(manager.Manager):
             and first_identity_sync_complete
         )
 
+    @staticmethod
+    def _get_oidc_login_config():
+        """Read the OIDC login config file if it exists.
+
+        Returns the file content as a string, or None if the file
+        does not exist (e.g., oidc-auth-apps not applied).
+        """
+        try:
+            with open(dccommon_consts.OIDC_LOGIN_CONFIG_PATH, "r") as f:
+                return f.read()
+        except FileNotFoundError:
+            return None
+        except Exception:
+            LOG.debug("Failed to read OIDC login config")
+            return None
+
     def _build_dcagent_payload(
         self,
         should_perform_additional_audit,
@@ -267,6 +290,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         do_kube_rootca_update_audit,
         do_software_audit,
         use_cache,
+        oidc_login_config,
     ):
         audit_payload = {dccommon_consts.BASE_AUDIT: ""}
         if should_perform_additional_audit:
@@ -283,6 +307,17 @@ class SubcloudAuditWorkerManager(manager.Manager):
         # If the audit was forced, we don't want to use the cache
         if not use_cache:
             audit_payload["use_cache"] = use_cache
+
+        # Include OIDC login config in extra_args for subclouds if the file
+        # exists on the system controller. Using extra_args ensures backward
+        # compatibility with N-1/N-2 subclouds that do not understand this
+        # field (they simply pop and ignore extra_args).
+        extra_args = {}
+        if oidc_login_config:
+            extra_args["oidc_login_config"] = oidc_login_config
+        if extra_args:
+            audit_payload["extra_args"] = extra_args
+
         return audit_payload
 
     def _update_sw_sync_status_from_deploy_status(self, subcloud, audit_results):
@@ -315,6 +350,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         do_kube_rootca_update_audit: bool,
         do_software_audit: bool,
         use_cache: bool,
+        oidc_login_config=None,
     ):
         """Audit a single subcloud."""
 
@@ -401,6 +437,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
             do_kube_rootca_update_audit,
             do_software_audit,
             use_cache,
+            oidc_login_config,
         )
         audit_results = {}
         try:
