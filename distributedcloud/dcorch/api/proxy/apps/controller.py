@@ -1068,7 +1068,57 @@ class USMAPIController(APIController):
             finally:
                 self._release_fd_lock(f)
 
+    def _cleanup_vault_for_reupload(self, response_data):
+        """Remove previous vault files for the release being re-uploaded.
+
+        When a release ISO is re-uploaded (same or different filename),
+        the existing files must be removed before the new ones are saved.
+        This ensures _check_disk_space sees the freed capacity and the
+        upload can proceed without "Not enough space" errors.
+        """
+        # Get the release ID from the upload response
+        release_id = None
+        for upload_file in self.upload_files:
+            base_name = os.path.basename(upload_file)
+            data = response_data.get(base_name)
+            if data is not None:
+                release_id = data.get("id")
+                break
+
+        if not release_id:
+            return
+
+        # Check if this release already has files in the vault
+        metadata = self.read_metadata()
+        old_files = metadata.get(release_id, [])
+        if not old_files:
+            return
+
+        # Remove old files from disk to free up space
+        all_removed = True
+        for old_file in old_files:
+            old_path = pathlib.Path(old_file)
+            if old_path.exists():
+                try:
+                    LOG.info(
+                        f"Removing previous file from vault for "
+                        f"release {release_id}: {old_path}"
+                    )
+                    old_path.unlink()
+                except OSError as e:
+                    LOG.error(f"Failed to remove old vault file {old_path}: {e}")
+                    all_removed = False
+
+        # Only clear metadata if all files were successfully removed.
+        # If any unlink failed, keep metadata intact so the orphan files
+        # remain tracked and _check_disk_space will correctly report
+        # insufficient space.
+        if all_removed:
+            self.remove_release_from_metadata(release_id)
+
     def _save_loads_to_vault(self, response_data):
+        self._cleanup_vault_for_reupload(response_data)
+
         for upload_file in self.upload_files:
             base_name = os.path.basename(upload_file)
             data = response_data.get(base_name)
