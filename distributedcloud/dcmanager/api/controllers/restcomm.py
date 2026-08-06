@@ -70,6 +70,8 @@ def extract_context_from_environ():
     return k_context.RequestContext(
         auth_type="oidc",
         oidc_token=oidc_token,
+        user=username,
+        project=_ADMIN_PROJECT_NAME,
         user_name=username,
         project_name=_ADMIN_PROJECT_NAME,
         roles=roles,
