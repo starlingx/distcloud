@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -155,11 +155,20 @@ _send_ipmi_command() {
 
 run_restore_playbook() {
     log "Starting automatic restore process"
-    export HOME=/home/sysadmin
 
-    if ! ansible-playbook "$ANSIBLE_PLAYBOOK" \
-        -e "@${RESTORE_CONFIG}" \
-        -e "override_files_dir=${HOME}" >> "$LOG_FILE" 2>&1; then
+    # The sysadmin password after a fresh install is the default one.
+    # The restore config contains the target password in ansible_become_pass.
+    # We need to set the system password to match before running the playbook,
+    # since the playbook validates ansible_become_pass against the system.
+    local target_password
+    target_password=$(grep "^ansible_become_pass:" "$RESTORE_CONFIG" | sed 's/ansible_become_pass: *//' | tr -d '"' | tr -d "'")
+    if [[ -n "$target_password" ]]; then
+        log "Setting sysadmin password to match ansible_become_pass"
+        echo "sysadmin:${target_password}" | chpasswd
+    fi
+
+    if ! sudo -u sysadmin ansible-playbook "$ANSIBLE_PLAYBOOK" \
+        -e "@${RESTORE_CONFIG}" >> "$LOG_FILE" 2>&1; then
         log "Restore playbook failed" "ERROR"
         send_ipmi_event "restore_failed"
         return 1
