@@ -337,6 +337,10 @@ class SubcloudAuditWorkerManager(manager.Manager):
             admin_session = endpoint_cache.EndpointCache.get_admin_session(
                 auth_url=subcloud_ks_endpoint
             )
+            # Force TLS verification against the DC root CA file directly
+            # to pick up renewed root CA certificates without requiring a
+            # process restart. This avoids stale SSL context caching.
+            admin_session.verify = dccommon_consts.DC_ROOT_CA_CERT_PATH
             dcagent_client = DcagentClient(
                 subcloud_region,
                 admin_session,

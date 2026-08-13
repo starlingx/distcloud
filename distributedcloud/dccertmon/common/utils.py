@@ -77,6 +77,7 @@ def update_subcloud_ca_cert(sc_name, sysinv_url, ca_crt, tls_crt, tls_key):
             headers=headers,
             json=payload,
             timeout=CONF.endpoint_cache.http_connect_timeout,
+            verify=constants.DC_ROOT_CA_CERT_PATH,
         )
         response.raise_for_status()
         resp_data = response.json()
@@ -112,7 +113,10 @@ def get_subcloud(subcloud_name):
 
     try:
         response = requests.get(
-            api_url, headers=headers, timeout=CONF.endpoint_cache.http_connect_timeout
+            api_url,
+            headers=headers,
+            timeout=CONF.endpoint_cache.http_connect_timeout,
+            verify=constants.DC_ROOT_CA_CERT_PATH,
         )
         response.raise_for_status()
         return response.json()
@@ -238,6 +242,7 @@ def _rest_api_request(admin_session, method, api_cmd, api_cmd_payload=None, time
             headers=headers,
             data=json.dumps(api_cmd_payload) if api_cmd_payload else None,
             timeout=timeout,
+            verify=constants.DC_ROOT_CA_CERT_PATH,
         )
         response.raise_for_status()
         return response.json() if response.content else {}
@@ -305,7 +310,7 @@ def get_endpoint_certificate(endpoint, timeout_secs=10):
     host = url.hostname
     port = url.port
 
-    context = ssl.create_default_context()
+    context = ssl.create_default_context(cafile=constants.DC_ROOT_CA_CERT_PATH)
     # In Python 3.9, ssl.get_server_certificate() does not support a timeout.
     # See: https://bugs.python.org/issue31870
     # To enforce a timeout and avoid indefinite blocking when the endpoint is down,
