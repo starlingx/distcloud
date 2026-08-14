@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -200,6 +200,7 @@ MONITORED_ALARM_ENTITIES = [
 # SSL cert
 CERT_CA_FILE_DEBIAN = "ca-cert.crt"
 SSL_CERT_CA_DIR = "/etc/pki/ca-trust/source/anchors/"
+SSL_CERT_CA_HOST_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
 
 # DCCertMon
 # Unique name of certificate

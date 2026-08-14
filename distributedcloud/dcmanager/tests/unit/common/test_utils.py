@@ -429,10 +429,14 @@ class TestGetRegionName(DCManagerTestCase):
 
         self.mock_get = mock.patch("dcmanager.common.utils.requests.get")
         self.mock_get_obj = self.mock_get.start()
+        self.mock_isfile = mock.patch("dcmanager.common.utils.os.path.isfile")
+        self.mock_isfile_obj = self.mock_isfile.start()
+        self.mock_isfile_obj.return_value = True
 
     def tearDown(self):
         super().tearDown()
         self.mock_get.stop()
+        self.mock_isfile.stop()
 
     def test_get_region_name_success(self):
         """Test get_region_name with successful response"""
@@ -443,6 +447,36 @@ class TestGetRegionName(DCManagerTestCase):
 
         result = self.get_region_name_func("https://10.10.10.12:6385")
         self.assertEqual(result, "test-region")
+
+    def test_get_region_name_uses_ca_bundle(self):
+        """Test get_region_name passes CA bundle when file exists"""
+        mock_response = mock.MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"region_name": "test-region"}
+        self.mock_get_obj.return_value = mock_response
+        self.mock_isfile_obj.return_value = True
+
+        self.get_region_name_func("https://10.10.10.12:6385")
+        self.mock_get_obj.assert_called_once_with(
+            "https://10.10.10.12:6385/v1/isystems/region_id",
+            timeout=dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
+            verify=dccommon_consts.SSL_CERT_CA_HOST_BUNDLE,
+        )
+
+    def test_get_region_name_falls_back_when_no_ca_bundle(self):
+        """Test get_region_name falls back to verify=True when no bundle"""
+        mock_response = mock.MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"region_name": "test-region"}
+        self.mock_get_obj.return_value = mock_response
+        self.mock_isfile_obj.return_value = False
+
+        self.get_region_name_func("https://10.10.10.12:6385")
+        self.mock_get_obj.assert_called_once_with(
+            "https://10.10.10.12:6385/v1/isystems/region_id",
+            timeout=dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT,
+            verify=True,
+        )
 
     def test_get_region_name_connection_error(self):
         """Test get_region_name with connection refused error"""
