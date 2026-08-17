@@ -160,11 +160,36 @@ run_restore_playbook() {
     # The restore config contains the target password in ansible_become_pass.
     # We need to set the system password to match before running the playbook,
     # since the playbook validates ansible_become_pass against the system.
+    #
+    # Use python3/yaml to extract the password so it's parsed identically to
+    # how Ansible reads the file via -e "@file". Shell grep/sed/tr strips
+    # YAML quoting characters which breaks passwords containing literal
+    # quotes or other YAML-special characters.
     local target_password
-    target_password=$(grep "^ansible_become_pass:" "$RESTORE_CONFIG" | sed 's/ansible_become_pass: *//' | tr -d '"' | tr -d "'")
+    target_password=$(python3 -c "
+import yaml, sys
+with open('${RESTORE_CONFIG}') as f:
+    data = yaml.safe_load(f)
+v = data.get('ansible_become_pass')
+if v is not None:
+    sys.stdout.write(str(v))
+" 2>/dev/null)
+
     if [[ -n "$target_password" ]]; then
         log "Setting sysadmin password to match ansible_become_pass"
-        echo "sysadmin:${target_password}" | chpasswd
+        printf '%s:%s\n' "sysadmin" "$target_password" | chpasswd
+    else
+        # ansible_become_pass is not in the config. This can happen for GRUB
+        # factory restore on subclouds that were set up before the credentials
+        # were included in the staged backup_restore_values.yml.
+        # After a fresh install the sysadmin password is the default "sysadmin".
+        # Set the system password and add the credentials to the config so
+        # the restore playbook password validation passes.
+        log "ansible_become_pass not found in config, adding default sysadmin credentials"
+        local default_password="St8rlingX*1234"
+        printf '%s:%s\n' "sysadmin" "$default_password" | chpasswd
+        set_config_value "ansible_become_pass" "\"${default_password}\"" "$RESTORE_CONFIG"
+        set_config_value "ansible_ssh_pass" "\"${default_password}\"" "$RESTORE_CONFIG"
     fi
 
     if ! sudo -u sysadmin ansible-playbook "$ANSIBLE_PLAYBOOK" \
