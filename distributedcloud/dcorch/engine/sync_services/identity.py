@@ -2190,9 +2190,20 @@ class IdentitySyncThread(SyncThread):
             return False
 
         # Compare user_option records (e.g., ignore_password_expiry,
-        # ignore_lockout_failure_attempts)
+        # ignore_lockout_failure_attempts).
+        # Skip comparison if subcloud's dcdbsync did not return
+        # user_option (N-1/N-2 subclouds running older code).
+        # None means the field was absent from the API response.
         m_options = m.user_option
         sc_options = sc.user_option
+        if sc_options is None:
+            # Subcloud running old dcdbsync that doesn't support
+            # user_option — skip comparison to avoid infinite sync.
+            return True
+
+        if m_options is None:
+            m_options = []
+
         if len(m_options) != len(sc_options):
             return False
 
