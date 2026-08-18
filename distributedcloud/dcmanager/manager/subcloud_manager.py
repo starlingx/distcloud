@@ -3010,7 +3010,7 @@ class SubcloudManager(manager.Manager):
                 restore_mode.auto_restore_mode,
                 payload.get("with_install"),
                 ipmi_sel_event_monitoring,
-                software_version=subcloud.software_version,
+                software_version=payload.get("software_version"),
             )
 
             return RestoreContext(

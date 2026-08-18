@@ -5901,7 +5901,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             "factory",
             True,  # with_install
             False,  # ipmi_sel_event_monitoring
-            software_version=self.subcloud.software_version,
+            software_version=payload.get("software_version"),
         )
 
         # Verify compose_install_command was called with skip_install_monitoring=True
@@ -5936,7 +5936,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             "factory",  # auto_restore_mode
             True,  # with_install
             True,  # ipmi_sel_event_monitoring
-            software_version=self.subcloud.software_version,
+            software_version=payload.get("software_version"),
         )
 
         # Verify compose_install_command was called with skip_install_monitoring=False
@@ -5980,7 +5980,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             "auto",  # auto_restore_mode
             None,  # with_install
             False,  # ipmi_sel_event_monitoring
-            software_version=self.subcloud.software_version,
+            software_version=payload.get("software_version"),
         )
 
         # Verify compose_install_command was not called
@@ -6061,7 +6061,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             "factory",
             True,  # with_install
             True,  # ipmi_sel_event_monitoring (default)
-            software_version=self.subcloud.software_version,
+            software_version=payload.get("software_version"),
         )
 
         self.assertEqual(result, (self.subcloud, True))
