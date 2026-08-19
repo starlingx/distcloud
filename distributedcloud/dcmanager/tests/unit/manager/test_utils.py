@@ -138,3 +138,35 @@ class TestUtils(base.DCManagerTestCase):
             install_values,
         )
         self.assertNotIn("secret", str(exc))
+
+    def test_get_last_sel_event_id_missing_bmc_fields(self):
+        test_cases = [
+            (
+                {},
+                ["bmc_address", "bmc_username", "bmc_password"],
+            ),
+            (
+                {"bmc_address": "10.64.8.246"},
+                ["bmc_username", "bmc_password"],
+            ),
+            (
+                {
+                    "bmc_address": "10.64.8.246",
+                    "bmc_username": "sysadmin",
+                },
+                ["bmc_password"],
+            ),
+            (
+                {"bmc_address": "", "bmc_username": "u", "bmc_password": "p"},
+                ["bmc_address"],
+            ),
+        ]
+
+        for install_values, expected_missing in test_cases:
+            exc = self.assertRaises(
+                ValueError,
+                utils.get_last_sel_event_id,
+                install_values,
+            )
+            for field in expected_missing:
+                self.assertIn(field, str(exc))

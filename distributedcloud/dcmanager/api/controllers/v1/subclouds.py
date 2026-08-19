@@ -1639,21 +1639,9 @@ class SubcloudsController(object):
 
             # Redeploy can't start if the BMC is unreachable.
             install_values = payload.get("install_values") or {}
-            if not cutils.bmc_is_reachable(install_values):
-                bmc_addr = install_values.get("bmc_address")
-                if bmc_addr:
-                    msg = (
-                        _(
-                            "Cannot reach the subcloud BMC (%s); verify "
-                            "connectivity and credentials before retrying."
-                        )
-                        % bmc_addr
-                    )
-                else:
-                    msg = _(
-                        "Subcloud install values are missing or have no BMC "
-                        "address; cannot start the redeploy."
-                    )
+            probe_result = cutils.bmc_is_reachable(install_values)
+            if not probe_result.reachable:
+                msg = _("Cannot start redeploy: %s") % probe_result.reason
                 LOG.warning(msg)
                 pecan.abort(422, msg)
 

@@ -4512,7 +4512,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
         )
 
-    @mock.patch("dcmanager.common.utils.subprocess.run")
+    @mock.patch.object(subcloud_manager.SubcloudManager, "_get_initial_sel_event_id")
     @mock.patch.object(subcloud_manager.SubcloudManager, "_stage_auto_restore_files")
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
@@ -4529,7 +4529,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         mock_create_overrides,
         mock_run_restore_playbook,
         mock_stage_auto_restore_files,
-        mock_run,
+        mock_get_sel,
     ):
         self.mock_run_subcloud_install = self._mock_object(
             subcloud_manager.SubcloudManager, "_run_subcloud_install"
@@ -4540,10 +4540,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         mock_create_overrides.return_value = "overrides_file.yml"
         self.mock_run_subcloud_install.return_value = (True, mock.MagicMock())
         mock_run_restore_playbook.return_value = True
-        mock_run.return_value = mock.Mock(
-            stdout=json.dumps({"last_event_id": "12345"}),
-            returncode=0,
-        )
+        mock_get_sel.return_value = "12345"
 
         values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
         values["factory"] = True
@@ -5925,6 +5922,11 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             returncode=0,
         )
 
+        mock_get_sel = self._mock_object(
+            subcloud_manager.SubcloudManager, "_get_initial_sel_event_id"
+        )
+        mock_get_sel.return_value = "12345"
+
         payload = self._create_payload(restore_mode="factory")
 
         result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
@@ -6047,6 +6049,11 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             stdout=json.dumps({"last_event_id": "12345"}),
             returncode=0,
         )
+
+        mock_get_sel = self._mock_object(
+            subcloud_manager.SubcloudManager, "_get_initial_sel_event_id"
+        )
+        mock_get_sel.return_value = "12345"
 
         payload = self._create_payload()
         payload["override_values"] = {}  # ipmi_sel_event_monitoring not specified

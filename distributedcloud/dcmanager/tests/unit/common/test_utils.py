@@ -13,6 +13,7 @@ import netaddr
 import requests
 
 from dccommon import consts as dccommon_consts
+from dccommon import utils as dccommon_utils
 from dcmanager.common import exceptions
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
@@ -526,7 +527,7 @@ class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
             self._bootstrap_dict(),
             None,
             requires_bmc=True,
-            bmc_reachable=True,
+            bmc_reachable=dccommon_utils.BmcProbeResult(True),
         )
 
     def test_vcsr_with_install_auto_mode_allowed(self):
@@ -538,7 +539,7 @@ class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
                 self._bootstrap_dict(),
                 auto_restore_mode="auto",
                 requires_bmc=True,
-                bmc_reachable=True,
+                bmc_reachable=dccommon_utils.BmcProbeResult(True),
             )
         )
 
@@ -551,7 +552,7 @@ class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
                 self._bootstrap_dict(),
                 auto_restore_mode="factory",
                 requires_bmc=True,
-                bmc_reachable=True,
+                bmc_reachable=dccommon_utils.BmcProbeResult(True),
             )
         )
 
@@ -565,7 +566,9 @@ class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
             self._bootstrap_dict(),
             None,
             requires_bmc=True,
-            bmc_reachable=False,
+            bmc_reachable=dccommon_utils.BmcProbeResult(
+                False, "Could not connect to BMC"
+            ),
         )
 
     def test_bmc_unreachable_blocks_under_carve_out(self):
@@ -578,7 +581,9 @@ class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
             self._bootstrap_dict(),
             "auto",
             requires_bmc=True,
-            bmc_reachable=False,
+            bmc_reachable=dccommon_utils.BmcProbeResult(
+                False, "Could not connect to BMC"
+            ),
         )
 
     def test_without_with_install_skips_new_checks(self):
@@ -589,7 +594,9 @@ class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
                 self.subcloud,
                 self._bootstrap_dict(),
                 None,
-                bmc_reachable=False,
+                bmc_reachable=dccommon_utils.BmcProbeResult(
+                    False, "Could not connect to BMC"
+                ),
             )
         )
 

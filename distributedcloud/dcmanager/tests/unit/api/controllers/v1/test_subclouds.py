@@ -1654,7 +1654,7 @@ class BaseTestSubcloudsPatch(BaseTestSubcloudsController):
         self.mock_bmc_is_reachable = self._mock_object(
             subclouds.cutils, "bmc_is_reachable"
         )
-        self.mock_bmc_is_reachable.return_value = True
+        self.mock_bmc_is_reachable.return_value = subclouds.cutils.BmcProbeResult(True)
 
         self.mock_get_vault_load_files.return_value = (
             FAKE_SUBCLOUD_INSTALL_VALUES["image"],
@@ -3055,16 +3055,17 @@ class TestSubcloudsPatchRedeploy(BaseTestSubcloudsPatch):
 
     def test_patch_redeploy_fails_when_bmc_unreachable(self):
         """Test redeploy of a non-vCSR subcloud with unreachable BMC fails."""
-        self.mock_bmc_is_reachable.return_value = False
+        bmc_addr = self.install_data["bmc_address"]
+        self.mock_bmc_is_reachable.return_value = subclouds.cutils.BmcProbeResult(
+            False, f"Could not connect to {bmc_addr}"
+        )
 
         response = self._send_request()
 
-        bmc_addr = self.install_data["bmc_address"]
         self._assert_pecan_and_response(
             response,
             http.client.UNPROCESSABLE_ENTITY,
-            f"Cannot reach the subcloud BMC ({bmc_addr}); verify "
-            "connectivity and credentials before retrying.",
+            f"Cannot start redeploy: Could not connect to {bmc_addr}",
         )
         self.mock_rpc_client().redeploy_subcloud.assert_not_called()
 

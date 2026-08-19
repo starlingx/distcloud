@@ -102,7 +102,7 @@ class BaseTestSubcloudBackupController(DCManagerApiTest):
         self.mock_bmc_is_reachable = self._mock_object(
             dccommon_utils, "bmc_is_reachable"
         )
-        self.mock_bmc_is_reachable.return_value = True
+        self.mock_bmc_is_reachable.return_value = dccommon_utils.BmcProbeResult(True)
 
     def _update_subcloud(
         self,
@@ -1373,7 +1373,7 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
             enrolled_with_vcsr=True,
         )
         self.params["with_install"] = "True"
-        self.mock_bmc_is_reachable.return_value = True
+        self.mock_bmc_is_reachable.return_value = dccommon_utils.BmcProbeResult(True)
 
         response = self._send_request()
 
@@ -1396,7 +1396,9 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
             enrolled_with_vcsr=True,
         )
         self.params["with_install"] = "True"
-        self.mock_bmc_is_reachable.return_value = False
+        self.mock_bmc_is_reachable.return_value = dccommon_utils.BmcProbeResult(
+            False, "Could not connect to 10.0.0.1"
+        )
 
         response = self._send_request()
 
@@ -1419,15 +1421,18 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
             enrolled_with_vcsr=False,
         )
         self.params["with_install"] = "True"
-        self.mock_bmc_is_reachable.return_value = False
+        self.mock_bmc_is_reachable.return_value = dccommon_utils.BmcProbeResult(
+            False, "Could not connect to 10.0.0.1"
+        )
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response,
             http.client.BAD_REQUEST,
-            f"Subcloud {self.subcloud.name} BMC is not reachable; cannot perform "
-            "restore-with-install.",
+            f"Subcloud {self.subcloud.name} BMC is not reachable"
+            " (Could not connect to 10.0.0.1); "
+            "cannot perform restore-with-install.",
         )
         self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
 
