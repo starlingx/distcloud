@@ -866,8 +866,10 @@ def get_region_name(
     endpoint, timeout=dccommon_consts.SYSINV_CLIENT_REST_DEFAULT_TIMEOUT
 ):
     url = endpoint + "/v1/isystems/region_id"
+    ca_bundle = dccommon_consts.SSL_CERT_CA_HOST_BUNDLE
+    verify = ca_bundle if os.path.isfile(ca_bundle) else True
     try:
-        response = requests.get(url, timeout=timeout)
+        response = requests.get(url, timeout=timeout, verify=verify)
 
         if response.status_code == 200:
             data = response.json()

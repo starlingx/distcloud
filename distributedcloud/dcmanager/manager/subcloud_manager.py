@@ -2119,8 +2119,14 @@ class SubcloudManager(manager.Manager):
                 region_name=subcloud_region_name,
             )
 
-        except Exception:
-            LOG.exception(f"Failed to enroll subcloud {subcloud.name}")
+        except Exception as e:
+            if isinstance(e, exceptions.ServiceUnavailable):
+                LOG.error(
+                    f"Failed to enroll subcloud {subcloud.name}: "
+                    "subcloud sysinv endpoint is unavailable"
+                )
+            else:
+                LOG.exception(f"Failed to enroll subcloud {subcloud.name}")
             db_api.subcloud_update(
                 context,
                 subcloud_id,
