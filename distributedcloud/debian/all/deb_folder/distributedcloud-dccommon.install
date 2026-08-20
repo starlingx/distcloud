@@ -8,4 +8,5 @@ usr/local/bin/execute-restore.sh
 usr/local/bin/dc_script_common.py
 usr/local/bin/update_region_name.py
 usr/local/bin/post_clone_identity_reset.py
+usr/local/bin/pre-factory-install-clone.sh
 usr/lib/systemd/system/dc-auto-restore.service
