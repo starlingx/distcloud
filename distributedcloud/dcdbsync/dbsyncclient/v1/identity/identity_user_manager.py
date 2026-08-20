@@ -123,10 +123,13 @@ class User(base.Resource):
         self.last_active_at = last_active_at
         self.extra = extra
         self.local_user = local_user
-        self.user_option = user_option if user_option is not None else []
+        # Keep None as sentinel to distinguish "field absent from API
+        # response" (old N-1/N-2 dcdbsync) from "field present but empty"
+        # (new dcdbsync, user has no options set).
+        self.user_option = user_option
 
     def to_dict(self):
-        return {
+        result = {
             "user": {
                 "id": self.id,
                 "extra": self.extra,
@@ -138,8 +141,10 @@ class User(base.Resource):
             },
             "local_user": self.local_user.to_dict(),
             "password": [p.to_dict() for p in self.local_user.passwords],
-            "user_option": self.user_option,
         }
+        if self.user_option is not None:
+            result["user_option"] = self.user_option
+        return result
 
     def info(self):
         resource_info = dict()
@@ -225,7 +230,7 @@ class identity_user_manager(base.ResourceManager):
                 last_active_at=json_object["user"]["last_active_at"],
                 extra=json_object["user"]["extra"],
                 local_user=local_user,
-                user_option=json_object.get("user_option", []),
+                user_option=json_object.get("user_option"),
             )
 
             users.append(user)
