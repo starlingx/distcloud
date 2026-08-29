@@ -358,10 +358,10 @@ class SubcloudManager(manager.Manager):
         ]
 
         if bmc_access_only:
-            install_command += ["-e", f"bmc_access_only={bmc_access_only}"]
+            install_command += ["-e", '{"bmc_access_only": true}']
 
         if skip_monitoring:
-            install_command += ["-e", f"skip_monitoring={skip_monitoring}"]
+            install_command += ["-e", '{"skip_monitoring": true}']
 
         return install_command
 
@@ -575,9 +575,14 @@ class SubcloudManager(manager.Manager):
             # When auto-restoring on pre-installed subclouds, we need to use a
             # seed iso to transfer the central backup and overrides to the subcloud
             if auto_restore_mode == "auto" and not with_install:
-                backup_command += ["-e", "mount_seed_iso=true"]
-            if ipmi_sel_event_monitoring is not None:
-                backup_command += ["-e", f"{ipmi_sel_event_monitoring=}"]
+                backup_command += ["-e", '{"mount_seed_iso": true}']
+            # The playbook defaults ipmi_sel_event_monitoring to true, so we
+            # only need to pass it explicitly when disabling it.
+            if ipmi_sel_event_monitoring is False:
+                backup_command += [
+                    "-e",
+                    '{"ipmi_sel_event_monitoring": false}',
+                ]
 
         return backup_command
 

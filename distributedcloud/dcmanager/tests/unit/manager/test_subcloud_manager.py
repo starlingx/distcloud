@@ -3245,7 +3245,16 @@ class TestSubcloudCompose(BaseTestSubcloudManager):
             FAKE_PREVIOUS_SW_VERSION,
             bmc_access_only=True,
         )
-        self.assertIn("bmc_access_only=True", install_command)
+        self.assertIn('{"bmc_access_only": true}', install_command)
+
+    def test_compose_install_command_with_skip_monitoring(self):
+        install_command = self.sm.compose_install_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            FAKE_PREVIOUS_SW_VERSION,
+            skip_monitoring=True,
+        )
+        self.assertIn('{"skip_monitoring": true}', install_command)
 
     @mock.patch("os.path.isfile")
     def test_compose_bootstrap_command(self, mock_isfile):
@@ -4596,8 +4605,9 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             ipmi_sel_event_monitoring=True,
         )
 
-        # Verify the ipmi_sel_event_monitoring parameter is in the command
-        self.assertIn("ipmi_sel_event_monitoring=True", restore_command)
+        # The playbook defaults ipmi_sel_event_monitoring to true, so when
+        # enabled the parameter is not passed explicitly.
+        self.assertNotIn("ipmi_sel_event_monitoring", " ".join(restore_command))
 
     def test_compose_backup_restore_command_without_ipmi_sel_monitoring(self):
         inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
@@ -4612,6 +4622,21 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
 
         # Verify the ipmi_sel_event_monitoring parameter is NOT in the command
         self.assertNotIn("ipmi_sel_event_monitoring", " ".join(restore_command))
+
+    def test_compose_backup_restore_command_ipmi_sel_monitoring_disabled(self):
+        inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
+
+        restore_command = self.sm.compose_backup_restore_command(
+            subcloud_name=self.subcloud.name,
+            ansible_subcloud_inventory_file=inventory_file,
+            auto_restore_mode="factory",
+            with_install=True,
+            ipmi_sel_event_monitoring=False,
+        )
+
+        # The playbook defaults ipmi_sel_event_monitoring to true, so the
+        # disabled state must be passed explicitly as false.
+        self.assertIn('{"ipmi_sel_event_monitoring": false}', restore_command)
 
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
@@ -4982,7 +5007,7 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             f"rvmc_config_file={ANS_PATH}/subcloud1/"
             f"{dccommon_consts.RVMC_CONFIG_FILE_NAME}",
             "-e",
-            "mount_seed_iso=true",
+            '{"mount_seed_iso": true}',
         ]
         self.assertEqual(restore_command, expected)
 
