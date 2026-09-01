@@ -66,12 +66,22 @@ class TestBmcIsReachable(base.DCCommonTestCase):
         self.addCleanup(patcher.stop)
         self.mock_get.return_value = mock.MagicMock(status_code=200)
 
-    def _call(self, **overrides):
-        install_values = {"bmc_address": self.BMC_ADDR_V4, **overrides}
-        return utils.bmc_is_reachable(install_values)
+    def _call(self, timeout_seconds=None, **overrides):
+        install_values = {
+            "bmc_address": self.BMC_ADDR_V4,
+            "bmc_username": "root",
+            "bmc_password": "secret",
+            **overrides,
+        }
+        kwargs = {}
+        if timeout_seconds is not None:
+            kwargs["timeout_seconds"] = timeout_seconds
+        return utils.bmc_is_reachable(install_values, **kwargs)
 
-    def test_returns_true_on_2xx_and_uses_expected_url_options(self):
-        self.assertTrue(self._call())
+    def test_returns_reachable_on_2xx_and_uses_expected_url_options(self):
+        result = self._call()
+        self.assertTrue(result.reachable)
+        self.assertEqual(result.reason, "")
         self.mock_get.assert_called_once_with(
             f"https://{self.BMC_ADDR_V4}/redfish/v1/",
             timeout=3,
@@ -79,17 +89,20 @@ class TestBmcIsReachable(base.DCCommonTestCase):
             allow_redirects=False,
         )
 
-    def test_returns_true_on_3xx(self):
+    def test_returns_reachable_on_3xx(self):
         self.mock_get.return_value = mock.MagicMock(status_code=301)
-        self.assertTrue(self._call())
+        result = self._call()
+        self.assertTrue(result.reachable)
 
-    def test_returns_false_on_error_status_codes(self):
+    def test_returns_not_reachable_on_error_status_codes(self):
         for code in (401, 403, 404, 500, 503):
             with self.subTest(status_code=code):
                 self.mock_get.return_value = mock.MagicMock(status_code=code)
-                self.assertFalse(self._call())
+                result = self._call()
+                self.assertFalse(result.reachable)
+                self.assertIn(str(code), result.reason)
 
-    def test_returns_false_on_request_exceptions(self):
+    def test_returns_not_reachable_on_request_exceptions(self):
         for exc in (
             utils.requests.exceptions.ConnectTimeout,
             utils.requests.exceptions.ReadTimeout,
@@ -98,26 +111,47 @@ class TestBmcIsReachable(base.DCCommonTestCase):
         ):
             with self.subTest(exc=exc.__name__):
                 self.mock_get.side_effect = exc()
-                self.assertFalse(self._call())
+                result = self._call()
+                self.assertFalse(result.reachable)
+                self.assertNotEqual(result.reason, "")
 
     def test_uses_brackets_for_ipv6(self):
-        utils.bmc_is_reachable({"bmc_address": self.BMC_ADDR_V6})
+        utils.bmc_is_reachable(
+            {
+                "bmc_address": self.BMC_ADDR_V6,
+                "bmc_username": "root",
+                "bmc_password": "secret",
+            }
+        )
         url = self.mock_get.call_args[0][0]
         self.assertEqual(url, f"https://[{self.BMC_ADDR_V6}]/redfish/v1/")
 
-    def test_returns_false_when_install_values_empty_or_none(self):
-        self.assertFalse(utils.bmc_is_reachable({}))
-        self.assertFalse(utils.bmc_is_reachable(None))
+    def test_returns_not_reachable_when_install_values_empty_or_none(self):
+        result_empty = utils.bmc_is_reachable({})
+        result_none = utils.bmc_is_reachable(None)
+        self.assertFalse(result_empty.reachable)
+        self.assertFalse(result_none.reachable)
         self.mock_get.assert_not_called()
 
-    def test_returns_false_when_bmc_address_missing(self):
-        self.assertFalse(utils.bmc_is_reachable({"bmc_username": "root"}))
+    def test_returns_not_reachable_when_bmc_fields_missing(self):
+        result = utils.bmc_is_reachable({"bmc_username": "root"})
+        self.assertFalse(result.reachable)
+        self.assertIn("bmc_address", result.reason)
+        self.assertIn("bmc_password", result.reason)
         self.mock_get.assert_not_called()
 
-    def test_returns_false_when_bmc_address_invalid(self):
-        self.assertFalse(utils.bmc_is_reachable({"bmc_address": "not-an-ip"}))
+    def test_returns_not_reachable_when_bmc_address_invalid(self):
+        result = utils.bmc_is_reachable(
+            {
+                "bmc_address": "not-an-ip",
+                "bmc_username": "root",
+                "bmc_password": "secret",
+            }
+        )
+        self.assertFalse(result.reachable)
+        self.assertIn("not-an-ip", result.reason)
         self.mock_get.assert_not_called()
 
     def test_propagates_timeout_argument(self):
-        utils.bmc_is_reachable({"bmc_address": self.BMC_ADDR_V4}, timeout_seconds=5)
+        self._call(timeout_seconds=5)
         self.assertEqual(self.mock_get.call_args[1]["timeout"], 5)

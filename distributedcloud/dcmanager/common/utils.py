@@ -1148,13 +1148,13 @@ def is_subcloud_in_transient_state(subcloud: models.Subcloud, should_abort=False
 
 
 def is_valid_for_backup_operation(
-    operation,
-    subcloud,
-    bootstrap_address_dict=None,
-    auto_restore_mode=None,
-    local_delete=False,
-    requires_bmc=False,
-    bmc_reachable=None,
+    operation: str,
+    subcloud: models.Subcloud,
+    bootstrap_address_dict: Optional[dict] = None,
+    auto_restore_mode: Optional[str] = None,
+    local_delete: bool = False,
+    requires_bmc: bool = False,
+    bmc_reachable: Optional[cutils.BmcProbeResult] = None,
 ):
     """Validate if a subcloud is ready for a backup operation
 
@@ -1167,8 +1167,8 @@ def is_valid_for_backup_operation(
         local_delete: If True, delete operation is local_only. Defaults to False
         requires_bmc: True when the restore path needs the BMC to be reachable.
             Enables the vCSR + BMC reachability checks. Defaults to False.
-        bmc_reachable: Reachability state (True or False) for the subcloud's
-            BMC. None skips the check.
+        bmc_reachable: BmcProbeResult for the subcloud's BMC, or None to skip
+            the check. '.reachable' is True/False; '.reason' explains failures.
 
     Returns:
         bool: True if the subcloud is valid for the operation
@@ -1267,11 +1267,11 @@ def get_bootstrap_values(subcloud: models.Subcloud) -> dict:
 
 
 def _is_valid_for_backup_restore(
-    subcloud,
-    bootstrap_address_dict=None,
-    auto_restore_mode=None,
-    requires_bmc=False,
-    bmc_reachable=None,
+    subcloud: models.Subcloud,
+    bootstrap_address_dict: Optional[dict] = None,
+    auto_restore_mode: Optional[str] = None,
+    requires_bmc: bool = False,
+    bmc_reachable: Optional[cutils.BmcProbeResult] = None,
 ):
     """Validate if a subcloud is ready for backup restoration.
 
@@ -1283,8 +1283,8 @@ def _is_valid_for_backup_restore(
             the subcloud is simplex. Defaults to None.
         requires_bmc: True when the restore path needs the BMC to be reachable.
             Enables the vCSR + BMC reachability checks. Defaults to False.
-        bmc_reachable: Reachability state (True or False) for the subcloud's
-            BMC. None skips the check.
+        bmc_reachable: BmcProbeResult for the subcloud's BMC, or None to skip
+            the check. '.reachable' is True/False; '.reason' explains failures.
 
     Returns:
         bool: True if validation passes.
@@ -1300,10 +1300,11 @@ def _is_valid_for_backup_restore(
                 f"Subcloud {subcloud.name} is vCSR-enrolled; "
                 "restore-with-install is not supported."
             )
-        if bmc_reachable is False:
+        if bmc_reachable is not None and not bmc_reachable.reachable:
+            reason = f" ({bmc_reachable.reason})" if bmc_reachable.reason else ""
             raise exceptions.ValidateFail(
-                f"Subcloud {subcloud.name} BMC is not reachable; cannot "
-                "perform restore-with-install."
+                f"Subcloud {subcloud.name} BMC is not reachable{reason}; "
+                "cannot perform restore-with-install."
             )
 
     msg = None
@@ -2930,6 +2931,23 @@ def is_active_controller(host):
 
 
 def get_last_sel_event_id(install_values: dict) -> str:
+    """Get the last SEL event ID from the BMC.
+
+    :param install_values: Dictionary containing BMC credentials
+        (bmc_address, bmc_username, bmc_password)
+    :return: The last SEL event ID as a string
+    :raises ValueError: If required BMC fields are missing
+    :raises RuntimeError: If the IPMI command fails
+    """
+    required_fields = ("bmc_address", "bmc_username", "bmc_password")
+    missing = [f for f in required_fields if not install_values.get(f)]
+    if missing:
+        raise ValueError(
+            "Missing required BMC field(s) in install values: "
+            f"{', '.join(missing)}. "
+            "Remote factory restore requires BMC credentials."
+        )
+
     bmc_address = install_values.get("bmc_address")
 
     cmd = [

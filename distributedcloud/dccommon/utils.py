@@ -23,6 +23,7 @@ import random
 import threading
 import time
 from typing import Callable
+from typing import NamedTuple
 
 from eventlet.green import subprocess
 from eventlet import greenpool
@@ -500,17 +501,32 @@ def safe_parse_install_values(data_install) -> dict:
         return {}
 
 
-def bmc_is_reachable(install_values, timeout_seconds: int = 3) -> bool:
+class BmcProbeResult(NamedTuple):
+    reachable: bool
+    reason: str = ""
+
+
+def bmc_is_reachable(install_values, timeout_seconds: int = 3) -> BmcProbeResult:
     """Verify if BMC is reachable through Redfish request."""
     if not install_values:
-        return False
-    bmc_address = install_values.get("bmc_address")
-    if not bmc_address:
-        return False
+        return BmcProbeResult(False, "Missing install values")
+
+    missing_bmc_values = []
+    for value in consts.BMC_INSTALL_VALUES:
+        if not install_values.get(value):
+            missing_bmc_values.append(value)
+
+    if missing_bmc_values:
+        return BmcProbeResult(
+            False, f"Missing BMC values: {', '.join(missing_bmc_values)}"
+        )
+
+    bmc_address = install_values["bmc_address"]
+
     try:
         is_v6 = netaddr.IPAddress(bmc_address).version == 6
     except (netaddr.AddrFormatError, ValueError):
-        return False
+        return BmcProbeResult(False, f"Invalid BMC address: {bmc_address}")
 
     host = f"[{bmc_address}]" if is_v6 else bmc_address
     url = f"https://{host}/redfish/v1/"
@@ -522,20 +538,25 @@ def bmc_is_reachable(install_values, timeout_seconds: int = 3) -> bool:
             verify=False,
             allow_redirects=False,
         )
-    except (
-        requests.exceptions.ConnectTimeout,
-        requests.exceptions.ReadTimeout,
-        requests.exceptions.ConnectionError,
-        requests.exceptions.SSLError,
-    ):
-        return False
+    except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout) as e:
+        return BmcProbeResult(False, f"Timed out connecting to {host}: {e}")
+    except requests.exceptions.SSLError as e:
+        return BmcProbeResult(False, f"SSL error connecting to {host}: {e}")
+    except requests.exceptions.ConnectionError as e:
+        return BmcProbeResult(False, f"Could not connect to {host}: {e}")
 
-    return resp.status_code < 400
+    if resp.status_code >= 400:
+        return BmcProbeResult(
+            False,
+            f"BMC at {host} returned HTTP {resp.status_code}",
+        )
+
+    return BmcProbeResult(True)
 
 
 def probe_bmcs_in_parallel(
     subclouds: list, pool_size: int = MAX_PARALLEL_SUBCLOUD_BMC_PROBE
-) -> dict:
+) -> dict[int, BmcProbeResult]:
     """Probe each subcloud's BMC in parallel."""
     if not subclouds:
         return {}

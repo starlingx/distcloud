@@ -8,6 +8,7 @@ import base64
 from collections import namedtuple
 import json
 import os
+from typing import Optional
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -26,6 +27,7 @@ from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
+from dcmanager.db.sqlalchemy.models import Subcloud
 from dcmanager.rpc import client as rpc_client
 
 CONF = cfg.CONF
@@ -184,14 +186,14 @@ class SubcloudBackupController(object):
 
     @staticmethod
     def _validate_subclouds(
-        request_entity,
-        operation,
-        bootstrap_address_dict=None,
-        auto_restore_mode=None,
-        local_delete=False,
-        requires_bmc=False,
-        bmc_reachable_by_id=None,
-    ):
+        request_entity: RequestEntity,
+        operation: str,
+        bootstrap_address_dict: Optional[dict] = None,
+        auto_restore_mode: Optional[str] = None,
+        local_delete: bool = False,
+        requires_bmc: bool = False,
+        bmc_reachable_by_id: Optional[dict[int, dccommon_utils.BmcProbeResult]] = None,
+    ) -> list[Subcloud]:
         """Validate the subcloud according to the operation
 
         Create/Delete: The subcloud is managed, online and in complete state.
@@ -218,7 +220,7 @@ class SubcloudBackupController(object):
         has_valid_subclouds = False
         valid_subclouds = list()
         for subcloud in subclouds:
-            bmc_reachable = (
+            bmc_probe_result = (
                 bmc_reachable_by_id.get(subcloud.id)
                 if bmc_reachable_by_id is not None
                 else None
@@ -231,7 +233,7 @@ class SubcloudBackupController(object):
                     auto_restore_mode,
                     local_delete,
                     requires_bmc=requires_bmc,
-                    bmc_reachable=bmc_reachable,
+                    bmc_reachable=bmc_probe_result,
                 )
                 if is_valid:
                     valid_subclouds.append(subcloud)
