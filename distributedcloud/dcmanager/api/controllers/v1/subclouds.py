@@ -268,11 +268,6 @@ class SubcloudsController(object):
             )
             pecan.abort(422, _(abort_msg))
 
-        # Check if any network values are already in use
-        for param in SUBCLOUD_MANDATORY_NETWORK_PARAMS:
-            if payload.get(param) == getattr(subcloud, param):
-                pecan.abort(422, _("%s already in use by the subcloud.") % param)
-
         # Check password and decode it
         sysadmin_password = payload.get("sysadmin_password")
         if not sysadmin_password:
@@ -289,7 +284,10 @@ class SubcloudsController(object):
             LOG.exception(msg)
             pecan.abort(400, msg)
 
-        subclouds = db_api.subcloud_get_all(context)
+        # Exclude the subcloud being reconfigured from the overlap check;
+        # otherwise its current range would overlap with the new range it is
+        # being updated to (same subnet), causing a false positive.
+        subclouds = [s for s in db_api.subcloud_get_all(context) if s.id != subcloud.id]
 
         psd_common.validate_admin_network_config(
             payload.get("management_subnet"),

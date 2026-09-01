@@ -42,6 +42,7 @@ from dcmanager.common import prestage
 from dcmanager.common import utils as cutils
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
+from dcmanager.tests import base
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
 from dcmanager.tests.unit.api.controllers.v1.mixins import PostMixin
 from dcmanager.tests.unit.api.test_root_controller import DCManagerApiTest
@@ -2338,18 +2339,66 @@ class TestSubcloudsPatchWithNetworkReconfiguration(BaseTestSubcloudsPatch):
                 index,
             )
 
-    def test_patch_with_network_reconfig_fails_with_value_in_use(self):
-        """Test patch with network reconfig fails with value in use"""
+    def test_patch_with_network_reconfig_succeeds_with_range_only_change(self):
+        """Test patch with network reconfig changing only the IP range"""
 
-        self.params["management_end_ip"] = self.subcloud.management_end_ip
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        # Keep the subcloud's current subnet and gateway, change only the range
+        # to a different one derived from that same subnet.
+        subnet = netaddr.IPNetwork(self.subcloud.management_subnet)
+        new_start_ip = str(subnet[10])
+        new_end_ip = str(subnet[49])
+
+        self.params["management_subnet"] = self.subcloud.management_subnet
+        self.params["management_gateway_ip"] = self.subcloud.management_gateway_ip
+        self.params["management_start_ip"] = new_start_ip
+        self.params["management_end_ip"] = new_end_ip
+        self.params["bootstrap_address"] = new_start_ip
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+        update_subcloud_with_network_reconfig = (
+            self.mock_rpc_client().update_subcloud_with_network_reconfig
+        )
+        update_subcloud_with_network_reconfig.assert_called_once_with(
+            mock.ANY, self.subcloud.id, mock.ANY
+        )
+
+    def test_patch_with_network_reconfig_fails_with_overlapping_subcloud_range(self):
+        """Test patch with network reconfig fails overlapping another subcloud
+
+        The range being applied to the subcloud must not overlap with the
+        management range of a different subcloud. The subcloud being
+        reconfigured is excluded from the overlap check, so the conflict must
+        come from another subcloud's network.
+        """
+
+        self._update_subcloud(availability_status=dccommon_consts.AVAILABILITY_ONLINE)
+
+        # Create a second subcloud whose management range overlaps with the
+        # range the primary subcloud is being reconfigured to.
+        other_subcloud = fake_subcloud.create_fake_subcloud(
+            self.ctx,
+            name=base.SUBCLOUD_2["name"],
+            region_name=base.SUBCLOUD_2["region_name"],
+            management_subnet=self.params["management_subnet"],
+            management_gateway_ip=self.params["management_gateway_ip"],
+            management_start_ip=self.params["management_start_ip"],
+            management_end_ip=self.params["management_end_ip"],
+        )
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response,
-            http.client.UNPROCESSABLE_ENTITY,
-            "management_end_ip already in use by the subcloud.",
+            http.client.BAD_REQUEST,
+            "Admin address range overlaps with that of subcloud "
+            f"{other_subcloud.name}",
         )
+        self.mock_rpc_client().update_subcloud_with_network_reconfig.assert_not_called()
 
     def test_patch_with_network_reconfig_fails_without_sysadmin_password(self):
         """Test patch with network reconfig fails without sysadmin password"""
