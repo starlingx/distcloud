@@ -8,6 +8,7 @@ ConditionPathExists=/opt/platform-backup/auto-restore
 Type=simple
 User=root
 ExecStart=/usr/local/bin/execute-restore.sh
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target
