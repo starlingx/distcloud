@@ -27,6 +27,14 @@ readonly LOG_FILE="/var/log/auto-restore.log"
 readonly OPENRC_FILE="/etc/platform/openrc"
 readonly ANSIBLE_PLAYBOOK="/usr/share/ansible/stx-ansible/playbooks/restore_platform.yml"
 readonly AUTO_RESTORE_COMPLETE_FLAG="/var/run/.auto_restore_complete"
+# Persistent cloud-init disable marker created by the LAT installer during
+# onsite_restore (see kickstart miniboot.cfg).
+readonly CLOUD_INIT_DISABLED_MARKER="/etc/cloud/cloud-init.disabled"
+# Seed-ISO trigger installed by the factory-install seed arming. Once this
+# system has become an enrolled subcloud, these are removed so a still-attached
+# CIDATA seed ISO cannot re-trigger the onsite restore flow on later boots.
+readonly SEED_UDEV_RULE="/etc/udev/rules.d/99-seediso.rules"
+readonly SEED_SERVICE_UNIT="/etc/systemd/system/cloud-init-seed.service"
 
 log() {
     local level="${2:-INFO}"
@@ -80,6 +88,58 @@ send_ipmi_event() {
 cleanup() {
     log "Removing auto-restore directory to prevent future triggers"
     rm -rf "$CONFIG_DIR" || log "Failed to remove auto-restore directory" "WARN"
+    resolve_cloud_init_state
+}
+
+# Resolve cloud-init state at a terminal restore state (complete or give-up):
+#   - Enrolled subcloud: ensure cloud-init stays DISABLED (create the marker if
+#     absent) so an attached CIDATA seed is not consumed by the init-system
+#     cloud-init and overwrite the DC-managed OAM. Companion to
+#     disarm_seed_trigger, which closes the independent udev/seed-service path.
+#   - Otherwise (factory restore to standalone, or failure before subcloud
+#     identity applied): re-enable cloud-init so a later enrollment or recovery
+#     seed ISO can run.
+resolve_cloud_init_state() {
+    if grep -q '^distributed_cloud_role=subcloud' /etc/platform/platform.conf 2>/dev/null; then
+        if [ ! -f "$CLOUD_INIT_DISABLED_MARKER" ]; then
+            log "Enrolled subcloud; disabling cloud-init (creating $CLOUD_INIT_DISABLED_MARKER)"
+            mkdir -p "$(dirname "$CLOUD_INIT_DISABLED_MARKER")" 2>/dev/null
+            touch "$CLOUD_INIT_DISABLED_MARKER" \
+                || log "Failed to create cloud-init disabled marker" "WARN"
+        else
+            log "Enrolled subcloud; cloud-init already disabled"
+        fi
+        return 0
+    fi
+    if [ -f "$CLOUD_INIT_DISABLED_MARKER" ]; then
+        log "Re-enabling cloud-init (removing $CLOUD_INIT_DISABLED_MARKER)"
+        rm -f "$CLOUD_INIT_DISABLED_MARKER" \
+            || log "Failed to remove cloud-init disabled marker" "WARN"
+    fi
+}
+
+# Disarm the seed-ISO trigger once the system has become an enrolled subcloud,
+# so a still-attached CIDATA seed ISO cannot re-trigger the onsite restore flow
+# on subsequent boots. Called ONLY on successful completion (after
+# restore-complete); failure paths intentionally leave the trigger armed so an
+# operator can retry via a seed ISO. Each step tolerates the files being absent
+# (e.g. reinstall-based auto/factory restore where the seed trigger was never armed).
+disarm_seed_trigger() {
+    if ! grep -q '^distributed_cloud_role=subcloud' /etc/platform/platform.conf 2>/dev/null; then
+        return 0
+    fi
+    if [ ! -e "$SEED_UDEV_RULE" ] && [ ! -e "$SEED_SERVICE_UNIT" ]; then
+        return 0
+    fi
+    log "Subcloud system; disarming seed-ISO trigger to prevent re-triggering restore"
+    systemctl disable --now cloud-init-seed.service 2>/dev/null \
+        || log "cloud-init-seed.service disable returned non-zero (may not be loaded)" "WARN"
+    rm -f "$SEED_UDEV_RULE" || log "Failed to remove $SEED_UDEV_RULE" "WARN"
+    rm -f "$SEED_SERVICE_UNIT" || log "Failed to remove $SEED_SERVICE_UNIT" "WARN"
+    udevadm control --reload-rules 2>/dev/null \
+        || log "Failed to reload udev rules" "WARN"
+    systemctl daemon-reload 2>/dev/null \
+        || log "Failed to reload systemd daemon" "WARN"
 }
 
 retry() {
@@ -190,6 +250,16 @@ if v is not None:
         printf '%s:%s\n' "sysadmin" "$default_password" | chpasswd
         set_config_value "ansible_become_pass" "\"${default_password}\"" "$RESTORE_CONFIG"
         set_config_value "ansible_ssh_pass" "\"${default_password}\"" "$RESTORE_CONFIG"
+    fi
+
+    # Ensure RESTORE_CONFIG is readable by sysadmin. Keep it
+    # non-world-readable as it contains ansible_become_pass.
+    if [[ -f "$RESTORE_CONFIG" ]]; then
+        log "Ensuring $RESTORE_CONFIG is readable by sysadmin"
+        chown sysadmin:sys_protected "$RESTORE_CONFIG" \
+            || log "Failed to chown $RESTORE_CONFIG" "WARN"
+        chmod 0640 "$RESTORE_CONFIG" \
+            || log "Failed to chmod $RESTORE_CONFIG" "WARN"
     fi
 
     if ! sudo -u sysadmin ansible-playbook "$ANSIBLE_PLAYBOOK" \
@@ -487,6 +557,7 @@ handle_first_boot() {
        retry "host unlock" 10 30 "_unlock_host"; then
         log "Host unlock process completed successfully"
     else
+        resolve_cloud_init_state
         exit 1
     fi
 }
@@ -499,9 +570,11 @@ handle_second_boot() {
         touch "$AUTO_RESTORE_COMPLETE_FLAG" || log "Failed to create flag" "WARN"
         send_ipmi_event "restore_complete"
         cleanup
+        disarm_seed_trigger
         systemctl disable dc-auto-restore.service
     else
         send_ipmi_event "restore_failed"
+        resolve_cloud_init_state
         exit 1
     fi
 }
