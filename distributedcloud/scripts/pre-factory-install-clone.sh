@@ -30,6 +30,7 @@ Usage: ${SCRIPT_NAME} [OPTIONS]
 Prepare this system for golden image capture (factory installed machine).
 
 Run this on the SOURCE system immediately before capturing the image.
+Only simplex systems may be cloned; the script aborts otherwise.
 It performs the following steps:
 
   1. Stage the LUKS data.
@@ -95,6 +96,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ $(id -u) -eq 0 ]] || die "Must be run as root"
+
+# Only a simplex (All-in-one simplex) system may be cloned. Cloning is not
+# supported on duplex or multi-node systems.
+PLATFORM_CONF="/etc/platform/platform.conf"
+[[ -f "${PLATFORM_CONF}" ]] || die "${PLATFORM_CONF} not found"
+
+SYSTEM_MODE=$(awk -F= '/^system_mode=/ {print $2}' "${PLATFORM_CONF}")
+if [[ "${SYSTEM_MODE}" != "simplex" ]]; then
+    die "Cloning is only supported on simplex systems" \
+        "(system_mode='${SYSTEM_MODE:-unset}')"
+fi
 
 log_info "Starting pre-clone preparation"
 
