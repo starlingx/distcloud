@@ -23,7 +23,6 @@ from contextlib import nullcontext
 import copy
 from dataclasses import dataclass, field
 import datetime
-import filecmp
 import functools
 import json
 import os
@@ -234,6 +233,7 @@ class SubcloudManager(manager.Manager):
         self.audit_rpc_client = dcmanager_audit_rpc_client.ManagerAuditClient()
         self.state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
         self.batch_rehome_lock = threading.Lock()
+        self._addn_hosts_lock = threading.Lock()
 
     @staticmethod
     def _get_subcloud_cert_name(subcloud_name):
@@ -1456,9 +1456,10 @@ class SubcloudManager(manager.Manager):
             )
 
         if network_reconfig:
-            # Regenerate the addn_hosts_dc file after the DB has been
-            # updated with the new management network info
-            self._create_addn_hosts_dc(context)
+            # Update the addn_hosts_dc entry with the new management IP
+            self._update_addn_hosts_dc_entry(
+                subcloud.name, subcloud.management_start_ip, subcloud.name
+            )
 
         # Populate payload with passwords
         payload["ansible_become_pass"] = payload["sysadmin_password"]
@@ -1874,8 +1875,8 @@ class SubcloudManager(manager.Manager):
             }
             db_api.subcloud_alarms_create(context, subcloud.name, alarm_updates)
 
-            # Regenerate the addn_hosts_dc file
-            self._create_addn_hosts_dc(context)
+            # Add entry to the addn_hosts_dc file
+            self._add_addn_hosts_dc_entry(subcloud.management_start_ip, subcloud.name)
 
             # Passwords need to be populated when rehoming
             self._populate_payload_with_cached_keystone_data(
@@ -4420,26 +4421,76 @@ class SubcloudManager(manager.Manager):
         LOG.info("Successfully bootstrapped %s" % subcloud.name)
         return True
 
-    def _create_addn_hosts_dc(self, context):
-        """Generate the addn_hosts_dc file for hostname/ip translation"""
+    @staticmethod
+    def _read_addn_hosts_dc_lines(addn_hosts_dc):
+        """Read the addn_hosts_dc file, tolerating a missing file.
+
+        The file may not exist yet (e.g. fresh install, before the first
+        subcloud entry has been added). Treat that as an empty file.
+        """
+
+        try:
+            with open(addn_hosts_dc, "r") as f:
+                return f.readlines()
+        except FileNotFoundError:
+            return []
+
+    def _add_addn_hosts_dc_entry(self, management_start_ip, subcloud_name):
+        """Add a single entry to the addn_hosts_dc file."""
 
         addn_hosts_dc = os.path.join(CONFIG_PATH, ADDN_HOSTS_DC)
-        addn_hosts_dc_temp = addn_hosts_dc + ".temp"
+        new_entry = management_start_ip + " " + subcloud_name + "\n"
+        with self._addn_hosts_lock:
+            lines = self._read_addn_hosts_dc_lines(addn_hosts_dc)
+            # Remove any existing entry for this subcloud (idempotency)
+            filtered = [
+                line
+                for line in lines
+                if line.strip() and line.strip().split()[1] != subcloud_name
+            ]
+            filtered.append(new_entry)
+            if filtered != lines:
+                with open(addn_hosts_dc, "w") as f:
+                    f.writelines(filtered)
+                os.system("pkill -HUP dnsmasq")
 
-        subclouds = db_api.subcloud_get_all(context)
-        with open(addn_hosts_dc_temp, "w") as f_out_addn_dc_temp:
-            for subcloud in subclouds:
-                addn_dc_line = subcloud.management_start_ip + " " + subcloud.name + "\n"
-                f_out_addn_dc_temp.write(addn_dc_line)
+    def _remove_addn_hosts_dc_entry(self, subcloud_name):
+        """Remove an entry from the addn_hosts_dc file by subcloud name."""
 
-            # if no more subclouds, create empty file so dnsmasq does not
-            # emit an error log.
-            if not subclouds:
-                f_out_addn_dc_temp.write(" ")
+        addn_hosts_dc = os.path.join(CONFIG_PATH, ADDN_HOSTS_DC)
+        with self._addn_hosts_lock:
+            lines = self._read_addn_hosts_dc_lines(addn_hosts_dc)
+            lines = [
+                line
+                for line in lines
+                if line.strip() and line.strip().split()[1] != subcloud_name
+            ]
+            with open(addn_hosts_dc, "w") as f:
+                f.writelines(lines)
+                if not lines:
+                    f.write(" ")
+            os.system("pkill -HUP dnsmasq")
 
-        if not filecmp.cmp(addn_hosts_dc_temp, addn_hosts_dc):
-            os.rename(addn_hosts_dc_temp, addn_hosts_dc)
-            # restart dnsmasq so it can re-read our addn_hosts file.
+    def _update_addn_hosts_dc_entry(
+        self, old_subcloud_name, new_management_start_ip, new_subcloud_name
+    ):
+        """Update an entry in the addn_hosts_dc file (for rename or IP change).
+
+        Removes the old entry and adds a new one atomically under the lock.
+        """
+
+        addn_hosts_dc = os.path.join(CONFIG_PATH, ADDN_HOSTS_DC)
+        new_entry = new_management_start_ip + " " + new_subcloud_name + "\n"
+        with self._addn_hosts_lock:
+            lines = self._read_addn_hosts_dc_lines(addn_hosts_dc)
+            lines = [
+                line
+                for line in lines
+                if line.strip() and line.strip().split()[1] != old_subcloud_name
+            ]
+            lines.append(new_entry)
+            with open(addn_hosts_dc, "w") as f:
+                f.writelines(lines)
             os.system("pkill -HUP dnsmasq")
 
     def _write_subcloud_ansible_config(self, cached_regionone_data, payload):
@@ -4656,8 +4707,8 @@ class SubcloudManager(manager.Manager):
         # Delete the subcloud backup path
         self._delete_subcloud_backup_data(subcloud.name)
 
-        # Regenerate the addn_hosts_dc file
-        self._create_addn_hosts_dc(context)
+        # Remove the entry from the addn_hosts_dc file
+        self._remove_addn_hosts_dc_entry(subcloud.name)
 
         # Cleanup files inside ANSIBLE_OVERRIDES_PATH
         self._cleanup_ansible_files(subcloud.name)
@@ -4864,8 +4915,12 @@ class SubcloudManager(manager.Manager):
         entity_instance_id = "subcloud=%s" % curr_subcloud_name
         self.fm_api.clear_all(entity_instance_id)
 
-        # Regenerate the dnsmasq host entry
-        self._create_addn_hosts_dc(context)
+        # Update the dnsmasq host entry with new subcloud name
+        self._update_addn_hosts_dc_entry(
+            curr_subcloud_name,
+            subcloud.management_start_ip,
+            new_subcloud_name,
+        )
 
         # Rename related subcloud files
         self._rename_subcloud_ansible_files(curr_subcloud_name, new_subcloud_name)
@@ -5316,8 +5371,10 @@ class SubcloudManager(manager.Manager):
             deploy_status=consts.DEPLOY_STATE_DONE,
         )
 
-        # Regenerate the addn_hosts_dc file
-        self._create_addn_hosts_dc(context)
+        # Update the addn_hosts_dc entry with the new management IP
+        self._update_addn_hosts_dc_entry(
+            subcloud.name, subcloud.management_start_ip, subcloud.name
+        )
 
     def _configure_system_controller_network(self, context, payload, subcloud):
         """Configure system controller network
