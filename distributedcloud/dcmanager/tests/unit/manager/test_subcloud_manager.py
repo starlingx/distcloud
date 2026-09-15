@@ -741,8 +741,8 @@ class TestSubcloudManager(BaseTestSubcloudManager):
     def test_update_subcloud_network_reconfiguration(
         self, mock_create_route, mock_update_endpoints, mock_delete_route
     ):
-        self.mock_create_addn_hosts = self._mock_object(
-            subcloud_manager.SubcloudManager, "_create_addn_hosts_dc"
+        self.mock_update_addn_hosts = self._mock_object(
+            subcloud_manager.SubcloudManager, "_update_addn_hosts_dc_entry"
         )
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_RECONFIGURING_NETWORK
         db_api.subcloud_update(
@@ -760,7 +760,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
         mock_create_route.assert_called_once()
         mock_update_endpoints.assert_called_once()
         mock_delete_route.assert_called_once()
-        self.mock_create_addn_hosts.assert_called_once()
+        self.mock_update_addn_hosts.assert_called_once()
 
         # Verify subcloud was updated with correct values
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
@@ -840,8 +840,8 @@ class TestSubcloudManager(BaseTestSubcloudManager):
     def test_run_network_reconfiguration_configure_network_failed(
         self, mock_configure_network
     ):
-        self.mock_create_addn_hosts = self._mock_object(
-            subcloud_manager.SubcloudManager, "_create_addn_hosts_dc"
+        self.mock_update_addn_hosts = self._mock_object(
+            subcloud_manager.SubcloudManager, "_update_addn_hosts_dc_entry"
         )
         self.subcloud["deploy_status"] = consts.DEPLOY_STATE_RECONFIGURING_NETWORK
 
@@ -850,7 +850,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
         )
 
         mock_configure_network.assert_called_once()
-        self.mock_create_addn_hosts.assert_not_called()
+        self.mock_update_addn_hosts.assert_not_called()
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(
             consts.DEPLOY_STATE_RECONFIGURING_NETWORK_FAILED,
@@ -944,8 +944,8 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
     def setUp(self):
         super().setUp()
 
-        self.mock_create_addn_hosts = self._mock_object(
-            subcloud_manager.SubcloudManager, "_create_addn_hosts_dc"
+        self.mock_add_addn_hosts = self._mock_object(
+            subcloud_manager.SubcloudManager, "_add_addn_hosts_dc_entry"
         )
         self.mock_run_subcloud_install = self._mock_object(
             subcloud_manager.SubcloudManager, "_run_subcloud_install"
@@ -1024,7 +1024,7 @@ class TestSubcloudDeploy(BaseTestSubcloudManager):
         self.mock_get_cached_regionone_data.assert_called_once()
         self.mock_sysinv_client().create_route.assert_called()
         self.mock_dcorch_api().add_subcloud.assert_called_once()
-        self.mock_create_addn_hosts.assert_called_once()
+        self.mock_add_addn_hosts.assert_called_once()
         self.mock_create_subcloud_inventory.assert_called_once()
         self.mock_write_subcloud_ansible_config.assert_called_once()
         self.mock_keyring.get_password.assert_called()
@@ -1682,8 +1682,8 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self.mock_write_subcloud_ansible_config = self._mock_object(
             subcloud_manager.SubcloudManager, "_write_subcloud_ansible_config"
         )
-        self.mock_create_addn_hosts = self._mock_object(
-            subcloud_manager.SubcloudManager, "_create_addn_hosts_dc"
+        self.mock_add_addn_hosts = self._mock_object(
+            subcloud_manager.SubcloudManager, "_add_addn_hosts_dc_entry"
         )
         self.mock_create_intermediate_ca_cert = self._mock_object(
             subcloud_manager.SubcloudManager, "_create_intermediate_ca_cert"
@@ -1776,7 +1776,7 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self.mock_get_cached_regionone_data.assert_called_once()
         self.mock_sysinv_client().create_route.assert_called()
         self.mock_dcorch_api().add_subcloud.assert_called_once()
-        self.mock_create_addn_hosts.assert_called_once()
+        self.mock_add_addn_hosts.assert_called_once()
         self.mock_create_subcloud_inventory.assert_called_once()
         self.mock_write_subcloud_ansible_config.assert_called_once()
         self.mock_create_intermediate_ca_cert.assert_called_once()
@@ -1867,7 +1867,7 @@ class TestSubcloudAdd(BaseTestSubcloudManager):
         self.mock_get_cached_regionone_data.assert_called()
         self.mock_sysinv_client().create_route.assert_called()
         self.mock_dcorch_api().add_subcloud.assert_called_once()
-        self.mock_create_addn_hosts.assert_called()
+        self.mock_add_addn_hosts.assert_called()
         self.mock_create_subcloud_inventory.assert_called()
         self.mock_write_subcloud_ansible_config.assert_called()
         self.mock_create_intermediate_ca_cert.assert_called_once()
@@ -1910,14 +1910,14 @@ class TestSubcloudDelete(BaseTestSubcloudManager):
 
     @mock.patch.object(kubeoperator, "KubeOperator")
     def test_delete_subcloud(self, mock_kubeoperator):
-        self.mock_create_addn_hosts = self._mock_object(
-            subcloud_manager.SubcloudManager, "_create_addn_hosts_dc"
+        self.mock_remove_addn_hosts = self._mock_object(
+            subcloud_manager.SubcloudManager, "_remove_addn_hosts_dc_entry"
         )
         self.mock_is_system_controller_deploying.return_value = False
         self.sm.delete_subcloud(self.ctx, subcloud_id=self.subcloud.id)
         self.mock_get_cached_regionone_data.assert_called_once()
         self.mock_sysinv_client().delete_route.assert_called()
-        self.mock_create_addn_hosts.assert_called_once()
+        self.mock_remove_addn_hosts.assert_called_once()
         mock_kubeoperator().delete_cert_manager_certificate.assert_called_once()
 
         # Verify subcloud was deleted
@@ -7899,23 +7899,20 @@ class TestBootstrapEnrollNetworkUpdate(BaseTestSubcloudManager):
             subcloud_manager.SubcloudManager, "_delete_subcloud_routes"
         )
 
-        # Capture the DB state at the moment _create_addn_hosts_dc is called
-        # so we can verify it sees the *new* management IP (i.e. it runs
-        # after the DB update).
+        # Capture the management IP passed to the addn_hosts_dc update at the
+        # moment it is called so we can verify it receives the *new*
+        # management IP (i.e. it runs after the DB update).
         self.db_snapshot_at_dns_regen = {}
 
-        def _capture_db_state(context):
-            subclouds = db_api.subcloud_get_all(context)
-            for sc in subclouds:
-                self.db_snapshot_at_dns_regen[sc.name] = {
-                    "management_start_ip": sc.management_start_ip,
-                    "management_subnet": sc.management_subnet,
-                }
+        def _capture_entry(old_name, new_management_start_ip, new_name):
+            self.db_snapshot_at_dns_regen[new_name] = {
+                "management_start_ip": new_management_start_ip,
+            }
 
-        self.mock_create_addn_hosts_dc = self._mock_object(
+        self.mock_update_addn_hosts_dc = self._mock_object(
             subcloud_manager.SubcloudManager,
-            "_create_addn_hosts_dc",
-            side_effect=_capture_db_state,
+            "_update_addn_hosts_dc_entry",
+            side_effect=_capture_entry,
         )
 
     def _create_subcloud(self, name, deploy_status):
@@ -8024,15 +8021,14 @@ class TestBootstrapEnrollNetworkUpdate(BaseTestSubcloudManager):
 
         self.sm._deploy_bootstrap_enroll_prep(operation, self.ctx, payload, subcloud)
 
-        self.mock_create_addn_hosts_dc.assert_called_once()
+        self.mock_update_addn_hosts_dc.assert_called_once()
         snapshot = self.db_snapshot_at_dns_regen[subcloud.name]
         self.assertEqual(
             snapshot["management_start_ip"],
             self.NEW_START_IP,
-            "_create_addn_hosts_dc was called before the DB was updated "
+            "_update_addn_hosts_dc_entry was called before the DB was updated "
             "with the new management IP.",
         )
-        self.assertEqual(snapshot["management_subnet"], self.NEW_SUBNET)
 
     def test_bootstrap_prep_dns_regen_sees_new_ip_in_db(self):
         self._run_dns_regen_sees_new_ip_in_db("bootstrap")
@@ -8049,7 +8045,7 @@ class TestBootstrapEnrollNetworkUpdate(BaseTestSubcloudManager):
         self.sm._deploy_bootstrap_enroll_prep(operation, self.ctx, payload, subcloud)
 
         self.mock_delete_subcloud_routes.assert_not_called()
-        self.mock_create_addn_hosts_dc.assert_not_called()
+        self.mock_update_addn_hosts_dc.assert_not_called()
 
     def test_bootstrap_prep_no_network_reconfig(self):
         self._run_no_network_reconfig("bootstrap")
@@ -8080,10 +8076,179 @@ class TestBootstrapEnrollNetworkUpdate(BaseTestSubcloudManager):
         self.assertEqual(updated.management_start_ip, self.OLD_START_IP)
         self.assertEqual(updated.management_end_ip, self.OLD_END_IP)
         # DNS regeneration should not be called
-        self.mock_create_addn_hosts_dc.assert_not_called()
+        self.mock_update_addn_hosts_dc.assert_not_called()
 
     def test_bootstrap_prep_network_reconfig_route_creation_failure(self):
         self._run_network_reconfig_route_creation_failure("bootstrap")
 
     def test_enroll_prep_network_reconfig_route_creation_failure(self):
         self._run_network_reconfig_route_creation_failure("enroll")
+
+
+class TestAddnHostsDcMethods(base.DCManagerTestCase):
+    """Tests for incremental addn_hosts_dc file operations."""
+
+    SAMPLE_HOSTS = (
+        "fdff:719a:bf60:1::2 subcloud1\n"
+        "fdff:719a:bf60:2::2 subcloud2\n"
+        "fdff:719a:bf60:12::2 subcloud12\n"
+        "fdff:719a:bf60:20::2 subcloud20\n"
+        "fdff:719a:bf60:200::2 subcloud200\n"
+    )
+
+    def setUp(self):
+        super().setUp()
+        self.tempdir = tempfile.mkdtemp()
+        self.hosts_file = os.path.join(self.tempdir, "dnsmasq.addn_hosts_dc")
+        # Write initial content
+        with open(self.hosts_file, "w") as f:
+            f.write(self.SAMPLE_HOSTS)
+
+        # Create a minimal SubcloudManager with mocked dependencies
+        self._mock_object(subcloud_manager, "dcmanager_context")
+        self._mock_object(dcorch_rpc_client, "EngineWorkerClient")
+        self._mock_object(subcloud_manager.fm_api, "FaultAPIs")
+        self._mock_object(rpcapi, "ManagerAuditClient")
+        self._mock_object(rpc_client, "SubcloudStateClient")
+        self.sm = subcloud_manager.SubcloudManager()
+
+        # Patch CONFIG_PATH to use our temp file
+        config_path_patcher = mock.patch.object(
+            subcloud_manager, "CONFIG_PATH", self.tempdir
+        )
+        config_path_patcher.start()
+        self.addCleanup(config_path_patcher.stop)
+        # Suppress dnsmasq HUP
+        self.mock_system = self._mock_object(os, "system")
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.tempdir)
+
+    def _read_hosts(self):
+        with open(self.hosts_file) as f:
+            return f.read()
+
+    def _read_hosts_lines(self):
+        with open(self.hosts_file) as f:
+            return [line.strip() for line in f.readlines() if line.strip()]
+
+    def test_add_entry(self):
+        self.sm._add_addn_hosts_dc_entry("fdff:719a:bf60:99::2", "subcloud99")
+        lines = self._read_hosts_lines()
+        self.assertIn("fdff:719a:bf60:99::2 subcloud99", lines)
+        # Original entries preserved
+        self.assertEqual(len(lines), 6)
+
+    def test_add_entry_signals_dnsmasq(self):
+        self.sm._add_addn_hosts_dc_entry("fdff:719a:bf60:99::2", "subcloud99")
+        self.mock_system.assert_called_with("pkill -HUP dnsmasq")
+
+    def test_add_entry_is_idempotent(self):
+        """Adding the same entry twice must not create a duplicate."""
+        self.sm._add_addn_hosts_dc_entry("fdff:719a:bf60:99::2", "subcloud99")
+        self.sm._add_addn_hosts_dc_entry("fdff:719a:bf60:99::2", "subcloud99")
+        lines = self._read_hosts_lines()
+        matching = [line for line in lines if line == "fdff:719a:bf60:99::2 subcloud99"]
+        self.assertEqual(len(matching), 1)
+
+    def test_add_entry_replaces_on_ip_change(self):
+        """Re-adding with a different IP must replace, not duplicate."""
+        self.sm._add_addn_hosts_dc_entry("fdff:719a:bf60:99::2", "subcloud99")
+        self.sm._add_addn_hosts_dc_entry("fdff:719a:bf60:99::99", "subcloud99")
+        lines = self._read_hosts_lines()
+        matching = [line for line in lines if "subcloud99" in line]
+        self.assertEqual(len(matching), 1)
+        self.assertIn("fdff:719a:bf60:99::99 subcloud99", lines)
+
+    def test_remove_entry(self):
+        self.sm._remove_addn_hosts_dc_entry("subcloud2")
+        lines = self._read_hosts_lines()
+        self.assertEqual(len(lines), 4)
+        self.assertNotIn("fdff:719a:bf60:2::2 subcloud2", lines)
+        # Other entries preserved
+        self.assertIn("fdff:719a:bf60:1::2 subcloud1", lines)
+        self.assertIn("fdff:719a:bf60:12::2 subcloud12", lines)
+
+    def test_remove_does_not_match_similar_names(self):
+        """Removing subcloud2 must not remove subcloud20 or subcloud200."""
+        self.sm._remove_addn_hosts_dc_entry("subcloud2")
+        lines = self._read_hosts_lines()
+        self.assertIn("fdff:719a:bf60:20::2 subcloud20", lines)
+        self.assertIn("fdff:719a:bf60:200::2 subcloud200", lines)
+        self.assertIn("fdff:719a:bf60:12::2 subcloud12", lines)
+
+    def test_remove_nonexistent_entry(self):
+        self.sm._remove_addn_hosts_dc_entry("subcloud999")
+        lines = self._read_hosts_lines()
+        self.assertEqual(len(lines), 5)
+
+    def test_remove_last_entry_writes_space(self):
+        """Removing all entries should write a space so dnsmasq doesn't error."""
+        for name in [
+            "subcloud1",
+            "subcloud2",
+            "subcloud12",
+            "subcloud20",
+            "subcloud200",
+        ]:
+            self.sm._remove_addn_hosts_dc_entry(name)
+        content = self._read_hosts()
+        self.assertEqual(content.strip(), "")
+
+    def test_update_entry_rename(self):
+        """Renaming subcloud2 should not affect subcloud20 or subcloud200."""
+        self.sm._update_addn_hosts_dc_entry(
+            "subcloud2", "fdff:719a:bf60:2::2", "subcloud2-renamed"
+        )
+        lines = self._read_hosts_lines()
+        self.assertNotIn("fdff:719a:bf60:2::2 subcloud2", lines)
+        self.assertIn("fdff:719a:bf60:2::2 subcloud2-renamed", lines)
+        # Similar names untouched
+        self.assertIn("fdff:719a:bf60:20::2 subcloud20", lines)
+        self.assertIn("fdff:719a:bf60:200::2 subcloud200", lines)
+        self.assertIn("fdff:719a:bf60:12::2 subcloud12", lines)
+        self.assertEqual(len(lines), 5)
+
+    def test_update_entry_ip_change(self):
+        self.sm._update_addn_hosts_dc_entry(
+            "subcloud1", "fdff:719a:bf60:1::99", "subcloud1"
+        )
+        lines = self._read_hosts_lines()
+        self.assertNotIn("fdff:719a:bf60:1::2 subcloud1", lines)
+        self.assertIn("fdff:719a:bf60:1::99 subcloud1", lines)
+        self.assertEqual(len(lines), 5)
+
+    def test_update_preserves_all_other_entries(self):
+        self.sm._update_addn_hosts_dc_entry(
+            "subcloud12", "fdff:719a:bf60:12::99", "subcloud12-new"
+        )
+        lines = self._read_hosts_lines()
+        self.assertIn("fdff:719a:bf60:1::2 subcloud1", lines)
+        self.assertIn("fdff:719a:bf60:2::2 subcloud2", lines)
+        self.assertIn("fdff:719a:bf60:20::2 subcloud20", lines)
+        self.assertIn("fdff:719a:bf60:200::2 subcloud200", lines)
+        self.assertIn("fdff:719a:bf60:12::99 subcloud12-new", lines)
+        self.assertEqual(len(lines), 5)
+
+    def test_add_entry_when_file_missing(self):
+        """Adding an entry must work if the file does not exist yet."""
+        os.remove(self.hosts_file)
+        self.sm._add_addn_hosts_dc_entry("fdff:719a:bf60:99::2", "subcloud99")
+        lines = self._read_hosts_lines()
+        self.assertEqual(lines, ["fdff:719a:bf60:99::2 subcloud99"])
+
+    def test_remove_entry_when_file_missing(self):
+        """Removing an entry must not fail if the file does not exist yet."""
+        os.remove(self.hosts_file)
+        self.sm._remove_addn_hosts_dc_entry("subcloud99")
+        self.assertEqual(self._read_hosts().strip(), "")
+
+    def test_update_entry_when_file_missing(self):
+        """Updating an entry must work if the file does not exist yet."""
+        os.remove(self.hosts_file)
+        self.sm._update_addn_hosts_dc_entry(
+            "subcloud99", "fdff:719a:bf60:99::2", "subcloud99"
+        )
+        lines = self._read_hosts_lines()
+        self.assertEqual(lines, ["fdff:719a:bf60:99::2 subcloud99"])
