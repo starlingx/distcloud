@@ -394,6 +394,11 @@ class BaseTestSubcloudManager(base.DCManagerTestCase):
         self.mock_get_local_system = self._mock_object(cutils, "get_local_system")
         self._mock_object(cutils, "get_pool_by_ip_family")
         self.mock_subprocess_run = self._mock_object(subprocess, "run")
+        install_run_patch = mock.patch.object(
+            subcloud_install.subprocess, "run", self.mock_subprocess_run
+        )
+        install_run_patch.start()
+        self.addCleanup(install_run_patch.stop)
         self.mock_ansible_run_playbook = self._mock_object(
             AnsiblePlaybook, "run_playbook"
         )

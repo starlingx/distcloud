@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025 Wind River Systems, Inc.
+# Copyright (c) 2021-2026 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,13 +18,13 @@ import os
 import pty
 import shutil
 import socket
+import subprocess
 import tempfile
 import threading
 import urllib.error as urllib_error
 from urllib import parse
 from urllib import request
 
-from eventlet.green import subprocess
 import netaddr
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -356,7 +356,10 @@ class SubcloudInstall(object):
         str_cmd = " ".join(x for x in update_iso_cmd)
         LOG.info("Running update_iso_cmd: %s", str_cmd)
         result = subprocess.run(
-            update_iso_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            update_iso_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
         )
         if result.returncode != 0:
             msg = f"Failed to update iso: {str_cmd}"
@@ -389,7 +392,10 @@ class SubcloudInstall(object):
 
             LOG.info("Running install cleanup: %s", self.name)
             result = subprocess.run(
-                cleanup_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+                cleanup_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
             )
             if result.returncode == 0:
                 # Note: watch for non-exit 0 errors in this output as well
@@ -683,6 +689,7 @@ class IpmiLogger(object):
                         # capture both streams in stdout:
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
+                        check=False,
                     )
                     output = result.stdout.decode("utf-8").replace("\n", ", ")
                     if result.returncode == 0:
@@ -739,6 +746,7 @@ class IpmiLogger(object):
                 # capture both streams in stdout:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                check=False,
             )
             if result.returncode == 0:
                 LOG.info(
