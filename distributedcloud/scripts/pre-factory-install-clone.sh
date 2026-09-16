@@ -36,7 +36,8 @@ It performs the following steps:
   1. Stage the LUKS data.
   2. Remove the encrypted vault and its state file.
   3. Create the /etc/platform/.cloned_install flag, required by the
-     restored machine.
+     restored machine, and inject it into the factory backup archive so
+     it survives a factory restore.
   4. Remove the DRBD resize flag, so DRBD is resized on the restored
      machine.
   5. Cordon and drain the Kubernetes node, so the restored machine does
@@ -124,6 +125,33 @@ rm -f /etc/luks-fs-mgr.d/created_luks.json
 
 log_info "Touch golden image flag"
 touch /etc/platform/.cloned_install || die "Failed to touch .cloned_install"
+
+# A factory restore recreates the target's platform flags from the backup
+# archive, so the flag has to be inside the archive as well as on disk.
+# Inject it here rather than during the factory install, so a factory
+# installed system that is never cloned is left untouched.
+#
+# tar cannot append to a compressed archive, so it is expanded, appended to
+# and recompressed. pigz names the result .tar.gz, hence the final rename.
+log_info "Inject golden image flag into the factory backup"
+SW_VERSION=$(awk -F'=' '/^sw_version/ { print $2 }' \
+    /etc/platform/platform.conf)
+FACTORY_BACKUP="/opt/platform-backup/factory/${SW_VERSION}/factory_backup.tgz"
+FACTORY_TAR="${FACTORY_BACKUP%.tgz}.tar"
+
+if [[ ! -f "${FACTORY_BACKUP}" ]]; then
+    log_info "No factory backup at ${FACTORY_BACKUP}, skipping injection"
+elif tar --use-compress-program=pigz -tf "${FACTORY_BACKUP}" \
+        | grep -q 'etc/platform/\.cloned_install'; then
+    log_info "Factory backup already carries the flag, skipping injection"
+else
+    pigz -d "${FACTORY_BACKUP}" \
+        && tar -C / -rf "${FACTORY_TAR}" etc/platform/.cloned_install \
+        && pigz "${FACTORY_TAR}" \
+        && mv "${FACTORY_TAR}.gz" "${FACTORY_BACKUP}" \
+        || die "Failed to inject .cloned_install into ${FACTORY_BACKUP}"
+    log_info "Injected flag into ${FACTORY_BACKUP}"
+fi
 
 log_info "Remove DRBD resize flag"
 rm -f /etc/platform/.cfs_drbdadm_reconfigured
