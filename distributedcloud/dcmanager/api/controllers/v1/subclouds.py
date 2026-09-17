@@ -1097,6 +1097,7 @@ class SubcloudsController(object):
             peer_site_available = True
             pga = None
             update_in_non_primary_site = False
+            manage_on_leader = False
             if subcloud.peer_group_id is not None:
                 # Get the original peer group of the subcloud
                 original_pgrp = db_api.subcloud_peer_group_get(
@@ -1237,7 +1238,19 @@ class SubcloudsController(object):
             # in the site where the SPG was created. However, bootstrap
             # values or address update is an exception.
             if original_pgrp and peer_group_id is None and not req_from_another_dc:
-                if original_pgrp.group_priority > 0:
+                # Allow managing a subcloud on the leader site when the
+                # subcloud deployment is complete. This covers the recovery
+                # scenario where migration succeeds (leader changed to
+                # this site) but the automatic post-rehome manage times
+                # out, leaving the subcloud in complete+unmanaged with
+                # no supported CLI path to re-manage it.
+                manage_on_leader = (
+                    payload.get("management-state")
+                    == dccommon_consts.MANAGEMENT_MANAGED
+                    and leader_on_local_site
+                    and subcloud.deploy_status == consts.DEPLOY_STATE_DONE
+                )
+                if original_pgrp.group_priority > 0 and not manage_on_leader:
                     if bootstrap_values or bootstrap_address:
                         if any(
                             field not in ("bootstrap_values", "bootstrap_address")
@@ -1474,13 +1487,17 @@ class SubcloudsController(object):
                 and subcloud.peer_group_id is not None
                 and not utils.is_req_from_another_dc(request)
             ):
-                pecan.abort(
-                    400,
-                    _(
-                        "Cannot update the management state of a subcloud that is "
-                        "associated with a peer group."
-                    ),
-                )
+                # The manage_on_leader exception computed earlier in the
+                # priority guard also applies here: allow managing when
+                # this site is the leader and the subcloud is complete.
+                if not manage_on_leader:
+                    pecan.abort(
+                        400,
+                        _(
+                            "Cannot update the management state of a "
+                            "subcloud that is associated with a peer group."
+                        ),
+                    )
 
             force_flag = payload.get("force")
             if force_flag is not None:
