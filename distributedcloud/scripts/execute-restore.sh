@@ -300,6 +300,21 @@ get_software_version() {
     echo "$version"
 }
 
+# Return 0 (true) when the system controller monitors this restore via IPMI SEL
+# events, 1 (false) otherwise. Defaults to enabled when the key is absent,
+# matching the restore_subcloud_backup.yml default.
+ipmi_sel_monitoring_enabled() {
+    local value
+    value=$(python3 -c "
+import yaml, sys
+with open('${RESTORE_CONFIG}') as f:
+    data = yaml.safe_load(f) or {}
+sys.stdout.write(str(data.get('ipmi_sel_event_monitoring', True)))
+" 2>/dev/null)
+
+    [[ "$value" != "False" ]]
+}
+
 check_and_set_registry_restore() {
     log "Checking for image registry backup file..."
 
@@ -442,13 +457,17 @@ validate_restore_prerequisites() {
 handle_first_boot() {
     send_ipmi_event "install_success"
 
-    # The IPMI monitor scripts polls every 30s, and initially it's looking for
-    # the install_success event, so we add a 60s pause so the system controller
-    # has time to detect the install_success and start to look for the restore
-    # events, otherwise, if the restore events are sent too soon, there's a
-    # possibility the system controller would miss the event.
-    log "Waiting 60 seconds for IPMI monitoring transition..."
-    sleep 60
+    # The IPMI monitor script polls every 30s, initially looking for the
+    # install_success event, so we pause 60s to let the system controller detect
+    # it and start watching for the restore events before we send them.
+    # Only needed when the SC monitors via IPMI SEL; otherwise the pause is
+    # skipped (e.g. onsite restore).
+    if ipmi_sel_monitoring_enabled; then
+        log "Waiting 60 seconds for IPMI monitoring transition..."
+        sleep 60
+    else
+        log "IPMI SEL monitoring disabled; skipping IPMI monitoring transition wait"
+    fi
 
     if ! validate_restore_prerequisites; then
         cleanup
