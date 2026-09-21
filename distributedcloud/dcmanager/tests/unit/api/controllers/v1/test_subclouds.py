@@ -2525,10 +2525,15 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
         self.mock_rpc_client().update_subcloud.assert_not_called()
         self.mock_rpc_client().update_association_sync_status.assert_not_called()
 
-    def test_patch_with_peer_group_fails_with_management_state(self):
-        """Test patch with peer group fails with management state"""
+    def test_patch_with_peer_group_fails_with_unmanage(self):
+        """Test patch with peer group fails when unmanaging
 
-        self.params["management-state"] = dccommon_consts.MANAGEMENT_MANAGED
+        Even on the leader site with group_priority=0, unmanaging a
+        subcloud that is associated with a peer group is not allowed.
+        Only managing is permitted.
+        """
+
+        self.params = {"management-state": dccommon_consts.MANAGEMENT_UNMANAGED}
 
         self._update_subcloud(peer_group_id=self.peer_group.id)
 
@@ -2539,6 +2544,107 @@ class TestSubcloudsPatchWithPeerGroup(BaseTestSubcloudsPatch):
             http.client.BAD_REQUEST,
             "Cannot update the management state of a subcloud that is "
             "associated with a peer group.",
+        )
+
+    def test_patch_with_peer_group_succeeds_manage_on_leader_site(self):
+        """Test manage succeeds on leader site for complete subcloud
+
+        After migration, the destination site becomes the SPG leader but
+        keeps group_priority=1 (non-zero). The automatic post-rehome
+        manage may time out, leaving the subcloud in complete+unmanaged.
+        The leader site should be allowed to manage it directly despite
+        the non-zero priority.
+        """
+
+        self.params = {"management-state": dccommon_consts.MANAGEMENT_MANAGED}
+
+        # Simulate post-migration state: leader site with non-zero priority
+        self.peer_group = db_api.subcloud_peer_group_update(
+            self.ctx, self.peer_group.id, group_priority=1
+        )
+        self._update_subcloud(
+            peer_group_id=self.peer_group.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().update_subcloud.assert_called_once_with(
+            mock.ANY,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            description=None,
+            location=None,
+            group_id=None,
+            data_install=None,
+            force=None,
+            peer_group_id=None,
+            bootstrap_values=None,
+            bootstrap_address=None,
+            deploy_status=None,
+            software_version=None,
+        )
+
+    def test_patch_with_peer_group_fails_manage_on_non_leader_site(self):
+        """Test manage fails on non-leader site for peer group subcloud
+
+        When the local site is not the SPG leader and group_priority > 0,
+        the priority guard blocks all updates.
+        """
+
+        self.params = {"management-state": dccommon_consts.MANAGEMENT_MANAGED}
+
+        # Make the local site NOT the leader by changing the mock system UUID
+        mock_get_system = mock.MagicMock()
+        mock_get_system.uuid = "non-leader-uuid"
+        self.mock_sysinv_client_cutils().get_system.return_value = mock_get_system
+
+        self.peer_group = db_api.subcloud_peer_group_update(
+            self.ctx, self.peer_group.id, group_priority=1
+        )
+        self._update_subcloud(
+            peer_group_id=self.peer_group.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud update is only allowed when "
+            "its peer group priority value is 0.",
+        )
+
+    def test_patch_with_peer_group_fails_manage_with_non_complete_deploy(self):
+        """Test manage fails on leader site when deploy status is not complete
+
+        Only subclouds with deploy_status='complete' can be managed on the
+        leader site. Other states like rehome-pending remain blocked by
+        the priority guard.
+        """
+
+        self.params = {"management-state": dccommon_consts.MANAGEMENT_MANAGED}
+
+        self.peer_group = db_api.subcloud_peer_group_update(
+            self.ctx, self.peer_group.id, group_priority=1
+        )
+        self._update_subcloud(
+            peer_group_id=self.peer_group.id,
+            deploy_status=consts.DEPLOY_STATE_REHOME_PENDING,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "Subcloud update is only allowed when "
+            "its peer group priority value is 0.",
         )
 
     def test_patch_with_peer_group_succeeds_in_removing_peer_group(self):
