@@ -57,6 +57,7 @@ from dccommon.drivers.openstack.sdk_platform import OpenStackDriver
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon import endpoint_cache
 from dccommon.exceptions import PlaybookExecutionFailed
+from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon.exceptions import SubcloudNotFound
 from dccommon import kubeoperator
 from dccommon.subcloud_enrollment import SubcloudEnrollmentInit
@@ -1092,8 +1093,12 @@ class SubcloudManager(manager.Manager):
         # Run the rehome-subcloud playbook
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
-            ansible.run_playbook(log_file, rehome_command)
-        except PlaybookExecutionFailed as e:
+            ansible.run_playbook(
+                log_file,
+                rehome_command,
+                timeout=CONF.playbook_timeout,
+            )
+        except (PlaybookExecutionFailed, PlaybookExecutionTimeout) as e:
             msg = (
                 "Failed to run the subcloud rehome playbook for subcloud "
                 f"{subcloud.name}, check individual log at {log_file} "
@@ -3963,7 +3968,11 @@ class SubcloudManager(manager.Manager):
         # Run the subcloud backup playbook
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
-            ansible.run_playbook(log_file, backup_command)
+            ansible.run_playbook(
+                log_file,
+                backup_command,
+                timeout=CONF.playbook_timeout,
+            )
 
             # Decide between complete-local or complete-central
             if local_only:
@@ -3980,7 +3989,7 @@ class SubcloudManager(manager.Manager):
 
             LOG.info("Successfully backed up subcloud %s" % subcloud.name)
             return True
-        except PlaybookExecutionFailed as e:
+        except (PlaybookExecutionFailed, PlaybookExecutionTimeout) as e:
             msg = utils.find_and_save_ansible_error_msg(
                 context,
                 subcloud,
@@ -4008,7 +4017,11 @@ class SubcloudManager(manager.Manager):
             )
             # Run the subcloud backup delete playbook
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
-            ansible.run_playbook(log_file, delete_command)
+            ansible.run_playbook(
+                log_file,
+                delete_command,
+                timeout=int(CONF.playbook_timeout / 12),  # 5 minutes
+            )
 
             # Set backup status to unknown after delete, since most recent backup may
             # have been deleted
@@ -4024,7 +4037,7 @@ class SubcloudManager(manager.Manager):
             LOG.info("Successfully deleted backup for subcloud %s" % subcloud.name)
             return True
 
-        except PlaybookExecutionFailed as e:
+        except (PlaybookExecutionFailed, PlaybookExecutionTimeout) as e:
             LOG.error(
                 "Failed to delete backup for subcloud %s, check individual "
                 "log at %s for detailed output." % (subcloud.name, log_file)
@@ -4350,8 +4363,12 @@ class SubcloudManager(manager.Manager):
         LOG.info(f"Starting enroll of subcloud {subcloud.name}")
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud.name)
-            ansible.run_playbook(log_file, enroll_command)
-        except PlaybookExecutionFailed as e:
+            ansible.run_playbook(
+                log_file,
+                enroll_command,
+                timeout=CONF.playbook_timeout,
+            )
+        except (PlaybookExecutionFailed, PlaybookExecutionTimeout) as e:
             msg = utils.find_and_save_ansible_error_msg(
                 context,
                 subcloud,
@@ -5328,9 +5345,13 @@ class SubcloudManager(manager.Manager):
         subcloud_id = subcloud.id
         try:
             ansible = dccommon_utils.AnsiblePlaybook(subcloud_name)
-            ansible.run_playbook(log_file, update_command)
+            ansible.run_playbook(
+                log_file,
+                update_command,
+                timeout=CONF.playbook_timeout,
+            )
             utils.delete_subcloud_inventory(overrides_file)
-        except PlaybookExecutionFailed as e:
+        except (PlaybookExecutionFailed, PlaybookExecutionTimeout) as e:
             msg = utils.find_and_save_ansible_error_msg(
                 context,
                 subcloud,
