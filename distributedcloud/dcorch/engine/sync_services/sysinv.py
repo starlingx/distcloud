@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,10 +39,12 @@ from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_EXTRA
 from dcorch.engine.sync_thread import AUDIT_RESOURCE_MISSING
 from dcorch.engine.sync_thread import SyncThread
+from dcorch.objects import resource
 
 LOG = logging.getLogger(__name__)
 
-SYNC_CERTIFICATES = ["ssl_ca", "openstack_ca"]
+SSL_CA_CERT = "ssl_ca"
+SYNC_CERTIFICATES = [SSL_CA_CERT, "openstack_ca"]
 CERTIFICATE_SIG_NULL = "NoCertificate"
 
 
@@ -764,6 +766,53 @@ class SysinvSyncThread(SyncThread):
                 extra=self.log_extra,
             )
         return same_fernet
+
+    def map_subcloud_resource(self, resource_type, m_r, m_rsrc_db, sc_resources):
+        # Map an existing subcloud resource to an existing master resource.
+        # If a mapping is created the function should return True.
+
+        # Used for ssl_ca certificates since they are already installed on the
+        # subcloud by the bootstrap playbook. Re-installing them bumps the
+        # target config UUID and triggers a puppet apply for no reason.
+        # Note: for the platform endpoint with dcagent, sc_resources is the
+        # dcagent audit result ({signature: sync_status}), not a resource list.
+        if resource_type != consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
+            return False
+
+        if getattr(m_r, "certtype", None) != SSL_CA_CERT:
+            return False
+
+        master_id = self.get_resource_id(resource_type, m_r)
+        if not master_id or master_id == CERTIFICATE_SIG_NULL:
+            return False
+
+        if not self.is_resource_present_in_subcloud(
+            resource_type, master_id, sc_resources
+        ):
+            return False
+
+        LOG.info(
+            "Mapping certificate {} to existing subcloud resource; "
+            "skipping redundant install".format(master_id),
+            extra=self.log_extra,
+        )
+
+        # If the resource is not even in master cloud resource DB, create it.
+        rsrc = m_rsrc_db
+        if not rsrc:
+            rsrc = resource.Resource(
+                self.ctxt, resource_type=resource_type, master_id=master_id
+            )
+            rsrc.create()
+            LOG.info(
+                "Resource created in DB {}/{}/{}".format(
+                    rsrc.id, resource_type, master_id  # pylint: disable=E1101
+                )
+            )
+
+        # For certificates the subcloud_resource_id is the signature.
+        self.persist_db_subcloud_resource(rsrc.id, master_id)
+        return True
 
     def same_resource(self, resource_type, m_resource, sc_resource):
         if resource_type == consts.RESOURCE_TYPE_SYSINV_CERTIFICATE:
