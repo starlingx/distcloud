@@ -2983,6 +2983,36 @@ class SubcloudManager(manager.Manager):
                 details=f"Failed to resolve bootstrap address for {subcloud.name}: {e}"
             ) from e
 
+    @staticmethod
+    def _validate_central_backup_available(payload: dict, subcloud: Subcloud) -> None:
+        """Fail a restore-with-install early if the central backup is missing.
+
+        Checks before install so the subcloud is not reinstalled (wiped)
+        before the restore playbook discovers there is nothing to restore.
+        Skips auto/factory (they locate the backup while staging the seed ISO)
+        and local_only (backup resides on the subcloud, not the controller).
+
+        :raises RestorePreparationError: If the central backup is missing
+        """
+        if (
+            not payload.get("with_install")
+            or payload.get("local_only")
+            or payload.get("factory")
+        ):
+            return
+
+        try:
+            utils.find_central_subcloud_backup(
+                subcloud.name, payload.get("software_version")
+            )
+        except FileNotFoundError as e:
+            raise exceptions.RestorePreparationError(
+                details=(
+                    "No platform backup file found in dc-vault for subcloud "
+                    f"{subcloud.name}"
+                )
+            ) from e
+
     def _prepare_restore_files(
         self,
         payload: dict,
@@ -3523,6 +3553,9 @@ class SubcloudManager(manager.Manager):
             ):
                 self._setup_auto_restore_without_install(payload, subcloud, restore_ctx)
 
+            # Validate the central backup exists before install
+            self._validate_central_backup_available(payload, subcloud)
+
             # Reconfigure the subcloud network over the BMC so the restore can
             # be performed over the OAM network. Combined with auto, the
             # restore runs inside the subcloud from the seed ISO instead, so
@@ -3545,11 +3578,12 @@ class SubcloudManager(manager.Manager):
                 context, payload, subcloud, restore_ctx
             )
 
-        except exceptions.RestorePreparationError:
+        except exceptions.RestorePreparationError as e:
             db_api.subcloud_update(
                 context,
                 subcloud.id,
                 deploy_status=consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+                error_description=str(e)[0 : consts.ERROR_DESCRIPTION_LENGTH],
             )
             LOG.exception(
                 f"Failed to prepare subcloud {subcloud.name} for backup restore"

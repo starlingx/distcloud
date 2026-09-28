@@ -4385,6 +4385,13 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.data_install = str(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES).replace(
             "'", '"'
         )
+        self.mock_find_central_subcloud_backup = self._mock_object(
+            cutils, "find_central_subcloud_backup"
+        )
+        self.mock_find_central_subcloud_backup.return_value = Path(
+            "/opt/dc-vault/backups/subcloud1/"
+            "26.10/subcloud1_platform_backup_20260101.tgz"
+        )
 
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
@@ -4525,6 +4532,79 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(
             consts.DEPLOY_STATE_PRE_RESTORE, updated_subcloud.deploy_status
+        )
+
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_restore_with_install_missing_central_backup(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_run_restore_playbook,
+    ):
+        """Restore-with-install must fail before install when no backup exists.
+
+        For a standard restore with install using the central backup, the
+        subcloud must not be reinstalled (wiped) when the platform backup is
+        missing from dc-vault. The operation should fail during preparation.
+        """
+        self.mock_run_subcloud_install = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_install"
+        )
+        self.mock_os_path_isdir.return_value = True
+        self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+
+        # No central backup present in dc-vault
+        self.mock_find_central_subcloud_backup.side_effect = FileNotFoundError(
+            "No backup files found"
+        )
+
+        values = copy.copy(FAKE_BACKUP_RESTORE_LOAD_WITH_INSTALL)
+        values["with_install"] = True
+        values["local_only"] = False
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            data_install=self.data_install,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+        )
+
+        # The restore fails, so the operation raises after marking the subcloud
+        self.assertRaises(
+            exceptions.SubcloudBackupOperationFailed,
+            self.sm.restore_subcloud_backups,
+            self.ctx,
+            payload=values,
+        )
+
+        # The backup existence must have been checked
+        self.mock_find_central_subcloud_backup.assert_called_once()
+
+        # Install must NOT run - the subcloud must not be wiped
+        self.mock_run_subcloud_install.assert_not_called()
+        mock_run_restore_playbook.assert_not_called()
+
+        # Subcloud must land in restore-prep-failed with a populated reason
+        updated_subcloud = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_PREP_FAILED, updated_subcloud.deploy_status
+        )
+        self.assertNotEqual(consts.ERROR_DESC_EMPTY, updated_subcloud.error_description)
+        self.assertIn(
+            "No platform backup file found",
+            updated_subcloud.error_description,
         )
 
     @mock.patch.object(subcloud_manager.SubcloudManager, "_get_initial_sel_event_id")
