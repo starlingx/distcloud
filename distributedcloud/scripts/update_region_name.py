@@ -12,10 +12,12 @@ sudo update_region_name.py
 """
 
 import logging
+import os
 import re
 import subprocess
 import sys
 import time
+from typing import Optional
 
 from dc_script_common import get_sw_version
 from keystoneauth1.identity import v3
@@ -75,6 +77,25 @@ SERVICES_TO_RESTART_PMON = [
     "sm-api",
 ]
 
+SERVICES_TO_RESTART_MTCE_PMON = [
+    "hbsAgent",
+    "hbsClient",
+    "mtcClient",
+]
+
+# pmon-managed processes expose a pidfile. A successful restart is confirmed
+# by the pidfile holding a NEW pid (different from the pre-restart pid) that
+# corresponds to a live process. This proves the process actually cycled and
+# re-read /etc/platform/platform.conf (e.g. the new host UUID), rather than
+# merely being "still running".
+PMON_PIDFILES = {
+    "sysinv-agent": "/var/run/sysinv-agent.pid",
+    "sm-api": "/var/run/sm-api.pid",
+    "hbsAgent": "/var/run/hbsAgent.pid",
+    "hbsClient": "/var/run/hbsClient.pid",
+    "mtcClient": "/var/run/mtcClient.pid",
+}
+
 
 def load_credentials() -> dict:
     """Load Keystone credentials by sourcing the openrc file.
@@ -132,8 +153,48 @@ def create_keystone_client(creds: dict) -> keystone_client.Client:
     return keystone_client.Client(session=keystone_session, interface="internal")
 
 
+def read_pmon_pid(service: str):
+    """Return the integer pid from a pmon service's pidfile, or None.
+
+    Returns None for a transient read failure (pidfile temporarily
+    missing or not yet holding a parseable pid), so callers such as
+    verify_pmon_services can retry and eventually fail with a clear
+    timeout error if it never appears.
+    """
+    pidfile = PMON_PIDFILES[service]
+    try:
+        with open(pidfile, "r", encoding="utf-8") as fh:
+            return int(fh.read().strip())
+    except (OSError, ValueError):
+        # OSError: pidfile is missing or unreadable (e.g. the daemon has
+        # not recreated it yet mid-restart). ValueError: the file exists
+        # but does not yet hold a parseable integer pid. Both are treated
+        # as "not ready" so the caller can retry.
+        return None
+
+
+def pid_is_alive(pid: Optional[int]) -> bool:
+    """Return True if a process with the given pid currently exists.
+
+    Uses the /proc filesystem for a read-only existence check. The
+    presence of /proc/<pid> does not depend on process ownership, so
+    this correctly reports root-owned daemons as alive regardless of
+    the caller's privileges.
+    """
+    if not pid:
+        return False
+    return os.path.exists(f"/proc/{pid}")
+
+
 def restart_pmon_managed_services(service_list: list[str]):
-    """Restart pmon-managed services."""
+    """Restart pmon-managed services and verify they cycled.
+
+    Captures each service's pid BEFORE issuing pmon-restart, then
+    verifies via verify_pmon_services() that the process actually cycled
+    (new pid) rather than returning while the old, pre-restart process is
+    still draining in-flight work.
+    """
+    old_pids = {service: read_pmon_pid(service) for service in service_list}
     LOG.info(
         "Issuing pmon-restart for: %s",
         ", ".join(service_list),
@@ -155,10 +216,63 @@ def restart_pmon_managed_services(service_list: list[str]):
             )
             sys.exit(1)
 
+    verify_pmon_services(old_pids)
+
+
+def _pmon_service_restarted(service: str, old_pid) -> bool:
+    """Return True once a pmon service holds a new, live pid.
+
+    A pidfile that is temporarily missing after the restart is treated
+    as "not restarted yet" so the caller retries.
+    """
+    new_pid = read_pmon_pid(service)
+    if new_pid and new_pid != old_pid and pid_is_alive(new_pid):
+        LOG.info(
+            "Service '%s' confirmed restarted (new pid=%s).",
+            service,
+            new_pid,
+        )
+        return True
+    return False
+
+
+def verify_pmon_services(old_pids, max_retries=10, delay_seconds=5):
+    """Verify pmon-managed services actually restarted, with retries.
+
+    All services are polled concurrently each round.
+
+    For each service, poll its pidfile until it holds a NEW pid (different
+    from the pre-restart pid captured by restart_pmon_managed_services) that
+    corresponds to a live process. This guarantees the process cycled and
+    re-read /etc/platform/platform.conf before we proceed. Without this
+    barrier, the old process (e.g. sysinv-agent) can keep running with a
+    stale in-memory host UUID and mishandle callbacks triggered by later
+    steps such as the OAM reconfiguration.
+
+    A pidfile that is temporarily missing after the restart is treated
+    as "not restarted yet" and retried; if it never appears with a new
+    live pid the verification fails with a timeout error.
+    """
+    _verify_services(
+        list(old_pids),
+        lambda service: _pmon_service_restarted(service, old_pids[service]),
+        max_retries,
+        delay_seconds,
+    )
+
 
 def restart_mtce_services():
-    """Force a full restart of the mtce daemons."""
+    """Force a full restart of the mtce daemons and verify them.
+
+    Restarts mtc-agent (SM-managed) and the pmon-managed heartbeat
+    daemons, then verifies they are active. The pmon daemons have their
+    pre-restart pids captured first so verify_pmon_services can confirm
+    the processes actually cycled.
+    """
     LOG.info("Issuing restart command for mtce service")
+    mtce_pmon_old_pids = {
+        service: read_pmon_pid(service) for service in SERVICES_TO_RESTART_MTCE_PMON
+    }
     try:
         subprocess.run(
             ["sm-restart-safe", "service", "mtc-agent"],
@@ -166,24 +280,13 @@ def restart_mtce_services():
             text=True,
             check=True,
         )
-        subprocess.run(
-            ["pmon-restart", "hbsAgent"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        subprocess.run(
-            ["pmon-restart", "hbsClient"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        subprocess.run(
-            ["pmon-restart", "mtcClient"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        for service in SERVICES_TO_RESTART_MTCE_PMON:
+            subprocess.run(
+                ["pmon-restart", service],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
         LOG.info("Successfully commanded mtce to restart.")
     except subprocess.CalledProcessError as e:
         LOG.error(
@@ -192,9 +295,12 @@ def restart_mtce_services():
         )
         sys.exit(1)
 
+    verify_sm_services(["mtc-agent"])
+    verify_pmon_services(mtce_pmon_old_pids)
+
 
 def restart_services_sm(service_list: list[str]):
-    """Restart services using the 'sm-restart-safe' command."""
+    """Restart SM-managed services and verify they are active."""
     LOG.info("Preparing to restart services: %s", ", ".join(service_list))
     for service in service_list:
         LOG.info("Issuing restart command for service: %s", service)
@@ -214,9 +320,11 @@ def restart_services_sm(service_list: list[str]):
             )
             sys.exit(1)
 
+    verify_sm_services(service_list)
+
 
 def restart_services_systemd(service_list: list[str]):
-    """Restart services using systemctl.
+    """Restart systemd services and verify they are active.
 
     Args:
         service_list: A list of systemd service names to restart.
@@ -243,119 +351,107 @@ def restart_services_systemd(service_list: list[str]):
             )
             sys.exit(1)
 
+    verify_systemd_services(service_list)
 
-def verify_sm_services(
-    service_list: list[str],
-    max_retries: int = 30,
-    delay_seconds: int = 4,
+
+def _verify_services(
+    service_list: list,
+    is_ready,
+    max_retries: int,
+    delay_seconds: int,
 ):
-    """Verify services are 'enabled-active' with a retry mechanism.
+    """Poll a group of services until each becomes ready, or fail.
+
+    Instead of confirming one service before starting the next, every
+    round checks all services still pending and drops the ones that are
+    now ready. A single delay is shared by the whole group per round, so
+    the worst-case wait is roughly one timeout window for the group
+    rather than one per service.
 
     Args:
-        service_list: A list of service names to verify.
-        max_retries: Maximum number of status checks per service.
-        delay_seconds: Seconds to wait between retries.
+        service_list: Services to verify.
+        is_ready: Callable(service) -> bool, True once the service is
+            confirmed ready.
+        max_retries: Maximum number of polling rounds.
+        delay_seconds: Seconds to wait between rounds.
     """
-    LOG.info("Preparing to verify services: %s", ", ".join(service_list))
-    for service in service_list:
-        LOG.info("Verifying status of service: '%s'...", service)
-        for attempt in range(1, max_retries + 1):
-            try:
-                result = subprocess.run(
-                    ["sm-query", "service", service],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                if "enabled-active" in result.stdout:
-                    LOG.info(
-                        "Service '%s' is confirmed enabled-active.",
-                        service,
-                    )
-                    break
-            except subprocess.CalledProcessError as e:
-                LOG.warning(
-                    "Verification command failed for '%s' on "
-                    "attempt %d/%d. Error: %s",
-                    service,
-                    attempt,
-                    max_retries,
-                    e.stderr.strip(),
-                )
-
-            if attempt < max_retries:
-                LOG.info(
-                    "Attempt %d/%d: '%s' not active yet. Retrying in %ds...",
-                    attempt,
-                    max_retries,
-                    service,
-                    delay_seconds,
-                )
-                time.sleep(delay_seconds)
-        else:
-            error_msg = (
-                f"Service '{service}' did not become active after "
-                f"{max_retries} attempts."
+    pending = list(service_list)
+    for attempt in range(1, max_retries + 1):
+        pending = [service for service in pending if not is_ready(service)]
+        if not pending:
+            return
+        if attempt < max_retries:
+            LOG.info(
+                "Attempt %d/%d: services not ready yet: %s. Retrying in %ds...",
+                attempt,
+                max_retries,
+                ", ".join(str(s) for s in pending),
+                delay_seconds,
             )
-            LOG.error(error_msg)
-            sys.exit(1)
+            time.sleep(delay_seconds)
+
+    error_msg = (
+        f"Services did not become ready after {max_retries} attempts: "
+        f"{', '.join(str(s) for s in pending)}."
+    )
+    LOG.error(error_msg)
+    sys.exit(1)
 
 
-def verify_systemd_services(
-    service_list: list[str],
-    max_retries: int = 30,
-    delay_seconds: int = 4,
-):
-    """Verify systemd services are active with a retry mechanism.
+def _sm_service_is_active(service: str) -> bool:
+    """Return True if an SM service reports 'enabled-active'."""
+    try:
+        result = subprocess.run(
+            ["sm-query", "service", service],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        LOG.warning(
+            "Verification command failed for '%s'. Error: %s",
+            service,
+            e.stderr.strip(),
+        )
+        return False
+    if "enabled-active" in result.stdout:
+        LOG.info("Service '%s' is confirmed enabled-active.", service)
+        return True
+    return False
 
-    Args:
-        service_list: A list of systemd service names to verify.
-        max_retries: Maximum number of status checks per service.
-        delay_seconds: Seconds to wait between retries.
-    """
-    for service in service_list:
-        LOG.info("Verifying status of systemd service: '%s'...", service)
-        for attempt in range(1, max_retries + 1):
-            try:
-                result = subprocess.run(
-                    ["systemctl", "is-active", service],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                if result.stdout.strip() == "active":
-                    LOG.info(
-                        "Systemd service '%s' is confirmed active.",
-                        service,
-                    )
-                    break
-            except subprocess.CalledProcessError as e:
-                LOG.warning(
-                    "Verification command failed for systemd service "
-                    "'%s' on attempt %d/%d. Error: %s",
-                    service,
-                    attempt,
-                    max_retries,
-                    e.stderr.strip(),
-                )
 
-            if attempt < max_retries:
-                LOG.info(
-                    "Attempt %d/%d: Systemd service '%s' not active "
-                    "yet. Retrying in %ds...",
-                    attempt,
-                    max_retries,
-                    service,
-                    delay_seconds,
-                )
-                time.sleep(delay_seconds)
-        else:
-            error_msg = (
-                f"Systemd service '{service}' did not become active "
-                f"after {max_retries} attempts."
-            )
-            LOG.error(error_msg)
-            sys.exit(1)
+def verify_sm_services(service_list, max_retries=10, delay_seconds=5):
+    """Verify SM services are 'enabled-active', polling concurrently."""
+    _verify_services(service_list, _sm_service_is_active, max_retries, delay_seconds)
+
+
+def _systemd_service_is_active(service: str) -> bool:
+    """Return True if a systemd service reports 'active'."""
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", service],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        LOG.warning(
+            "Verification command failed for systemd service '%s'. Error: %s",
+            service,
+            e.stderr.strip(),
+        )
+        return False
+    if result.stdout.strip() == "active":
+        LOG.info("Systemd service '%s' is confirmed active.", service)
+        return True
+    return False
+
+
+def verify_systemd_services(service_list, max_retries=10, delay_seconds=5):
+    """Verify systemd services are active, polling concurrently."""
+    _verify_services(
+        service_list, _systemd_service_is_active, max_retries, delay_seconds
+    )
 
 
 def update_sysinv_database(new_region):
@@ -499,17 +595,16 @@ def update_files(new_region, file_list):
 
 
 def restart_services(sm_services: list[str]):
-    """Run system commands to restart necessary services."""
+    """Restart all necessary services.
+
+    Each restart_* helper restarts its own services and verifies they
+    are active before returning, so this function is just the ordered
+    sequence of restarts.
+    """
     restart_services_sm(sm_services)
     restart_services_systemd(SERVICES_TO_RESTART_SYSTEMD)
     restart_mtce_services()
     restart_pmon_managed_services(SERVICES_TO_RESTART_PMON)
-
-
-def verify_services(sm_services: list[str]):
-    """Verify all services are active after the restart."""
-    verify_sm_services(sm_services)
-    verify_systemd_services(SERVICES_TO_RESTART_SYSTEMD)
 
 
 def get_versioned_files(sw_version: str) -> list[str]:
@@ -544,7 +639,6 @@ def main():
     update_files(new_region_name, all_files)
     migrate_keystone_endpoints(keystone, new_region_name)
     restart_services(sm_services)
-    verify_services(sm_services)
     LOG.info("--- Migration Script Completed ---")
 
 

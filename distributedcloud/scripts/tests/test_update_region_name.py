@@ -353,10 +353,18 @@ class TestRestartMtceService(base.DCCommonTestCase):
     def setUp(self):
         super().setUp()
         self.mock_run = self._mock_object(update_region_name.subprocess, "run")
+        self.mock_read_pid = self._mock_object(update_region_name, "read_pmon_pid")
+        self.mock_verify_sm = self._mock_object(
+            update_region_name, "verify_sm_services"
+        )
+        self.mock_verify_pmon = self._mock_object(
+            update_region_name, "verify_pmon_services"
+        )
 
     def test_calls_all_commands(self):
         """Test calls sm-restart-safe and pmon-restart for agents."""
         self.mock_run.return_value = mock.Mock(returncode=0)
+        self.mock_read_pid.side_effect = [111, 222, 333]
         update_region_name.restart_mtce_services()
         self.assertEqual(self.mock_run.call_count, 4)
         calls = [c[0][0] for c in self.mock_run.call_args_list]
@@ -364,6 +372,11 @@ class TestRestartMtceService(base.DCCommonTestCase):
         self.assertEqual(calls[1], ["pmon-restart", "hbsAgent"])
         self.assertEqual(calls[2], ["pmon-restart", "hbsClient"])
         self.assertEqual(calls[3], ["pmon-restart", "mtcClient"])
+        # mtce services are verified after being restarted.
+        self.mock_verify_sm.assert_called_once_with(["mtc-agent"])
+        self.mock_verify_pmon.assert_called_once_with(
+            {"hbsAgent": 111, "hbsClient": 222, "mtcClient": 333}
+        )
 
     def test_raises_on_error(self):
         """Test exits on CalledProcessError."""
@@ -376,16 +389,59 @@ class TestRestartMtceService(base.DCCommonTestCase):
         )
 
 
+class TestReadPmonPid(base.DCCommonTestCase):
+    """Test class for read_pmon_pid function."""
+
+    def test_reads_pid_from_file(self):
+        """Test returns the integer pid from the pidfile."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as fh:
+            fh.write("12345\n")
+            pidfile = fh.name
+        self.addCleanup(os.unlink, pidfile)
+
+        with mock.patch.dict(
+            update_region_name.PMON_PIDFILES,
+            {"svc1": pidfile},
+            clear=True,
+        ):
+            self.assertEqual(update_region_name.read_pmon_pid("svc1"), 12345)
+
+    def test_returns_none_when_pidfile_missing(self):
+        """Test returns None when the configured pidfile is missing."""
+        with mock.patch.dict(
+            update_region_name.PMON_PIDFILES,
+            {"svc1": "/nonexistent/path/svc1.pid"},
+            clear=True,
+        ):
+            self.assertIsNone(update_region_name.read_pmon_pid("svc1"))
+
+    def test_returns_none_when_pidfile_unparseable(self):
+        """Test returns None when the pidfile has no valid integer."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as fh:
+            fh.write("not-a-pid\n")
+            pidfile = fh.name
+        self.addCleanup(os.unlink, pidfile)
+
+        with mock.patch.dict(
+            update_region_name.PMON_PIDFILES,
+            {"svc1": pidfile},
+            clear=True,
+        ):
+            self.assertIsNone(update_region_name.read_pmon_pid("svc1"))
+
+
 class TestRestartPmonServices(base.DCCommonTestCase):
     """Test class for restart_pmon_managed_services function."""
 
     def setUp(self):
         super().setUp()
         self.mock_run = self._mock_object(update_region_name.subprocess, "run")
+        self.mock_verify = self._mock_object(update_region_name, "verify_pmon_services")
 
     def test_calls_pmon_restart_for_each(self):
-        """Test calls pmon-restart for each service in the list."""
+        """Test calls pmon-restart for each service then verifies."""
         self.mock_run.return_value = mock.Mock(returncode=0)
+        self._mock_object(update_region_name, "read_pmon_pid", return_value=111)
         update_region_name.restart_pmon_managed_services(
             update_region_name.SERVICES_TO_RESTART_PMON
         )
@@ -403,6 +459,10 @@ class TestRestartPmonServices(base.DCCommonTestCase):
             self.mock_run.call_count,
             len(update_region_name.SERVICES_TO_RESTART_PMON),
         )
+        # Verifies with the captured pre-restart pid mapping.
+        self.mock_verify.assert_called_once_with(
+            {svc: 111 for svc in update_region_name.SERVICES_TO_RESTART_PMON}
+        )
 
     def test_raises_on_error(self):
         """Test exits on CalledProcessError."""
@@ -414,6 +474,46 @@ class TestRestartPmonServices(base.DCCommonTestCase):
             update_region_name.restart_pmon_managed_services,
             ["sysinv-agent"],
         )
+        self.mock_verify.assert_not_called()
+
+
+class TestVerifyPmonServices(base.DCCommonTestCase):
+    """Test class for verify_pmon_services function."""
+
+    def setUp(self):
+        super().setUp()
+        self._mock_object(update_region_name.time, "sleep")
+
+    def test_passes_when_new_live_pid(self):
+        """Passes once the pidfile holds a new, live pid."""
+        self._mock_object(update_region_name, "read_pmon_pid", return_value=222)
+        self._mock_object(update_region_name, "pid_is_alive", return_value=True)
+        # old pid 111 -> new pid 222 (alive): should return without exiting.
+        update_region_name.verify_pmon_services({"sysinv-agent": 111})
+
+    def test_exits_when_pid_never_changes(self):
+        """Exits if the pid never changes from the pre-restart pid."""
+        self._mock_object(update_region_name, "read_pmon_pid", return_value=111)
+        self._mock_object(update_region_name, "pid_is_alive", return_value=True)
+        self.assertRaises(
+            SystemExit,
+            update_region_name.verify_pmon_services,
+            {"sysinv-agent": 111},
+            2,  # max_retries
+            0,  # delay_seconds
+        )
+
+    def test_exits_when_new_pid_not_alive(self):
+        """Exits if a new pid appears but the process is not alive."""
+        self._mock_object(update_region_name, "read_pmon_pid", return_value=222)
+        self._mock_object(update_region_name, "pid_is_alive", return_value=False)
+        self.assertRaises(
+            SystemExit,
+            update_region_name.verify_pmon_services,
+            {"sysinv-agent": 111},
+            2,
+            0,
+        )
 
 
 class TestRestartServicesSm(base.DCCommonTestCase):
@@ -422,15 +522,17 @@ class TestRestartServicesSm(base.DCCommonTestCase):
     def setUp(self):
         super().setUp()
         self.mock_run = self._mock_object(update_region_name.subprocess, "run")
+        self.mock_verify = self._mock_object(update_region_name, "verify_sm_services")
 
     def test_restarts_all(self):
-        """Test calls sm-restart-safe for each service."""
+        """Test calls sm-restart-safe for each service and verifies."""
         self.mock_run.return_value = mock.Mock(returncode=0)
         update_region_name.restart_services_sm(["svc1", "svc2"])
         self.assertEqual(self.mock_run.call_count, 2)
         calls = [c[0][0] for c in self.mock_run.call_args_list]
         self.assertEqual(calls[0], ["sm-restart-safe", "service", "svc1"])
         self.assertEqual(calls[1], ["sm-restart-safe", "service", "svc2"])
+        self.mock_verify.assert_called_once_with(["svc1", "svc2"])
 
     def test_raises_on_error(self):
         """Test exits on CalledProcessError."""
@@ -442,6 +544,7 @@ class TestRestartServicesSm(base.DCCommonTestCase):
             update_region_name.restart_services_sm,
             ["svc1"],
         )
+        self.mock_verify.assert_not_called()
 
 
 class TestRestartServicesSystemd(base.DCCommonTestCase):
@@ -450,15 +553,19 @@ class TestRestartServicesSystemd(base.DCCommonTestCase):
     def setUp(self):
         super().setUp()
         self.mock_run = self._mock_object(update_region_name.subprocess, "run")
+        self.mock_verify = self._mock_object(
+            update_region_name, "verify_systemd_services"
+        )
 
     def test_restarts_all(self):
-        """Test calls systemctl restart for each service."""
+        """Test calls systemctl restart for each service and verifies."""
         self.mock_run.return_value = mock.Mock(returncode=0)
         update_region_name.restart_services_systemd(["svc1.service", "svc2.service"])
         self.assertEqual(self.mock_run.call_count, 2)
         calls = [c[0][0] for c in self.mock_run.call_args_list]
         self.assertEqual(calls[0], ["systemctl", "restart", "svc1.service"])
         self.assertEqual(calls[1], ["systemctl", "restart", "svc2.service"])
+        self.mock_verify.assert_called_once_with(["svc1.service", "svc2.service"])
 
     def test_raises_on_error(self):
         """Test exits on CalledProcessError."""
@@ -470,6 +577,7 @@ class TestRestartServicesSystemd(base.DCCommonTestCase):
             update_region_name.restart_services_systemd,
             ["svc1.service"],
         )
+        self.mock_verify.assert_not_called()
 
 
 class TestVerifySmServices(base.DCCommonTestCase):
@@ -485,6 +593,27 @@ class TestVerifySmServices(base.DCCommonTestCase):
         self.mock_run.return_value = mock.Mock(stdout="enabled-active", returncode=0)
         update_region_name.verify_sm_services(["svc1"], max_retries=3)
         self.mock_sleep.assert_not_called()
+
+    def test_polls_group_concurrently(self):
+        """Test the group shares rounds and ready services are dropped.
+
+        svc1 is active on round 1; svc2 only on round 2. The whole group
+        should finish after a single shared sleep, and svc1 must not be
+        re-queried once it is confirmed active.
+        """
+        self.mock_run.side_effect = [
+            mock.Mock(stdout="enabled-active", returncode=0),  # svc1 rnd1
+            mock.Mock(stdout="disabled-inactive", returncode=0),  # svc2 r1
+            mock.Mock(stdout="enabled-active", returncode=0),  # svc2 rnd2
+        ]
+        update_region_name.verify_sm_services(
+            ["svc1", "svc2"], max_retries=3, delay_seconds=1
+        )
+        # One shared delay for the whole group, not one per service.
+        self.mock_sleep.assert_called_once_with(1)
+        # svc1 queried once (round 1); svc2 queried twice (rounds 1-2).
+        queried = [c[0][0][2] for c in self.mock_run.call_args_list]
+        self.assertEqual(queried, ["svc1", "svc2", "svc2"])
 
     def test_retries_then_succeeds(self):
         """Test retries then succeeds."""
@@ -560,19 +689,17 @@ class TestRestartServices(base.DCCommonTestCase):
         self.mock_systemd = self._mock_object(
             update_region_name, "restart_services_systemd"
         )
-        self.mock_verify_sm = self._mock_object(
-            update_region_name, "verify_sm_services"
-        )
-        self.mock_verify_systemd = self._mock_object(
-            update_region_name, "verify_systemd_services"
-        )
         self.mock_mtce = self._mock_object(update_region_name, "restart_mtce_services")
         self.mock_pmon = self._mock_object(
             update_region_name, "restart_pmon_managed_services"
         )
 
     def test_calls_all(self):
-        """Test calls all restart and verify functions in order."""
+        """Test calls each restart helper in order.
+
+        Each restart_* helper verifies its own services internally, so
+        restart_services only orchestrates the ordered sequence.
+        """
         update_region_name.restart_services(["svc1"])
         self.mock_sm.assert_called_once_with(["svc1"])
         self.mock_systemd.assert_called_once_with(
@@ -581,25 +708,6 @@ class TestRestartServices(base.DCCommonTestCase):
         self.mock_mtce.assert_called_once()
         self.mock_pmon.assert_called_once_with(
             update_region_name.SERVICES_TO_RESTART_PMON
-        )
-
-
-class TestVerifyServices(base.DCCommonTestCase):
-    """Test class for verify_services function."""
-
-    def setUp(self):
-        super().setUp()
-        self.mock_sm = self._mock_object(update_region_name, "verify_sm_services")
-        self.mock_systemd = self._mock_object(
-            update_region_name, "verify_systemd_services"
-        )
-
-    def test_calls_all(self):
-        """Test calls all verify functions."""
-        update_region_name.verify_services(["svc1"])
-        self.mock_sm.assert_called_once_with(["svc1"])
-        self.mock_systemd.assert_called_once_with(
-            update_region_name.SERVICES_TO_RESTART_SYSTEMD
         )
 
 
@@ -628,7 +736,6 @@ class TestMain(base.DCCommonTestCase):
         )
         self.mock_update_files = self._mock_object(update_region_name, "update_files")
         self.mock_restart = self._mock_object(update_region_name, "restart_services")
-        self.mock_verify = self._mock_object(update_region_name, "verify_services")
 
     def test_generates_uuid_region_name(self):
         """Test generates UUID region name automatically."""
@@ -648,7 +755,6 @@ class TestMain(base.DCCommonTestCase):
             self.mock_create_ks.return_value, generated_region
         )
         self.mock_restart.assert_called_once()
-        self.mock_verify.assert_called_once()
 
     def test_recovers_after_midway_failure(self):
         """Test script can be re-run after midway failure."""
@@ -675,4 +781,3 @@ class TestMain(base.DCCommonTestCase):
         self.mock_update_files.assert_called_once()
         self.mock_migrate_ep.assert_called_once()
         self.mock_restart.assert_called_once()
-        self.mock_verify.assert_called_once()
