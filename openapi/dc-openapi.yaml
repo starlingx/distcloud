@@ -1434,13 +1434,45 @@ paths:
         - registry_images: Restore registry images
           (default: false, requires local_only=true)
         - restore_values: YAML file with restore
-          config (including bootstrap_address)
+          config (including bootstrap_address and
+          on_factory_install)
         - release: Software release version
           (requires with_install or factory=true)
         - auto: Auto-restore mode (default: false, implies registry_images=true)
         - factory: Factory restore mode (default: false,
           implies with_install=true, local_only=true,
           registry_images=true)
+
+        verb=restore, restore_values keys interpreted
+        by dcmanager (Optional):
+        - bootstrap_address: Mapping of subcloud name
+          to the OAM IP address to reach the subcloud
+          at during the restore, overriding the address
+          from the install values or inventory file.
+        - restore_timeout: Restore playbook timeout in
+          seconds. Defaults to one and a half times the
+          global Ansible playbook timeout.
+        - on_factory_install: The target subcloud is
+          still in its factory install state, that is,
+          bootstrapped and configured with the factory
+          defaults. On its own, the subcloud network is
+          first reconfigured over the BMC with a
+          cloud-init seed ISO and the backup is then
+          restored over the OAM network; AIO-SX only,
+          requires install values and a reachable BMC.
+          Combined with auto, the auto restore flow is
+          kept and the seed ISO is inserted without
+          power cycling the subcloud. Cannot be
+          combined with with_install, factory or
+          on_site. On its own it is monitored over the
+          OAM network, so ipmi_sel_event_monitoring
+          cannot be enabled with it.
+        Any other key is forwarded to the subcloud
+        restore playbook as an override. See the
+        subcloud backup and restore documentation for
+        the full set (for example backup_filename,
+        registry_backup_filename, initial_backup_dir
+        and ipmi_sel_event_monitoring).
 
         verb=delete (Required):
         - subcloud OR group: Target subcloud

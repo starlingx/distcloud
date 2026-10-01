@@ -14,6 +14,7 @@ from oslo_messaging import RemoteError
 from dccommon import consts as dccommon_consts
 from dccommon.endpoint_cache import EndpointCache
 from dccommon import utils as dccommon_utils
+from dcmanager.api.controllers.v1 import subcloud_backup
 from dcmanager.common import consts
 import dcmanager.common.utils
 from dcmanager.db import api as db_api
@@ -81,6 +82,13 @@ FAKE_SYSTEM_HEALTH_K8S_FAIL = (
 )
 FAKE_RESTORE_VALUES_INVALID_IP = {"bootstrap_address": {"subcloud1": "10.10.20.12.22"}}
 FAKE_RESTORE_VALUES_VALID_IP = {"bootstrap_address": {"subcloud1": "10.10.20.12"}}
+
+# Install values containing every value required by the restore from factory
+# defaults mode. The shared fixture does not carry a bmc_password.
+FAKE_INSTALL_VALUES_ON_FACTORY_INSTALL = dict(
+    fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES,
+    bmc_password="ZmFrZXBhc3M=",
+)
 
 
 class BaseTestSubcloudBackupController(DCManagerApiTest):
@@ -1237,6 +1245,33 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         )
 
     @mock.patch("dcmanager.common.utils.get_bootstrap_values")
+    def test_patch_restore_subcloud_auto_restore_fails_with_duplex_and_address(
+        self, mock_get_bootstrap_values
+    ):
+        """Test the auto-restore system mode check is not skipped
+
+        The supported system mode must be validated regardless of whether a
+        bootstrap_address was supplied in the restore values.
+        """
+
+        self.params["auto"] = "True"
+        self.params["restore_values"] = FAKE_RESTORE_VALUES_VALID_IP
+
+        mock_get_bootstrap_values.return_value = {
+            "system_mode": consts.SYSTEM_MODE_DUPLEX
+        }
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"{self.subcloud.name} is a {consts.SYSTEM_MODE_DUPLEX} subcloud. "
+            f"Auto restore is only supported for {consts.SYSTEM_MODE_SIMPLEX} "
+            "subclouds.",
+        )
+
+    @mock.patch("dcmanager.common.utils.get_bootstrap_values")
     def test_patch_restore_subcloud_auto_restore_succeeds_with_simplex(
         self, mock_get_bootstrap_values
     ):
@@ -1436,6 +1471,287 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         )
         self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
 
+    def _setup_on_factory_install(
+        self,
+        install_values=None,
+        bootstrap_values=None,
+        enrolled_with_vcsr=False,
+        flag_value=True,
+    ):
+        """Prepare a subcloud and params for an on_factory_install restore.
+
+        :return: the mocked get_bootstrap_values object
+        """
+        if install_values is None:
+            install_values = FAKE_INSTALL_VALUES_ON_FACTORY_INSTALL
+        if bootstrap_values is None:
+            bootstrap_values = fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            # subcloud_update ignores None, so an empty string is used to
+            # represent a subcloud without install values.
+            data_install=json.dumps(install_values) if install_values else "",
+            enrolled_with_vcsr=enrolled_with_vcsr,
+        )
+
+        self.params["restore_values"] = {
+            consts.RESTORE_VALUES_ON_FACTORY_INSTALL: flag_value
+        }
+
+        mock_get_bootstrap_values = self._mock_object(
+            dcmanager.common.utils, "get_bootstrap_values"
+        )
+        mock_get_bootstrap_values.return_value = bootstrap_values
+        return mock_get_bootstrap_values
+
+    def test_patch_restore_on_factory_install_succeeds(self):
+        """Test on_factory_install restore succeeds for a simplex subcloud"""
+
+        self._setup_on_factory_install()
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        # The BMC must be probed, since the network reconfiguration is
+        # performed over the BMC
+        self.mock_bmc_is_reachable.assert_called_once()
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertTrue(
+            call_payload["restore_values"][consts.RESTORE_VALUES_ON_FACTORY_INSTALL]
+        )
+        # The mode must not imply any of the other restore options
+        self.assertFalse(call_payload["with_install"])
+        self.assertFalse(call_payload["auto"])
+        self.assertFalse(call_payload["factory"])
+        self.assertFalse(call_payload["registry_images"])
+        self.mock_rpc_client().restore_subcloud_from_backup_on_site.assert_not_called()
+
+    def test_patch_restore_on_factory_install_succeeds_with_string_flag(self):
+        """Test on_factory_install restore accepts a string flag value"""
+
+        self._setup_on_factory_install(flag_value="true")
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_bmc_is_reachable.assert_called_once()
+
+    def test_patch_restore_without_on_factory_install_does_not_probe_bmc(self):
+        """Test a plain restore is unaffected by the new mode
+
+        A restore that does not request the mode must not require the BMC,
+        which is the regression guard for the shared validation path.
+        """
+
+        self.params["restore_values"] = {
+            consts.RESTORE_VALUES_ON_FACTORY_INSTALL: False
+        }
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_bmc_is_reachable.assert_not_called()
+
+    def test_patch_restore_on_factory_install_fails_with_invalid_options(self):
+        """Test on_factory_install restore rejects incompatible options"""
+
+        for index, option in enumerate(
+            subcloud_backup.ON_FACTORY_INSTALL_INVALID_OPTIONS, start=1
+        ):
+            self._setup_on_factory_install()
+            self.params[option] = "True"
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response,
+                http.client.BAD_REQUEST,
+                "The on_factory_install option in restore_values cannot be "
+                "used with any of the following options: with_install, factory "
+                "or on_site.",
+                call_count=index,
+            )
+            del self.params[option]
+
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+
+    def test_patch_restore_on_factory_install_fails_with_vcsr(self):
+        """Test on_factory_install restore fails for a vCSR subcloud"""
+
+        self._setup_on_factory_install(enrolled_with_vcsr=True)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} is vCSR-enrolled; restore onto a "
+            "factory-installed subcloud is not supported.",
+        )
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+
+    def test_patch_restore_on_factory_install_fails_with_ipmi_monitoring(self):
+        """Test standalone on_factory_install rejects ipmi_sel_event_monitoring"""
+
+        for index, value in enumerate((True, "true"), start=1):
+            self._setup_on_factory_install()
+            self.params["restore_values"]["ipmi_sel_event_monitoring"] = value
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response,
+                http.client.BAD_REQUEST,
+                "The on_factory_install option in restore_values cannot be "
+                "used with ipmi_sel_event_monitoring enabled: a standalone "
+                "on_factory_install restore is monitored over the OAM "
+                "network, not through the IPMI SEL events.",
+                call_count=index,
+            )
+
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+
+    def test_patch_restore_on_factory_install_allows_ipmi_monitoring_false(self):
+        """Test standalone on_factory_install accepts ipmi_sel_event_monitoring=false"""
+
+        self._setup_on_factory_install()
+        self.params["restore_values"]["ipmi_sel_event_monitoring"] = False
+
+        response = self._send_request()
+
+        self._assert_response(response)
+
+    def test_patch_restore_on_factory_install_allows_auto(self):
+        """Test on_factory_install is accepted together with auto
+
+        Combined with auto it only reports the target state, so the network
+        reconfiguration requirements do not apply and the auto restore
+        validation governs the request instead.
+        """
+
+        self._setup_on_factory_install()
+        self.params["auto"] = "True"
+        mock_validate = self._mock_object(
+            dcmanager.common.utils, "validate_restore_on_factory_install"
+        )
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        # The network reconfiguration requirements do not apply with auto
+        mock_validate.assert_not_called()
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertTrue(call_payload["auto"])
+        self.assertTrue(
+            call_payload["restore_values"][consts.RESTORE_VALUES_ON_FACTORY_INSTALL]
+        )
+
+    def test_patch_restore_on_factory_install_fails_without_install_values(self):
+        """Test on_factory_install restore fails without install values"""
+
+        self._setup_on_factory_install(install_values={})
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} does not contain install values, "
+            "which are required to restore onto a factory-installed subcloud.",
+        )
+
+    def test_patch_restore_on_factory_install_fails_with_incomplete_install(self):
+        """Test on_factory_install restore fails with incomplete install values"""
+
+        install_values = dict(FAKE_INSTALL_VALUES_ON_FACTORY_INSTALL)
+        del install_values["bootstrap_interface"]
+        del install_values["bmc_password"]
+
+        self._setup_on_factory_install(install_values=install_values)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} install values are missing the "
+            "following value(s) required to restore onto a factory-installed subcloud: "
+            "bootstrap_interface, bmc_password.",
+        )
+
+    def test_patch_restore_on_factory_install_fails_with_incomplete_bootstrap(self):
+        """Test on_factory_install restore fails with incomplete bootstrap values"""
+
+        bootstrap_values = dict(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        del bootstrap_values["external_oam_gateway_address"]
+
+        self._setup_on_factory_install(bootstrap_values=bootstrap_values)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} bootstrap values are missing the "
+            "following value(s) required to restore onto a factory-installed subcloud: "
+            "external_oam_gateway_address.",
+        )
+
+    def test_patch_restore_on_factory_install_fails_without_bootstrap_values(self):
+        """Test on_factory_install restore fails when bootstrap values are absent"""
+
+        mock_get_bootstrap_values = self._setup_on_factory_install()
+        mock_get_bootstrap_values.side_effect = FileNotFoundError()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Bootstrap values for subcloud {self.subcloud.name} was not found, "
+            "which are required to restore onto a factory-installed subcloud.",
+        )
+
+    def test_patch_restore_on_factory_install_fails_with_duplex(self):
+        """Test on_factory_install restore fails for a duplex subcloud"""
+
+        bootstrap_values = dict(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_values["system_mode"] = consts.SYSTEM_MODE_DUPLEX
+
+        self._setup_on_factory_install(bootstrap_values=bootstrap_values)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"{self.subcloud.name} is a {consts.SYSTEM_MODE_DUPLEX} subcloud. "
+            "Restore onto a factory-installed subcloud is only supported for "
+            f"{consts.SYSTEM_MODE_SIMPLEX} subclouds.",
+        )
+
+    def test_patch_restore_on_factory_install_fails_with_unreachable_bmc(self):
+        """Test on_factory_install restore fails when the BMC is unreachable"""
+
+        self._setup_on_factory_install()
+        self.mock_bmc_is_reachable.return_value = dccommon_utils.BmcProbeResult(
+            False, "Could not connect to 10.0.0.1"
+        )
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} BMC is not reachable"
+            " (Could not connect to 10.0.0.1); "
+            "cannot perform restore-with-install.",
+        )
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
+
 
 class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
     """Test class for patch requests with restore verb for group resource"""
@@ -1490,6 +1806,60 @@ class TestSubcloudBackupPatchRestoreGroup(BaseTestSubcloudBackupPatchRestore):
         self._assert_pecan_and_response(
             response, http.client.NOT_FOUND, "Group not found"
         )
+
+    def test_patch_restore_group_on_factory_install_succeeds(self):
+        """Test on_factory_install restore is supported for a group
+
+        The network reconfiguration is performed per subcloud, so a group
+        restore is allowed.
+        """
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=json.dumps(FAKE_INSTALL_VALUES_ON_FACTORY_INSTALL),
+        )
+        self.params["restore_values"] = {consts.RESTORE_VALUES_ON_FACTORY_INSTALL: True}
+        mock_get_bootstrap_values = self._mock_object(
+            dcmanager.common.utils, "get_bootstrap_values"
+        )
+        mock_get_bootstrap_values.return_value = fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_rpc_client().restore_subcloud_backups.assert_called_once()
+
+    def test_patch_restore_group_on_factory_install_fails_with_invalid_subcloud(
+        self,
+    ):
+        """Test a group on_factory_install restore fails if any target is invalid
+
+        Unlike the deploy-state validation, a missing prerequisite for the
+        network reconfiguration aborts the whole request, which matches the
+        existing behaviour of the install values check.
+        """
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            # subcloud_update ignores None, so an empty string is used to
+            # represent a subcloud without install values.
+            data_install="",
+        )
+        self.params["restore_values"] = {consts.RESTORE_VALUES_ON_FACTORY_INSTALL: True}
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            f"Subcloud {self.subcloud.name} does not contain install values, "
+            "which are required to restore onto a factory-installed subcloud.",
+        )
+        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
 
     def test_patch_restore_group_without_subclouds_in_group(self):
         """Test patch restore group without subclouds in group"""

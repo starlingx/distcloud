@@ -44,6 +44,7 @@ from tsconfig.tsconfig import SW_VERSION
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import dcmanager_v1
 from dccommon.endpoint_cache import EndpointCache
+from dccommon.exceptions import EnrollInitExecutionFailed
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon import kubeoperator
@@ -5061,6 +5062,391 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         self.assertEqual(restore_command, expected)
 
 
+class TestSubcloudRestoreOnFactoryInstall(BaseTestSubcloudManager):
+    """Test class for the on_factory_install restore mode"""
+
+    def setUp(self):
+        super().setUp()
+
+        # The on_factory_install mode requires the BMC credentials in the
+        # install values, including the password, which the shared fixture
+        # does not carry.
+        self.install_values = dict(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        self.install_values["bmc_password"] = "ZmFrZXBhc3M="
+        self.data_install = json.dumps(self.install_values)
+        self.payload = copy.deepcopy(FAKE_BACKUP_RESTORE_LOAD)
+        self.payload["restore_values"] = {
+            consts.RESTORE_VALUES_ON_FACTORY_INSTALL: True
+        }
+
+        self.mock_enrollment = self._mock_object(
+            subcloud_manager, "SubcloudEnrollmentInit"
+        )
+        self.mock_get_bootstrap_values = self._mock_object(
+            subcloud_manager.utils, "get_bootstrap_values"
+        )
+        self.mock_get_bootstrap_values.return_value = (
+            fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA
+        )
+        self._mock_object(
+            subcloud_manager.utils, "get_primary_oam_address_ip_family"
+        ).return_value = "4"
+        self.mock_create_inventory_file = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+        )
+        self.mock_create_inventory_file.return_value = "inventory_file.yml"
+        self.mock_create_overrides = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+        )
+        self.mock_create_overrides.return_value = "overrides_file.yml"
+        self.mock_run_playbook = self._mock_object(
+            subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
+        )
+        self.mock_run_playbook.return_value = True
+        self.mock_find_ansible_error = self._mock_object(
+            subcloud_manager.utils, "find_and_save_ansible_error_msg"
+        )
+        self.mock_find_ansible_error.return_value = "playbook error"
+
+        db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            deploy_status=consts.DEPLOY_STATE_DONE,
+            availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=self.data_install,
+        )
+
+    def _get_subcloud(self):
+        return db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
+
+    def test_determine_restore_mode_on_factory_install(self):
+        """Test the restore mode uses the standard playbook without SEL events"""
+
+        restore_mode = self.sm._determine_restore_mode(self.payload)
+
+        self.assertTrue(restore_mode.on_factory_install)
+        # The standard restore playbook branch must be used
+        self.assertIsNone(restore_mode.auto_restore_mode)
+        self.assertFalse(restore_mode.bmc_access_only)
+        self.assertFalse(restore_mode.ipmi_sel_event_monitoring)
+        self.assertFalse(restore_mode.skip_install_monitoring)
+
+    def test_determine_restore_mode_on_factory_install_with_auto(self):
+        """Test the auto restore flow is kept when the target is factory
+
+        Combined with auto, on_factory_install only reports the target state:
+        the auto restore flow and its IPMI SEL monitoring must be preserved.
+        """
+
+        self.payload["auto"] = True
+
+        restore_mode = self.sm._determine_restore_mode(self.payload)
+
+        self.assertEqual("auto", restore_mode.auto_restore_mode)
+        self.assertTrue(restore_mode.bmc_access_only)
+        self.assertTrue(restore_mode.on_factory_install)
+        self.assertTrue(restore_mode.ipmi_sel_event_monitoring)
+
+    def test_restore_on_factory_install_with_auto_skips_the_reconfiguration(self):
+        """Test the network is not reconfigured for an auto restore
+
+        The auto restore runs inside the subcloud from the seed ISO, so there
+        is no network to reconfigure beforehand.
+        """
+
+        self.payload["auto"] = True
+
+        # The auto restore builds its own seed ISO and reads the IPMI SEL
+        # event id; those paths have their own test classes, so stub them out
+        # and assert only that the enroll init reconfiguration is skipped and
+        # the restore playbook still runs.
+        self._mock_object(
+            subcloud_manager.SubcloudManager, "_setup_auto_restore_without_install"
+        )
+        self._mock_object(subcloud_manager.SubcloudManager, "_get_initial_sel_event_id")
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=self.payload)
+
+        self.mock_enrollment.return_value.prep.assert_not_called()
+        self.mock_enrollment.return_value.enroll_init.assert_not_called()
+        self.mock_run_playbook.assert_called_once()
+
+    def test_compose_backup_restore_command_on_factory_install_with_auto(self):
+        """Test the playbook is told the subcloud is in its factory install"""
+
+        command = self.sm.compose_backup_restore_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            auto_restore_mode="auto",
+            with_install=False,
+            on_factory_install=True,
+        )
+
+        self.assertIn('{"mount_seed_iso": true}', command)
+        self.assertIn('{"on_factory_install": true}', command)
+
+    def test_compose_backup_restore_command_auto_without_factory_install(self):
+        """Test a plain auto restore still power cycles the subcloud"""
+
+        command = self.sm.compose_backup_restore_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            auto_restore_mode="auto",
+            with_install=False,
+        )
+
+        self.assertIn('{"mount_seed_iso": true}', command)
+        self.assertNotIn('{"on_factory_install": true}', command)
+
+    def test_determine_restore_mode_is_unchanged_for_other_modes(self):
+        """Test the other restore modes are not affected by the new flag"""
+
+        standard = self.sm._determine_restore_mode(
+            copy.deepcopy(FAKE_BACKUP_RESTORE_LOAD)
+        )
+        self.assertFalse(standard.on_factory_install)
+        self.assertIsNone(standard.auto_restore_mode)
+
+        auto = self.sm._determine_restore_mode({"auto": True})
+        self.assertFalse(auto.on_factory_install)
+        self.assertEqual("auto", auto.auto_restore_mode)
+        self.assertTrue(auto.bmc_access_only)
+
+        factory = self.sm._determine_restore_mode({"factory": True})
+        self.assertFalse(factory.on_factory_install)
+        self.assertEqual("factory", factory.auto_restore_mode)
+        self.assertTrue(factory.bmc_access_only)
+
+    def test_restore_on_factory_install_reconfigures_then_restores(self):
+        """Test the network is reconfigured before the restore playbook runs"""
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=self.payload)
+
+        instance = self.mock_enrollment.return_value
+        # The reconfiguration reuses the enroll-init stage
+        instance.prep.assert_called_once()
+        instance.enroll_init.assert_called_once()
+        self.mock_run_playbook.assert_called_once()
+        # The seed ISO is always removed
+        instance.cleanup.assert_called_once()
+        self.assertEqual(
+            consts.DEPLOY_STATE_PRE_RESTORE, self._get_subcloud().deploy_status
+        )
+
+    def test_restore_on_factory_install_disables_the_cert_reconciliation(self):
+        """Test enroll-init is told to skip the enrollment certificate stage
+
+        The certificate reconciliation requires the subcloud to already share
+        the system controller system-local-ca, which a factory-installed
+        subcloud does not, so it must be disabled for a restore.
+        """
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=self.payload)
+
+        command = self.mock_enrollment.return_value.enroll_init.call_args[0][1]
+        self.assertIn("enroll_init_verify_endpoint=false", command)
+        self.assertIn(dccommon_consts.ANSIBLE_SUBCLOUD_ENROLL_INIT_PLAYBOOK, command)
+
+    def test_restore_on_factory_install_preps_the_enrollment_payload(self):
+        """Test the enroll-init payload carries the values the seed ISO needs"""
+
+        self.sm.restore_subcloud_backups(self.ctx, payload=self.payload)
+
+        prep_args = self.mock_enrollment.return_value.prep.call_args[0]
+        self.assertEqual(dccommon_consts.ANSIBLE_OVERRIDES_PATH, prep_args[0])
+        enroll_payload = prep_args[1]
+        self.assertEqual(
+            self.install_values["bootstrap_interface"],
+            enroll_payload["install_values"]["bootstrap_interface"],
+        )
+        self.assertEqual(
+            self.payload["sysadmin_password"], enroll_payload["sysadmin_password"]
+        )
+        self.assertEqual("4", prep_args[2])
+
+    def test_build_enroll_init_payload(self):
+        """Test the enroll-init payload flattens the bootstrap and install values"""
+
+        enroll_payload = self.sm._build_enroll_init_payload(
+            self._get_subcloud(), self.payload
+        )
+
+        # The bootstrap values are flattened into the payload, which is what
+        # the enroll-init validation and seed ISO builder read
+        for key in consts.REQUIRED_BOOTSTRAP_VALUES_ON_FACTORY_INSTALL:
+            self.assertEqual(
+                fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA[key], enroll_payload[key]
+            )
+        self.assertEqual(
+            self.install_values["bmc_password"],
+            enroll_payload["bmc_password"],
+        )
+        self.assertEqual(
+            self.payload["sysadmin_password"], enroll_payload["sysadmin_password"]
+        )
+        self.assertIn("software_version", enroll_payload)
+
+    def test_restore_on_factory_install_fails_when_reconfig_fails(self):
+        """Test a reconfiguration failure leaves the subcloud in prep failed"""
+
+        instance = self.mock_enrollment.return_value
+        instance.enroll_init.side_effect = PlaybookExecutionFailed(
+            playbook_cmd="enroll_init.yml"
+        )
+
+        self.assertRaises(
+            exceptions.SubcloudBackupOperationFailed,
+            self.sm.restore_subcloud_backups,
+            self.ctx,
+            payload=self.payload,
+        )
+
+        # The restore playbook must not run when the subcloud is unreachable
+        self.mock_run_playbook.assert_not_called()
+        # The failure must be visible through dcmanager subcloud errors
+        self.mock_find_ansible_error.assert_called_once()
+        instance.cleanup.assert_called_once()
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+            self._get_subcloud().deploy_status,
+        )
+
+    def test_restore_on_factory_install_fails_when_prep_fails(self):
+        """Test a seed ISO generation failure leaves the subcloud in prep failed"""
+
+        instance = self.mock_enrollment.return_value
+        instance.prep.side_effect = EnrollInitExecutionFailed(reason="no iso")
+
+        self.assertRaises(
+            exceptions.SubcloudBackupOperationFailed,
+            self.sm.restore_subcloud_backups,
+            self.ctx,
+            payload=self.payload,
+        )
+
+        instance.enroll_init.assert_not_called()
+        self.mock_run_playbook.assert_not_called()
+        # The instance is tracked before the preparation so the ISO is removed
+        instance.cleanup.assert_called_once()
+        self.assertEqual(
+            consts.DEPLOY_STATE_RESTORE_PREP_FAILED,
+            self._get_subcloud().deploy_status,
+        )
+
+    def test_restore_on_factory_install_keeps_sel_monitoring_disabled(self):
+        """Test the preparation does not re-enable the IPMI SEL monitoring
+
+        The restore is monitored through the OAM network, so the option must
+        stay disabled even though the payload does not set it.
+        """
+
+        restore_mode = self.sm._determine_restore_mode(self.payload)
+
+        restore_ctx = self.sm._prepare_restore_files(
+            self.payload, self._get_subcloud(), restore_mode, "128.224.151.183"
+        )
+
+        self.assertFalse(restore_ctx.restore_mode.ipmi_sel_event_monitoring)
+        self.assertTrue(restore_ctx.restore_mode.on_factory_install)
+
+    def test_standard_restore_still_reads_sel_monitoring_option(self):
+        """Test the IPMI SEL monitoring option is unchanged for other modes"""
+
+        payload = copy.deepcopy(FAKE_BACKUP_RESTORE_LOAD)
+        payload["override_values"] = {"ipmi_sel_event_monitoring": False}
+        restore_mode = self.sm._determine_restore_mode(payload)
+        self.assertTrue(restore_mode.ipmi_sel_event_monitoring)
+
+        restore_ctx = self.sm._prepare_restore_files(
+            payload, self._get_subcloud(), restore_mode, "128.224.151.183"
+        )
+
+        self.assertFalse(restore_ctx.restore_mode.ipmi_sel_event_monitoring)
+
+    def test_standard_restore_does_not_reconfigure_the_network(self):
+        """Test a standard restore is unaffected by the new mode"""
+
+        self.sm.restore_subcloud_backups(
+            self.ctx, payload=copy.deepcopy(FAKE_BACKUP_RESTORE_LOAD)
+        )
+
+        self.mock_enrollment.assert_not_called()
+        self.mock_run_playbook.assert_called_once()
+
+    def test_restore_on_factory_install_composes_the_standard_command(self):
+        """Test the standard restore playbook command is composed
+
+        The new mode must not add the auto restore mode or the seed ISO mount
+        arguments used by the auto restore modes.
+        """
+
+        restore_command = self.sm.compose_backup_restore_command(
+            "subcloud1",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            auto_restore_mode=None,
+            ipmi_sel_event_monitoring=False,
+        )
+
+        expected = [
+            cutils.get_ansible_playbook_command(FAKE_PREVIOUS_SW_VERSION),
+            subcloud_manager.ANSIBLE_SUBCLOUD_BACKUP_RESTORE_PLAYBOOK,
+            "-i",
+            f"{ANS_PATH}/subcloud1_inventory.yml",
+            "--limit",
+            "subcloud1",
+            "-e",
+            f"subcloud_bnr_overrides={ANS_PATH}/subcloud1_backup_restore_values.yml",
+        ]
+        self.assertEqual(expected, restore_command)
+
+
+class TestRestoreValuesOverridesFiltering(BaseTestSubcloudManager):
+    """Test class for the restore values written to the ansible overrides"""
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_create_backup_overrides_file = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
+        )
+
+    def _create_overrides(self, restore_values):
+        payload = {
+            "sysadmin_password": "testpasswd",
+            "local_only": False,
+            "registry_images": False,
+            "restore_values": restore_values,
+        }
+        self.sm._create_overrides_for_backup_or_restore("restore", payload, "subcloud1")
+        return payload["override_values"]
+
+    def test_dcmanager_only_restore_values_are_not_written(self):
+        """Test the mode selection values are not passed to the playbook"""
+
+        override_values = self._create_overrides(
+            {
+                consts.RESTORE_VALUES_ON_FACTORY_INSTALL: True,
+                "wipe_ceph_osds": True,
+            }
+        )
+
+        for key in consts.RESTORE_VALUES_DCMANAGER_ONLY_KEYS:
+            self.assertNotIn(key, override_values)
+        # The remaining restore values must still be forwarded
+        self.assertTrue(override_values["wipe_ceph_osds"])
+
+    def test_other_restore_values_are_still_written(self):
+        """Test the existing restore values handling is unchanged"""
+
+        override_values = self._create_overrides(
+            {"restore_timeout": 5400, "on_box_data": True}
+        )
+
+        self.assertEqual(5400, override_values["restore_timeout"])
+        self.assertTrue(override_values["on_box_data"])
+
+
 class TestSubcloudDeployEnrollVcsrFlag(BaseTestSubcloudManager):
     """Tests that enrollment persists the enrolled_with_vcsr marker."""
 
@@ -5929,6 +6315,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             True,  # with_install
             False,  # ipmi_sel_event_monitoring
             software_version=payload.get("software_version"),
+            on_factory_install=False,
         )
 
         # Verify compose_install_command was called with skip_install_monitoring=True
@@ -5969,6 +6356,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             True,  # with_install
             True,  # ipmi_sel_event_monitoring
             software_version=payload.get("software_version"),
+            on_factory_install=False,
         )
 
         # Verify compose_install_command was called with skip_install_monitoring=False
@@ -6013,6 +6401,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             None,  # with_install
             False,  # ipmi_sel_event_monitoring
             software_version=payload.get("software_version"),
+            on_factory_install=False,
         )
 
         # Verify compose_install_command was not called
@@ -6099,6 +6488,7 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
             True,  # with_install
             True,  # ipmi_sel_event_monitoring (default)
             software_version=payload.get("software_version"),
+            on_factory_install=False,
         )
 
         self.assertEqual(result, (self.subcloud, True))
