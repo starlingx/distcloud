@@ -583,12 +583,6 @@ class SubcloudManager(manager.Manager):
             # seed iso to transfer the central backup and overrides to the subcloud
             if auto_restore_mode == "auto" and not with_install:
                 backup_command += ["-e", '{"mount_seed_iso": true}']
-                # A factory-installed subcloud triggers cloud-init when the
-                # seed ISO is inserted, so it does not need to be power
-                # cycled. The playbook excludes the poweroff operation when
-                # this is set.
-                if on_factory_install:
-                    backup_command += ["-e", '{"on_factory_install": true}']
             # The playbook defaults ipmi_sel_event_monitoring to true, so we
             # only need to pass it explicitly when disabling it.
             if ipmi_sel_event_monitoring is False:
@@ -596,6 +590,14 @@ class SubcloudManager(manager.Manager):
                     "-e",
                     '{"ipmi_sel_event_monitoring": false}',
                 ]
+
+        # on_factory_install applies to both the auto path (where it skips the
+        # power cycle, since inserting the seed ISO triggers cloud-init) and the
+        # standard restore path (where it gates the network reconfiguration and
+        # the patch-before-restore role). Emit it on every path so the playbook
+        # gate sees it.
+        if on_factory_install:
+            backup_command += ["-e", '{"on_factory_install": true}']
 
         return backup_command
 
@@ -3031,6 +3033,8 @@ class SubcloudManager(manager.Manager):
                 install_wipe_osds,
                 subcloud_region_name=subcloud.region_name,
                 restore_timeout=restore_timeout,
+                on_factory_install=restore_mode.on_factory_install,
+                subcloud=subcloud,
             )
 
             # Handle the IPMI SEL event monitoring option (defaults to True)
@@ -3967,6 +3971,8 @@ class SubcloudManager(manager.Manager):
         install_wipe_osds=None,
         subcloud_region_name=None,
         restore_timeout=None,
+        on_factory_install=False,
+        subcloud=None,
     ):
         # Set override names as expected by the playbook
         if not payload.get("override_values"):
@@ -4103,6 +4109,42 @@ class SubcloudManager(manager.Manager):
                     payload["override_values"]["external_oam_floating_address"] = (
                         bootstrap_values["external_oam_floating_address"].split(",")[0]
                     )
+
+        # For an on_factory_install restore, a reboot-required patch applied
+        # before the restore (see the patch-before-restore role) unlocks and
+        # reboots the controller, which reconfigures the network from the
+        # sysinv database. The enroll-init seed ISO applied the deployed OAM at
+        # the OS level only, and the platform restore that would persist it has
+        # not run yet, so the role persists the deployed OAM into the database
+        # first. Provide the OAM and bootstrap interface values it needs. This
+        # only applies to the standard restore path (auto_restore_mode unset),
+        # which is where the patch-before-restore role runs; the factory auto
+        # path above sets its own OAM overrides.
+        #
+        # The three OAM bootstrap values and bootstrap_interface are guaranteed
+        # to be present here by utils.validate_restore_on_factory_install, which
+        # the API runs for this standard (non-auto) path before dispatch.
+        if op == "restore" and on_factory_install and not auto_restore_mode:
+            bootstrap_values = utils.load_yaml_file(
+                psd_common.get_config_file_path(subcloud_name)
+            )
+            payload["override_values"]["external_oam_subnet"] = bootstrap_values[
+                "external_oam_subnet"
+            ].split(",")[0]
+            payload["override_values"]["external_oam_gateway_address"] = (
+                bootstrap_values["external_oam_gateway_address"].split(",")[0]
+            )
+            payload["override_values"]["external_oam_floating_address"] = (
+                bootstrap_values["external_oam_floating_address"].split(",")[0]
+            )
+            install_values = json.loads(subcloud.data_install)
+            payload["override_values"]["bootstrap_interface"] = install_values.get(
+                "bootstrap_interface"
+            )
+            if install_values.get("bootstrap_vlan") is not None:
+                payload["override_values"]["bootstrap_vlan"] = install_values.get(
+                    "bootstrap_vlan"
+                )
 
         return self._create_backup_overrides_file(payload, subcloud_name, suffix)
 
