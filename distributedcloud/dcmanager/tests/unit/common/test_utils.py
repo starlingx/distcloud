@@ -14,6 +14,7 @@ import requests
 
 from dccommon import consts as dccommon_consts
 from dccommon import utils as dccommon_utils
+from dcmanager.common import consts
 from dcmanager.common import exceptions
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
@@ -542,6 +543,16 @@ class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
             self.subcloud.id,
             management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
         )
+        # An auto or factory restore target was previously enrolled, so its
+        # bootstrap values are available in the dc-vault. The system mode
+        # check reads them for any auto_restore_mode, so provide a simplex
+        # default; individual tests override it when they need another mode.
+        self.mock_get_bootstrap_values = self._mock_object(
+            utils, "get_bootstrap_values"
+        )
+        self.mock_get_bootstrap_values.return_value = {
+            "system_mode": consts.SYSTEM_MODE_SIMPLEX
+        }
 
     def _set_vcsr(self, value: bool):
         self.subcloud = db_api.subcloud_update(

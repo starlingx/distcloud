@@ -1266,6 +1266,77 @@ def get_bootstrap_values(subcloud: models.Subcloud) -> dict:
     return load_yaml_file(filename)
 
 
+def validate_restore_on_factory_install(subcloud: models.Subcloud) -> bool:
+    """Validate a subcloud can be restored onto its factory install.
+
+    The on_factory_install restore mode reconfigures the subcloud network
+    over the BMC before the restore playbook runs, which requires the install
+    values (BMC credentials and the bootstrap interface) and the bootstrap
+    values (OAM network) to be available on the system controller. Only
+    non-vCSR AIO-SX subclouds are supported.
+
+    :param subcloud: the subcloud object to validate
+    :return: True if validation passes
+    :raises exceptions.ValidateFail: if the subcloud cannot be restored onto
+        its factory install
+    """
+    if subcloud.enrolled_with_vcsr:
+        raise exceptions.ValidateFail(
+            f"Subcloud {subcloud.name} is vCSR-enrolled; restore onto a "
+            "factory-installed subcloud is not supported."
+        )
+
+    if not subcloud.data_install:
+        raise exceptions.ValidateFail(
+            f"Subcloud {subcloud.name} does not contain install values, which "
+            "are required to restore onto a factory-installed subcloud."
+        )
+
+    install_values = cutils.safe_parse_install_values(subcloud.data_install)
+    required_install_values = [
+        "bootstrap_interface"
+    ] + dccommon_consts.BMC_INSTALL_VALUES
+    missing_install_values = [
+        key for key in required_install_values if not install_values.get(key)
+    ]
+    if missing_install_values:
+        raise exceptions.ValidateFail(
+            f"Subcloud {subcloud.name} install values are missing the following "
+            "value(s) required to restore onto a factory-installed subcloud: "
+            f"{', '.join(missing_install_values)}."
+        )
+
+    try:
+        bootstrap_values = get_bootstrap_values(subcloud)
+    except FileNotFoundError:
+        raise exceptions.ValidateFail(
+            f"Bootstrap values for subcloud {subcloud.name} was not found, "
+            "which are required to restore onto a factory-installed subcloud."
+        )
+
+    missing_bootstrap_values = [
+        key
+        for key in consts.REQUIRED_BOOTSTRAP_VALUES_ON_FACTORY_INSTALL
+        if not bootstrap_values.get(key)
+    ]
+    if missing_bootstrap_values:
+        raise exceptions.ValidateFail(
+            f"Subcloud {subcloud.name} bootstrap values are missing the following "
+            "value(s) required to restore onto a factory-installed subcloud: "
+            f"{', '.join(missing_bootstrap_values)}."
+        )
+
+    system_mode = bootstrap_values.get("system_mode")
+    if system_mode != consts.SYSTEM_MODE_SIMPLEX:
+        raise exceptions.ValidateFail(
+            f"{subcloud.name} is a {system_mode} subcloud. Restore onto a "
+            "factory-installed subcloud is only supported for "
+            f"{consts.SYSTEM_MODE_SIMPLEX} subclouds."
+        )
+
+    return True
+
+
 def _is_valid_for_backup_restore(
     subcloud: models.Subcloud,
     bootstrap_address_dict: Optional[dict] = None,
@@ -1339,7 +1410,12 @@ def _is_valid_for_backup_restore(
                 f"Subcloud {subcloud.name} must have a valid bootstrap address: "
                 f"{bootstrap_address_dict[subcloud.name]}"
             )
-    elif auto_restore_mode:
+
+    # The supported system mode is a property of the subcloud, not of where its
+    # bootstrap address came from, so this is checked independently of the
+    # branches above. Otherwise supplying a bootstrap_address in the restore
+    # values would skip it and let an auto restore start on a duplex subcloud.
+    if msg is None and auto_restore_mode:
         bootstrap_values = None
         try:
             bootstrap_values = get_bootstrap_values(subcloud)
@@ -1362,6 +1438,7 @@ def _is_valid_for_backup_restore(
                     f"{auto_restore_mode.capitalize()} restore is only supported "
                     f"for {consts.SYSTEM_MODE_SIMPLEX} subclouds."
                 )
+
     if msg is None:
         is_in_transient_state, message = is_subcloud_in_transient_state(subcloud)
         if is_in_transient_state:

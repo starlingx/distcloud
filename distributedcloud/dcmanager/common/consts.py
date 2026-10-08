@@ -486,6 +486,25 @@ SUBCLOUD_FACTORY_BACKUP_DIR = "/opt/platform-backup/factory"
 FACTORY_BACKUP_PREFIX = "factory_backup"
 FACTORY_BACKUP_REGISTRY_FILESYSTEM_PREFIX = "localhost_image_registry_backup"
 
+# The on_factory_install restore mode. It is requested through the
+# restore_values file instead of a dedicated CLI option. The system controller
+# reuses the enroll-init stage to reconfigure the factory-installed subcloud
+# network over the BMC with a cloud-init seed ISO, then restores the subcloud
+# over the OAM network with the standard restore playbook.
+RESTORE_VALUES_ON_FACTORY_INSTALL = "on_factory_install"
+
+# Restore values keys that select or tune the restore mode itself. They are
+# consumed by dcmanager and must not be written to the ansible overrides file.
+RESTORE_VALUES_DCMANAGER_ONLY_KEYS = (RESTORE_VALUES_ON_FACTORY_INSTALL,)
+
+# Bootstrap values required to build the network reconfiguration seed ISO used
+# by the on_factory_install restore mode.
+REQUIRED_BOOTSTRAP_VALUES_ON_FACTORY_INSTALL = (
+    "external_oam_subnet",
+    "external_oam_gateway_address",
+    "external_oam_floating_address",
+)
+
 # Maximum allowed size of subcloud home directory for central backups
 DEFAULT_SUBCLOUD_CENTRAL_BACKUP_MAX_HOME_DIR_SIZE_MB = 100
 

@@ -35,6 +35,17 @@ LOG = logging.getLogger(__name__)
 
 LOCK_NAME = "SubcloudBackupController"
 
+# Options that cannot be combined with the on_factory_install restore mode.
+# A group restore is supported: the network reconfiguration is performed per
+# subcloud, and the RVMC PID file is per subcloud as well. The auto option is
+# supported as well: it keeps the auto restore flow and only reports that the
+# subcloud is in its factory install state.
+ON_FACTORY_INSTALL_INVALID_OPTIONS = (
+    "with_install",
+    "factory",
+    "on_site",
+)
+
 # Subcloud/group information to be retrieved from request params
 RequestEntity = namedtuple("RequestEntity", ["type", "id", "name", "subclouds"])
 
@@ -172,6 +183,10 @@ class SubcloudBackupController(object):
     def _convert_param_to_bool(payload, param_names, default=False):
         for param_name in param_names:
             param = payload.get(param_name)
+            if isinstance(param, bool):
+                # Values loaded from a YAML file may already be native
+                # booleans, in which case there is nothing to convert.
+                continue
             if param:
                 if param.lower() == "true":
                     payload[param_name] = True
@@ -183,6 +198,58 @@ class SubcloudBackupController(object):
                     )
             else:
                 payload[param_name] = default
+
+    @staticmethod
+    def _validate_on_factory_install(payload, request_entity):
+        """Validate a restore requested onto a factory-installed subcloud.
+
+        :param payload: the restore request payload, with on_factory_install
+            already normalized to a boolean
+        :param request_entity: the resolved request entity whose subclouds are
+            the restore targets
+        """
+        if any(payload.get(option) for option in ON_FACTORY_INSTALL_INVALID_OPTIONS):
+            pecan.abort(
+                400,
+                _(
+                    "The on_factory_install option in restore_values "
+                    "cannot be used with any of the following options: "
+                    "with_install, factory or on_site."
+                ),
+            )
+        # Combined with auto, the restore runs inside the subcloud from the
+        # seed ISO and no network is reconfigured beforehand, so the
+        # requirements below do not apply. The auto restore validation covers
+        # that combination, including its own simplex check, and vCSR-enrolled
+        # subclouds remain supported there.
+        if payload.get("auto"):
+            return
+        # A standalone on_factory_install restore runs over the OAM network and
+        # tracks progress through it, not through the IPMI SEL events, so IPMI
+        # SEL monitoring is always disabled for it. Reject an explicit request
+        # to enable it instead of silently ignoring the value.
+        restore_values = payload.get("restore_values") or {}
+        ipmi_monitoring = restore_values.get("ipmi_sel_event_monitoring")
+        if isinstance(ipmi_monitoring, str):
+            ipmi_monitoring = ipmi_monitoring.lower() == "true"
+        if ipmi_monitoring:
+            pecan.abort(
+                400,
+                _(
+                    "The on_factory_install option in restore_values cannot be "
+                    "used with ipmi_sel_event_monitoring enabled: a standalone "
+                    "on_factory_install restore is monitored over the OAM "
+                    "network, not through the IPMI SEL events."
+                ),
+            )
+        # Every target must have the install values and the bootstrap values
+        # needed to build the network reconfiguration seed ISO, and must be a
+        # non-vCSR AIO-SX subcloud.
+        for subcloud in request_entity.subclouds:
+            try:
+                utils.validate_restore_on_factory_install(subcloud)
+            except exceptions.ValidateFail as e:
+                pecan.abort(400, _(e.message))
 
     @staticmethod
     def _validate_subclouds(
@@ -452,13 +519,45 @@ class SubcloudBackupController(object):
             - registry_images: Restore registry images
               (default: false, requires local_only=true)
             - restore_values: YAML file with restore
-              config (including bootstrap_address)
+              config (including bootstrap_address and
+              on_factory_install)
             - release: Software release version
               (requires with_install or factory=true)
             - auto: Auto-restore mode (default: false, implies registry_images=true)
             - factory: Factory restore mode (default: false,
               implies with_install=true, local_only=true,
               registry_images=true)
+
+            verb=restore, restore_values keys interpreted
+            by dcmanager (Optional):
+            - bootstrap_address: Mapping of subcloud name
+              to the OAM IP address to reach the subcloud
+              at during the restore, overriding the address
+              from the install values or inventory file.
+            - restore_timeout: Restore playbook timeout in
+              seconds. Defaults to one and a half times the
+              global Ansible playbook timeout.
+            - on_factory_install: The target subcloud is
+              still in its factory install state, that is,
+              bootstrapped and configured with the factory
+              defaults. On its own, the subcloud network is
+              first reconfigured over the BMC with a
+              cloud-init seed ISO and the backup is then
+              restored over the OAM network; AIO-SX only,
+              requires install values and a reachable BMC.
+              Combined with auto, the auto restore flow is
+              kept and the seed ISO is inserted without
+              power cycling the subcloud. Cannot be
+              combined with with_install, factory or
+              on_site. On its own it is monitored over the
+              OAM network, so ipmi_sel_event_monitoring
+              cannot be enabled with it.
+            Any other key is forwarded to the subcloud
+            restore playbook as an override. See the
+            subcloud backup and restore documentation for
+            the full set (for example backup_filename,
+            registry_backup_filename, initial_backup_dir
+            and ipmi_sel_event_monitoring).
 
             verb=delete (Required):
             - subcloud OR group: Target subcloud
@@ -704,6 +803,20 @@ class SubcloudBackupController(object):
                             ),
                         )
 
+            # The on_factory_install restore mode is requested through the
+            # restore_values file instead of a dedicated CLI option.
+            restore_values = payload.get("restore_values")
+            if isinstance(restore_values, dict):
+                self._convert_param_to_bool(
+                    restore_values, [consts.RESTORE_VALUES_ON_FACTORY_INSTALL]
+                )
+            on_factory_install = bool(
+                (restore_values or {}).get(consts.RESTORE_VALUES_ON_FACTORY_INSTALL)
+            )
+
+            if on_factory_install:
+                self._validate_on_factory_install(payload, request_entity)
+
             if payload.get("factory"):
                 auto_restore_mode = "factory"
             elif payload.get("auto"):
@@ -711,10 +824,16 @@ class SubcloudBackupController(object):
             else:
                 auto_restore_mode = None
 
+            # An on_factory_install restore uses the BMC to insert a seed ISO,
+            # either to reconfigure the subcloud network or, combined with auto,
+            # to transfer the backup, so the BMC must be reachable. When it is
+            # used on its own, auto_restore_mode is not set, which also rejects
+            # vCSR-enrolled subclouds; those remain supported with auto.
             requires_bmc = bool(
                 payload.get("with_install")
                 or payload.get("auto")
                 or payload.get("factory")
+                or on_factory_install
             )
             bmc_reachable_by_id = None
             if requires_bmc:

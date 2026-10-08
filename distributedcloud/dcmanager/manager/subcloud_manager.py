@@ -190,6 +190,10 @@ class RestoreMode:
     bmc_access_only: bool
     skip_install_monitoring: bool = False
     ipmi_sel_event_monitoring: bool = True
+    # Restore a subcloud that was factory installed without reinstalling it.
+    # The subcloud network is reconfigured over the BMC before
+    # the standard restore playbook runs over the OAM network.
+    on_factory_install: bool = False
 
 
 @dataclass
@@ -205,6 +209,7 @@ class RestoreContext:
     seed_iso_path: Optional[str] = None
     initial_sel_event_id: Optional[str] = None
     install_instance: Optional[Any] = None
+    network_reconfig_instance: Optional[Any] = None
     defer_install_cleanup_on_success: bool = False
     ansible_subprocess_timeout: int = field(init=False)
 
@@ -543,6 +548,7 @@ class SubcloudManager(manager.Manager):
         with_install=False,
         ipmi_sel_event_monitoring=None,
         software_version=None,
+        on_factory_install=False,
     ):
         backup_command = [
             utils.get_ansible_playbook_command(software_version),
@@ -577,6 +583,12 @@ class SubcloudManager(manager.Manager):
             # seed iso to transfer the central backup and overrides to the subcloud
             if auto_restore_mode == "auto" and not with_install:
                 backup_command += ["-e", '{"mount_seed_iso": true}']
+                # A factory-installed subcloud triggers cloud-init when the
+                # seed ISO is inserted, so it does not need to be power
+                # cycled. The playbook excludes the poweroff operation when
+                # this is set.
+                if on_factory_install:
+                    backup_command += ["-e", '{"on_factory_install": true}']
             # The playbook defaults ipmi_sel_event_monitoring to true, so we
             # only need to pass it explicitly when disabling it.
             if ipmi_sel_event_monitoring is False:
@@ -2885,15 +2897,39 @@ class SubcloudManager(manager.Manager):
         :param payload: The restore request payload
         :return: The restore mode dataclass instance containing the flags
         """
+        # The on_factory_install flag is requested through the restore_values
+        # file and normalized to a boolean by the API controller before the
+        # restore is dispatched.
+        on_factory_install = bool(
+            (payload.get("restore_values") or {}).get(
+                consts.RESTORE_VALUES_ON_FACTORY_INSTALL
+            )
+        )
         if payload.get("factory"):
             return RestoreMode(
                 auto_restore_mode="factory",
                 bmc_access_only=True,
             )
         if payload.get("auto"):
+            # on_factory_install describes the target, not the method. Combined
+            # with auto it keeps the auto restore flow and only reports that the
+            # subcloud is in its factory install state, so that the seed ISO can
+            # be inserted without power cycling it.
             return RestoreMode(
                 auto_restore_mode="auto",
                 bmc_access_only=True,
+                on_factory_install=on_factory_install,
+            )
+        # On its own, an on_factory_install restore uses the standard restore
+        # playbook, so auto_restore_mode is not set. The BMC is only used to
+        # insert the network reconfiguration seed ISO, and the progress is
+        # tracked through the OAM network instead of the IPMI SEL events.
+        if on_factory_install:
+            return RestoreMode(
+                auto_restore_mode=None,
+                bmc_access_only=False,
+                ipmi_sel_event_monitoring=False,
+                on_factory_install=True,
             )
         return RestoreMode(
             auto_restore_mode=None,
@@ -3001,7 +3037,15 @@ class SubcloudManager(manager.Manager):
             ipmi_sel_event_monitoring = payload.get("override_values", {}).get(
                 "ipmi_sel_event_monitoring", True
             )
-            restore_mode.ipmi_sel_event_monitoring = ipmi_sel_event_monitoring
+            # An on_factory_install restore over the OAM network is monitored
+            # through that network, so the IPMI SEL monitoring option does not
+            # apply to it. Combined with auto, the restore runs inside the
+            # subcloud and is still monitored through the IPMI SEL events.
+            if not (
+                restore_mode.on_factory_install
+                and restore_mode.auto_restore_mode is None
+            ):
+                restore_mode.ipmi_sel_event_monitoring = ipmi_sel_event_monitoring
 
             # For factory restore, when ipmi_sel_event_monitoring is set to false
             # we want the install to wait for the SSH port to become open instead
@@ -3028,6 +3072,7 @@ class SubcloudManager(manager.Manager):
                 payload.get("with_install"),
                 ipmi_sel_event_monitoring,
                 software_version=payload.get("software_version"),
+                on_factory_install=restore_mode.on_factory_install,
             )
 
             return RestoreContext(
@@ -3094,6 +3139,135 @@ class SubcloudManager(manager.Manager):
                     f"RVMC config for {subcloud.name}"
                 )
             ) from e
+
+    def _reconfigure_subcloud_network(
+        self,
+        context,
+        payload: dict,
+        subcloud: Subcloud,
+        restore_ctx: RestoreContext,
+        bootstrap_address: str,
+    ) -> None:
+        """Reconfigure the network of a factory-installed subcloud.
+
+        The subcloud is made reachable over the OAM network by the enroll-init
+        stage, which inserts a cloud-init seed ISO through the BMC to apply the
+        OAM configuration and the sysadmin password. The restore itself is then
+        performed by the standard restore playbook over the OAM network, which
+        avoids transferring the backup archive through the BMC.
+
+        Enroll-init is reused as-is, with the certificate reconciliation
+        disabled: that stage prepares a subcloud to be enrolled and requires it
+        to already share the system controller system-local-ca, which a factory
+        installed subcloud does not. Everything the restore needs, the OAM
+        reconfiguration and the password update, is performed by the same
+        enroll-init-reconfigure script in both cases.
+
+        :param context: The request context
+        :param payload: The restore request payload
+        :param subcloud: The subcloud object
+        :param restore_ctx: The restore context to update
+        :param bootstrap_address: The address the restore playbook will use
+        :raises RestorePreparationError: If the reconfiguration fails
+        """
+        LOG.info(
+            f"Reconfiguring the network of subcloud {subcloud.name} before "
+            "restoring it onto its factory install"
+        )
+
+        try:
+            enroll_payload = self._build_enroll_init_payload(subcloud, payload)
+
+            # Compare against the same value the seed ISO is built with, so a
+            # stray space does not produce a spurious warning
+            reconfigured_oam = (
+                str(enroll_payload["external_oam_floating_address"])
+                .split(",", maxsplit=1)[0]
+                .strip()
+            )
+            if reconfigured_oam != bootstrap_address:
+                LOG.warning(
+                    "The bootstrap address of subcloud %s (%s) differs from the "
+                    "OAM floating address in its bootstrap values (%s). The "
+                    "restore will be performed through the bootstrap address.",
+                    subcloud.name,
+                    bootstrap_address,
+                    reconfigured_oam,
+                )
+
+            enrollment = SubcloudEnrollmentInit(subcloud.name)
+            # Track the instance as soon as it exists so the seed ISO is
+            # cleaned up even if the preparation fails midway
+            restore_ctx.network_reconfig_instance = enrollment
+
+            enrollment.prep(
+                dccommon_consts.ANSIBLE_OVERRIDES_PATH,
+                enroll_payload,
+                utils.get_primary_oam_address_ip_family(subcloud),
+            )
+
+            enroll_init_command = self.compose_enroll_command(
+                subcloud.name,
+                subcloud.region_name,
+                restore_ctx.subcloud_inventory_file,
+                subcloud.software_version,
+                "init",
+            )
+            # The restore does not query the subcloud endpoint, so enroll-init
+            # ends after the OAM and password reconfiguration, skipping the
+            # endpoint verification.
+            enroll_init_command += ["-e", "enroll_init_verify_endpoint=false"]
+        except Exception as e:
+            raise exceptions.RestorePreparationError(
+                details=(
+                    "Failed to prepare the network reconfiguration of subcloud "
+                    f"{subcloud.name}: {e}"
+                )
+            ) from e
+
+        try:
+            enrollment.enroll_init(consts.DC_ANSIBLE_LOG_DIR, enroll_init_command)
+        except Exception as e:
+            msg = utils.find_and_save_ansible_error_msg(
+                context,
+                subcloud,
+                restore_ctx.log_file,
+                exception=e,
+                stage=consts.DEPLOY_STATE_PRE_RESTORE,
+                operation="reconfiguring the network of",
+            )
+            raise exceptions.RestorePreparationError(
+                details=(
+                    f"Failed to reconfigure the network of subcloud "
+                    f"{subcloud.name}: {msg}"
+                )
+            ) from e
+
+        LOG.info(f"Successfully reconfigured the network of subcloud {subcloud.name}")
+
+    @staticmethod
+    def _build_enroll_init_payload(subcloud: Subcloud, payload: dict) -> dict:
+        """Build the enroll-init payload for a restore onto a factory install.
+
+        Enroll-init expects the bootstrap and install values flattened into a
+        single payload, which is what its validation and seed ISO builder read.
+        No custom cloud-init tarball is provided, so enroll-init defaults the
+        IPMI SEL event monitoring to disabled, and the subcloud clock is only
+        aligned when the install values opt in through the enroll overrides,
+        which is the same behaviour as enrollment.
+
+        :param subcloud: The subcloud object
+        :param payload: The restore request payload
+        :return: The payload to pass to SubcloudEnrollmentInit
+        """
+        enroll_payload = dict(utils.get_bootstrap_values(subcloud))
+        enroll_payload["install_values"] = json.loads(subcloud.data_install)
+        enroll_payload["sysadmin_password"] = payload["sysadmin_password"]
+        enroll_payload["bmc_password"] = enroll_payload["install_values"].get(
+            "bmc_password"
+        )
+        enroll_payload["software_version"] = subcloud.software_version
+        return enroll_payload
 
     def _get_initial_sel_event_id(
         self,
@@ -3298,6 +3472,9 @@ class SubcloudManager(manager.Manager):
         if restore_ctx.seed_iso_path:
             self._cleanup_auto_restore_seed_iso(restore_ctx.seed_iso_path)
 
+        if restore_ctx.network_reconfig_instance:
+            restore_ctx.network_reconfig_instance.cleanup()
+
     def _restore_subcloud_backup(
         self, context, payload: dict, subcloud: Subcloud
     ) -> tuple[Subcloud, bool]:
@@ -3307,6 +3484,8 @@ class SubcloudManager(manager.Manager):
         - Standard restore (restore playbook runs remotely from system controller)
         - Auto-restore with install (factory or auto mode)
         - Auto-restore without install (using seed ISO)
+        - Restore on a factory-installed subcloud (network reconfiguration over the BMC
+          followed by the standard restore over the OAM network)
 
         Args:
         :param context: The request context
@@ -3339,6 +3518,17 @@ class SubcloudManager(manager.Manager):
                 "with_install"
             ):
                 self._setup_auto_restore_without_install(payload, subcloud, restore_ctx)
+
+            # Reconfigure the subcloud network over the BMC so the restore can
+            # be performed over the OAM network. Combined with auto, the
+            # restore runs inside the subcloud from the seed ISO instead, so
+            # there is no network to reconfigure beforehand.
+            if restore_mode.on_factory_install and (
+                restore_mode.auto_restore_mode is None
+            ):
+                self._reconfigure_subcloud_network(
+                    context, payload, subcloud, restore_ctx, bootstrap_address
+                )
 
             if payload.get("with_install"):
                 install_success = self._execute_install_pre_restore(
@@ -3832,6 +4022,10 @@ class SubcloudManager(manager.Manager):
                 % subcloud_name
             )
             for key, value in payload.get("restore_values").items():
+                # Some restore values select or tune the restore mode itself
+                # and are only consumed by dcmanager
+                if key in consts.RESTORE_VALUES_DCMANAGER_ONLY_KEYS:
+                    continue
                 payload["override_values"][key] = value
 
         if op == "create" and not (
