@@ -39,11 +39,11 @@ LOCK_NAME = "SubcloudBackupController"
 # A group restore is supported: the network reconfiguration is performed per
 # subcloud, and the RVMC PID file is per subcloud as well. The auto option is
 # supported as well: it keeps the auto restore flow and only reports that the
-# subcloud is in its factory install state.
+# subcloud is in its factory install state. The on_site option is supported
+# too: an on-site restore is always an on_factory_install restore.
 ON_FACTORY_INSTALL_INVALID_OPTIONS = (
     "with_install",
     "factory",
-    "on_site",
 )
 
 # Subcloud/group information to be retrieved from request params
@@ -214,7 +214,7 @@ class SubcloudBackupController(object):
                 _(
                     "The on_factory_install option in restore_values "
                     "cannot be used with any of the following options: "
-                    "with_install, factory or on_site."
+                    "with_install or factory."
                 ),
             )
         # Combined with auto, the restore runs inside the subcloud from the
@@ -224,6 +224,8 @@ class SubcloudBackupController(object):
         # subclouds remain supported there.
         if payload.get("auto"):
             return
+
+        on_site = bool(payload.get("on_site"))
         # A standalone on_factory_install restore runs over the OAM network and
         # tracks progress through it, not through the IPMI SEL events, so IPMI
         # SEL monitoring is always disabled for it. Reject an explicit request
@@ -244,10 +246,11 @@ class SubcloudBackupController(object):
             )
         # Every target must have the install values and the bootstrap values
         # needed to build the network reconfiguration seed ISO, and must be a
-        # non-vCSR AIO-SX subcloud.
+        # non-vCSR AIO-SX subcloud. For an on-site restore the BMC and vCSR
+        # requirements are dropped.
         for subcloud in request_entity.subclouds:
             try:
-                utils.validate_restore_on_factory_install(subcloud)
+                utils.validate_restore_on_factory_install(subcloud, on_site=on_site)
             except exceptions.ValidateFail as e:
                 pecan.abort(400, _(e.message))
 
@@ -810,6 +813,13 @@ class SubcloudBackupController(object):
                 self._convert_param_to_bool(
                     restore_values, [consts.RESTORE_VALUES_ON_FACTORY_INSTALL]
                 )
+            # An on-site restore only ever runs from a factory-installed
+            # subcloud, so it is always an on_factory_install restore.
+            if payload.get("on_site"):
+                if not isinstance(restore_values, dict):
+                    restore_values = {}
+                    payload["restore_values"] = restore_values
+                restore_values[consts.RESTORE_VALUES_ON_FACTORY_INSTALL] = True
             on_factory_install = bool(
                 (restore_values or {}).get(consts.RESTORE_VALUES_ON_FACTORY_INSTALL)
             )
@@ -829,12 +839,16 @@ class SubcloudBackupController(object):
             # to transfer the backup, so the BMC must be reachable. When it is
             # used on its own, auto_restore_mode is not set, which also rejects
             # vCSR-enrolled subclouds; those remain supported with auto.
+            # An on-site restore is the exception: the subcloud reconfigured its
+            # own network (including vCSR) and the system controller drives the
+            # restore remotely over OAM, so the BMC is never used and must not
+            # be required or probed.
             requires_bmc = bool(
                 payload.get("with_install")
                 or payload.get("auto")
                 or payload.get("factory")
                 or on_factory_install
-            )
+            ) and not payload.get("on_site")
             bmc_reachable_by_id = None
             if requires_bmc:
                 bmc_reachable_by_id = dccommon_utils.probe_bmcs_in_parallel(
@@ -900,12 +914,7 @@ class SubcloudBackupController(object):
                 for i in range(len(restore_subclouds)):
                     restore_subclouds[i].deploy_status = consts.DEPLOY_STATE_PRE_RESTORE
 
-                if payload.get("on_site"):
-                    self.dcmanager_rpc_client.restore_subcloud_from_backup_on_site(
-                        context, payload
-                    )
-                else:
-                    self.dcmanager_rpc_client.restore_subcloud_backups(context, payload)
+                self.dcmanager_rpc_client.restore_subcloud_backups(context, payload)
                 return utils.subcloud_db_list_to_dict(restore_subclouds)
 
             except RemoteError as e:

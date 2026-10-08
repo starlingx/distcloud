@@ -9,6 +9,8 @@ Tests for the generic utils.
 """
 
 import copy
+import json
+
 import netaddr
 import requests
 
@@ -709,4 +711,109 @@ class TestIsValidForBackupRestoreVcsrBmc(DCManagerTestCase):
                 requires_bmc=True,
                 bmc_reachable=None,
             )
+        )
+
+
+class TestValidateRestoreOnFactoryInstall(DCManagerTestCase):
+    """Tests for the on_site parameter of validate_restore_on_factory_install."""
+
+    def setUp(self):
+        super().setUp()
+        self.subcloud = fake_subcloud.create_fake_subcloud(self.ctx)
+        self.subcloud = db_api.subcloud_update(
+            self.ctx,
+            self.subcloud.id,
+            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
+            data_install=json.dumps(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES),
+            enrolled_with_vcsr=False,
+        )
+        self.mock_get_bootstrap_values = self._mock_object(
+            utils, "get_bootstrap_values"
+        )
+        self.mock_get_bootstrap_values.return_value = (
+            fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA
+        )
+
+    def _set_vcsr(self, value):
+        self.subcloud = db_api.subcloud_update(
+            self.ctx, self.subcloud.id, enrolled_with_vcsr=value
+        )
+
+    def _set_install_values(self, install_values):
+        self.subcloud = db_api.subcloud_update(
+            self.ctx, self.subcloud.id, data_install=json.dumps(install_values)
+        )
+
+    def test_standard_requires_bmc_install_values(self):
+        """Standard on_factory_install requires the BMC install values."""
+        install_values = copy.deepcopy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        for key in dccommon_consts.BMC_INSTALL_VALUES:
+            install_values.pop(key, None)
+        self._set_install_values(install_values)
+        self.assertRaises(
+            exceptions.ValidateFail,
+            utils.validate_restore_on_factory_install,
+            self.subcloud,
+        )
+
+    def test_on_site_does_not_require_bmc_install_values(self):
+        """On-site skips the BMC install-value requirement."""
+        install_values = copy.deepcopy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        for key in dccommon_consts.BMC_INSTALL_VALUES:
+            install_values.pop(key, None)
+        self._set_install_values(install_values)
+        self.assertTrue(
+            utils.validate_restore_on_factory_install(self.subcloud, on_site=True)
+        )
+
+    def test_standard_rejects_vcsr(self):
+        """Standard on_factory_install rejects vCSR-enrolled subclouds."""
+        self._set_vcsr(True)
+        self.assertRaises(
+            exceptions.ValidateFail,
+            utils.validate_restore_on_factory_install,
+            self.subcloud,
+        )
+
+    def test_on_site_allows_vcsr(self):
+        """On-site supports vCSR-enrolled subclouds."""
+        self._set_vcsr(True)
+        self.assertTrue(
+            utils.validate_restore_on_factory_install(self.subcloud, on_site=True)
+        )
+
+    def test_on_site_still_requires_bootstrap_interface(self):
+        """On-site still requires the bootstrap interface."""
+        install_values = copy.deepcopy(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_values.pop("bootstrap_interface", None)
+        self._set_install_values(install_values)
+        self.assertRaises(
+            exceptions.ValidateFail,
+            utils.validate_restore_on_factory_install,
+            self.subcloud,
+            on_site=True,
+        )
+
+    def test_on_site_still_requires_oam_bootstrap_values(self):
+        """On-site still requires the OAM bootstrap values."""
+        bootstrap_values = copy.deepcopy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_values.pop("external_oam_subnet", None)
+        self.mock_get_bootstrap_values.return_value = bootstrap_values
+        self.assertRaises(
+            exceptions.ValidateFail,
+            utils.validate_restore_on_factory_install,
+            self.subcloud,
+            on_site=True,
+        )
+
+    def test_on_site_still_requires_simplex(self):
+        """On-site still only supports simplex subclouds."""
+        bootstrap_values = copy.deepcopy(fake_subcloud.FAKE_BOOTSTRAP_FILE_DATA)
+        bootstrap_values["system_mode"] = consts.SYSTEM_MODE_DUPLEX
+        self.mock_get_bootstrap_values.return_value = bootstrap_values
+        self.assertRaises(
+            exceptions.ValidateFail,
+            utils.validate_restore_on_factory_install,
+            self.subcloud,
+            on_site=True,
         )

@@ -1249,7 +1249,9 @@ def get_bootstrap_values(subcloud: models.Subcloud) -> dict:
     return load_yaml_file(filename)
 
 
-def validate_restore_on_factory_install(subcloud: models.Subcloud) -> bool:
+def validate_restore_on_factory_install(
+    subcloud: models.Subcloud, on_site: bool = False
+) -> bool:
     """Validate a subcloud can be restored onto its factory install.
 
     The on_factory_install restore mode reconfigures the subcloud network
@@ -1258,12 +1260,24 @@ def validate_restore_on_factory_install(subcloud: models.Subcloud) -> bool:
     values (OAM network) to be available on the system controller. Only
     non-vCSR AIO-SX subclouds are supported.
 
+    The on-site restore path (on_site=True) is a restore from factory install that
+    the operator triggers from the box: the subcloud reconfigures its own
+    network locally (including vCSR) before the system controller drives the
+    restore remotely over the OAM network, so the BMC is never used. On-site
+    therefore does not require the BMC install values and supports vCSR-enrolled
+    subclouds. The bootstrap interface is still required: the
+    patch-before-restore role persists the OAM interface into the sysinv
+    database before the reboot-required patch unlock, so the subcloud stays
+    reachable over OAM. The OAM bootstrap values are kept as a consistency
+    check; only the BMC path consumes them, to build the enroll-init payload.
+
     :param subcloud: the subcloud object to validate
+    :param on_site: whether this is an on-site restore (no BMC, vCSR allowed)
     :return: True if validation passes
     :raises exceptions.ValidateFail: if the subcloud cannot be restored onto
         its factory install
     """
-    if subcloud.enrolled_with_vcsr:
+    if not on_site and subcloud.enrolled_with_vcsr:
         raise exceptions.ValidateFail(
             f"Subcloud {subcloud.name} is vCSR-enrolled; restore onto a "
             "factory-installed subcloud is not supported."
@@ -1276,9 +1290,10 @@ def validate_restore_on_factory_install(subcloud: models.Subcloud) -> bool:
         )
 
     install_values = cutils.safe_parse_install_values(subcloud.data_install)
-    required_install_values = [
-        "bootstrap_interface"
-    ] + dccommon_consts.BMC_INSTALL_VALUES
+    required_install_values = ["bootstrap_interface"]
+    # An on-site restore never uses the BMC
+    if not on_site:
+        required_install_values += dccommon_consts.BMC_INSTALL_VALUES
     missing_install_values = [
         key for key in required_install_values if not install_values.get(key)
     ]

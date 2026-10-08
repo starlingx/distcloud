@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import copy
 import http.client
 import json
 import os
@@ -987,8 +988,6 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self.mock_os_listdir = self._mock_object(os, "listdir")
         self.mock_os_path_isdir = self._mock_object(os.path, "isdir")
 
-        self.mock_rpc_client().restore_subcloud_from_backup_on_site.return_value = None
-
         self.mock_os_listdir.return_value = ["test.iso", "test.sig"]
         self.mock_os_path_isdir.return_value = True
 
@@ -1333,38 +1332,92 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         )
 
     def test_patch_restore_on_site_local_only_succeeds(self):
-        """Test on_site restore with local_only dispatches to the sync RPC"""
+        """An on_site local_only restore routes through the shared path"""
 
+        self._setup_on_factory_install()
         self.params["on_site"] = "True"
         self.params["local_only"] = "True"
 
         response = self._send_request()
 
         self._assert_response(response)
-        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
-        call_payload = (
-            self.mock_rpc_client().restore_subcloud_from_backup_on_site.call_args[0][1]
-        )
+        # On-site never uses the BMC: the subcloud reconfigured its own network.
+        self.mock_bmc_is_reachable.assert_not_called()
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
         self.assertTrue(call_payload["on_site"])
         self.assertTrue(call_payload["local_only"])
+        # On-site is always an on_factory_install restore (forced server-side).
+        self.assertTrue(
+            call_payload["restore_values"][consts.RESTORE_VALUES_ON_FACTORY_INSTALL]
+        )
 
     def test_patch_restore_on_site_succeeds(self):
-        """Test on_site restore without local_only dispatches to the sync RPC"""
+        """An on_site restore routes through the shared restore path"""
 
+        self._setup_on_factory_install()
         self.params["on_site"] = "True"
 
         response = self._send_request()
 
         self._assert_response(response)
-        self.mock_rpc_client().restore_subcloud_backups.assert_not_called()
-        call_payload = (
-            self.mock_rpc_client().restore_subcloud_from_backup_on_site.call_args[0][1]
-        )
+        self.mock_bmc_is_reachable.assert_not_called()
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
         self.assertTrue(call_payload["on_site"])
+        self.assertTrue(
+            call_payload["restore_values"][consts.RESTORE_VALUES_ON_FACTORY_INSTALL]
+        )
+
+    def test_patch_restore_on_site_allows_vcsr(self):
+        """An on_site restore supports vCSR-enrolled subclouds"""
+
+        self._setup_on_factory_install(enrolled_with_vcsr=True)
+        self.params["on_site"] = "True"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_bmc_is_reachable.assert_not_called()
+        self.mock_rpc_client().restore_subcloud_backups.assert_called_once()
+
+    def test_patch_restore_on_site_allows_missing_bmc_values(self):
+        """An on_site restore does not require the BMC install values"""
+
+        install_values = copy.deepcopy(FAKE_INSTALL_VALUES_ON_FACTORY_INSTALL)
+        for key in dccommon_consts.BMC_INSTALL_VALUES:
+            install_values.pop(key, None)
+        self._setup_on_factory_install(install_values=install_values)
+        self.params["on_site"] = "True"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_bmc_is_reachable.assert_not_called()
+        self.mock_rpc_client().restore_subcloud_backups.assert_called_once()
+
+    def test_patch_restore_on_site_without_restore_values_forces_factory_install(self):
+        """An on_site restore with no restore_values is forced to factory."""
+
+        # Set up the subcloud/bootstrap prerequisites, then drop restore_values
+        # so the request carries no restore_values file at all. The server must
+        # still substitute one and force on_factory_install for on_site.
+        self._setup_on_factory_install()
+        del self.params["restore_values"]
+        self.params["on_site"] = "True"
+
+        response = self._send_request()
+
+        self._assert_response(response)
+        self.mock_bmc_is_reachable.assert_not_called()
+        call_payload = self.mock_rpc_client().restore_subcloud_backups.call_args[0][1]
+        self.assertTrue(call_payload["on_site"])
+        self.assertTrue(
+            call_payload["restore_values"][consts.RESTORE_VALUES_ON_FACTORY_INSTALL]
+        )
 
     def test_patch_restore_on_site_succeeds_with_restore_values(self):
         """Test on_site restore succeeds when combined with restore_values"""
 
+        self._setup_on_factory_install()
         self.params["on_site"] = "True"
         self.params["restore_values"] = FAKE_RESTORE_VALUES_VALID_IP
 
@@ -1527,7 +1580,6 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
         self.assertFalse(call_payload["auto"])
         self.assertFalse(call_payload["factory"])
         self.assertFalse(call_payload["registry_images"])
-        self.mock_rpc_client().restore_subcloud_from_backup_on_site.assert_not_called()
 
     def test_patch_restore_on_factory_install_succeeds_with_string_flag(self):
         """Test on_factory_install restore accepts a string flag value"""
@@ -1570,8 +1622,8 @@ class TestSubcloudBackupPatchRestoreSubcloud(BaseTestSubcloudBackupPatchRestore)
                 response,
                 http.client.BAD_REQUEST,
                 "The on_factory_install option in restore_values cannot be "
-                "used with any of the following options: with_install, factory "
-                "or on_site.",
+                "used with any of the following options: with_install or "
+                "factory.",
                 call_count=index,
             )
             del self.params[option]
