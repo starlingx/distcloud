@@ -229,7 +229,7 @@ class SystemPeersController(restcomm.GenericPathController):
         try:
             # Check the value is an integer
             val = int(heartbeat_interval)
-        except ValueError:
+        except (ValueError, TypeError):
             LOG.warning("Invalid heartbeat_interval: %s" % heartbeat_interval)
             return False
 
@@ -246,7 +246,7 @@ class SystemPeersController(restcomm.GenericPathController):
         try:
             # Check the value is an integer
             val = int(heartbeat_failure_threshold)
-        except ValueError:
+        except (ValueError, TypeError):
             LOG.warning(
                 "Invalid heartbeat_failure_threshold: %s" % heartbeat_failure_threshold
             )
@@ -273,7 +273,7 @@ class SystemPeersController(restcomm.GenericPathController):
         try:
             # Check the value is an integer
             val = int(heartbeat_maintenance_timeout)
-        except ValueError:
+        except (ValueError, TypeError):
             LOG.warning(
                 "Invalid heartbeat_maintenance_timeout: %s"
                 % heartbeat_maintenance_timeout
@@ -621,10 +621,10 @@ class SystemPeersController(restcomm.GenericPathController):
             or username
             or password
             or administrative_state
-            or heartbeat_interval
-            or heartbeat_failure_threshold
+            or heartbeat_interval is not None
+            or heartbeat_failure_threshold is not None
             or heartbeat_failure_policy
-            or heartbeat_maintenance_timeout
+            or heartbeat_maintenance_timeout is not None
             or gateway_ip
         ):
             pecan.abort(httpclient.BAD_REQUEST, _("nothing to update"))
@@ -663,13 +663,13 @@ class SystemPeersController(restcomm.GenericPathController):
                     httpclient.BAD_REQUEST, _("Invalid peer administrative_state")
                 )
 
-        if heartbeat_interval:
+        if heartbeat_interval is not None:
             if not self._validate_heartbeat_interval(heartbeat_interval):
                 pecan.abort(
                     httpclient.BAD_REQUEST, _("Invalid peer heartbeat_interval")
                 )
 
-        if heartbeat_failure_threshold:
+        if heartbeat_failure_threshold is not None:
             if not self._validate_heartbeat_failure_threshold(
                 heartbeat_failure_threshold
             ):
@@ -684,7 +684,7 @@ class SystemPeersController(restcomm.GenericPathController):
                     httpclient.BAD_REQUEST, _("Invalid peer heartbeat_failure_policy")
                 )
 
-        if heartbeat_maintenance_timeout:
+        if heartbeat_maintenance_timeout is not None:
             if not self._validate_heartbeat_maintenance_timeout(
                 heartbeat_maintenance_timeout
             ):
