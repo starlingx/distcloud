@@ -4583,6 +4583,8 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             mock.ANY,
             subcloud_region_name=self.subcloud.region_name,
             restore_timeout=DEFAULT_RESTORE_TIMEOUT,
+            on_factory_install=False,
+            subcloud=mock.ANY,
         )
 
         mock_stage_auto_restore_files.assert_called_once()
@@ -4641,6 +4643,50 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
         # disabled state must be passed explicitly as false.
         self.assertIn('{"ipmi_sel_event_monitoring": false}', restore_command)
 
+    def test_compose_backup_restore_command_on_factory_install_standard(self):
+        # on_factory_install must be emitted on the standard (non-auto) restore
+        # path so the playbook gate and the patch-before-restore role fire.
+        inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
+
+        restore_command = self.sm.compose_backup_restore_command(
+            subcloud_name=self.subcloud.name,
+            ansible_subcloud_inventory_file=inventory_file,
+            auto_restore_mode=None,
+            on_factory_install=True,
+        )
+
+        self.assertIn('{"on_factory_install": true}', restore_command)
+        # The standard path must not pull in auto-only options.
+        self.assertNotIn('{"mount_seed_iso": true}', restore_command)
+
+    def test_compose_backup_restore_command_on_factory_install_auto(self):
+        # on_factory_install must still be emitted on the auto path.
+        inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
+
+        restore_command = self.sm.compose_backup_restore_command(
+            subcloud_name=self.subcloud.name,
+            ansible_subcloud_inventory_file=inventory_file,
+            auto_restore_mode="auto",
+            with_install=False,
+            on_factory_install=True,
+        )
+
+        self.assertIn('{"on_factory_install": true}', restore_command)
+        self.assertIn('{"mount_seed_iso": true}', restore_command)
+
+    def test_compose_backup_restore_command_without_on_factory_install(self):
+        # When not an on_factory_install restore, the extra-var is absent.
+        inventory_file = f"{ANS_PATH}/{self.subcloud.name}_inventory.yml"
+
+        restore_command = self.sm.compose_backup_restore_command(
+            subcloud_name=self.subcloud.name,
+            ansible_subcloud_inventory_file=inventory_file,
+            auto_restore_mode=None,
+            on_factory_install=False,
+        )
+
+        self.assertNotIn("on_factory_install", " ".join(restore_command))
+
     @mock.patch.object(
         subcloud_manager.SubcloudManager, "_run_subcloud_backup_restore_playbook"
     )
@@ -4694,6 +4740,8 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             True,
             subcloud_region_name=self.subcloud.region_name,
             restore_timeout=DEFAULT_RESTORE_TIMEOUT,
+            on_factory_install=False,
+            subcloud=mock.ANY,
         )
 
         mock_run_restore_playbook.assert_called_once_with(mock.ANY, mock.ANY, mock.ANY)
@@ -4745,6 +4793,8 @@ class TestSubcloudBackupRestore(BaseTestSubcloudManager):
             mock.ANY,
             subcloud_region_name=self.subcloud.region_name,
             restore_timeout=custom_timeout,
+            on_factory_install=False,
+            subcloud=mock.ANY,
         )
 
         _, _, restore_ctx_arg = mock_run_restore_playbook.call_args.args
@@ -6777,6 +6827,112 @@ class TestPrepareRestoreFiles(BaseTestRestoreHelpers):
             exceptions.RestorePreparationError,
             self._prepare_restore_files,
         )
+
+
+class TestCreateOverridesOnFactoryInstall(BaseTestRestoreHelpers):
+    """Test the OAM/bootstrap override injection for on_factory_install restore."""
+
+    FAKE_BOOTSTRAP_VALUES = {
+        "external_oam_subnet": "10.10.10.0/24",
+        "external_oam_gateway_address": "10.10.10.1",
+        "external_oam_floating_address": "10.10.10.12",
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.mock_keyring.get_password.return_value = "testpass"
+        self.mock_create_backup_overrides_file = self._mock_object(
+            subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
+        )
+        self.mock_create_backup_overrides_file.return_value = "overrides_file.yml"
+        self.mock_load_yaml_file = self._mock_object(
+            subcloud_manager.utils, "load_yaml_file"
+        )
+        self.mock_load_yaml_file.return_value = dict(self.FAKE_BOOTSTRAP_VALUES)
+        self._mock_object(subcloud_manager.psd_common, "get_config_file_path")
+
+    def _create_overrides(self, on_factory_install, auto_restore_mode=None):
+        payload = {
+            "sysadmin_password": "testpass",
+            "local_only": True,
+            "registry_images": False,
+            "software_version": fake_subcloud.FAKE_SOFTWARE_VERSION,
+            "override_values": {},
+        }
+        self.sm._create_overrides_for_backup_or_restore(
+            "restore",
+            payload,
+            self.subcloud.name,
+            auto_restore_mode=auto_restore_mode,
+            on_factory_install=on_factory_install,
+            subcloud=self.subcloud,
+        )
+        return payload["override_values"]
+
+    def test_injects_oam_and_bootstrap_values(self):
+        override_values = self._create_overrides(on_factory_install=True)
+
+        self.assertEqual(override_values["external_oam_subnet"], "10.10.10.0/24")
+        self.assertEqual(override_values["external_oam_gateway_address"], "10.10.10.1")
+        self.assertEqual(
+            override_values["external_oam_floating_address"], "10.10.10.12"
+        )
+        # bootstrap_interface/vlan come from the subcloud install values
+        self.assertEqual(
+            override_values["bootstrap_interface"],
+            fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES["bootstrap_interface"],
+        )
+        self.assertEqual(
+            override_values["bootstrap_vlan"],
+            fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES["bootstrap_vlan"],
+        )
+
+    def test_splits_comma_separated_oam_values(self):
+        # Dual-stack bootstrap values are comma-separated; only the primary
+        # (first) value is injected.
+        self.mock_load_yaml_file.return_value = {
+            "external_oam_subnet": "10.10.10.0/24,fd04::/64",
+            "external_oam_gateway_address": "10.10.10.1,fd04::1",
+            "external_oam_floating_address": "10.10.10.12,fd04::10",
+        }
+
+        override_values = self._create_overrides(on_factory_install=True)
+
+        self.assertEqual(override_values["external_oam_subnet"], "10.10.10.0/24")
+        self.assertEqual(override_values["external_oam_gateway_address"], "10.10.10.1")
+        self.assertEqual(
+            override_values["external_oam_floating_address"], "10.10.10.12"
+        )
+
+    def test_omits_bootstrap_vlan_when_absent(self):
+        install_values = dict(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
+        install_values.pop("bootstrap_vlan", None)
+        self.subcloud = db_api.subcloud_update(
+            self.ctx, self.subcloud.id, data_install=json.dumps(install_values)
+        )
+
+        override_values = self._create_overrides(on_factory_install=True)
+
+        self.assertEqual(
+            override_values["bootstrap_interface"],
+            install_values["bootstrap_interface"],
+        )
+        self.assertNotIn("bootstrap_vlan", override_values)
+
+    def test_no_injection_when_not_on_factory_install(self):
+        override_values = self._create_overrides(on_factory_install=False)
+
+        self.assertNotIn("external_oam_subnet", override_values)
+        self.assertNotIn("bootstrap_interface", override_values)
+
+    def test_no_injection_on_auto_path(self):
+        # The factory auto path sets its own OAM overrides; our injection must
+        # not fire there (auto_restore_mode is set).
+        override_values = self._create_overrides(
+            on_factory_install=True, auto_restore_mode="auto"
+        )
+
+        self.assertNotIn("bootstrap_interface", override_values)
 
 
 class TestSetupAutoRestoreWithoutInstall(BaseTestRestoreHelpers):
