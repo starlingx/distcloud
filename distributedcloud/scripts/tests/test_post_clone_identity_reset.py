@@ -6,6 +6,7 @@
 
 import logging
 import subprocess
+import threading
 
 import mock
 import post_clone_identity_reset
@@ -83,6 +84,237 @@ class TestUpdateInstallUuidFeedFile(base.DCCommonTestCase):
                 "m.n",
                 "uuid",
             )
+
+
+class TestGenerateIdentifier(base.DCCommonTestCase):
+    """Test class for generate_identifier function."""
+
+    def setUp(self):
+        """Set up mock for subprocess.run."""
+        super().setUp()
+        self.mock_run = self._mock_object(post_clone_identity_reset.subprocess, "run")
+
+    def test_returns_stripped_stdout(self):
+        """Test returns stdout stripped of surrounding whitespace."""
+        self.mock_run.return_value = mock.Mock(stdout="  value-x \n", returncode=0)
+        result = post_clone_identity_reset.generate_identifier(["gen"])
+        self.assertEqual(result, "value-x")
+        self.mock_run.assert_called_once()
+        kwargs = self.mock_run.call_args.kwargs
+        self.assertTrue(kwargs.get("check"))
+        self.assertTrue(kwargs.get("capture_output"))
+        self.assertTrue(kwargs.get("text"))
+        self.assertEqual(self.mock_run.call_args[0][0], ["gen"])
+
+    def test_raises_when_output_empty(self):
+        """Test raises RuntimeError when command output is empty."""
+        self.mock_run.return_value = mock.Mock(stdout="   \n", returncode=0)
+        self.assertRaises(
+            RuntimeError,
+            post_clone_identity_reset.generate_identifier,
+            ["gen"],
+        )
+
+    def test_propagates_called_process_error(self):
+        """Test propagates CalledProcessError from the command."""
+        self.mock_run.side_effect = subprocess.CalledProcessError(1, "gen")
+        self.assertRaises(
+            subprocess.CalledProcessError,
+            post_clone_identity_reset.generate_identifier,
+            ["gen"],
+        )
+
+
+class TestRewriteIdentityFile(base.DCCommonTestCase):
+    """Test class for rewrite_identity_file function."""
+
+    def test_writes_content_verbatim(self):
+        """Test writes content to the file in text mode."""
+        m = mock.mock_open()
+        with mock.patch("builtins.open", m):
+            post_clone_identity_reset.rewrite_identity_file(
+                "/etc/nvme/hostid", "value\n"
+            )
+        m.assert_called_once_with("/etc/nvme/hostid", "w", encoding="utf-8")
+        m().write.assert_called_once_with("value\n")
+
+    def test_propagates_file_not_found(self):
+        """Test FileNotFoundError from open propagates."""
+        with mock.patch("builtins.open", side_effect=FileNotFoundError("nope")):
+            self.assertRaises(
+                FileNotFoundError,
+                post_clone_identity_reset.rewrite_identity_file,
+                "/etc/nvme/hostid",
+                "value\n",
+            )
+
+
+class TestStorageIdentityReset(base.DCCommonTestCase):
+    """Test class for the StorageIdentityReset class."""
+
+    def setUp(self):
+        """Set up mocks for the generator and file-rewrite helpers."""
+        super().setUp()
+        self.mock_generate = self._mock_object(
+            post_clone_identity_reset,
+            "generate_identifier",
+        )
+        self.mock_rewrite = self._mock_object(
+            post_clone_identity_reset,
+            "rewrite_identity_file",
+        )
+        self.mock_run = self._mock_object(post_clone_identity_reset.subprocess, "run")
+        self.reset = post_clone_identity_reset.StorageIdentityReset()
+
+    def test_regenerate_iscsi_initiator_name(self):
+        """Test generates value and rewrites the iscsi file."""
+        self.mock_generate.return_value = "iqn.test"
+        self.reset.regenerate_iscsi_initiator_name()
+        self.mock_generate.assert_called_once_with(
+            [
+                "/usr/sbin/iscsi-iname",
+                "-p",
+                post_clone_identity_reset.ISCSI_INITIATOR_PREFIX,
+            ]
+        )
+        self.mock_rewrite.assert_called_once_with(
+            post_clone_identity_reset.ISCSI_INITIATOR_FILE,
+            "InitiatorName=iqn.test\n",
+        )
+
+    def test_regenerate_nvme_host_id(self):
+        """Test generates value and rewrites the hostid file."""
+        self.mock_generate.return_value = "host-id-x"
+        self.reset.regenerate_nvme_host_id()
+        self.mock_generate.assert_called_once_with(["/usr/bin/uuidgen"])
+        self.mock_rewrite.assert_called_once_with(
+            post_clone_identity_reset.NVME_HOST_ID_FILE,
+            "host-id-x\n",
+        )
+
+    def test_regenerate_nvme_host_nqn(self):
+        """Test generates value and rewrites the hostnqn file."""
+        self.mock_generate.return_value = "nqn.test"
+        self.reset.regenerate_nvme_host_nqn()
+        self.mock_generate.assert_called_once_with(["/usr/sbin/nvme", "gen-hostnqn"])
+        self.mock_rewrite.assert_called_once_with(
+            post_clone_identity_reset.NVME_HOST_NQN_FILE,
+            "nqn.test\n",
+        )
+
+    def test_regenerate_propagates_generator_error(self):
+        """Test a generator failure propagates from a step."""
+        self.mock_generate.side_effect = subprocess.CalledProcessError(1, "iscsi-iname")
+        self.assertRaises(
+            subprocess.CalledProcessError,
+            self.reset.regenerate_iscsi_initiator_name,
+        )
+        self.mock_rewrite.assert_not_called()
+
+    def test_apply_to_db_updates_all_columns(self):
+        """Test apply_to_db issues one UPDATE with all three values."""
+        self.mock_generate.side_effect = ["iqn.test", "host-id-x", "nqn.test"]
+        self.reset.regenerate_iscsi_initiator_name()
+        self.reset.regenerate_nvme_host_id()
+        self.reset.regenerate_nvme_host_nqn()
+        self.mock_run.reset_mock()
+
+        self.mock_run.return_value = mock.Mock(stdout="UPDATE 1\n", returncode=0)
+        self.reset.apply_to_db()
+
+        self.mock_run.assert_called_once()
+        cmd = self.mock_run.call_args[0][0]
+        self.assertEqual(cmd[0], "su")
+        self.assertEqual(cmd[1], "postgres")
+        query = cmd[3]
+        self.assertIn("UPDATE i_host", query)
+        self.assertIn("iscsi_initiator_name='iqn.test'", query)
+        self.assertIn("nvme_host_id='host-id-x'", query)
+        self.assertIn("nvme_host_nqn='nqn.test'", query)
+
+    def test_apply_to_db_raises_before_values_collected(self):
+        """Test apply_to_db raises KeyError if steps did not run."""
+        self.assertRaises(KeyError, self.reset.apply_to_db)
+        self.mock_run.assert_not_called()
+
+    def test_apply_to_db_propagates_called_process_error(self):
+        """Test apply_to_db propagates CalledProcessError from psql."""
+        self.mock_generate.side_effect = ["iqn.test", "host-id-x", "nqn.test"]
+        self.reset.regenerate_iscsi_initiator_name()
+        self.reset.regenerate_nvme_host_id()
+        self.reset.regenerate_nvme_host_nqn()
+
+        self.mock_run.side_effect = subprocess.CalledProcessError(1, "psql")
+        self.assertRaises(
+            subprocess.CalledProcessError,
+            self.reset.apply_to_db,
+        )
+
+    def test_parallel_steps_populate_values_before_apply(self):
+        """Test the three steps run concurrently, then apply_to_db.
+
+        Runs the real regenerate_* methods in separate threads, the way
+        main() drives them, and asserts all three values land in
+        _values once the threads join. The apply_to_db step then runs
+        and its psql query is built from those three values, verifying
+        the parallel-then-join-then-apply contract the pipeline relies
+        on. A barrier makes the three generators overlap so the test
+        exercises genuine concurrency rather than accidental serial
+        ordering.
+        """
+        values = {
+            "/usr/sbin/iscsi-iname": "iqn.par",
+            "/usr/bin/uuidgen": "host-id-par",
+            "/usr/sbin/nvme": "nqn.par",
+        }
+        barrier = threading.Barrier(3)
+
+        def fake_generate(cmd):
+            """Block until all three steps have started, then return."""
+            barrier.wait()
+            return values[cmd[0]]
+
+        self.mock_generate.side_effect = fake_generate
+
+        steps = [
+            self.reset.regenerate_iscsi_initiator_name,
+            self.reset.regenerate_nvme_host_id,
+            self.reset.regenerate_nvme_host_nqn,
+        ]
+        threads = [threading.Thread(target=step) for step in steps]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        # All three values are present on the shared instance after the
+        # parallel steps join, before any DB write happens.
+        self.assertEqual(
+            self.reset._values,
+            {
+                "iscsi_initiator_name": "iqn.par",
+                "nvme_host_id": "host-id-par",
+                "nvme_host_nqn": "nqn.par",
+            },
+        )
+        self.mock_run.assert_not_called()
+
+        # apply_to_db then builds its single UPDATE from exactly those
+        # three collected values.
+        self.mock_run.return_value = mock.Mock(stdout="UPDATE 1\n", returncode=0)
+        self.reset.apply_to_db()
+
+        self.mock_run.assert_called_once()
+        query = self.mock_run.call_args[0][0][3]
+        expected_query = (
+            'psql --tuples-only -d sysinv -c "'
+            "UPDATE i_host SET "
+            "iscsi_initiator_name='iqn.par', "
+            "nvme_host_id='host-id-par', "
+            "nvme_host_nqn='nqn.par';"
+            '"'
+        )
+        self.assertEqual(query, expected_query)
 
 
 class TestCheckCloneFlag(base.DCCommonTestCase):
@@ -350,35 +582,84 @@ class TestMain(base.DCCommonTestCase):
     def setUp(self):
         """Set up mocks for all pipeline steps."""
         super().setUp()
-        self.mock_check = self._mock_object(
+        # Function-based pipeline steps are collected in a single dict to
+        # keep the instance attribute count low; accessed via helper
+        # properties below.
+        self.mocks = {
+            "check": self._mock_object(
+                post_clone_identity_reset,
+                "check_clone_flag",
+                return_value=True,
+            ),
+            "sysinv": self._mock_object(
+                post_clone_identity_reset,
+                "update_sysinv_system_uuid",
+            ),
+            "machine": self._mock_object(
+                post_clone_identity_reset,
+                "regenerate_machine_id",
+            ),
+            "host": self._mock_object(
+                post_clone_identity_reset,
+                "regenerate_host_uuid",
+            ),
+            "install": self._mock_object(
+                post_clone_identity_reset,
+                "regenerate_install_uuid",
+            ),
+            "region": self._mock_object(
+                post_clone_identity_reset,
+                "run_update_region_name",
+            ),
+            "remove": self._mock_object(
+                post_clone_identity_reset,
+                "remove_clone_flag",
+            ),
+        }
+        # main() constructs a StorageIdentityReset instance and uses its
+        # bound methods as pipeline steps; patch the class so main() gets
+        # a mock instance whose methods can be asserted on.
+        self.mock_storage = mock.Mock()
+        self._mock_object(
             post_clone_identity_reset,
-            "check_clone_flag",
-            return_value=True,
+            "StorageIdentityReset",
+            return_value=self.mock_storage,
         )
-        self.mock_sysinv = self._mock_object(
-            post_clone_identity_reset,
-            "update_sysinv_system_uuid",
-        )
-        self.mock_machine = self._mock_object(
-            post_clone_identity_reset,
-            "regenerate_machine_id",
-        )
-        self.mock_host = self._mock_object(
-            post_clone_identity_reset,
-            "regenerate_host_uuid",
-        )
-        self.mock_install = self._mock_object(
-            post_clone_identity_reset,
-            "regenerate_install_uuid",
-        )
-        self.mock_region = self._mock_object(
-            post_clone_identity_reset,
-            "run_update_region_name",
-        )
-        self.mock_remove = self._mock_object(
-            post_clone_identity_reset,
-            "remove_clone_flag",
-        )
+
+    @property
+    def mock_check(self):
+        """Return the check_clone_flag mock."""
+        return self.mocks["check"]
+
+    @property
+    def mock_sysinv(self):
+        """Return the update_sysinv_system_uuid mock."""
+        return self.mocks["sysinv"]
+
+    @property
+    def mock_machine(self):
+        """Return the regenerate_machine_id mock."""
+        return self.mocks["machine"]
+
+    @property
+    def mock_host(self):
+        """Return the regenerate_host_uuid mock."""
+        return self.mocks["host"]
+
+    @property
+    def mock_install(self):
+        """Return the regenerate_install_uuid mock."""
+        return self.mocks["install"]
+
+    @property
+    def mock_region(self):
+        """Return the run_update_region_name mock."""
+        return self.mocks["region"]
+
+    @property
+    def mock_remove(self):
+        """Return the remove_clone_flag mock."""
+        return self.mocks["remove"]
 
     def test_returns_zero_when_flag_absent(self):
         """Test returns 0 immediately when flag is absent."""
@@ -387,17 +668,10 @@ class TestMain(base.DCCommonTestCase):
         self.mock_sysinv.assert_not_called()
         self.mock_machine.assert_not_called()
         self.mock_host.assert_not_called()
-        self.mock_install.assert_not_called()
-        self.mock_region.assert_not_called()
-        self.mock_remove.assert_not_called()
-
-    def test_idempotent_second_run_is_noop(self):
-        """Test second run is no-op after flag removed."""
-        self.mock_check.return_value = False
-        self.assertEqual(post_clone_identity_reset.main(), 0)
-        self.mock_sysinv.assert_not_called()
-        self.mock_machine.assert_not_called()
-        self.mock_host.assert_not_called()
+        self.mock_storage.regenerate_iscsi_initiator_name.assert_not_called()
+        self.mock_storage.regenerate_nvme_host_id.assert_not_called()
+        self.mock_storage.regenerate_nvme_host_nqn.assert_not_called()
+        self.mock_storage.apply_to_db.assert_not_called()
         self.mock_install.assert_not_called()
         self.mock_region.assert_not_called()
         self.mock_remove.assert_not_called()
@@ -413,6 +687,10 @@ class TestMain(base.DCCommonTestCase):
         self.mock_sysinv.assert_called_once()
         self.mock_machine.assert_called_once()
         self.mock_host.assert_called_once()
+        self.mock_storage.regenerate_iscsi_initiator_name.assert_called_once()
+        self.mock_storage.regenerate_nvme_host_id.assert_called_once()
+        self.mock_storage.regenerate_nvme_host_nqn.assert_called_once()
+        self.mock_storage.apply_to_db.assert_called_once()
         self.mock_install.assert_called_once()
         self.mock_region.assert_called_once()
         self.mock_remove.assert_called_once()
@@ -420,6 +698,28 @@ class TestMain(base.DCCommonTestCase):
     def test_returns_one_when_parallel_step_fails(self):
         """Test returns 1 when a parallel step raises."""
         self.mock_machine.side_effect = RuntimeError("fail")
+        self.assertEqual(post_clone_identity_reset.main(), 1)
+        self.mock_storage.apply_to_db.assert_not_called()
+        self.mock_install.assert_not_called()
+        self.mock_region.assert_not_called()
+        self.mock_remove.assert_not_called()
+
+    def test_returns_one_when_storage_step_fails(self):
+        """Test returns 1 when a storage-identity step raises."""
+        self.mock_storage.regenerate_nvme_host_id.side_effect = (
+            subprocess.CalledProcessError(1, "uuidgen")
+        )
+        self.assertEqual(post_clone_identity_reset.main(), 1)
+        self.mock_storage.apply_to_db.assert_not_called()
+        self.mock_install.assert_not_called()
+        self.mock_region.assert_not_called()
+        self.mock_remove.assert_not_called()
+
+    def test_returns_one_when_apply_to_db_fails(self):
+        """Test returns 1 when the i_host DB update raises."""
+        self.mock_storage.apply_to_db.side_effect = subprocess.CalledProcessError(
+            1, "psql"
+        )
         self.assertEqual(post_clone_identity_reset.main(), 1)
         self.mock_install.assert_not_called()
         self.mock_region.assert_not_called()
@@ -472,4 +772,20 @@ class TestModuleConstants(base.DCCommonTestCase):
         self.assertIsInstance(
             post_clone_identity_reset.REGION_SCRIPT_TIMEOUT,
             int,
+        )
+        self.assertEqual(
+            post_clone_identity_reset.ISCSI_INITIATOR_FILE,
+            "/etc/iscsi/initiatorname.iscsi",
+        )
+        self.assertEqual(
+            post_clone_identity_reset.ISCSI_INITIATOR_PREFIX,
+            "iqn.2018-05.io.starlingx",
+        )
+        self.assertEqual(
+            post_clone_identity_reset.NVME_HOST_ID_FILE,
+            "/etc/nvme/hostid",
+        )
+        self.assertEqual(
+            post_clone_identity_reset.NVME_HOST_NQN_FILE,
+            "/etc/nvme/hostnqn",
         )

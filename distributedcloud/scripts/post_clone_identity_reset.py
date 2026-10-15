@@ -21,9 +21,14 @@ following identifiers in a fixed order:
     1. sysinv.i_system.uuid (the system UUID in the sysinv DB)
     2. /etc/machine-id
     3. UUID= in /etc/platform/platform.conf (host UUID)
-    4. INSTALL_UUID= in /etc/platform/platform.conf and the matching
+    4. iSCSI initiator name, NVMe host ID and NVMe host NQN: the
+       /etc/iscsi/initiatorname.iscsi, /etc/nvme/hostid and
+       /etc/nvme/hostnqn files are rewritten with freshly generated
+       values and the matching sysinv i_host columns are updated to
+       the same values
+    5. INSTALL_UUID= in /etc/platform/platform.conf and the matching
        /var/www/pages/feed/rel-{sw_version}/install_uuid feed file
-    5. OpenStack region name (delegated to update_region_name.py)
+    6. OpenStack region name (delegated to update_region_name.py)
 
 On full success the sentinel is removed so subsequent boots are
 no-ops. On failure the sentinel is preserved so cloud-init re-invokes
@@ -45,6 +50,12 @@ MACHINE_ID_FILE = "/etc/machine-id"
 INSTALL_UUID_FEED_TEMPLATE = "/var/www/pages/feed/rel-{sw_version}/install_uuid"
 UPDATE_REGION_SCRIPT_PATH = "/usr/local/bin/update_region_name.py"
 REGION_SCRIPT_TIMEOUT = 240  # seconds
+
+# Storage-fabric identity
+ISCSI_INITIATOR_FILE = "/etc/iscsi/initiatorname.iscsi"
+ISCSI_INITIATOR_PREFIX = "iqn.2018-05.io.starlingx"
+NVME_HOST_ID_FILE = "/etc/nvme/hostid"
+NVME_HOST_NQN_FILE = "/etc/nvme/hostnqn"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -85,6 +96,100 @@ def update_install_uuid_feed_file(sw_version: str, new_uuid: str) -> None:
 
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(f"{new_uuid}\n")
+
+
+def generate_identifier(cmd: list) -> str:
+    """Run a generator command and return its stripped stdout."""
+    result = subprocess.run(
+        cmd,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    value = result.stdout.strip()
+    if not value:
+        raise RuntimeError(f"{cmd[0]} produced no output")
+    return value
+
+
+def rewrite_identity_file(path: str, content: str) -> None:
+    """Rewrite content to an existing identity file in place."""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+
+
+class StorageIdentityReset:
+    """Regenerate the iSCSI/NVMe identities for a simplex host.
+
+    Bundles the three storage identifiers (iSCSI initiator name, NVMe
+    host ID, NVMe host NQN) and the shared state that ties them to a
+    single DB update. Each regenerate_* method generates one value,
+    rewrites its on-disk file and records the value on the instance;
+    apply_to_db() then writes all three recorded values to the sysinv
+    i_host table in one statement.
+    """
+
+    def __init__(self) -> None:
+        self._values = {}
+
+    def regenerate_iscsi_initiator_name(self) -> None:
+        """Generate a new iSCSI initiator name and rewrite its file."""
+        iscsi_name = generate_identifier(
+            ["/usr/sbin/iscsi-iname", "-p", ISCSI_INITIATOR_PREFIX]
+        )
+        rewrite_identity_file(
+            ISCSI_INITIATOR_FILE,
+            f"InitiatorName={iscsi_name}\n",
+        )
+        self._values["iscsi_initiator_name"] = iscsi_name
+        LOG.info("iSCSI initiator name updated to %s.", iscsi_name)
+
+    def regenerate_nvme_host_id(self) -> None:
+        """Generate a new NVMe host ID and rewrite its file."""
+        nvme_host_id = generate_identifier(["/usr/bin/uuidgen"])
+        rewrite_identity_file(
+            NVME_HOST_ID_FILE,
+            f"{nvme_host_id}\n",
+        )
+        self._values["nvme_host_id"] = nvme_host_id
+        LOG.info("NVMe host ID updated to %s.", nvme_host_id)
+
+    def regenerate_nvme_host_nqn(self) -> None:
+        """Generate a new NVMe host NQN and rewrite its file."""
+        nvme_host_nqn = generate_identifier(["/usr/sbin/nvme", "gen-hostnqn"])
+        rewrite_identity_file(
+            NVME_HOST_NQN_FILE,
+            f"{nvme_host_nqn}\n",
+        )
+        self._values["nvme_host_nqn"] = nvme_host_nqn
+        LOG.info("NVMe host NQN updated to %s.", nvme_host_nqn)
+
+    def apply_to_db(self) -> None:
+        """Set the iscsi/nvme identity columns in sysinv i_host.
+
+        The three identities iscsi_initiator_name, nvme_host_id and
+        nvme_host_nqn are rewritten to distinct files, update them
+        into DB in a combined instance.
+        """
+        query = (
+            "UPDATE i_host SET "
+            f"iscsi_initiator_name='{self._values['iscsi_initiator_name']}', "
+            f"nvme_host_id='{self._values['nvme_host_id']}', "
+            f"nvme_host_nqn='{self._values['nvme_host_nqn']}';"
+        )
+        cmd = [
+            "su",
+            "postgres",
+            "-c",
+            f'psql --tuples-only -d sysinv -c "{query}"',
+        ]
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        LOG.info("Updated iscsi/nvme identity columns in sysinv i_host.")
 
 
 def check_clone_flag() -> bool:
@@ -231,11 +336,23 @@ def main() -> int:
 
     # update_sysinv_system_uuid and regenerate_machine_id are fully
     # independent. regenerate_host_uuid writes UUID= in platform.conf.
+    # The three StorageIdentityReset steps each generate one value and
+    # rewrite one distinct file (iscsi/nvme), recording the value on
+    # the shared instance for the single post-join DB update. They
+    # write no DB and touch no shared file, so they are safe to run
+    # concurrently; collapsing their DB writes into one statement
+    # (storage_identity.apply_to_db, below) avoids row-lock
+    # self-contention between them.
     # regenerate_install_uuid runs later to avoid a race on platform.conf.
+    storage_identity = StorageIdentityReset()
+
     parallel_steps = [
         update_sysinv_system_uuid,
         regenerate_machine_id,
         regenerate_host_uuid,
+        storage_identity.regenerate_iscsi_initiator_name,
+        storage_identity.regenerate_nvme_host_id,
+        storage_identity.regenerate_nvme_host_nqn,
     ]
 
     errors = {}
@@ -269,6 +386,11 @@ def main() -> int:
         LOG.info("Completed step: %s", name)
 
     sequential_steps = [
+        # The single i_host update runs after the parallel file rewrites
+        # have joined, so all three generated values are available on the
+        # storage_identity instance and the DB is updated with one locked
+        # statement.
+        storage_identity.apply_to_db,
         regenerate_install_uuid,
         run_update_region_name,
         remove_clone_flag,
