@@ -72,16 +72,6 @@ def reset_dummy_db():
         engine.execute(table.delete())
 
 
-def create_quota_limit(ctxt, **kwargs):
-    values = {
-        "project_id": UUID1,
-        "resource": "ram",
-        "limit": 10,
-    }
-    values.update(kwargs)
-    return db_api.quota_create(ctxt, **values)
-
-
 def dummy_context(user="test_username", tenant="test_project_id", region_name=None):
     return context.RequestContext.from_dict(
         {

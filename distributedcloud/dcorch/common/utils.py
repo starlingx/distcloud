@@ -42,43 +42,6 @@ def get_batch_projects(batch_size, project_list, fillvalue=None):
     return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 
-# to do validate the quota limits
-def validate_quota_limits(payload):
-    for rsrc in payload:
-        # Check valid resource name
-        if rsrc not in itertools.chain(
-            dccommon_consts.CINDER_QUOTA_FIELDS,
-            dccommon_consts.NOVA_QUOTA_FIELDS,
-            dccommon_consts.NEUTRON_QUOTA_FIELDS,
-        ):
-            raise exceptions.InvalidInputError
-        # Check valid quota limit value in case for put/post
-        if isinstance(payload, dict) and (
-            not isinstance(payload[rsrc], int) or payload[rsrc] <= 0
-        ):
-            raise exceptions.InvalidInputError
-
-
-def keypair_construct_id(name, user_id):
-    # Keypair has a unique name per user.
-    # Hence, keypair id stored in dcorch DB is of the format
-    # "<name>/<user_id>".
-    return name + consts.KEYPAIR_ID_DELIM + user_id
-
-
-def keypair_constructed_id(id):
-    if id and id.find(consts.KEYPAIR_ID_DELIM) > 0:
-        return True
-    return False
-
-
-def keypair_deconstruct_id(id):
-    if keypair_constructed_id(id):
-        return id.split(consts.KEYPAIR_ID_DELIM)
-    else:
-        return [id, ""]
-
-
 def enqueue_work(
     context,
     endpoint_type,
@@ -104,40 +67,14 @@ def enqueue_work(
     followed by a call to sync_request() to wake up the sync threads in case
     they're sleeping.
 
-    It would be called like this to create and then delete a flavor:
+    It would be called like this to create a resource:
 
         utils.enqueue_work(context,
-                           consts.ENDPOINT_TYPE_COMPUTE,
-                           consts.RESOURCE_TYPE_COMPUTE_FLAVOR,
+                           dccommon_consts.ENDPOINT_TYPE_PLATFORM,
+                           consts.RESOURCE_TYPE_SYSINV_CERTIFICATE,
                            '0bbdb1ed-acc9-440f-b6e9-b1c6d37d9a56',
                            consts.OPERATION_TYPE_CREATE,
-                           resource_info='{"ram": 512, "vcpus": 3,
-                                           "name": "testflavor",
-                                           "disk":10, "id":"auto"}')
-
-        utils.enqueue_work(context,
-                           consts.ENDPOINT_TYPE_COMPUTE,
-                           consts.RESOURCE_TYPE_COMPUTE_FLAVOR,
-                           '0bbdb1ed-acc9-440f-b6e9-b1c6d37d9a56',
-                           consts.OPERATION_TYPE_DELETE)
-
-    Flavor-access add/remove examples:
-
-        utils.enqueue_work(context.get_admin_context(),
-                           consts.ENDPOINT_TYPE_COMPUTE,
-                           consts.RESOURCE_TYPE_COMPUTE_FLAVOR,
-                           '0bbdb1ed-acc9-440f-b6e9-b1c6d37d9a56',
-                           consts.OPERATION_TYPE_ACTION,
-                           resource_info='{
-                             "addTenantAccess": {"tenant": "new_tenant"}}')
-
-        utils.enqueue_work(context.get_admin_context(),
-                           consts.ENDPOINT_TYPE_COMPUTE,
-                           consts.RESOURCE_TYPE_COMPUTE_FLAVOR,
-                           '0bbdb1ed-acc9-440f-b6e9-b1c6d37d9a56',
-                           consts.OPERATION_TYPE_ACTION,
-                           resource_info='{
-                             "removeTenantAccess": {"tenant": "new_tenant"}}')
+                           resource_info='{...}')
 
     """
     if operation_type in [consts.OPERATION_TYPE_CREATE, consts.OPERATION_TYPE_PATCH]:

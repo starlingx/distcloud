@@ -11,17 +11,10 @@ Create Date: 2026-03-31 05:30:00.000000
 
 """
 
-import datetime
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
-from oslo_config import cfg
-
-QUOTA_CLASS_NAME_DEFAULT = "default"
-CONF = cfg.CONF
-CONF.import_group("dc_orch_global_limit", "dcorch.common.config")
 
 revision: str = "a1b2c3d4e5f6"
 down_revision: Union[str, None] = None
@@ -30,37 +23,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # 001_initial: quotas, quota_classes, service
-    op.create_table(
-        "quotas",
-        sa.Column("id", sa.Integer, primary_key=True, nullable=False),
-        sa.Column("project_id", sa.String(36)),
-        sa.Column("resource", sa.String(255), nullable=False),
-        sa.Column("hard_limit", sa.Integer, nullable=False),
-        sa.Column("capabilities", sa.Text),
-        sa.Column("created_at", sa.DateTime),
-        sa.Column("updated_at", sa.DateTime),
-        sa.Column("deleted_at", sa.DateTime),
-        sa.Column("deleted", sa.Integer),
-        mysql_engine="InnoDB",
-        mysql_charset="utf8",
-    )
-
-    op.create_table(
-        "quota_classes",
-        sa.Column("id", sa.Integer, primary_key=True, nullable=False),
-        sa.Column("class_name", sa.String(255), index=True),
-        sa.Column("capabilities", sa.Text),
-        sa.Column("created_at", sa.DateTime),
-        sa.Column("updated_at", sa.DateTime),
-        sa.Column("deleted_at", sa.DateTime),
-        sa.Column("deleted", sa.Integer),
-        sa.Column("resource", sa.String(255)),
-        sa.Column("hard_limit", sa.Integer, nullable=True),
-        mysql_engine="InnoDB",
-        mysql_charset="utf8",
-    )
-
+    # 001_initial: service
     op.create_table(
         "service",
         sa.Column("id", sa.String(36), primary_key=True, nullable=False),
@@ -77,30 +40,6 @@ def upgrade() -> None:
         mysql_engine="InnoDB",
         mysql_charset="utf8",
     )
-
-    # Populate quota_classes with defaults
-    quota_classes = sa.table(
-        "quota_classes",
-        sa.column("created_at", sa.DateTime),
-        sa.column("class_name", sa.String(255)),
-        sa.column("resource", sa.String(255)),
-        sa.column("hard_limit", sa.Integer),
-        sa.column("deleted", sa.Integer),
-    )
-    try:
-        created_at = datetime.datetime.now()
-        for resource, default in CONF.dc_orch_global_limit.items():
-            op.execute(
-                quota_classes.insert().values(
-                    created_at=created_at,
-                    class_name=QUOTA_CLASS_NAME_DEFAULT,
-                    resource=resource[6:],
-                    hard_limit=default,
-                    deleted=0,
-                )
-            )
-    except Exception:
-        pass
 
     # 002_orch: subcloud, subcloud_alarms, resource, subcloud_resource,
     #           orch_job, orch_request

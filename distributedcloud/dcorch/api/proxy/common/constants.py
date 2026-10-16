@@ -17,59 +17,7 @@ from dcorch.common import consts
 
 # Version could be any of the following: /, /v1, /v1/
 # but must deny regular paths such as /v1/isystems
-VERSION_ROOT = "/{version:[^/]*?(\/$)?}"
-
-# Compute
-FLAVOR_RESOURCE_TAG = "flavors"
-FLAVOR_ACCESS_RESOURCE_TAG = "action"
-FLAVOR_EXTRA_SPECS_RESOURCE_TAG = "os-extra_specs"
-KEYPAIRS_RESOURCE_TAG = "os-keypairs"
-QUOTA_RESOURCE_TAG = "os-quota-sets"
-QUOTA_CLASS_RESOURCE_TAG = "os-quota-class-sets"
-
-FLAVOR_PATHS = [
-    "/v2.1/{project_id:.*?}/flavors",
-    "/v2.1/{project_id:.*?}/flavors/{flavor_id}",
-]
-
-FLAVOR_ACCESS_PATHS = ["/v2.1/{project_id:.*?}/flavors/{flavor_id}/action"]
-
-EXTRA_SPECS_PATHS = [
-    "/v2.1/{project_id:.*?}/flavors/{flavor_id}/os-extra_specs",
-    "/v2.1/{project_id:.*?}/flavors/{flavor_id}/os-extra_specs/{extra_spec}",
-]
-
-KEYPAIRS_PATHS = [
-    "/v2.1/{project_id:.*?}/os-keypairs",
-    "/v2.1/{project_id:.*?}/os-keypairs/{keypair}",
-]
-
-QUOTA_PATHS = [
-    "/v2.1/{project_id:.*?}/os-quota-sets/{tenant_id}",
-]
-
-QUOTA_DETAIL_PATHS = [
-    "/v2.1/{project_id:.*?}/os-quota-sets/{tenant_id}/detail",
-]
-
-QUOTA_CLASS_PATHS = [
-    "/v2.1/{project_id:.*?}/os-quota-class-sets/{id}",
-]
-
-COMPUTE_PATH_MAP = {
-    consts.RESOURCE_TYPE_COMPUTE_FLAVOR: {
-        FLAVOR_RESOURCE_TAG: FLAVOR_PATHS,
-        FLAVOR_ACCESS_RESOURCE_TAG: FLAVOR_ACCESS_PATHS,
-        FLAVOR_EXTRA_SPECS_RESOURCE_TAG: EXTRA_SPECS_PATHS,
-    },
-    consts.RESOURCE_TYPE_COMPUTE_KEYPAIR: {KEYPAIRS_RESOURCE_TAG: KEYPAIRS_PATHS},
-    consts.RESOURCE_TYPE_COMPUTE_QUOTA_SET: {
-        QUOTA_RESOURCE_TAG: QUOTA_PATHS,
-    },
-    consts.RESOURCE_TYPE_COMPUTE_QUOTA_CLASS_SET: {
-        QUOTA_CLASS_RESOURCE_TAG: QUOTA_CLASS_PATHS
-    },
-}
+VERSION_ROOT = r"/{version:[^/]*?(\/$)?}"
 
 # Sysinv
 CERTIFICATE_PATHS = ["/v1/certificate/certificate_install", "/v1/certificate/{uuid}"]
@@ -93,70 +41,6 @@ USM_PATH_MAP = {
 LOAD_FILES_STAGING_DIR = "/scratch/tmp_load"
 
 DEVICE_IMAGE_VAULT_DIR = "/opt/dc-vault/device_images"
-
-# Cinder
-CINDER_QUOTA_PATHS = [
-    "/{version}/{admin_project_id}/os-quota-sets/{project_id}",
-]
-
-CINDER_QUOTA_CLASS_PATHS = [
-    "/{version}/{admin_project_id}/os-quota-class-sets/{quota_class_name}",
-]
-
-CINDER_PATH_MAP = {
-    consts.RESOURCE_TYPE_VOLUME_QUOTA_SET: {
-        QUOTA_RESOURCE_TAG: CINDER_QUOTA_PATHS,
-    },
-    consts.RESOURCE_TYPE_VOLUME_QUOTA_CLASS_SET: {
-        QUOTA_CLASS_RESOURCE_TAG: CINDER_QUOTA_CLASS_PATHS
-    },
-}
-
-# Neutron
-NEUTRON_SEC_GROUPS_PATHS = [
-    "/v2.0/security-groups",
-    "/v2.0/security-groups/{security_group_id}",
-]
-
-NEUTRON_SEC_GROUP_RULES_PATHS = [
-    "/v2.0/security-group-rules",
-    "/v2.0/security-group-rules/{security_group_rule_id}",
-]
-
-NEUTRON_QOS_PATHS = [
-    "/v2.0/qos/policies",
-    "/v2.0/wrs-tm/qoses",
-    "/v2.0/qos/policies/{policy_id}",
-    "/v2.0/wrs-tm/qoses/{policy_id}",
-]
-
-NEUTRON_BANDWIDTH_LIMIT_RULES_PATHS = [
-    "/v2.0/qos/policies/{policy_id}/bandwidth_limit_rules",
-]
-
-NEUTRON_DSCP_MARKING_RULES_PATHS = [
-    "/v2.0/qos/policies/{policy_id}/dscp_marking_rules",
-]
-
-NEUTRON_MINIMUM_BANDWIDTH_RULES_PATHS = [
-    "/v2.0/qos/policies/{policy_id}/minimum_bandwidth_rules",
-    "/v2.0/qos/policies/{policy_id}/minimum_bandwidth_rules/{rule_id}",
-]
-
-NEUTRON_QUOTA_PATHS = [
-    "/v2.0/quotas/{project_id}",
-]
-
-NEUTRON_QUOTA_DETAIL_PATHS = [
-    "/v2.0/quotas/{project_id}/details.json",
-]
-
-NEUTRON_PATH_MAP = {
-    consts.RESOURCE_TYPE_NETWORK_SECURITY_GROUP: NEUTRON_SEC_GROUPS_PATHS,
-    consts.RESOURCE_TYPE_NETWORK_SECURITY_GROUP_RULE: NEUTRON_SEC_GROUP_RULES_PATHS,
-    consts.RESOURCE_TYPE_NETWORK_QUOTA_SET: NEUTRON_QUOTA_PATHS,
-    consts.RESOURCE_TYPE_QOS_POLICY: NEUTRON_QOS_PATHS,
-}
 
 # Identity
 IDENTITY_USERS_PATH = [
@@ -204,28 +88,10 @@ IDENTITY_PATH_MAP = {
 }
 
 ROUTE_METHOD_MAP = {
-    consts.ENDPOINT_TYPE_COMPUTE: {
-        FLAVOR_RESOURCE_TAG: ["POST", "DELETE"],
-        FLAVOR_ACCESS_RESOURCE_TAG: ["POST"],
-        FLAVOR_EXTRA_SPECS_RESOURCE_TAG: ["POST", "PUT", "DELETE"],
-        KEYPAIRS_RESOURCE_TAG: ["POST", "DELETE"],
-        QUOTA_RESOURCE_TAG: ["PUT", "DELETE", "GET"],
-        QUOTA_CLASS_RESOURCE_TAG: ["PUT"],
-    },
-    consts.ENDPOINT_TYPE_VOLUME: {
-        QUOTA_RESOURCE_TAG: ["PUT", "DELETE", "GET"],
-        QUOTA_CLASS_RESOURCE_TAG: ["PUT"],
-    },
     dccommon_consts.ENDPOINT_TYPE_PLATFORM: {
         consts.RESOURCE_TYPE_SYSINV_CERTIFICATE: ["POST", "DELETE"],
         consts.RESOURCE_TYPE_SYSINV_USER: ["PATCH", "PUT"],
         consts.RESOURCE_TYPE_SYSINV_DEVICE_IMAGE: ["POST", "PATCH", "DELETE"],
-    },
-    consts.ENDPOINT_TYPE_NETWORK: {
-        consts.RESOURCE_TYPE_NETWORK_SECURITY_GROUP: ["POST", "PUT", "DELETE"],
-        consts.RESOURCE_TYPE_NETWORK_SECURITY_GROUP_RULE: ["POST", "DELETE"],
-        consts.RESOURCE_TYPE_NETWORK_QUOTA_SET: ["PUT", "DELETE"],
-        consts.RESOURCE_TYPE_QOS_POLICY: ["POST", "PUT", "DELETE"],
     },
     dccommon_consts.ENDPOINT_TYPE_IDENTITY: {
         consts.RESOURCE_TYPE_IDENTITY_USERS: ["POST", "PATCH", "DELETE"],

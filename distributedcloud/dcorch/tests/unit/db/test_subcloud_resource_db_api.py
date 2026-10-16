@@ -123,12 +123,12 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
             uuid=created_resource.uuid,
         )
 
-    def skip_test_resource_update(self):
+    def test_resource_update(self):
         resource = self.create_resource(self.ctx, consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
-        master_id = resource.master_id
+        master_id = "updated-master-id"
         values = {"master_id": master_id}
-        db_api.resource_update(self.ctx, consts.RESOURCE_TYPE_SYSINV_USER, values)
+        db_api.resource_update(self.ctx, resource.id, values)
         gresource = db_api.resource_get_by_id(self.ctx, resource.id)
         self.assertEqual(master_id, gresource.get("master_id"))
 
@@ -138,18 +138,16 @@ class DBAPISubcloudResourceTest(base.OrchestratorTestCase):
         query = db_api.resource_get_all(self.ctx)
         self.assertEqual(query[0].get("resource_type"), resource.resource_type)
 
-    def skip_test_update_invalid_resource(self):
+    def test_update_invalid_resource(self):
         resource = self.create_resource(self.ctx, consts.RESOURCE_TYPE_SYSINV_USER)
         self.assertIsNotNone(resource)
-        # master_uuid = uuidutils.generate_uuid()
-        master_id = resource.master_id
-        values = {"master_id": master_id}
+        nonexistent_resource_id = resource.id + 1
+        values = {"master_id": resource.master_id}
         self.assertRaises(
             exceptions.ResourceNotFound,
             db_api.resource_update,
             self.ctx,
-            "fake_resource_type",
-            master_id,
+            nonexistent_resource_id,
             values,
         )
 

@@ -37,28 +37,6 @@ RESOURCE_TYPE_SYSINV_FERNET_REPO = "fernet_repo"
 RESOURCE_TYPE_USM_RELEASE = "release"
 RESOURCE_TYPE_SYSINV_DEVICE_IMAGE = "device_image"
 
-# Compute Resources
-RESOURCE_TYPE_COMPUTE_FLAVOR = "flavor"
-RESOURCE_TYPE_COMPUTE_KEYPAIR = "keypair"
-RESOURCE_TYPE_COMPUTE_QUOTA_SET = "compute_quota_set"
-RESOURCE_TYPE_COMPUTE_QUOTA_CLASS_SET = "quota_class_set"
-
-# Volume Resources
-RESOURCE_TYPE_VOLUME_QUOTA_SET = "volume_quota_set"
-RESOURCE_TYPE_VOLUME_QUOTA_CLASS_SET = "quota_class_set"
-
-# These are quota items that control resources that are managed
-# by dcorch.  It doesn't make sense to count the usage in the
-# various subclouds since they're all essentially duplicates
-# of what's in the master cloud.
-QUOTAS_FOR_MANAGED_RESOURCES = ["key_pairs", "security_group", "security_group_rule"]
-
-# Neutron Resources
-RESOURCE_TYPE_NETWORK_QUOTA_SET = "network_quota_set"
-RESOURCE_TYPE_NETWORK_SECURITY_GROUP = "security_group"
-RESOURCE_TYPE_NETWORK_SECURITY_GROUP_RULE = "security_group_rule"
-RESOURCE_TYPE_QOS_POLICY = "qos"
-
 # Identity Resources
 RESOURCE_TYPE_IDENTITY_USERS = "users"
 RESOURCE_TYPE_IDENTITY_GROUPS = "groups"
@@ -69,26 +47,14 @@ RESOURCE_TYPE_IDENTITY_PROJECT_ROLE_ASSIGNMENTS = "project_role_assignments"
 RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS = "revoke_events"
 RESOURCE_TYPE_IDENTITY_TOKEN_REVOKE_EVENTS_FOR_USER = "revoke_events_for_user"
 
-KEYPAIR_ID_DELIM = "/"
-
 SHARED_CONFIG_STATE_MANAGED = "managed"
 SHARED_CONFIG_STATE_UNMANAGED = "unmanaged"
-
-ENDPOINT_TYPE_VOLUME = "volume"
-ENDPOINT_TYPE_COMPUTE = "compute"
-ENDPOINT_TYPE_NETWORK = "network"
 
 # Dcorch sync endpoint types
 SYNC_ENDPOINT_TYPES_LIST = [
     dccommon_consts.ENDPOINT_TYPE_PLATFORM,
     dccommon_consts.ENDPOINT_TYPE_IDENTITY,
 ]
-
-ENDPOINT_QUOTA_MAPPING = {
-    ENDPOINT_TYPE_COMPUTE: dccommon_consts.NOVA_QUOTA_FIELDS,
-    ENDPOINT_TYPE_NETWORK: dccommon_consts.NEUTRON_QUOTA_FIELDS,
-    ENDPOINT_TYPE_VOLUME: dccommon_consts.CINDER_QUOTA_FIELDS,
-}
 
 # DB sync agent endpoint
 DBS_ENDPOINT_INTERNAL = "internal"
