@@ -23,11 +23,6 @@ from oslo_utils import importutils
 importutils.import_module("keystonemiddleware.auth_token")
 
 global_opts = [
-    cfg.BoolOpt(
-        "use_default_quota_class",
-        default=True,
-        help="Enables or disables use of default quota class with default quota.",
-    ),
     cfg.IntOpt(
         "report_interval",
         default=60,

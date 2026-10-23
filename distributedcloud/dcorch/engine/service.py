@@ -34,7 +34,6 @@ from dcorch.engine.generic_sync_manager import GenericSyncManager
 from dcorch.engine.generic_sync_worker_manager import GenericSyncWorkerManager
 from dcorch.engine.initial_sync_manager import InitialSyncManager
 from dcorch.engine.initial_sync_worker_manager import InitialSyncWorkerManager
-from dcorch.engine.quota_manager import QuotaManager
 from dcorch.engine import scheduler
 
 CONF = cfg.CONF
@@ -69,7 +68,6 @@ class EngineService(service.Service):
         self.periodic_enable = cfg.CONF.scheduler.periodic_enable
         self.target = None
         self._rpc_server = None
-        self.qm = None
         self.gsm = None
         self.fkm = None
         self.ism = None
@@ -83,7 +81,6 @@ class EngineService(service.Service):
         self._rpc_server.start()
 
         self.init_tgm()
-        self.init_qm()
         self.init_gsm()
         self.init_fkm()
         self.init_ism()
@@ -103,9 +100,6 @@ class EngineService(service.Service):
     def init_tgm(self):
         self.TG = scheduler.ThreadGroupManager()
 
-    def init_qm(self):
-        self.qm = QuotaManager()
-
     def init_gsm(self):
         self.gsm = GenericSyncManager()
         self.TG.start(self.gsm.sync_job_thread)
@@ -118,27 +112,6 @@ class EngineService(service.Service):
         self.ism = InitialSyncManager()
         self.ism.init_actions()
         self.TG.start(self.ism.initial_sync_thread)
-
-    def periodic_balance_all(self):
-        # Automated Quota Sync for all the keystone projects
-        LOG.info("Periodic quota sync job started at: %s", time.strftime("%c"))
-        self.qm.periodic_balance_all()
-
-    @request_context
-    def get_usage_for_project_and_user(
-        self, context, endpoint_type, project_id, user_id=None
-    ):
-        # Returns cached usage as of last quota sync audit so will be
-        # slightly stale.
-        return self.qm.get_usage_for_project_and_user(
-            endpoint_type, project_id, user_id
-        )
-
-    @request_context
-    def quota_sync_for_project(self, context, project_id, user_id):
-        # On Demand Quota Sync for a project, will be triggered by KB-API
-        LOG.info("On Demand Quota Sync Called for: %s %s", project_id, user_id)
-        self.qm.quota_sync_for_project(project_id, user_id)
 
     def _stop_rpc_server(self):
         # Stop RPC connection to prevent new requests

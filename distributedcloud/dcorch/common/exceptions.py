@@ -96,14 +96,6 @@ class ProjectNotFound(NotFound):
     message = _("Project %(project_id)s doesn't exist.")
 
 
-class ProjectQuotaNotFound(NotFound):
-    message = _("Quota for project %(project_id)s doesn't exist.")
-
-
-class QuotaClassNotFound(NotFound):
-    message = _("Quota class %(class_name)s doesn't exist.")
-
-
 class JobNotFound(NotFound):
     message = _("Job doesn't exist.")
 

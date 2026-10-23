@@ -53,27 +53,6 @@ class EngineClient(object):
             client = self._client
         return client.cast(ctxt, method, **kwargs)
 
-    def get_usage_for_project_and_user(
-        self, ctxt, endpoint_type, project_id, user_id=None
-    ):
-        return self.call(
-            ctxt,
-            self.make_msg(
-                "get_usage_for_project_and_user",
-                endpoint_type=endpoint_type,
-                project_id=project_id,
-                user_id=user_id,
-            ),
-        )
-
-    def quota_sync_for_project(self, ctxt, project_id, user_id):
-        return self.cast(
-            ctxt,
-            self.make_msg(
-                "quota_sync_for_project", project_id=project_id, user_id=user_id
-            ),
-        )
-
 
 class EngineWorkerClient(object):
     """Client side of the DC orchestrator engine worker rpc API.

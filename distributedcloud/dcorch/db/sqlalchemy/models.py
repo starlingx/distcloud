@@ -21,7 +21,7 @@ import json
 from oslo_db.sqlalchemy import models
 
 from sqlalchemy.orm import session as orm_session
-from sqlalchemy import Column, Integer, String, Boolean, Index, schema, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, Index, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.types import TypeDecorator, VARCHAR
@@ -84,59 +84,6 @@ class OrchestratorBase(models.ModelBase, models.SoftDeleteMixin, models.Timestam
         session.begin()
         session.delete(self)
         session.commit()
-
-
-class Quota(BASE, OrchestratorBase):
-    """Represents a single quota override for a project.
-
-    If there is no row for a given project id and resource, then the
-    default for the quota class is used.  If there is no row for a
-    given quota class and resource, then the default for the
-    deployment is used. If the row is present but the hard limit is
-    Null, then the resource is unlimited.
-    """
-
-    __tablename__ = "quotas"
-
-    __table_args__ = (
-        schema.UniqueConstraint(
-            "project_id",
-            "resource",
-            "deleted",
-            name="uniq_quotas0project_id0resource0deleted",
-        ),
-    )
-
-    id = Column(Integer, primary_key=True)
-
-    project_id = Column(String(255), index=True)
-
-    resource = Column(String(255), nullable=False)
-
-    hard_limit = Column(Integer, nullable=True)
-
-    capabilities = Column(JSONEncodedDict)
-
-
-class QuotaClass(BASE, OrchestratorBase):
-    """Represents a single quota override for a quota class.
-
-    If there is no row for a given quota class and resource, then the
-    default for the deployment is used.  If the row is present but the
-    hard limit is Null, then the resource is unlimited.
-    """
-
-    __tablename__ = "quota_classes"
-
-    id = Column(Integer, primary_key=True)
-
-    class_name = Column(String(255), index=True)
-
-    resource = Column(String(255))
-
-    hard_limit = Column(Integer, nullable=True)
-
-    capabilities = Column(JSONEncodedDict)
 
 
 class Service(BASE, OrchestratorBase):
@@ -202,7 +149,7 @@ class Resource(BASE, OrchestratorBase):
     uuid = Column(String(36), unique=True)
     capabilities = Column(JSONEncodedDict)
 
-    resource_type = Column(String(128))  # e.g. quota_x,flavor_extra_spec,dns..
+    resource_type = Column(String(128))  # e.g. certificate, users, release
     master_id = Column(String(255))  # id/uuid of resource in central region
 
 
@@ -254,9 +201,9 @@ class OrchJob(BASE, OrchestratorBase):
     user_id = Column("user_id", String(128))
     project_id = Column("project_id", String(128))
 
-    # Filled in by x_orch_api e.g. platform, volumev2, compute, network
+    # Filled in by x_orch_api e.g. platform, identity, usm
     endpoint_type = Column(String(255), nullable=False)
-    # e.g. quota_x, flavors, flavor_extra_spec, idns
+    # e.g. certificate, users, release
     # resource_type = Column(String(255), nullable=False)
     source_resource_id = Column(String(255))  # for debugging
     operation_type = Column(String(255))  # http type: post/put/patch/delete

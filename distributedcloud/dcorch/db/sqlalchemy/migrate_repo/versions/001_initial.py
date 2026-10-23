@@ -27,51 +27,12 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import datetime
-from oslo_config import cfg
 import sqlalchemy
-
-
-QUOTA_CLASS_NAME_DEFAULT = "default"
-CONF = cfg.CONF
-CONF.import_group("dc_orch_global_limit", "dcorch.common.config")
 
 
 def upgrade(migrate_engine):
     meta = sqlalchemy.MetaData()
     meta.bind = migrate_engine
-
-    quotas = sqlalchemy.Table(
-        "quotas",
-        meta,
-        sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, nullable=False),
-        sqlalchemy.Column("project_id", sqlalchemy.String(36)),
-        sqlalchemy.Column("resource", sqlalchemy.String(255), nullable=False),
-        sqlalchemy.Column("hard_limit", sqlalchemy.Integer, nullable=False),
-        sqlalchemy.Column("capabilities", sqlalchemy.Text),
-        sqlalchemy.Column("created_at", sqlalchemy.DateTime),
-        sqlalchemy.Column("updated_at", sqlalchemy.DateTime),
-        sqlalchemy.Column("deleted_at", sqlalchemy.DateTime),
-        sqlalchemy.Column("deleted", sqlalchemy.Integer),
-        mysql_engine="InnoDB",
-        mysql_charset="utf8",
-    )
-
-    quota_classes = sqlalchemy.Table(
-        "quota_classes",
-        meta,
-        sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, nullable=False),
-        sqlalchemy.Column("class_name", sqlalchemy.String(length=255), index=True),
-        sqlalchemy.Column("capabilities", sqlalchemy.Text),
-        sqlalchemy.Column("created_at", sqlalchemy.DateTime),
-        sqlalchemy.Column("updated_at", sqlalchemy.DateTime),
-        sqlalchemy.Column("deleted_at", sqlalchemy.DateTime),
-        sqlalchemy.Column("deleted", sqlalchemy.Integer),
-        sqlalchemy.Column("resource", sqlalchemy.String(length=255)),
-        sqlalchemy.Column("hard_limit", sqlalchemy.Integer, nullable=True),
-        mysql_engine="InnoDB",
-        mysql_charset="utf8",
-    )
 
     service = sqlalchemy.Table(
         "service",
@@ -93,11 +54,7 @@ def upgrade(migrate_engine):
         mysql_charset="utf8",
     )
 
-    tables = (
-        quotas,
-        quota_classes,
-        service,
-    )
+    tables = (service,)
 
     for index, table in enumerate(tables):
         try:
@@ -107,32 +64,6 @@ def upgrade(migrate_engine):
             # to the previously existing state.
             meta.drop_all(tables=tables[:index])
             raise
-
-    rows = (
-        sqlalchemy.select([sqlalchemy.func.count()])
-        .select_from(quota_classes)
-        .where(quota_classes.c.class_name == "default")
-        .execute()
-        .scalar()
-    )
-
-    # Do not add entries if there are already 'default' entries. We don't want to write
-    # over something the user added.
-    if not rows:
-        created_at = datetime.datetime.now()
-
-        # Set default quota limits
-        qci = quota_classes.insert()  # pylint: disable=no-value-for-parameter
-        for resource, default in CONF.dc_orch_global_limit.items():
-            qci.execute(
-                {
-                    "created_at": created_at,
-                    "class_name": QUOTA_CLASS_NAME_DEFAULT,
-                    "resource": resource[6:],
-                    "hard_limit": default,
-                    "deleted": 0,
-                }
-            )
 
 
 def downgrade(migrate_engine):

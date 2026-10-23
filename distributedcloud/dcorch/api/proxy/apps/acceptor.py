@@ -18,18 +18,13 @@ from oslo_log import log as logging
 import routes
 
 from dccommon import consts as dccommon_consts
-from dcorch.api.proxy.apps.controller import CinderAPIController
-from dcorch.api.proxy.apps.controller import ComputeAPIController
 from dcorch.api.proxy.apps.controller import IdentityAPIController
-from dcorch.api.proxy.apps.controller import NeutronAPIController
-from dcorch.api.proxy.apps.controller import OrchAPIController
 from dcorch.api.proxy.apps.controller import SysinvAPIController
 from dcorch.api.proxy.apps.controller import USMAPIController
 from dcorch.api.proxy.apps.controller import VersionController
 from dcorch.api.proxy.apps.dispatcher import APIDispatcher
 from dcorch.api.proxy.apps.router import Router
 from dcorch.api.proxy.common import constants as proxy_consts
-from dcorch.common import consts
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -40,10 +35,7 @@ class Acceptor(Router):
     def __init__(self, app, conf):
         self._default_dispatcher = APIDispatcher(app)
         self.forwarder_map = {
-            consts.ENDPOINT_TYPE_COMPUTE: self._default_dispatcher,
             dccommon_consts.ENDPOINT_TYPE_PLATFORM: self._default_dispatcher,
-            consts.ENDPOINT_TYPE_VOLUME: self._default_dispatcher,
-            consts.ENDPOINT_TYPE_NETWORK: self._default_dispatcher,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY: self._default_dispatcher,
             dccommon_consts.ENDPOINT_TYPE_USM: self._default_dispatcher,
         }
@@ -53,10 +45,7 @@ class Acceptor(Router):
             forwarder = None
 
         self.route_map = {
-            consts.ENDPOINT_TYPE_COMPUTE: self.add_compute_routes,
             dccommon_consts.ENDPOINT_TYPE_PLATFORM: self.add_platform_routes,
-            consts.ENDPOINT_TYPE_VOLUME: self.add_volume_routes,
-            consts.ENDPOINT_TYPE_NETWORK: self.add_network_routes,
             dccommon_consts.ENDPOINT_TYPE_IDENTITY: self.add_identity_routes,
             dccommon_consts.ENDPOINT_TYPE_USM: self.add_usm_routes,
         }
@@ -69,51 +58,11 @@ class Acceptor(Router):
         handler = self.route_map[CONF.type]
         handler(app, conf, mapper)
 
-    def add_compute_routes(self, app, conf, mapper):
-        api_controller = ComputeAPIController(app, conf)
-        orch_controller = OrchAPIController(app, conf)
-
-        for key, value in proxy_consts.COMPUTE_PATH_MAP.items():
-            for k, v in value.items():
-                self._add_resource(mapper, api_controller, v, k, CONF.type, key)
-
-        self._add_resource(
-            mapper,
-            orch_controller,
-            proxy_consts.QUOTA_DETAIL_PATHS,
-            consts.RESOURCE_TYPE_COMPUTE_QUOTA_SET,
-            CONF.type,
-            method=["GET"],
-        )
-
     def add_platform_routes(self, app, conf, mapper):
         api_controller = SysinvAPIController(app, conf)
 
         for key, value in proxy_consts.SYSINV_PATH_MAP.items():
             self._add_resource(mapper, api_controller, value, key, CONF.type)
-
-    def add_volume_routes(self, app, conf, mapper):
-        api_controller = CinderAPIController(app, conf)
-
-        for key, value in proxy_consts.CINDER_PATH_MAP.items():
-            for k, v in value.items():
-                self._add_resource(mapper, api_controller, v, k, CONF.type, key)
-
-    def add_network_routes(self, app, conf, mapper):
-        api_controller = NeutronAPIController(app, conf)
-        orch_controller = OrchAPIController(app, conf)
-
-        for key, value in proxy_consts.NEUTRON_PATH_MAP.items():
-            self._add_resource(mapper, api_controller, value, key, CONF.type)
-
-        self._add_resource(
-            mapper,
-            orch_controller,
-            proxy_consts.NEUTRON_QUOTA_DETAIL_PATHS,
-            consts.RESOURCE_TYPE_NETWORK_QUOTA_SET,
-            CONF.type,
-            method=["GET"],
-        )
 
     def add_identity_routes(self, app, conf, mapper):
         api_controller = IdentityAPIController(app, conf)

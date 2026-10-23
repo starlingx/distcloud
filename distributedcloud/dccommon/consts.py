@@ -44,48 +44,6 @@ SYSINV_USER_NAME = "sysinv"
 DCMANAGER_USER_NAME = "dcmanager"
 SERVICES_USER_NAME = "services"
 
-NOVA_QUOTA_FIELDS = (
-    "metadata_items",
-    "cores",
-    "instances",
-    "ram",
-    "key_pairs",
-    "injected_files",
-    "injected_file_path_bytes",
-    "injected_file_content_bytes",
-    "server_group_members",
-    "server_groups",
-)
-
-CINDER_QUOTA_FIELDS = (
-    "volumes",
-    "volumes_iscsi",
-    "volumes_ceph",
-    "per_volume_gigabytes",
-    "groups",
-    "snapshots",
-    "snapshots_iscsi",
-    "snapshots_ceph",
-    "gigabytes",
-    "gigabytes_iscsi",
-    "gigabytes_ceph",
-    "backups",
-    "backup_gigabytes",
-)
-
-NEUTRON_QUOTA_FIELDS = (
-    "network",
-    "subnet",
-    "subnetpool",
-    "rbac_policy",
-    "trunk",
-    "port",
-    "router",
-    "floatingip",
-    "security_group",
-    "security_group_rule",
-)
-
 # Endpoint services names
 ENDPOINT_NAME_DCAGENT = "dcagent"
 ENDPOINT_NAME_DCDBSYNC = "dcdbsync"

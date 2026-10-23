@@ -18,11 +18,6 @@ File to store all the configurations
 from oslo_config import cfg
 
 global_opts = [
-    cfg.BoolOpt(
-        "use_default_quota_class",
-        default=True,
-        help="Enables or disables use of default quota class with default quota.",
-    ),
     cfg.IntOpt(
         "report_interval",
         default=60,
@@ -56,123 +51,6 @@ pecan_opts = [
     ),
 ]
 
-
-# Global nova quotas for all projects
-nova_quotas = [
-    cfg.IntOpt(
-        "quota_instances", default=10, help="Number of instances allowed per project"
-    ),
-    cfg.IntOpt(
-        "quota_cores", default=20, help="Number of instance cores allowed per project"
-    ),
-    cfg.IntOpt(
-        "quota_ram",
-        default=50 * 1024,
-        help="Megabytes of instance RAM allowed per project",
-    ),
-    cfg.IntOpt(
-        "quota_floating_ips",
-        default=10,
-        help="Number of floating IPs allowed per project",
-    ),
-    cfg.IntOpt(
-        "quota_fixed_ips",
-        default=-1,
-        help="Number of fixed IPs allowed per project (this should be "
-        "at least the number of instances allowed)",
-    ),
-    cfg.IntOpt(
-        "quota_metadata_items",
-        default=128,
-        help="Number of metadata items allowed per instance",
-    ),
-    cfg.IntOpt(
-        "quota_security_groups",
-        default=10,
-        help="Number of security groups per project",
-    ),
-    cfg.IntOpt("quota_key_pairs", default=100, help="Number of key pairs per user"),
-]
-
-# Global neutron quotas for all projects
-neutron_quotas = [
-    cfg.IntOpt(
-        "quota_network",
-        default=10,
-        help=(
-            "Number of networks allowed per project. A negative value means unlimited."
-        ),
-    ),
-    cfg.IntOpt(
-        "quota_subnet",
-        default=10,
-        help="Number of subnets allowed per project. A negative value means unlimited.",
-    ),
-    cfg.IntOpt(
-        "quota_port",
-        default=50,
-        help="Number of ports allowed per project. A negative value means unlimited.",
-    ),
-    cfg.IntOpt(
-        "quota_security_group",
-        default=10,
-        help=(
-            "Number of security groups allowed per project. "
-            "A negative value means unlimited."
-        ),
-    ),
-    cfg.IntOpt(
-        "quota_security_group_rule",
-        default=100,
-        help=(
-            "Number of security rules allowed per project. "
-            "A negative value means unlimited."
-        ),
-    ),
-    cfg.IntOpt(
-        "quota_router",
-        default=10,
-        help="Number of routers allowed per project. A negative value means unlimited.",
-    ),
-    cfg.IntOpt(
-        "quota_floatingip",
-        default=50,
-        help=(
-            "Number of floating IPs allowed per project. "
-            "A negative value means unlimited."
-        ),
-    ),
-]
-
-# Global cinder quotas for all projects
-cinder_quotas = [
-    cfg.IntOpt(
-        "quota_volumes", default=10, help="Number of volumes allowed per project."
-    ),
-    cfg.IntOpt(
-        "quota_snapshots",
-        default=10,
-        help="Number of volume snapshots allowed per project.",
-    ),
-    cfg.IntOpt(
-        "quota_gigabytes",
-        default=1000,
-        help=(
-            "Total amount of storage, in gigabytes, allowed for volumes and "
-            "snapshots per project."
-        ),
-    ),
-    cfg.IntOpt(
-        "quota_backups",
-        default=10,
-        help="Number of volume backups allowed per project.",
-    ),
-    cfg.IntOpt(
-        "quota_backup_gigabytes",
-        default=1000,
-        help="Total amount of storage, in gigabytes, allowed for backups per project.",
-    ),
-]
 
 # OpenStack admin user credentials used for Endpoint Cache
 cache_opts = [
@@ -241,10 +119,7 @@ scheduler_opts = [
     cfg.IntOpt(
         "periodic_interval",
         default=1200,
-        help=(
-            "periodic time interval for automatic quota sync job "
-            "and resource sync audit"
-        ),
+        help="periodic time interval for the resource sync audit",
     ),
 ]
 
@@ -270,10 +145,6 @@ fernet_opts = [
 scheduler_opt_group = cfg.OptGroup(
     "scheduler", title="Scheduler options for periodic job"
 )
-# The group stores DC Orchestrator global limit for all the projects.
-default_quota_group = cfg.OptGroup(
-    name="dc_orch_global_limit", title="Global quota limit for all projects"
-)
 # The group stores the pecan configurations.
 pecan_group = cfg.OptGroup(name="pecan", title="Pecan options")
 
@@ -291,9 +162,6 @@ fernet_opt_group = cfg.OptGroup(name="fernet", title="Fernet Options")
 
 
 def list_opts():
-    yield default_quota_group.name, nova_quotas
-    yield default_quota_group.name, neutron_quotas
-    yield default_quota_group.name, cinder_quotas
     yield cache_opt_group.name, cache_opts
     yield endpoint_cache_opt_group.name, endpoint_cache_opts
     yield openstack_cache_opt_group.name, cache_opts

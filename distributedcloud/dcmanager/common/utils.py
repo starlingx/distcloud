@@ -297,23 +297,6 @@ def validate_expiry_date(expiry_date):
     return True, ""
 
 
-# to do validate the quota limits
-def validate_quota_limits(payload):
-    for resource in payload:
-        # Check valid resource name
-        if resource not in itertools.chain(
-            dccommon_consts.CINDER_QUOTA_FIELDS,
-            dccommon_consts.NOVA_QUOTA_FIELDS,
-            dccommon_consts.NEUTRON_QUOTA_FIELDS,
-        ):
-            raise exceptions.InvalidInputError
-        # Check valid quota limit value in case for put/post
-        if isinstance(payload, dict) and (
-            not isinstance(payload[resource], int) or payload[resource] <= 0
-        ):
-            raise exceptions.InvalidInputError
-
-
 def get_sw_update_opts(context, for_sw_update=False, subcloud_id=None):
     """Get sw update options for a subcloud
 
