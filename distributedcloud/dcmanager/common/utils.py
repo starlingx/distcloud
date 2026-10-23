@@ -1595,8 +1595,9 @@ def check_version_for_sw_deploy_strategy(version: str) -> bool:
     """
     software_list = _get_system_controller_software_list()
     major_release = get_major_release(version)
-    # For N release the state must be deployed
-    state_filter = [software_v1.DEPLOYED]
+    # For N release the state must be deployed or deployed-partial, the latter
+    # enabling the deployment of specific metapackages in the subclouds.
+    state_filter = [software_v1.DEPLOYED, software_v1.DEPLOYED_PARTIAL]
 
     # Remove the state restriction for releases lower than System Controller
     if major_release < tsc.SW_VERSION:
@@ -1635,8 +1636,9 @@ def check_version_for_prestage(
 
     """
 
-    # For N release the state must be deployed
-    state_filter = [software_v1.DEPLOYED]
+    # For N release the state must be deployed or deployed-partial, the latter
+    # enabling the prestaging of deployed-partial releases in the subclouds.
+    state_filter = [software_v1.DEPLOYED, software_v1.DEPLOYED_PARTIAL]
 
     software_list = software_list or _get_system_controller_software_list()
 
@@ -1686,7 +1688,12 @@ def is_software_ready_to_be_prestaged_for_install(software_list, software_versio
     return any(
         get_major_release(release["sw_version"]) == software_version
         and release["state"]
-        in (software_v1.AVAILABLE, software_v1.DEPLOYED, software_v1.UNAVAILABLE)
+        in (
+            software_v1.AVAILABLE,
+            software_v1.DEPLOYED,
+            software_v1.DEPLOYED_PARTIAL,
+            software_v1.UNAVAILABLE,
+        )
         for release in software_list
     )
 
@@ -2417,12 +2424,18 @@ def get_formatted_release_list(
     if not software_list:
         return []
 
-    # Remove state restriction for N-1 release
-    state_filter = None if software_version < tsc.SW_VERSION else software_v1.DEPLOYED
+    # Remove state restriction for N-1 release. For N release, both deployed and
+    # deployed-partial are accepted, the latter enabling the prestaging of
+    # deployed-partial releases in the subclouds.
+    state_filter = (
+        None
+        if software_version < tsc.SW_VERSION
+        else (software_v1.DEPLOYED, software_v1.DEPLOYED_PARTIAL)
+    )
 
     for release in software_list:
         # Filter software list by state if state_filter is set, and prestaged sw version
-        if (state_filter is None or release["state"] == state_filter) and (
+        if (state_filter is None or release["state"] in state_filter) and (
             get_major_release(release["sw_version"]) == software_version
         ):
             # The output format is similar to the one used in the CLI:

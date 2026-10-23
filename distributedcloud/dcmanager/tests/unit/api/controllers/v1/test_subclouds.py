@@ -30,9 +30,11 @@ from tsconfig.tsconfig import SW_VERSION
 import yaml
 
 from dccommon import consts as dccommon_consts
+from dccommon.drivers.openstack import software_v1
 from dccommon.drivers.openstack import vim
 from dccommon.endpoint_cache import EndpointCache
 from dccommon.exceptions import OAMAddressesNotFound
+from dccommon import utils as dccommon_utils
 from dcmanager.api.controllers.v1 import phased_subcloud_deploy as psd
 from dcmanager.api.controllers.v1 import subclouds
 from dcmanager.api.controllers.v1.subclouds import SubcloudsController
@@ -3890,3 +3892,71 @@ class TestSubcloudsDelete(BaseTestSubcloudsController):
         self._assert_pecan_and_response(
             response, http.client.INTERNAL_SERVER_ERROR, "Unable to delete subcloud"
         )
+
+
+class TestIsValidSoftwareDeployState(DCManagerApiTest):
+    """Tests for the real SubcloudsController.is_valid_software_deploy_state.
+
+    The base controller tests mock this method out, so this class exercises
+    its body directly to cover the accepted software release states, including
+    the deployed-partial state.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        # Reset the class-level cache so each test forces a refresh instead
+        # of reusing a result from a previous run.
+        SubcloudsController.software_deploy_state_cache = {}
+
+        self._mock_object(EndpointCache, "get_admin_session")
+        self.mock_get_region_one_name = self._mock_object(
+            dccommon_utils, "get_region_one_name"
+        )
+        self.mock_get_region_one_name.return_value = "SystemController"
+        self.mock_software_client = self._mock_object(software_v1, "SoftwareClient")
+
+    def _set_software_list(self, software_list):
+        self.mock_software_client().list.return_value = software_list
+
+    def test_valid_with_deployed_partial_state(self):
+        """A deployed-partial release is accepted as a valid state"""
+
+        self._set_software_list(
+            [
+                {"release_id": "starlingx-27.03.0", "state": software_v1.DEPLOYED},
+                {
+                    "release_id": "starlingx-27.03.1",
+                    "state": software_v1.DEPLOYED_PARTIAL,
+                },
+            ]
+        )
+
+        self.assertTrue(SubcloudsController.is_valid_software_deploy_state())
+
+    def test_valid_with_all_accepted_states(self):
+        """All accepted states, including deployed-partial, return True"""
+
+        self._set_software_list(
+            [
+                {"release_id": "r1", "state": software_v1.AVAILABLE},
+                {"release_id": "r2", "state": software_v1.COMMITTED},
+                {"release_id": "r3", "state": software_v1.DEPLOYED},
+                {"release_id": "r4", "state": software_v1.DEPLOYED_PARTIAL},
+                {"release_id": "r5", "state": software_v1.UNAVAILABLE},
+            ]
+        )
+
+        self.assertTrue(SubcloudsController.is_valid_software_deploy_state())
+
+    def test_invalid_with_deploying_state(self):
+        """An in-progress state such as deploying is still rejected"""
+
+        self._set_software_list(
+            [
+                {"release_id": "starlingx-27.03.0", "state": software_v1.DEPLOYED},
+                {"release_id": "starlingx-27.03.1", "state": software_v1.DEPLOYING},
+            ]
+        )
+
+        self.assertFalse(SubcloudsController.is_valid_software_deploy_state())
