@@ -582,6 +582,7 @@ class SubcloudsController(object):
                         software_v1.AVAILABLE,
                         software_v1.COMMITTED,
                         software_v1.DEPLOYED,
+                        software_v1.DEPLOYED_PARTIAL,
                         software_v1.UNAVAILABLE,
                     ):
                         LOG.info(

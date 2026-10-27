@@ -76,6 +76,21 @@ SOFTWARE_LIST_UNAVAILABLE = [
     },
 ]
 
+SOFTWARE_LIST_DEPLOYED_PARTIAL = [
+    {
+        "release_id": "starlingx-25.09.0",
+        "reboot_required": True,
+        "state": "deployed",
+        "sw_version": "25.09.0",
+    },
+    {
+        "release_id": "starlingx-25.09.1",
+        "reboot_required": False,
+        "state": "deployed-partial",
+        "sw_version": "25.09.1",
+    },
+]
+
 
 class FakeAddressPool(object):
     def __init__(self, floating_address, network, prefix):
@@ -418,6 +433,44 @@ class TestCommonUtils(DCManagerTestCase):
 
         expected_list = []
         self.assertEqual(formatted_list, expected_list)
+
+    @mock.patch.object(utils.tsc, "SW_VERSION", "25.09")
+    def test_get_formatted_release_list_deployed_partial(self):
+        """deployed and deployed-partial releases match for the N release"""
+        software_list = copy.deepcopy(SOFTWARE_LIST_DEPLOYED_PARTIAL)
+        formatted_list = utils.get_formatted_release_list(software_list, "25.09")
+
+        expected_list = [
+            "|starlingx-25.09.0|True|deployed|",
+            "|starlingx-25.09.1|False|deployed-partial|",
+        ]
+        self.assertEqual(formatted_list, expected_list)
+
+
+class TestVersionChecksForDeployedPartial(DCManagerTestCase):
+    """Tests that the deployed-partial state is accepted by version checks."""
+
+    @mock.patch.object(utils.tsc, "SW_VERSION", "25.09")
+    @mock.patch.object(utils, "_get_system_controller_software_list")
+    def test_check_version_for_sw_deploy_strategy_deployed_partial(self, mock_sw_list):
+        """A deployed-partial N release is valid for sw_deploy strategy."""
+        mock_sw_list.return_value = copy.deepcopy(SOFTWARE_LIST_DEPLOYED_PARTIAL)
+        self.assertTrue(utils.check_version_for_sw_deploy_strategy("starlingx-25.09.1"))
+
+    @mock.patch.object(utils.tsc, "SW_VERSION", "25.09")
+    @mock.patch.object(utils, "_get_system_controller_software_list")
+    def test_check_version_for_prestage_deployed_partial(self, mock_sw_list):
+        """A deployed-partial N release is valid for prestage."""
+        mock_sw_list.return_value = copy.deepcopy(SOFTWARE_LIST_DEPLOYED_PARTIAL)
+        self.assertTrue(utils.check_version_for_prestage("25.09"))
+
+    @mock.patch.object(utils.tsc, "SW_VERSION", "26.03")
+    def test_is_software_ready_to_be_prestaged_for_install_deployed_partial(self):
+        """A deployed-partial release is ready to be prestaged for install."""
+        software_list = copy.deepcopy(SOFTWARE_LIST_DEPLOYED_PARTIAL)
+        self.assertTrue(
+            utils.is_software_ready_to_be_prestaged_for_install(software_list, "25.09")
+        )
 
 
 class TestGetRegionName(DCManagerTestCase):
