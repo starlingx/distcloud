@@ -44,7 +44,7 @@ from dcorch.objects import resource
 LOG = logging.getLogger(__name__)
 
 SSL_CA_CERT = "ssl_ca"
-SYNC_CERTIFICATES = [SSL_CA_CERT, "openstack_ca"]
+SYNC_CERTIFICATES = [SSL_CA_CERT]
 CERTIFICATE_SIG_NULL = "NoCertificate"
 
 
