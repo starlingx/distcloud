@@ -416,15 +416,23 @@ class OrchestratorManager(manager.Manager):
     def _process_extra_args_creation(self, strategy_type, extra_args):
         if extra_args:
             if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE:
-                # extra_args can be 'subject or expiry_date'
+                # extra_args can be 'subject, expiry_date, algorithm or key_size'
                 expiry_date = extra_args.get(consts.EXTRA_ARGS_EXPIRY_DATE)
                 subject = extra_args.get(consts.EXTRA_ARGS_SUBJECT)
+                algorithm = extra_args.get(consts.EXTRA_ARGS_ALGORITHM)
+                key_size = extra_args.get(consts.EXTRA_ARGS_KEY_SIZE)
                 if expiry_date:
                     is_valid, reason = utils.validate_expiry_date(expiry_date)
                     if not is_valid:
                         raise exceptions.BadRequest(resource="strategy", msg=reason)
                 if subject:
                     is_valid, reason = utils.validate_certificate_subject(subject)
+                    if not is_valid:
+                        raise exceptions.BadRequest(resource="strategy", msg=reason)
+                if algorithm or key_size:
+                    is_valid, reason = utils.validate_certificate_key_parameters(
+                        algorithm, key_size
+                    )
                     if not is_valid:
                         raise exceptions.BadRequest(resource="strategy", msg=reason)
 
@@ -570,6 +578,30 @@ class OrchestratorManager(manager.Manager):
                 f"{strategy_type}. {msg}"
             )
             raise exceptions.BadRequest(resource="strategy", msg=msg)
+
+        # Older releases reject the algorithm and key-size parameters, so none of
+        # the targeted subclouds can be older than the first release supporting them
+        if strategy_type == consts.SW_UPDATE_TYPE_KUBE_ROOTCA_UPDATE and (
+            extra_args.get(consts.EXTRA_ARGS_ALGORITHM)
+            or extra_args.get(consts.EXTRA_ARGS_KEY_SIZE)
+        ):
+            min_version = consts.FIRST_SW_VERSION_SUPPORTING_KUBE_ROOTCA_KEY_PARAMS
+            old_subclouds = [
+                subcloud.name
+                for subcloud, _ in valid_subclouds
+                if subcloud.software_version < min_version
+            ]
+            if old_subclouds:
+                names = ", ".join(old_subclouds[:10])
+                if len(old_subclouds) > 10:
+                    names += f" and {len(old_subclouds) - 10} more"
+                msg = (
+                    f"Subclouds running a release older than {min_version} "
+                    f"do not support the algorithm and key-size parameters: {names}. "
+                    "Omit these parameters, limit the strategy to subclouds that "
+                    "support them, or upgrade these subclouds."
+                )
+                raise exceptions.BadRequest(resource="strategy", msg=msg)
 
         max_parallel_subclouds = payload.get("max-parallel-subclouds")
         subcloud_apply_type = payload.get("subcloud-apply-type")

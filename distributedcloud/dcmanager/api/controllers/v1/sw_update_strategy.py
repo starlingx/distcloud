@@ -394,6 +394,23 @@ class SwUpdateStrategyController(object):
                                     L=<Locality> O=<Organization>
                                     OU=<OrganizationUnit>
                                     CN=<commonName>
+                              algorithm:
+                                type: string
+                                enum:
+                                  - ECDSA
+                                  - RSA
+                                description: |
+                                  Key algorithm of the generated root CA.
+                                  Only applicable for kube-rootca-update strategy type.
+                                  Not supported by subclouds older than 27.03.
+                              key-size:
+                                type: integer
+                                description: |
+                                  Key size of the generated root CA.
+                                  Requires algorithm. Valid values: 384 or 521
+                                  for ECDSA, 4096 for RSA.
+                                  Only applicable for kube-rootca-update strategy type.
+                                  Not supported by subclouds older than 27.03.
                           examples:
                             sw_deploy_strategy:
                               summary: Create SW Deploy Strategy
@@ -439,6 +456,8 @@ class SwUpdateStrategyController(object):
                                   C=CA ST=Ontario L=Ottawa
                                   O=WindRiver OU=Engineering
                                   CN=StarlingX
+                                algorithm: "ECDSA"
+                                key-size: 521
                                 subcloud-apply-type: "serial"
                                 stop-on-failure: true
                     responses:

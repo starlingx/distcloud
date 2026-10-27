@@ -47,7 +47,17 @@ class TestKubeRootCaValidator(
         return {
             consts.EXTRA_ARGS_EXPIRY_DATE: "2024-06-28",
             consts.EXTRA_ARGS_SUBJECT: None,
+            consts.EXTRA_ARGS_ALGORITHM: "ECDSA",
+            consts.EXTRA_ARGS_KEY_SIZE: 384,
         }
+
+    def test_build_extra_args_defaults_algorithm_and_key_size_to_none(self):
+        """Test build_extra_args defaults algorithm and key size to None"""
+
+        extra_args = self.validator.build_extra_args({})
+
+        self.assertIsNone(extra_args[consts.EXTRA_ARGS_ALGORITHM])
+        self.assertIsNone(extra_args[consts.EXTRA_ARGS_KEY_SIZE])
 
     def test_build_sync_status_without_force(self):
         response = self.validator.build_sync_status_filter(False)

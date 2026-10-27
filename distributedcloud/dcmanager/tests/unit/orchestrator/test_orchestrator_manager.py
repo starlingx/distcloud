@@ -369,6 +369,92 @@ class TestOrchestratorManagerKubeRootcaCreate(
         strategy_steps = db_api.strategy_step_get_all(self.ctx)
         self.assertEqual(len(strategy_steps), 2)
 
+    def _update_subclouds_software_version(self, software_version):
+        for subcloud in [self.subcloud1, self.subcloud2]:
+            self._update_subcloud(subcloud.id, software_version=software_version)
+
+    def _create_strategy_and_assert_failure(self):
+        exception = self.assertRaises(
+            exceptions.BadRequest,
+            self.orchestrator_manager.create_sw_update_strategy,
+            self.ctx,
+            payload=self.payload,
+        )
+
+        # Verify that no strategy step was created
+        self.assertEqual(len(db_api.strategy_step_get_all(self.ctx)), 0)
+
+        return exception
+
+    def test_kube_rootca_strategy_create_succeeds_with_algorithm_and_key_size(self):
+        """Test kube-rootca strategy create succeeds with algorithm and key size"""
+
+        self._update_subclouds_software_version(
+            consts.FIRST_SW_VERSION_SUPPORTING_KUBE_ROOTCA_KEY_PARAMS
+        )
+        self.payload[consts.EXTRA_ARGS_ALGORITHM] = "ECDSA"
+        self.payload[consts.EXTRA_ARGS_KEY_SIZE] = 521
+
+        response = self.orchestrator_manager.create_sw_update_strategy(
+            self.ctx, self.payload
+        )
+
+        extra_args = response["extra-args"]
+        self.assertEqual(extra_args[consts.EXTRA_ARGS_ALGORITHM], "ECDSA")
+        self.assertEqual(extra_args[consts.EXTRA_ARGS_KEY_SIZE], 521)
+        self.assertEqual(len(db_api.strategy_step_get_all(self.ctx)), 2)
+
+    def test_kube_rootca_strategy_create_fails_with_key_size_without_algorithm(self):
+        """Test kube-rootca strategy create fails with key size without algorithm"""
+
+        self._update_subclouds_software_version(
+            consts.FIRST_SW_VERSION_SUPPORTING_KUBE_ROOTCA_KEY_PARAMS
+        )
+        self.payload[consts.EXTRA_ARGS_KEY_SIZE] = 384
+
+        self._create_strategy_and_assert_failure()
+
+    def test_kube_rootca_strategy_create_fails_with_unsupported_subcloud(self):
+        """Test kube-rootca strategy create fails with an unsupported subcloud
+
+        A subcloud running a release older than the first one supporting the
+        parameters cannot receive them, so the whole strategy is rejected.
+        """
+
+        supported_version = consts.FIRST_SW_VERSION_SUPPORTING_KUBE_ROOTCA_KEY_PARAMS
+        self._update_subcloud(self.subcloud1.id, software_version="26.10")
+        self._update_subcloud(self.subcloud2.id, software_version=supported_version)
+        self.payload[consts.EXTRA_ARGS_ALGORITHM] = "ECDSA"
+
+        exception = self._create_strategy_and_assert_failure()
+
+        self.assertEqual(
+            str(exception),
+            f"Bad strategy request: Subclouds running a release older than "
+            f"{supported_version} do not support the algorithm and key-size "
+            f"parameters: {self.subcloud1.name}. Omit these parameters, limit the "
+            "strategy to subclouds that support them, or upgrade these subclouds.",
+        )
+
+    def test_kube_rootca_strategy_create_succeeds_with_older_subcloud_excluded(self):
+        """Test kube-rootca strategy create succeeds when older subcloud is excluded
+
+        Only the targeted subclouds are checked, so an older subcloud that the
+        operator left out does not block the strategy.
+        """
+
+        supported_version = consts.FIRST_SW_VERSION_SUPPORTING_KUBE_ROOTCA_KEY_PARAMS
+        self._update_subcloud(self.subcloud1.id, software_version=supported_version)
+        self._update_subcloud(self.subcloud2.id, software_version="26.10")
+        self.payload["cloud_name"] = self.subcloud1.name
+        self.payload[consts.EXTRA_ARGS_ALGORITHM] = "ECDSA"
+
+        self.orchestrator_manager.create_sw_update_strategy(self.ctx, self.payload)
+
+        strategy_steps = db_api.strategy_step_get_all(self.ctx)
+        self.assertEqual(len(strategy_steps), 1)
+        self.assertEqual(strategy_steps[0].subcloud_id, self.subcloud1.id)
+
 
 class TestOrchestratorManagerSoftwareStrategyCreate(
     BaseTestOrchestratorManagerStrategyCreate

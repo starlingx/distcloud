@@ -27,6 +27,8 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
         # This strategy supports the following additional kwargs.
         #     expiry_date
         #     subject
+        #     algorithm
+        #     key_size
         # These kwargs are retrieved from the extra_args of the strategy
         extra_args = self.strategy.extra_args
         if extra_args is None:
@@ -34,6 +36,8 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
         # Note that extra_args use "-" and not "_" in their keys
         expiry_date = extra_args.get("expiry-date", None)
         subject = extra_args.get("subject", None)
+        algorithm = extra_args.get("algorithm", None)
+        key_size = extra_args.get("key-size", None)
 
         # Get the update options
         opts_dict = dcmanager_utils.get_sw_update_opts(
@@ -50,6 +54,8 @@ class CreatingVIMKubeRootcaUpdateStrategyState(CreatingVIMStrategyState):
             opts_dict["alarm-restriction-type"],
             expiry_date=expiry_date,
             subject=subject,
+            algorithm=algorithm,
+            key_size=key_size,
         )
 
         # a successful API call to create MUST set the state be 'building'

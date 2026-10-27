@@ -39,6 +39,8 @@ class KubeRootCaStrategyValidator(StrategyValidationBase):
         return {
             consts.EXTRA_ARGS_EXPIRY_DATE: payload.get(consts.EXTRA_ARGS_EXPIRY_DATE),
             consts.EXTRA_ARGS_SUBJECT: payload.get(consts.EXTRA_ARGS_SUBJECT),
+            consts.EXTRA_ARGS_ALGORITHM: payload.get(consts.EXTRA_ARGS_ALGORITHM),
+            consts.EXTRA_ARGS_KEY_SIZE: payload.get(consts.EXTRA_ARGS_KEY_SIZE),
         }
 
     def build_sync_status_filter(self, force):
