@@ -867,10 +867,15 @@ class USMAPIController(APIController):
 
                         self._save_loads_to_vault(response_data)
 
-            releases = self._get_releases(environ, request)
-            if releases is not None:
-                LOG.info(f"Current available releases {list(releases)}")
-                self._audit_dcvault(releases)
+            # The dc-vault audit is best-effort. A failure here should
+            # not replace the software API response to not mask it
+            try:
+                releases = self._get_releases(environ, request)
+                if releases is not None:
+                    LOG.info(f"Current available releases {list(releases)}")
+                    self._audit_dcvault(releases)
+            except Exception:
+                LOG.exception("Failed to audit the software dc-vault")
             return response
         finally:
             proxy_utils.cleanup(environ)
@@ -918,6 +923,9 @@ class USMAPIController(APIController):
 
     @staticmethod
     def _remove_empty_dirs(directory):
+        if not os.path.isdir(directory):
+            LOG.debug(f"Skipping empty folder cleanup, {directory} does not exist")
+            return
         for folder in pathlib.Path(directory).iterdir():
             if not folder.is_dir():
                 continue
@@ -983,8 +991,19 @@ class USMAPIController(APIController):
     @staticmethod
     def _open_create(name, flags):
         # Custom opener to open a file while creating it
-        # if it doesn't exists in a single open() call
-        return os.open(name, flags | os.O_CREAT)
+        # if it doesn't exists in a single open() call.
+        # 0o644 to set it as non-executable
+        return os.open(name, flags | os.O_CREAT, 0o644)
+
+    @staticmethod
+    def _load_metadata(file_object):
+        file_object.seek(0)
+        content = file_object.read().strip()
+        if not content:
+            # empty file should be read as having no releases intead of an
+            # invalid json
+            return {}
+        return json.loads(content)
 
     def write_metadata(self, target_filename, release_id):
         with open(
@@ -992,9 +1011,8 @@ class USMAPIController(APIController):
         ) as f:
             self._acquire_fd_lock(f)
             try:
-                f.seek(0)
                 try:
-                    data = json.load(f)
+                    data = self._load_metadata(f)
                 except json.JSONDecodeError:
                     LOG.warning(
                         f"Invalid JSON in file {self.metadata_file}. "
@@ -1027,8 +1045,7 @@ class USMAPIController(APIController):
                 # Use a shared lock for reading
                 self._acquire_fd_lock(f, shared=True)
                 try:
-                    data = json.load(f)
-                    return data
+                    return self._load_metadata(f)
                 finally:
                     self._release_fd_lock(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
@@ -1046,9 +1063,8 @@ class USMAPIController(APIController):
         ) as f:
             self._acquire_fd_lock(f)
             try:
-                f.seek(0)
                 try:
-                    data = json.load(f)
+                    data = self._load_metadata(f)
                 except Exception:
                     LOG.error(
                         f"Invalid JSON in file {self.metadata_file}, "
