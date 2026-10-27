@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import json
+import time
 from unittest import mock
 
 from dccommon.exceptions import PlaybookExecutionTimeout
@@ -155,3 +157,85 @@ class TestBmcIsReachable(base.DCCommonTestCase):
     def test_propagates_timeout_argument(self):
         self._call(timeout_seconds=5)
         self.assertEqual(self.mock_get.call_args[1]["timeout"], 5)
+
+
+class TestProbeBmcsInParallel(base.DCCommonTestCase):
+    """Tests for utils.probe_bmcs_in_parallel"""
+
+    NUM_SUBCLOUDS = 100
+
+    def setUp(self):
+        super().setUp()
+        self.mock_get = self._mock_object(utils.requests, "get")
+        self.mock_scheduler_log = self._mock_object(utils.scheduler, "LOG")
+
+    @staticmethod
+    def _bmc_address(subcloud_id):
+        return f"10.0.0.{subcloud_id}"
+
+    def _subcloud(self, subcloud_id):
+        install_values = {
+            "bmc_address": self._bmc_address(subcloud_id),
+            "bmc_username": "root",
+            "bmc_password": "secret",
+        }
+        return mock.MagicMock(id=subcloud_id, data_install=json.dumps(install_values))
+
+    def test_probes_in_parallel_with_failures_and_no_unhandled_errors(self):
+        """Test 100 concurrent probes, 10 failing, with varied durations.
+
+        Each probe sleeps between 0 and 1.9 seconds. Every tenth subcloud
+        fails to connect. All subclouds must get a result, and no task may
+        end with an unhandled exception.
+        """
+        subclouds = [self._subcloud(i) for i in range(1, self.NUM_SUBCLOUDS + 1)]
+        failing_addresses = {
+            self._bmc_address(i) for i in range(10, self.NUM_SUBCLOUDS + 1, 10)
+        }
+
+        def fake_get(url, **kwargs):
+            bmc_address = url.split("/")[2]
+            subcloud_id = int(bmc_address.split(".")[-1])
+            time.sleep((subcloud_id % 20) * 0.1)
+            if bmc_address in failing_addresses:
+                raise utils.requests.exceptions.ConnectionError("Connection refused")
+            return mock.MagicMock(status_code=200)
+
+        self.mock_get.side_effect = fake_get
+
+        start = time.monotonic()
+        results = utils.probe_bmcs_in_parallel(subclouds)
+        elapsed = time.monotonic() - start
+
+        expected = {}
+        for subcloud in subclouds:
+            bmc_address = self._bmc_address(subcloud.id)
+            if bmc_address in failing_addresses:
+                expected[subcloud.id] = utils.BmcProbeResult(
+                    False,
+                    f"Could not connect to {bmc_address}: Connection refused",
+                )
+            else:
+                expected[subcloud.id] = utils.BmcProbeResult(True)
+
+        self.assertEqual(expected, results)
+        self.assertEqual(
+            10, sum(1 for result in results.values() if not result.reachable)
+        )
+        self.assertEqual(self.NUM_SUBCLOUDS, self.mock_get.call_count)
+        self.mock_scheduler_log.exception.assert_not_called()
+        # Run sequentially, the sleeps add up to about 95 seconds, so
+        # finishing well under that shows the probes ran concurrently.
+        self.assertLess(elapsed, 5)
+
+    def test_probes_more_subclouds_than_pool_size(self):
+        """Test subclouds beyond the pool size are queued and probed."""
+        self.mock_get.return_value = mock.MagicMock(status_code=200)
+        subclouds = [self._subcloud(i) for i in range(1, 151)]
+
+        results = utils.probe_bmcs_in_parallel(subclouds, pool_size=10)
+
+        self.assertEqual(
+            {i: utils.BmcProbeResult(True) for i in range(1, 151)}, results
+        )
+        self.assertEqual(150, self.mock_get.call_count)

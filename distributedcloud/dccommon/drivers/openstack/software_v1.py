@@ -67,8 +67,14 @@ class SoftwareClient(base.DriverBase):
         self.endpoint = parse.urljoin(self.endpoint, "/v1")
         self.headers = {"X-Auth-Token": self.token} if token else None
 
-    def request(self, url: str, method: str, timeout: int):
-        """Request directly if token is passed, otherwise use the session"""
+    def _request(self, url: str, method: str, timeout: int):
+        """Request directly if token is passed, otherwise use the session.
+
+        This method is intentionally private to prevent the cache_wrapper
+        decorator (used by CachedSoftwareClient) from caching raw HTTP
+        Response objects. Only the public methods that return processed
+        data (list, delete, etc.) should be cached.
+        """
         if self.token:
             return requests.request(
                 method=method, url=url, headers=self.headers, timeout=timeout
@@ -80,20 +86,20 @@ class SoftwareClient(base.DriverBase):
     def list(self, timeout=REST_DEFAULT_TIMEOUT):
         """List releases"""
         url = self.endpoint + "/release"
-        response = self.request(url, "GET", timeout)
+        response = self._request(url, "GET", timeout)
         return self._handle_response(response, operation="List")
 
     def delete(self, releases, timeout=REST_DELETE_TIMEOUT):
         """Delete release"""
         release_str = "/".join(releases)
         url = self.endpoint + f"/release/{release_str}"
-        response = self.request(url, "DELETE", timeout)
+        response = self._request(url, "DELETE", timeout)
         return self._handle_response(response, operation="Delete")
 
     def show_deploy(self, timeout=REST_DEFAULT_TIMEOUT):
         """Show deploy"""
         url = self.endpoint + "/deploy"
-        response = self.request(url, "GET", timeout)
+        response = self._request(url, "GET", timeout)
         return self._handle_response(response, operation="Show deploy")
 
     def deploy_delete(self, timeout=REST_DEFAULT_TIMEOUT):
@@ -105,7 +111,7 @@ class SoftwareClient(base.DriverBase):
         procedure will not be available.
         """
         url = self.endpoint + "/deploy"
-        response = self.request(url, "DELETE", timeout)
+        response = self._request(url, "DELETE", timeout)
         return self._handle_response(response, operation="Deploy delete")
 
     def _handle_response(self, response, operation):

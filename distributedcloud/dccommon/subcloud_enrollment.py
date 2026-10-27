@@ -4,15 +4,15 @@
 #
 
 import os
+import subprocess
 import tarfile
 import tempfile
 import time
-import yaml
 
-from eventlet.green import subprocess
 from oslo_config import cfg
 from oslo_log import log as logging
 from passlib.hash import sha512_crypt
+import yaml
 
 from dccommon import consts
 from dccommon import exceptions
@@ -325,6 +325,7 @@ class SubcloudEnrollmentInit(object):
                 # capture both streams in stdout:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                check=False,
             )
 
         if result.returncode == 0:
