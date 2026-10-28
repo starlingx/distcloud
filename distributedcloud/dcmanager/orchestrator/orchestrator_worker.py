@@ -662,7 +662,7 @@ class OrchestratorWorker(object):
                         == dccommon_consts.MANAGEMENT_UNMANAGED
                     ):
                         message = f"Subcloud {step.subcloud.name} is unmanaged."
-                        LOG.warn(f"({strategy.type}) {message}")
+                        LOG.warning(f"({strategy.type}) {message}")
                         self._strategy_step_update(
                             strategy.type,
                             step.id,
@@ -757,7 +757,7 @@ class OrchestratorWorker(object):
                 self.strategies[strategy_type].vim_strategy_name
             )
         except (keystone_exceptions.EndpointNotFound, IndexError):
-            LOG.warn(f"({strategy_type}) Endpoint for subcloud: {region} not found")
+            LOG.warning(f"({strategy_type}) Endpoint for subcloud: {region} not found")
             return
         except Exception:
             # Strategy doesn't exist so there is nothing to do
@@ -769,7 +769,7 @@ class OrchestratorWorker(object):
             vim.STATE_ABORTING,
         ]:
             # Can't delete a vim strategy in these states
-            LOG.warn(
+            LOG.warning(
                 f"({strategy_type}) Vim strategy:("
                 f"{self.strategies[strategy_type].vim_strategy_name}) for region:("
                 f"{region}) in wrong state:({subcloud_strategy.state}) for delete."
@@ -780,7 +780,7 @@ class OrchestratorWorker(object):
         try:
             vim_client.delete_strategy(self.strategies[strategy_type].vim_strategy_name)
         except Exception:
-            LOG.warn(
+            LOG.warning(
                 f"({strategy_type}) Vim strategy:"
                 f"({self.strategies[strategy_type].vim_strategy_name}) delete failed "
                 f"for region:({region})"

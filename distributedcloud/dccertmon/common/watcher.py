@@ -26,7 +26,6 @@ from dccommon import consts as constants
 from dccommon import exceptions
 from dccommon import kubeoperator as sys_kube
 
-
 K8S_MODULE_MAJOR_VERSION = int(K8S_MODULE_VERSION.split(".", maxsplit=1)[0])
 KUBE_CONFIG_PATH = "/etc/kubernetes/admin.conf"
 LOG = log.getLogger(__name__)

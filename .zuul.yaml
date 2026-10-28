@@ -8,7 +8,6 @@
       jobs:
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
-        - stx-distcloud-tox-py39
         - stx-distcloud-tox-py313
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-black
@@ -18,7 +17,7 @@
       jobs:
         - openstack-tox-linters
         - stx-distcloud-tox-pep8
-        - stx-distcloud-tox-py39
+        - stx-distcloud-tox-py313
         - stx-distcloud-tox-pylint
         - stx-distcloud-tox-black
         - stx-distcloud-tox-cover
@@ -28,29 +27,9 @@
         - stx-distcloud-upload-git-mirror
 
 - job:
-    name: stx-distcloud-tox-py39
-    parent: tox-py39
-    description: Run py39 for distcloud
-    nodeset: debian-bullseye
-    pre-run:
-      - tools/gate/playbooks/install-postgresql.yaml
-      - tools/gate/playbooks/install-stx-custom-deps.yaml
-    required-projects:
-      - starlingx/fault
-      - starlingx/nfv
-      - starlingx/update
-      - starlingx/config
-      - starlingx/root
-      - starlingx/utilities
-    vars:
-      python_version: 3.9
-      tox_envlist: py39
-      tox_extra_args: -c distributedcloud/tox.ini
-
-- job:
     name: stx-distcloud-tox-py313
     parent: tox-py313
-    description: Run py313 for distcloud (non-voting)
+    description: Run py313 for distcloud
     nodeset: debian-trixie-8GB
     pre-run:
       - tools/gate/playbooks/install-postgresql.yaml
@@ -66,13 +45,12 @@
       python_version: 3.13
       tox_envlist: py313
       tox_config_file: distributedcloud/tox.ini
-    voting: false
 
 - job:
     name: stx-distcloud-tox-pylint
     parent: tox
     description: Run pylint for distcloud
-    nodeset: debian-bullseye
+    nodeset: debian-trixie-8GB
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -80,7 +58,7 @@
       - starlingx/config
       - starlingx/utilities
     vars:
-      python_version: 3.9
+      python_version: 3.13
       tox_envlist: pylint
       tox_extra_args: -c distributedcloud/tox.ini
 
@@ -88,7 +66,7 @@
     name: stx-distcloud-tox-pep8
     parent: tox
     description: Run pep8 for distcloud
-    nodeset: debian-bullseye
+    nodeset: debian-trixie-8GB
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -96,7 +74,7 @@
       - starlingx/config
       - starlingx/utilities
     vars:
-      python_version: 3.9
+      python_version: 3.13
       tox_envlist: pep8
       tox_extra_args: -c distributedcloud/tox.ini
 
@@ -104,9 +82,9 @@
     name: stx-distcloud-tox-black
     parent: tox
     description: Run black for distcloud
-    nodeset: debian-bullseye
+    nodeset: debian-trixie-8GB
     vars:
-      python_version: 3.9
+      python_version: 3.13
       tox_envlist: black
       tox_extra_args: -c distributedcloud/tox.ini
 
@@ -114,16 +92,16 @@
     name: stx-distcloud-tox-openapi-check
     parent: tox
     description: Check that the committed OpenAPI spec is up to date
-    nodeset: debian-bullseye
+    nodeset: debian-trixie-8GB
     vars:
-      python_version: 3.9
+      python_version: 3.13
       tox_envlist: openapi-check
 
 - job:
     name: stx-distcloud-tox-cover
     parent: tox
     description: Run coverage test for distcloud
-    nodeset: debian-bullseye
+    nodeset: debian-trixie-8GB
     required-projects:
       - starlingx/fault
       - starlingx/nfv
@@ -132,7 +110,7 @@
       - starlingx/root
       - starlingx/utilities
     vars:
-      python_version: 3.9
+      python_version: 3.13
       tox_envlist: cover
       tox_extra_args: -c distributedcloud/tox.ini
     post-run: tools/gate/playbooks/fetch-coverage.yaml

@@ -17,7 +17,6 @@ from dcorch.api.proxy.common.service import Middleware
 from dcorch.common import exceptions
 from dcorch.common.i18n import _
 
-
 LOG = logging.getLogger(__name__)
 
 

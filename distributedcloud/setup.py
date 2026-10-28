@@ -25,5 +25,5 @@ try:
 except ImportError:
     pass
 
-# Danger - pbr requirement >= 2.0.0 not satisfied...
-setuptools.setup(setup_requires=["pbr>=1.8.0"], pbr=True)
+# pbr is installed by the PEP 517 build-system in pyproject.toml.
+setuptools.setup(pbr=True)

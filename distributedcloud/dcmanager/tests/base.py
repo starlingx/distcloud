@@ -17,6 +17,7 @@
 
 import base64
 import json
+import os
 
 import mock
 from oslo_config import cfg
@@ -141,13 +142,17 @@ class DCManagerTestCase(base.BaseTestCase):
         meta = sqlalchemy.MetaData()
         meta.reflect(bind=engine)
 
-        for table in reversed(meta.sorted_tables):
-            if table.name in ("migrate_version", "alembic_version"):
-                continue
-            engine.execute(table.delete())
+        with engine.begin() as connection:
+            for table in reversed(meta.sorted_tables):
+                if table.name in ("migrate_version", "alembic_version"):
+                    continue
+                connection.execute(table.delete())
 
     def setUp(self):
         super().setUp()
+
+        # Prevent tests from running real host commands (for example pkill).
+        self._mock_object(os, "system")
 
         # register cleanup of DB before setup, in case setup fails
         self.addCleanup(self.reset_dummy_db)

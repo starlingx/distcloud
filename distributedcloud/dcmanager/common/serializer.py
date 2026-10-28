@@ -75,12 +75,14 @@ class DCManagerSerializer(oslo_messaging.Serializer):
         return entity
 
     def serialize_context(self, ctxt):
+        context = ctxt
         if self._base is not None:
             context = self._base.serialize_context(ctxt)
 
         return context
 
     def deserialize_context(self, ctxt):
+        context = ctxt
         if self._base is not None:
             context = self._base.deserialize_context(ctxt)
 

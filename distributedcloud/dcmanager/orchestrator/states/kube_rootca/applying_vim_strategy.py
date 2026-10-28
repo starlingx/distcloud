@@ -7,7 +7,6 @@ from dccommon.drivers.openstack import vim
 from dcmanager.common import consts
 from dcmanager.orchestrator.states.applying_vim_strategy import ApplyingVIMStrategyState
 
-
 # Max time: 120 minutes = 120 queries x 60 seconds
 KUBE_ROOTCA_UPDATE_MAX_WAIT_ATTEMPTS = 120
 KUBE_ROOTCA_UPDATE_WAIT_INTERVAL = 60

@@ -5,6 +5,7 @@
 """
 Peer Site OpenStack Driver
 """
+
 import collections
 import threading
 
@@ -101,7 +102,7 @@ class PeerSiteDriver(object):
     @classmethod
     @lockutils.synchronized(LOCK_NAME)
     def delete_site_clients(cls, site_uuid, clear_token=False):
-        LOG.warn("delete_site_clients=%s, clear_token=%s" % (site_uuid, clear_token))
+        LOG.warning("delete_site_clients=%s, clear_token=%s" % (site_uuid, clear_token))
         if site_uuid in cls.os_clients_dict:
             del cls.os_clients_dict[site_uuid]
         if clear_token:
@@ -128,7 +129,7 @@ class PeerSiteDriver(object):
                     )
                 )
         except Exception as exception:
-            LOG.warn(
+            LOG.warning(
                 "_is_token_valid handle: site: %s error: %s"
                 % (site_uuid, str(exception))
             )

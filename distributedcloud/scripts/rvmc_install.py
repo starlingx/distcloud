@@ -125,7 +125,6 @@ import eventlet
 
 from dccommon import rvmc
 
-
 # Constants
 # ---------
 FEATURE_NAME = "Redfish Virtual Media Controller"

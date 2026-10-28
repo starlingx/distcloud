@@ -27,7 +27,6 @@ from dccommon import consts as dccommon_consts
 from dcorch.db import api as db_api
 from dcorch.tests import utils
 
-
 get_engine = db_api.get_engine
 
 
@@ -54,10 +53,11 @@ class OrchestratorTestCase(base.BaseTestCase):
         meta = sqlalchemy.MetaData()
         meta.reflect(bind=engine)
 
-        for table in reversed(meta.sorted_tables):
-            if table.name in ("migrate_version", "alembic_version"):
-                continue
-            engine.execute(table.delete())
+        with engine.begin() as connection:
+            for table in reversed(meta.sorted_tables):
+                if table.name in ("migrate_version", "alembic_version"):
+                    continue
+                connection.execute(table.delete())
 
     def setUp(self):
         super(OrchestratorTestCase, self).setUp()

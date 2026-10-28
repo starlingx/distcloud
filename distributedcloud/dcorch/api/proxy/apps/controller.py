@@ -50,7 +50,6 @@ from dcorch.common import usm_util
 from dcorch.common import utils
 from dcorch.rpc import client as rpc_client
 
-
 LOG = logging.getLogger(__name__)
 
 controller_opts = [

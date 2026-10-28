@@ -27,7 +27,6 @@ SQLAlchemy is currently the only supported backend.
 from oslo_config import cfg
 from oslo_db import api
 
-
 CONF = cfg.CONF
 
 _BACKEND_MAPPING = {"sqlalchemy": "dcdbsync.db.identity.sqlalchemy.api"}

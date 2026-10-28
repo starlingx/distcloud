@@ -20,7 +20,6 @@ from dccommon import exceptions
 from dccommon.tests import base
 from dccommon.tests import utils
 
-
 REGION_NAME = uuidutils.generate_uuid().replace("-", "")
 
 

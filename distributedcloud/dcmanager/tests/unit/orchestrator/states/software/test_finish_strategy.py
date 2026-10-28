@@ -15,7 +15,6 @@ from dcmanager.tests.unit.orchestrator.states.software.test_base import (
 )
 from dcorch.rpc import client as rpc_client
 
-
 REGION_ONE_RELEASES = [
     {"release_id": "starlingx-9.0.0", "state": "deployed", "sw_version": "9.0.0"},
     {"release_id": "starlingx-9.0.1", "state": "deployed", "sw_version": "9.0.1"},

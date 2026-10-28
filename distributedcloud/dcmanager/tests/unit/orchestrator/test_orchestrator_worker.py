@@ -715,9 +715,9 @@ class TestOrchestratorWorkerDeleteSubcloudStrategy(BaseTestOrchestratorWorker):
             self.mock_vim_client().delete_strategy.assert_not_called()
 
         if message:
-            self.mock_log.warn.assert_called_once_with(message)
+            self.mock_log.warning.assert_called_once_with(message)
         else:
-            self.mock_log.warn.assert_not_called()
+            self.mock_log.warning.assert_not_called()
 
     def test_delete_subcloud_strategy_succeeds(self):
         """Test delete subcloud strategy succeeds"""

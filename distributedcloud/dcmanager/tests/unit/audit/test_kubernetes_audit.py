@@ -26,7 +26,6 @@ from dcmanager.audit import subcloud_audit_manager
 from dcmanager.tests.base import DCManagerTestCase
 from dcmanager.tests.unit.common.fake_subcloud import create_fake_subcloud
 
-
 PREVIOUS_KUBE_VERSION = "v1.2.3"
 UPGRADED_KUBE_VERSION = "v1.2.3-a"
 
@@ -65,7 +64,7 @@ class TestKubernetesAudit(DCManagerTestCase):
         self.subcloud = create_fake_subcloud(self.ctx)
 
     def _get_kubernetes_audit_data(self):
-        (_, kubernetes_audit_data, _, _) = self.audit_manager._get_audit_data(
+        _, kubernetes_audit_data, _, _ = self.audit_manager._get_audit_data(
             False, True, False, False
         )
         return kubernetes_audit_data

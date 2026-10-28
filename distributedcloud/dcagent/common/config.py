@@ -7,6 +7,7 @@
 """
 File to store all the configurations
 """
+
 from oslo_config import cfg
 from oslo_utils import importutils
 

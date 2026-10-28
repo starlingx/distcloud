@@ -15,7 +15,6 @@ from dcorch.db import api as db_api
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine import scheduler
 
-
 LOG = logging.getLogger(__name__)
 
 # How often the initial sync thread will wake up

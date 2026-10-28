@@ -12,7 +12,6 @@ from dcmanager.common.exceptions import StrategyStoppedException
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.states.base import BaseState
 
-
 # Applying the vim update strategy may result in a loss of communication
 # where API calls fail. The max time in this phase is 30 minutes
 # (30 queries with 1 minute sleep)

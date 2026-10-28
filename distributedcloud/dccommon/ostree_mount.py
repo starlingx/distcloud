@@ -91,7 +91,7 @@ def validate_ostree_iso_mount(software_version):
         try:
             sh.mount(*mount_args)
         except Exception as exc:
-            LOG.warn(
+            LOG.warning(
                 f"Command 'mount {' '.join(mount_args)}' failed; "
                 f"attempting to rebuild: {str(exc)}"
             )

@@ -18,6 +18,7 @@
 #
 
 """Subcloud object."""
+
 from oslo_log import log as logging
 from oslo_versionedobjects import base as ovo_base
 from oslo_versionedobjects import fields as ovo_fields

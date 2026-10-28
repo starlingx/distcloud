@@ -336,7 +336,9 @@ class SysinvSyncThread(SyncThread):
         # are deleted along with corresponding orch_job and orch_requests.
         LOG.info(
             "Certificate {}:{} [{}] deleted".format(
-                rsrc.id, subcloud_rsrc.id, subcloud_rsrc.subcloud_resource_id
+                rsrc.id,
+                subcloud_rsrc.id,  # pylint: disable=no-member
+                subcloud_rsrc.subcloud_resource_id,
             ),
             extra=self.log_extra,
         )
@@ -535,9 +537,7 @@ class SysinvSyncThread(SyncThread):
     # SysInv Audit Related
     def get_master_resources(self, resource_type):
         LOG.debug(
-            "get_master_resources thread:{}".format(
-                threading.currentThread().getName()
-            ),
+            "get_master_resources thread:{}".format(threading.current_thread().name),
             extra=self.log_extra,
         )
         try:
@@ -562,9 +562,7 @@ class SysinvSyncThread(SyncThread):
 
     def get_subcloud_resources(self, resource_type):
         LOG.debug(
-            "get_subcloud_resources thread:{}".format(
-                threading.currentThread().getName()
-            ),
+            "get_subcloud_resources thread:{}".format(threading.current_thread().name),
             extra=self.log_extra,
         )
         try:
@@ -822,7 +820,7 @@ class SysinvSyncThread(SyncThread):
         elif resource_type == consts.RESOURCE_TYPE_SYSINV_FERNET_REPO:
             return self.same_fernet_key(m_resource, sc_resource)
         else:
-            LOG.warn(
+            LOG.warning(
                 "same_resource() unexpected resource_type {}".format(resource_type),
                 extra=self.log_extra,
             )
@@ -863,7 +861,7 @@ class SysinvSyncThread(SyncThread):
                 )
                 num_of_audit_jobs += 1
             else:
-                LOG.warn(
+                LOG.warning(
                     "unexpected finding {} resource_type {}".format(
                         finding, resource_type
                     ),
@@ -939,7 +937,7 @@ class SysinvSyncThread(SyncThread):
             )
             return jsonutils.dumps(resource)
         else:
-            LOG.warn(
+            LOG.warning(
                 "get_resource_info unsupported resource {}".format(resource_type),
                 extra=self.log_extra,
             )
@@ -995,5 +993,7 @@ class SysinvSyncThread(SyncThread):
             # We want to check if the specific cert is in-sync
             return sc_resources.get(master_id) == dccommon_consts.SYNC_STATUS_IN_SYNC
         # If the response is not what we expected, we considered to not be present
-        LOG.warn(f"Unnexpected subcloud resource for {resource_type}: {sc_resources}")
+        LOG.warning(
+            f"Unnexpected subcloud resource for {resource_type}: {sc_resources}"
+        )
         return False

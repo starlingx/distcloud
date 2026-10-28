@@ -1,2 +1,2 @@
 apispec==6.8.4
-PyYAML==5.4.1
+PyYAML==6.0.2

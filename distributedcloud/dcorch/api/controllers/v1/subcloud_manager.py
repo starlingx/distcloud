@@ -26,7 +26,6 @@ from dcorch.api.controllers import restcomm
 from dcorch.common.i18n import _
 from dcorch.rpc import client as rpc_client
 
-
 LOG = logging.getLogger(__name__)
 
 

@@ -16,7 +16,6 @@ from dccommon.drivers.openstack.software_v1 import SoftwareClient
 from dccommon.drivers.openstack.sysinv_v1 import SysinvClient
 from dccommon.endpoint_cache import EndpointCache
 
-
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 

@@ -50,7 +50,7 @@ class SubprocessCleanup(object):
     def _shutdown_subprocess_groups(origin):
         num_process_groups = len(SubprocessCleanup.SUBPROCESS_GROUPS)
         if num_process_groups > 0:
-            LOG.warn(
+            LOG.warning(
                 "Shutting down %d process groups via %s", num_process_groups, origin
             )
             start_time = time.time()
@@ -98,9 +98,11 @@ def kill_subprocess_group(subp, logmsg=None):
         return False
 
     if logmsg:
-        LOG.warn(logmsg)
+        LOG.warning(logmsg)
     else:
-        LOG.warn("Killing subprocess group for pid: %s, args: %s", subp.pid, subp.args)
+        LOG.warning(
+            "Killing subprocess group for pid: %s, args: %s", subp.pid, subp.args
+        )
 
     # Send SIGTERM to the process group (best-effort graceful shutdown)
     os.killpg(subp.pid, signal.SIGTERM)

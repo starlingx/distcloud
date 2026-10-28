@@ -2426,7 +2426,7 @@ class SubcloudManager(manager.Manager):
 
             if invalid_ids:
                 # Set state on subclouds that failed validation
-                LOG.warn(
+                LOG.warning(
                     "The following subclouds are not online and/or managed and/or "
                     "in a valid deploy state, and will not be backed up: %s",
                     ", ".join(list(invalid_names)),
@@ -2442,7 +2442,7 @@ class SubcloudManager(manager.Manager):
     @staticmethod
     def _warn_for_invalid_subclouds_on_backup_operation(invalid_subclouds):
         invalid_names = {subcloud.name for subcloud in invalid_subclouds}
-        LOG.warn(
+        LOG.warning(
             "The following subclouds were not online and/or in a valid "
             "deploy/management state, and thus were not be reached "
             "for backup operation: %s",
@@ -2452,7 +2452,7 @@ class SubcloudManager(manager.Manager):
     @staticmethod
     def _warn_for_failed_subclouds_on_backup_operation(operation, failed_subclouds):
         failed_names = {subcloud.name for subcloud in failed_subclouds}
-        LOG.warn(
+        LOG.warning(
             "Backup %s operation failed for some subclouds, "
             "check previous logs for details. Failed subclouds: %s"
             % (operation, ", ".join(list(failed_names)))
@@ -5054,7 +5054,7 @@ class SubcloudManager(manager.Manager):
                 "Could not rename inventory file %s because it does not exist."
                 % ansible_inv_file
             )
-            LOG.warn(msg)
+            LOG.warning(msg)
 
     @staticmethod
     def _delete_subcloud_backup_data(subcloud_name):
@@ -5459,7 +5459,7 @@ class SubcloudManager(manager.Manager):
 
             except Exception as e:
                 LOG.exception(e)
-                LOG.warn(
+                LOG.warning(
                     "Problem informing dcorch of subcloud "
                     "state change, resume to original state, subcloud: %s"
                     % subcloud.name

@@ -52,7 +52,7 @@ class BaseTestKubeRootCAUpdateAudit(DCManagerTestCase):
         self.subcloud = create_fake_subcloud(self.ctx)
 
     def _get_rootca_audit_data(self):
-        (_, _, kube_rootca_audit_data, _) = self.audit_manager._get_audit_data(
+        _, _, kube_rootca_audit_data, _ = self.audit_manager._get_audit_data(
             False, False, True, False
         )
         return kube_rootca_audit_data

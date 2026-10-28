@@ -142,6 +142,7 @@ def model_query(context, *args, **kwargs):
             session = _context._db_session
         else:
             session_context = read_session()
+            # pylint: disable=unnecessary-dunder-call
             session = session_context.__enter__()  # pylint: disable=no-member
             _context._db_session = session
             # Need to store the session context to call __exit__ method later
@@ -1935,7 +1936,8 @@ class Connection(object):
         with read_session() as session:
             return (
                 session.query(
-                    models.StrategyStep.state, func.count(models.StrategyStep.id)
+                    models.StrategyStep.state,
+                    func.count(models.StrategyStep.id),  # pylint: disable=not-callable
                 )
                 .filter_by(deleted=0)
                 .group_by(models.StrategyStep.state)
@@ -2149,13 +2151,11 @@ def initialize_subcloud_group_default(engine):
             "max_parallel_subclouds": default_sc_group_max_parallel_subclouds,
             "deleted": 0,
         }
-        meta = sqlalchemy.MetaData(bind=engine)
-        subcloud_group = sqlalchemy.Table("subcloud_group", meta, autoload=True)
+        meta = sqlalchemy.MetaData()
+        subcloud_group = sqlalchemy.Table("subcloud_group", meta, autoload_with=engine)
         try:
             with engine.begin() as conn:
-                conn.execute(
-                    subcloud_group.insert(), default_group  # pylint: disable=E1120
-                )
+                conn.execute(subcloud_group.insert().values(**default_group))
             LOG.info("Default Subcloud Group created")
         except DBDuplicateEntry:
             # The default already exists.
