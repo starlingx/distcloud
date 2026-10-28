@@ -4,10 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import threading
 import time
-
-import eventlet
-import greenlet
 
 from oslo_concurrency import lockutils
 from oslo_config import cfg
@@ -19,6 +17,7 @@ from dccertmon.common import subcloud_audit_queue
 from dccertmon.common import utils
 from dccertmon.common import watcher
 from dccommon import consts as constants
+from dccommon import scheduler
 
 LOG = log.getLogger(__name__)
 CONF = cfg.CONF
@@ -34,14 +33,15 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
         self.sc_notify_audit_queue = subcloud_audit_queue.NotificationAuditQueue()
 
         self.sc_audit_pool = None
-        if CONF.dccertmon.audit_greenpool_size > 0:
-            self.sc_audit_pool = eventlet.greenpool.GreenPool(
-                size=CONF.dccertmon.audit_greenpool_size
+        if CONF.dccertmon.audit_threadpool_size > 0:
+            self.sc_audit_pool = scheduler.ThreadGroupManager(
+                thread_pool_size=CONF.dccertmon.audit_threadpool_size
             )
 
     def start_task_executor(self):
         LOG.info(f"Auditing interval {CONF.dccertmon.audit_interval}")
-        self.worker_thread = eventlet.greenthread.spawn(self.worker_task_loop)
+        self.worker_thread = threading.Thread(target=self.worker_task_loop, daemon=True)
+        self.worker_thread.start()
         self.on_start()
 
     def start_cert_watcher(self):
@@ -65,18 +65,17 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                 break
 
         # spawn monitor thread
-        self.mon_thread = eventlet.greenthread.spawn(self.monitor_cert_loop, dc_monitor)
+        self.mon_thread = threading.Thread(
+            target=self.monitor_cert_loop, args=(dc_monitor,), daemon=True
+        )
+        self.mon_thread.start()
 
     def stop_cert_watcher(self):
         if self.mon_thread:
-            self.mon_thread.kill()
-            self.mon_thread.wait()
             self.mon_thread = None
 
     def stop_task_executor(self):
         if self.worker_thread:
-            self.worker_thread.kill()
-            self.worker_thread.wait()
             self.worker_thread = None
 
     def worker_task_loop(self):
@@ -84,8 +83,6 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
             try:
                 time.sleep(1)
                 self.run_periodic_tasks(context=None)
-            except greenlet.GreenletExit:
-                break
             except Exception as e:
                 LOG.exception(e)
 
@@ -99,8 +96,6 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                     ),
                     on_error=self._add_reattempt_monitor_task,
                 )
-            except greenlet.GreenletExit:
-                break
             except Exception:
                 # It shouldn't fall to here, but log and restart if it did
                 LOG.exception("Unexpected exception from start_watch")
@@ -464,11 +459,9 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
 
             # This item is ready for audit
             if self.sc_audit_pool is not None:
-                self.sc_audit_pool.spawn_n(self.do_subcloud_audit, queue, sc_audit_item)
+                self.sc_audit_pool.start(self.do_subcloud_audit, queue, sc_audit_item)
             else:
                 self.do_subcloud_audit(queue, sc_audit_item)
-
-            eventlet.sleep()
 
     @periodic_task.periodic_task(spacing=constants.PERIODIC_AUDIT_INTERVAL_SECS)
     def audit_sc_cert_task(self, context):
@@ -477,7 +470,8 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
         It moves the subcloud through its next step in the subcloud audit process.
         The task pulls up to <batch_count> ready-to-audit subcloud audit data items
         from the `sc_audit_queue` and spawns each item to be executed via the
-        GreenPool. If the GreenPool is disabled, the audit is invoked directly.
+        ThreadGroupManager. If the thread pool is disabled, the audit is invoked
+        directly.
         """
         self._process_audit_queue(self.sc_audit_queue, "audit_sc_cert_task")
 
@@ -523,6 +517,6 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                 # task has failed
                 task.failed()
 
-            # Pause and allow other eventlets to run
-            eventlet.sleep(0.1)
+            # Pause and allow other threads to run
+            time.sleep(0.1)
         LOG.debug("End retry_monitor_task")

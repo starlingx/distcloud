@@ -3,12 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import base64 as pybase64
 import os.path
+import threading
 import time
 
-import base64 as pybase64
-import eventlet
-import greenlet
 from keystoneauth1 import session
 import mock
 from oslo_config import cfg
@@ -158,7 +157,7 @@ class TestAuditQueueBehavior(CertMonManagerBase):
         mock_queue.task_done.assert_called_once()
 
     def test_process_audit_queue_uses_greenpool(self):
-        """Test that _process_audit_queue uses GreenPool to spawn audit workers."""
+        """Test that _process_audit_queue uses thread pool to spawn audit workers."""
 
         queue = subcloud_audit_queue.SubcloudAuditPriorityQueue()
         item = subcloud_audit_queue.SubcloudAuditData("test-subcloud")
@@ -166,7 +165,7 @@ class TestAuditQueueBehavior(CertMonManagerBase):
 
         self.manager.sc_audit_pool = mock.Mock()
         self.manager._process_audit_queue(queue, "test-queue")
-        self.manager.sc_audit_pool.spawn_n.assert_called_once()
+        self.manager.sc_audit_pool.start.assert_called_once()
 
     def test_audit_sc_cert_task_shallow(self):
         """Test the audit_sc_cert_task basic queuing functionality.
@@ -654,7 +653,7 @@ class TestRetryMechanism(CertMonManagerBase):
 
         self.manager.reattempt_monitor_tasks = [self.fake_task]
 
-        self._mock_object(eventlet, "sleep")
+        self._mock_object(time, "sleep")
         self.manager.retry_monitor_task(None)
 
         self.assertNotIn(self.fake_task, self.manager.reattempt_monitor_tasks)
@@ -696,50 +695,45 @@ class TestTaskExecutorLifecycle(CertMonManagerBase):
         """Test that the task executor thread starts and stops correctly."""
 
         mock_on_start = self._mock_object(self.manager, "on_start")
-        mock_spawn = self._mock_object(eventlet.greenthread, "spawn")
-        thread_mock = mock.Mock()
-        thread_mock.kill = mock.Mock()
-        thread_mock.wait = mock.Mock()
-        mock_spawn.return_value = thread_mock
+        mock_thread = mock.Mock()
+        mock_thread_class = self._mock_object(threading, "Thread")
+        mock_thread_class.return_value = mock_thread
 
         self.manager.start_task_executor()
         mock_on_start.assert_called_once()
-        mock_spawn.assert_called_once()
+        mock_thread_class.assert_called_once()
+        mock_thread.start.assert_called_once()
         self.assertIsNotNone(self.manager.worker_thread)
 
         self.manager.stop_task_executor()
-        thread_mock.kill.assert_called_once()
-        thread_mock.wait.assert_called_once()
         self.assertIsNone(self.manager.worker_thread)
 
-    def test_worker_task_loop_exits_on_greenlet_exit(self):
-        """Test that worker_task_loop exits gracefully on GreenletExit."""
+    def test_worker_task_loop_exits_on_system_exit(self):
+        """Test that worker_task_loop exits on SystemExit."""
         mock_sleep = self._mock_object(time, "sleep")
-        mock_sleep.side_effect = greenlet.GreenletExit
-        self.manager.worker_task_loop()  # Should exit cleanly without error
+        mock_sleep.side_effect = SystemExit
+        self.assertRaises(SystemExit, self.manager.worker_task_loop)
 
     def test_worker_task_loop_handles_generic_exception(self):
         """Test worker_task_loop logs exceptions and continues."""
 
         self.manager.run_periodic_tasks = mock.Mock(
-            side_effect=[Exception("exc"), greenlet.GreenletExit]
+            side_effect=[Exception("exc"), SystemExit]
         )
         self._mock_object(time, "sleep")
         mock_log = self._mock_object(cert_mon_manager.LOG, "exception")
-        self.manager.worker_task_loop()
+        self.assertRaises(SystemExit, self.manager.worker_task_loop)
         mock_log.assert_called_once()
 
 
 class TestCertWatcherBehavior(CertMonManagerBase):
     def test_stop_cert_watcher(self):
-        """Test that stop_cert_watcher kills and clears mon_thread."""
+        """Test that stop_cert_watcher clears mon_thread."""
 
         thread = mock.Mock()
         self.manager.mon_thread = thread
 
         self.manager.stop_cert_watcher()
-        thread.kill.assert_called_once()
-        thread.wait.assert_called_once()
         self.assertIsNone(self.manager.mon_thread)
 
     def test_start_cert_watcher_retry_on_exception(self):
@@ -748,11 +742,13 @@ class TestCertWatcherBehavior(CertMonManagerBase):
         mock_class = self._mock_object(dccertmon.common.watcher, "DC_CertWatcher")
         mock_class.side_effect = Exception("fail"), mock.Mock()
         mock_sleep = self._mock_object(time, "sleep")
-        mock_spawn = self._mock_object(eventlet.greenthread, "spawn")
+        mock_thread = mock.Mock()
+        mock_thread_class = self._mock_object(threading, "Thread")
+        mock_thread_class.return_value = mock_thread
         self.manager.start_cert_watcher()
         self.assertEqual(mock_class.call_count, 2)
         mock_sleep.assert_called_once()
-        mock_spawn.assert_called_once()
+        mock_thread_class.assert_called_once()
 
     def test_stop_cert_watcher_when_mon_thread_is_none(self):
         """Test stop_cert_watcher does nothing if mon_thread is None."""
@@ -760,20 +756,20 @@ class TestCertWatcherBehavior(CertMonManagerBase):
         self.manager.mon_thread = None
         self.manager.stop_cert_watcher()
 
-    def test_monitor_cert_loop_greenlet_exit(self):
-        """Test that monitor_cert_loop exits on GreenletExit from start_watch."""
+    def test_monitor_cert_loop_exits_on_system_exit(self):
+        """Test that monitor_cert_loop exits on SystemExit from start_watch."""
 
         fake_monitor = mock.Mock()
-        fake_monitor.start_watch.side_effect = greenlet.GreenletExit
+        fake_monitor.start_watch.side_effect = SystemExit
 
-        self.manager.monitor_cert_loop(fake_monitor)  # Should exit without exception
+        self.assertRaises(SystemExit, self.manager.monitor_cert_loop, fake_monitor)
 
     def test_monitor_cert_loop_handles_unexpected_exception(self):
         """Test monitor_cert_loop handles exceptions and sleeps before retry."""
 
         fake_monitor = mock.Mock()
-        # Raise Exception once, then GreenletExit to break loop
-        fake_monitor.start_watch.side_effect = [Exception("exc"), greenlet.GreenletExit]
+        # Raise Exception once, then SystemExit to break loop
+        fake_monitor.start_watch.side_effect = [Exception("exc"), SystemExit]
         mock_sleep = self._mock_object(time, "sleep")
-        self.manager.monitor_cert_loop(fake_monitor)
+        self.assertRaises(SystemExit, self.manager.monitor_cert_loop, fake_monitor)
         self.assertTrue(mock_sleep.called)

@@ -9,13 +9,13 @@ import json
 import re
 import socket
 import ssl
+import subprocess
 import tempfile
 
 import requests
 
 import netaddr
 
-from eventlet.green import subprocess
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log

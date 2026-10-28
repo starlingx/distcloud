@@ -1,33 +1,27 @@
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+import threading
 import time
 
-import eventlet
+from keystoneauth1 import session
 
-eventlet.monkey_patch(os=False)
-
-# pylint: disable=wrong-import-position
-from keystoneauth1 import session  # noqa: E402
-
-from dccommon.endpoint_cache import EndpointCache  # noqa: E402
-from dccertmon.common import (  # noqa: E402
+from dccommon.endpoint_cache import EndpointCache
+from dccertmon.common import (
     certificate_monitor_manager as cert_mon_manager,
 )
-from dccertmon.common.service import CertificateMonitorService  # noqa: E402
-from dccertmon.common.subcloud_audit_queue import (  # noqa: E402
+from dccertmon.common.service import CertificateMonitorService
+from dccertmon.common.subcloud_audit_queue import (
     NotificationAuditQueue,
     SubcloudAuditData,
     SubcloudAuditException,
 )
-from dccertmon.tests.base import DCCertMonTestCase  # noqa: E402
-
-# pylint: enable=wrong-import-position
+from dccertmon.tests.base import DCCertMonTestCase
 
 # Shared function for mocking certificate retrieval
 audit_order = []
-first_started = eventlet.event.Event()
+first_started = threading.Event()
 AUDIT_SLEEP_TIME = 3
 
 
@@ -40,9 +34,9 @@ def slow_get_cert(*args, **kwargs):
     ts = time.time()
     audit_order.append(ts)
     if len(audit_order) == 1:
-        first_started.send()
+        first_started.set()
         # Simulate long-running audit for holding the lock
-        eventlet.sleep(AUDIT_SLEEP_TIME)
+        time.sleep(AUDIT_SLEEP_TIME)
     return None
 
 
@@ -98,7 +92,7 @@ class NotificationAuditBehaviorTestCase(DCCertMonTestCase):
         super().setUp()
         global audit_order, first_started
         audit_order = []
-        first_started = eventlet.event.Event()
+        first_started = threading.Event()
         self.manager = cert_mon_manager.CertificateMonitorManager()
         self.manager.sc_audit_pool = None  # Force serial execution
         self.service = CertificateMonitorService()
@@ -162,18 +156,20 @@ class NotificationAuditBehaviorTestCase(DCCertMonTestCase):
         self.mock_slow_get_cert.side_effect = slow_get_cert
 
         # Spawn first audit and wait until it starts (acquires the lock)
-        t1 = eventlet.spawn(
-            self.manager.do_subcloud_audit, self.manager.sc_audit_queue, item1
+        t1 = threading.Thread(
+            target=self.manager.do_subcloud_audit,
+            args=(self.manager.sc_audit_queue, item1),
         )
+        t1.start()
         first_started.wait(timeout=5)
 
         # Spawn second audit while first is still holding the lock
-        t2 = eventlet.spawn(
-            self.manager.do_subcloud_audit,
-            self.manager.sc_notify_audit_queue,
-            item2,
+        t2 = threading.Thread(
+            target=self.manager.do_subcloud_audit,
+            args=(self.manager.sc_notify_audit_queue, item2),
         )
-        eventlet.sleep(1)
+        t2.start()
+        time.sleep(1)
 
         # Assert that the second audit hasn't started yet
         self.assertEqual(
@@ -183,8 +179,8 @@ class NotificationAuditBehaviorTestCase(DCCertMonTestCase):
         )
 
         # Wait for both audits to complete
-        t1.wait()
-        t2.wait()
+        t1.join()
+        t2.join()
 
         self.assertEqual(len(audit_order), 2, "Both audits should have run")
         self.assertLess(
@@ -206,21 +202,23 @@ class NotificationAuditBehaviorTestCase(DCCertMonTestCase):
         self.mock_slow_get_cert.side_effect = slow_get_cert
 
         # Spawn both audits for different subclouds simultaneously
-        t1 = eventlet.spawn(
-            self.manager.do_subcloud_audit, self.manager.sc_audit_queue, item1
+        t1 = threading.Thread(
+            target=self.manager.do_subcloud_audit,
+            args=(self.manager.sc_audit_queue, item1),
         )
-        t2 = eventlet.spawn(
-            self.manager.do_subcloud_audit,
-            self.manager.sc_notify_audit_queue,
-            item2,
+        t2 = threading.Thread(
+            target=self.manager.do_subcloud_audit,
+            args=(self.manager.sc_notify_audit_queue, item2),
         )
-        eventlet.sleep(1)
+        t1.start()
+        t2.start()
+        time.sleep(1)
 
         # Both audits should have started within a short time
         self.assertEqual(len(audit_order), 2, "Both audits should have started")
 
-        t1.wait()
-        t2.wait()
+        t1.join()
+        t2.join()
 
         self.assertLess(
             abs(audit_order[0] - audit_order[1]),

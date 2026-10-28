@@ -15,10 +15,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import heapq
+from queue import PriorityQueue
 import time
 
-from eventlet.queue import PriorityQueue
 from oslo_log import log
 
 LOG = log.getLogger(__name__)
@@ -99,18 +98,18 @@ class SubcloudAuditPriorityQueue(PriorityQueue):
         sc_audit_item.timestamp = timestamp
         self.put((timestamp, sc_audit_item))
 
-    def _get(self, heappop=heapq.heappop):
+    def _get(self):
         """Modifies PriorityQueue.get() to track audited subcloud names."""
-        item = PriorityQueue._get(self, heappop)
+        item = PriorityQueue._get(self)
         self.enqueued_subcloud_names.remove(item[1].name)
         return item
 
-    def _put(self, item, heappush=heapq.heappush):
+    def _put(self, item):
         """Modifies PriorityQueue.put() to track audited subcloud names."""
         subcloud_audit = item[1]
         self.enqueued_subcloud_names.append(subcloud_audit.name)
         LOG.info(f"Background queue: Enqueued {str(subcloud_audit)}")
-        PriorityQueue._put(self, item, heappush)
+        PriorityQueue._put(self, item)
 
 
 class NotificationAuditQueue(SubcloudAuditPriorityQueue):
@@ -120,9 +119,9 @@ class NotificationAuditQueue(SubcloudAuditPriorityQueue):
     of other audits in progress.
     """
 
-    def _put(self, item, heappush=heapq.heappush):
+    def _put(self, item):
         """Modifies PriorityQueue.put() to track audited subcloud names."""
         subcloud_audit = item[1]
         self.enqueued_subcloud_names.append(subcloud_audit.name)
         LOG.info(f"Notification queue: Enqueued {str(subcloud_audit)}")
-        PriorityQueue._put(self, item, heappush)
+        PriorityQueue._put(self, item)

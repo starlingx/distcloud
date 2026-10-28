@@ -49,7 +49,7 @@ config_values = {
         "network_retry_interval": "180",
         "network_max_retry": "30",
         "audit_batch_size": "40",
-        "audit_greenpool_size": "20",
+        "audit_threadpool_size": "20",
         "certificate_timeout_secs": "5",
     },
     "endpoint_cache": {
@@ -110,11 +110,11 @@ dc_cert_mon_opts = [
         help="Batch size of subcloud audits per audit_interval",
     ),
     cfg.IntOpt(
-        "audit_greenpool_size",
+        "audit_threadpool_size",
         default=20,
         help=(
-            "Size of subcloud audit greenpool. "
-            "Set to 0 to disable use of greenpool (force serial audit).",
+            "Size of subcloud audit thread pool. "
+            "Set to 0 to disable use of thread pool (force serial audit).",
         ),
     ),
     cfg.IntOpt(
