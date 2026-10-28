@@ -15,7 +15,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import eventlet
 from oslo_config import cfg
 import oslo_messaging
 from oslo_serialization import jsonutils
@@ -23,6 +22,7 @@ from oslo_serialization import jsonutils
 from dcdbsync.common import context
 
 TRANSPORT = None
+NOTIFICATION_TRANSPORT = None
 NOTIFIER = None
 
 
@@ -57,12 +57,7 @@ class JsonPayloadSerializer(oslo_messaging.NoOpSerializer):
 
 def setup(url=None, optional=False):
     """Initialise the oslo_messaging layer."""
-    global TRANSPORT, NOTIFIER
-
-    if url and url.startswith("fake://"):
-        # NOTE: oslo_messaging fake driver uses time.sleep
-        # for task switch, so we need to monkey_patch it
-        eventlet.monkey_patch(time=True)
+    global TRANSPORT, NOTIFICATION_TRANSPORT, NOTIFIER
 
     if not TRANSPORT:
         oslo_messaging.set_transport_defaults("dcdbsync")
@@ -76,24 +71,33 @@ def setup(url=None, optional=False):
             if not optional or e.url:
                 raise
 
-    if not NOTIFIER and TRANSPORT:
+    if not NOTIFICATION_TRANSPORT and TRANSPORT:
+        NOTIFICATION_TRANSPORT = oslo_messaging.get_notification_transport(
+            cfg.CONF, url
+        )
+
+    if not NOTIFIER and NOTIFICATION_TRANSPORT:
         serializer = RequestContextSerializer(JsonPayloadSerializer())
-        NOTIFIER = oslo_messaging.Notifier(TRANSPORT, serializer=serializer)
+        NOTIFIER = oslo_messaging.Notifier(
+            NOTIFICATION_TRANSPORT, serializer=serializer
+        )
 
 
 def cleanup():
     """Cleanup the oslo_messaging layer."""
-    global TRANSPORT, NOTIFIER
+    global TRANSPORT, NOTIFICATION_TRANSPORT, NOTIFIER
+    if NOTIFICATION_TRANSPORT:
+        NOTIFICATION_TRANSPORT.cleanup()
     if TRANSPORT:
         TRANSPORT.cleanup()
-        TRANSPORT = NOTIFIER = None
+    TRANSPORT = NOTIFICATION_TRANSPORT = NOTIFIER = None
 
 
 def get_rpc_server(target, endpoint):
     """Return a configured oslo_messaging rpc server."""
     serializer = RequestContextSerializer(JsonPayloadSerializer())
     return oslo_messaging.get_rpc_server(
-        TRANSPORT, target, [endpoint], executor="eventlet", serializer=serializer
+        TRANSPORT, target, [endpoint], executor="threading", serializer=serializer
     )
 
 
