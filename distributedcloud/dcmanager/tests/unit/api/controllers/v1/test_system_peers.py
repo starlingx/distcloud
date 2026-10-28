@@ -256,7 +256,14 @@ class SystemPeersPropertiesValidationMixin(object):
             system_peers.MIN_SYSTEM_PEER_HEARTBEAT_INTERVAL - 1,
             system_peers.MAX_SYSTEM_PEER_HEARTBEAT_INTERVAL + 1,
             -1,
+            # 0 is covered explicitly because it is falsy. The minimum is 10, so
+            # MIN - 1 above is 9 and never exercises that case on its own.
+            0,
             "fake",
+            # A list or object reaches int() and raises TypeError rather than
+            # ValueError, which the validators must also reject.
+            [],
+            {},
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -274,20 +281,18 @@ class SystemPeersPropertiesValidationMixin(object):
     def test_request_fails_with_invalid_heartbeat_failure_threshold(self):
         """Test request fails with invalid heartbeat failure threshold"""
 
+        # MIN - 1 is 0 here, which is falsy and must still be rejected, so no
+        # separate 0 entry is needed.
         invalid_values = [
             system_peers.MIN_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD - 1,
             system_peers.MAX_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD + 1,
             -1,
             "fake",
+            # A list or object reaches int() and raises TypeError rather than
+            # ValueError, which the validators must also reject.
+            [],
+            {},
         ]
-
-        # When the request method is patch, the invalid_value 0 results in the if
-        # condition returning false as if a value was not sent. Because of that,
-        # it needs to be removed from the validation.
-        if self.method == self.app.patch_json:
-            invalid_values.remove(
-                system_peers.MIN_SYSTEM_PEER_HEARTBEAT_FAILURE_THRESHOLD - 1
-            )
 
         for index, invalid_value in enumerate(invalid_values, start=1):
             self.params["heartbeat_failure_threshold"] = invalid_value
@@ -322,7 +327,14 @@ class SystemPeersPropertiesValidationMixin(object):
             system_peers.MIN_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT - 1,
             system_peers.MAX_SYSTEM_PEER_HEARTBEAT_MAINTENACE_TIMEOUT + 1,
             -1,
+            # 0 is covered explicitly because it is falsy. The minimum is 300,
+            # so MIN - 1 above is 299 and never exercises that case on its own.
+            0,
             "fake",
+            # A list or object reaches int() and raises TypeError rather than
+            # ValueError, which the validators must also reject.
+            [],
+            {},
         ]
 
         for index, invalid_value in enumerate(invalid_values, start=1):
@@ -539,6 +551,73 @@ class TestSystemPeersPatch(BaseTestSystemPeersPatch, UpdateMixin):
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "nothing to update"
         )
+
+    def test_patch_rejects_zero_rather_than_reporting_nothing_to_update(self):
+        """Test patch treats a zero heartbeat property as supplied
+
+        Each numeric heartbeat property is sent on its own so that it alone
+        decides the aggregate guard. Zero is falsy, so the guard must still
+        recognise the property as supplied and let validation reject the value
+        instead of reporting that there is nothing to update.
+        """
+
+        system_peer = self._create_db_object(self.ctx)
+
+        self.url = f"{self.url}/{system_peer.peer_uuid}"
+
+        properties = [
+            ("heartbeat_interval", "Invalid peer heartbeat_interval"),
+            (
+                "heartbeat_failure_threshold",
+                "Invalid peer heartbeat_failure_threshold",
+            ),
+            (
+                "heartbeat_maintenance_timeout",
+                "Invalid peer heartbeat_maintenance_timeout",
+            ),
+        ]
+
+        for index, (name, error_message) in enumerate(properties, start=1):
+            self.params = {name: 0}
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response,
+                http.client.BAD_REQUEST,
+                error_message,
+                call_count=index,
+            )
+
+    def test_patch_fails_when_heartbeat_properties_are_null(self):
+        """Test patch reports nothing to update for a null heartbeat property
+
+        An explicit null must remain indistinguishable from an omitted
+        property, so the aggregate guard still reports that there is nothing
+        to update rather than validating the value.
+        """
+
+        system_peer = self._create_db_object(self.ctx)
+
+        self.url = f"{self.url}/{system_peer.peer_uuid}"
+
+        properties = [
+            "heartbeat_interval",
+            "heartbeat_failure_threshold",
+            "heartbeat_maintenance_timeout",
+        ]
+
+        for index, name in enumerate(properties, start=1):
+            self.params = {name: None}
+
+            response = self._send_request()
+
+            self._assert_pecan_and_response(
+                response,
+                http.client.BAD_REQUEST,
+                "nothing to update",
+                call_count=index,
+            )
 
     @mock.patch.object(db_api, "system_peer_update")
     def test_patch_fails_with_db_api_remote_error(self, mock_db_api):
