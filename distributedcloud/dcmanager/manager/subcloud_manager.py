@@ -29,13 +29,12 @@ import os
 from pathlib import Path
 import random
 import shutil
+import subprocess
 import tempfile
 import threading
 import time
 from typing import Optional, Any
 
-from eventlet.green import subprocess
-from eventlet import greenpool
 from fm_api import constants as fm_const
 from fm_api import fm_api
 import keyring
@@ -58,6 +57,7 @@ from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon.exceptions import SubcloudNotFound
 from dccommon import kubeoperator
+from dccommon import scheduler
 from dccommon.subcloud_enrollment import SubcloudEnrollmentInit
 from dccommon.subcloud_install import SubcloudInstall
 from dccommon import utils as dccommon_utils
@@ -1008,7 +1008,9 @@ class SubcloudManager(manager.Manager):
         system_peers = self._get_peer_system_list(peer_group)
 
         # Use thread pool to limit number of operations in parallel
-        migrate_pool = greenpool.GreenPool(size=peer_group.max_subcloud_rehoming)
+        migrate_pool = scheduler.ThreadGroupManager(
+            thread_pool_size=peer_group.max_subcloud_rehoming
+        )
         # Spawn threads to migrate each applicable subcloud
         tmp_payload = {"sysadmin_password": sysadmin_password}
         migrate_function = functools.partial(
@@ -1229,7 +1231,9 @@ class SubcloudManager(manager.Manager):
         self._mark_invalid_subclouds_for_backup(context, invalid_subclouds)
 
         # Use thread pool to limit number of operations in parallel
-        backup_pool = greenpool.GreenPool(size=MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE)
+        backup_pool = scheduler.ThreadGroupManager(
+            thread_pool_size=MAX_PARALLEL_SUBCLOUD_BACKUP_CREATE
+        )
 
         # Spawn threads to back up each applicable subcloud
         backup_function = functools.partial(self._backup_subcloud, context, payload)
@@ -1261,7 +1265,9 @@ class SubcloudManager(manager.Manager):
 
         # Use thread pool to limit number of operations in parallel
         max_parallel_operations = MAX_PARALLEL_SUBCLOUD_BACKUP_DELETE
-        backup_delete_pool = greenpool.GreenPool(size=max_parallel_operations)
+        backup_delete_pool = scheduler.ThreadGroupManager(
+            thread_pool_size=max_parallel_operations
+        )
 
         failed_subclouds = self._run_parallel_group_operation(
             "backup delete",
@@ -1316,8 +1322,8 @@ class SubcloudManager(manager.Manager):
                 context,
                 payload,
             )
-            restore_pool = greenpool.GreenPool(
-                size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE
+            restore_pool = scheduler.ThreadGroupManager(
+                thread_pool_size=MAX_PARALLEL_SUBCLOUD_BACKUP_RESTORE
             )
             failed_subclouds = self._run_parallel_group_operation(
                 "backup restore", restore_function, restore_pool, restore_subclouds
@@ -2409,21 +2415,44 @@ class SubcloudManager(manager.Manager):
     def _run_parallel_group_operation(op_type, op_function, thread_pool, subclouds):
         failed_subclouds = []
         processed = 0
+        # One slot per subcloud, in submission order. Appending to a list
+        # would store results in the order the threads finish, so results[i]
+        # would not always belong to the i-th subcloud. With a fixed slot per
+        # subcloud, the results come back in submission order, similar to something
+        # like greenpool.GreenPool.imap() implementation. No lock is
+        # needed because each thread writes only to its own slot, and slot i
+        # is read only after thread.wait() has joined thread i.
+        results = [None] * len(subclouds)
 
-        for subcloud, success in thread_pool.imap(op_function, subclouds):
-            processed += 1
+        def _run_and_collect(index, sc):
+            results[index] = op_function(sc)
 
-            if not success:
-                failed_subclouds.append(subcloud)
+        try:
+            threads = [
+                thread_pool.start(_run_and_collect, index, sc)
+                for index, sc in enumerate(subclouds)
+            ]
+            for index, thread in enumerate(threads):
+                thread.wait()
 
-            completion = float(processed) / float(len(subclouds)) * 100
-            remaining = len(subclouds) - processed
-            LOG.info(
-                "Processed subcloud %s for %s (operation %.0f%% "
-                "complete, %d subcloud(s) remaining)"
-                % (subcloud.name, op_type, completion, remaining)
-            )
+                subcloud, success = results[index]
+                processed += 1
 
+                if not success:
+                    failed_subclouds.append(subcloud)
+
+                completion = float(processed) / float(len(subclouds)) * 100
+                remaining = len(subclouds) - processed
+                LOG.info(
+                    "Processed subcloud %s for %s (operation %.0f%% "
+                    "complete, %d subcloud(s) remaining)"
+                    % (subcloud.name, op_type, completion, remaining)
+                )
+        finally:
+            # If thread.wait() re-raises an exception from one subcloud, the
+            # other threads are still running. A graceful stop waits for them
+            # to finish before the exception reaches the caller.
+            thread_pool.stop(graceful=True)
         return failed_subclouds
 
     def _backup_subcloud(self, context, payload, subcloud):
@@ -2735,6 +2764,7 @@ class SubcloudManager(manager.Manager):
                     gen_seed_iso_command,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
+                    check=False,
                 )
 
                 output = result.stdout.decode("utf-8").replace("\n", ", ")

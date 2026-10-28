@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB
-# Copyright (c) 2017-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2017-2022, 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,7 +19,7 @@ import random
 import string
 import uuid
 
-import eventlet
+import time
 
 from dcmanager.common import context
 from dcmanager.db import api as db_api
@@ -62,9 +62,14 @@ def dummy_context(user="test_username", tenant="test_project_id", region_name=No
 
 
 def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
-    with eventlet.timeout.Timeout(timeout, exception):
-        while not predicate():
-            eventlet.sleep(sleep)
+    elapsed = 0
+    while not predicate():
+        if elapsed >= timeout:
+            if exception:
+                raise exception
+            raise Exception("Timed out after %d seconds" % timeout)
+        time.sleep(sleep)
+        elapsed += sleep
 
 
 def create_subcloud_dict(data_list):

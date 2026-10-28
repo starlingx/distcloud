@@ -127,6 +127,22 @@ class TestOrchestratorWorkerOrchestrate(BaseTestOrchestratorWorker):
         )
         self.assertIsNotNone(self.orchestrator_worker._last_update)
 
+    def test_orchestrate_sets_last_update_before_starting_thread(self):
+        """Test _last_update is set before the orchestration thread starts."""
+        last_update_seen_by_thread = []
+
+        def record_last_update(*args, **kwargs):
+            last_update_seen_by_thread.append(self.orchestrator_worker._last_update)
+
+        self.orchestrator_worker.thread_group_manager.start.side_effect = (
+            record_last_update
+        )
+
+        self.orchestrator_worker.orchestrate(self.steps_data, self.strategy.type)
+
+        self.assertEqual(1, len(last_update_seen_by_thread))
+        self.assertIsNotNone(last_update_seen_by_thread[0])
+
     def test_orchestrate_with_active_strategy(self):
         """Test orchestrate with active strategy
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -242,7 +242,6 @@ class TestSubcloudAuditManager(DCManagerTestCase):
         )
 
         self.mock_os_path = self._mock_object(os, "path")
-        self.mock_eventlet = self._mock_object(subcloud_audit_manager, "eventlet")
         self.mock_db = self._mock_object(
             subcloud_audit_manager, "db_api", subcloud_audit_manager.db_api
         )

@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Copyright (c) 2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2022, 2024, 2026 Wind River Systems, Inc.
 #
 # The right to copy, distribute, modify, or otherwise make use
 # of this software may be licensed only pursuant to the terms
@@ -23,11 +23,12 @@
 DC Manager State Engine Server.
 """
 
-import eventlet
+from oslo_service.backend import BackendType  # noqa: E402
+from oslo_service.backend import init_backend  # noqa: E402
 
-eventlet.monkey_patch()
+init_backend(BackendType.THREADING)
 
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position,ungrouped-imports
 from oslo_config import cfg  # noqa: E402
 from oslo_i18n import _lazy  # noqa: E402
 from oslo_log import log as logging  # noqa: E402

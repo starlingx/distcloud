@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2021, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -21,12 +21,12 @@ from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import service
 
+from dccommon import scheduler
 from dccommon.subprocess_cleanup import SubprocessCleanup
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import messaging as rpc_messaging
-from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.orchestrator.orchestrator_manager import OrchestratorManager
 from dcmanager.orchestrator.orchestrator_worker import OrchestratorWorker

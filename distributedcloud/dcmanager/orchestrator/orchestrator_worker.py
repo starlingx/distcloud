@@ -26,11 +26,11 @@ from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import vim
+from dccommon import scheduler
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import prestage
-from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator.rpcapi import ManagerOrchestratorClient
@@ -207,8 +207,8 @@ class OrchestratorWorker(object):
                 # name
                 self.steps_received = steps_id
             self.strategy_type = strategy_type
-            self.thread_group_manager.start(self.orchestration_thread)
             self._last_update = timeutils.utcnow()
+            self.thread_group_manager.start(self.orchestration_thread)
         else:
             # There can only be a single strategy executing at all times. Because of
             # that, if the strategy is already being tracked in the worker, only the

@@ -19,21 +19,21 @@ import datetime
 import os
 import shutil
 import threading
+import time
 
-import eventlet
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
 from dccommon import ostree_mount
+from dccommon import scheduler
 from dcmanager.audit import rpcapi as dcmanager_audit_rpc_client
 from dcmanager.common import consts
 from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common import manager
 from dcmanager.common import prestage
-from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import rpcapi as orchestrator_rpcapi
@@ -163,9 +163,9 @@ class OrchestratorManager(manager.Manager):
 
         while self._monitor_strategy:
             try:
-                eventlet.greenthread.sleep(self.sleep_time)
+                time.sleep(self.sleep_time)
                 self._periodic_strategy_monitoring_loop(strategy_type)
-            except eventlet.greenlet.GreenletExit:
+            except SystemExit:
                 # Exit the execution
                 return
             except exceptions.StrategyNotFound:

@@ -15,9 +15,9 @@
 #
 
 import datetime
-import mock
+import time
 
-import eventlet
+import mock
 from oslo_utils import timeutils
 
 from dccommon import consts as dccommon_consts
@@ -916,7 +916,7 @@ class TestOrchestratorManagerStrategyMonitoringThread(BaseTestOrchestratorManage
             max_parallel_subclouds=1,
         )
 
-        self.mock_greenthread = self._mock_object(eventlet, "greenthread")
+        self.mock_sleep = self._mock_object(time, "sleep")
         self.orchestrator_manager._periodic_strategy_monitoring_loop = mock.MagicMock()
         self._monitoring_loop = (
             self.orchestrator_manager._periodic_strategy_monitoring_loop
@@ -925,9 +925,9 @@ class TestOrchestratorManagerStrategyMonitoringThread(BaseTestOrchestratorManage
     def test_periodic_monitoring_thread_succeeds(self):
         """Test periodic monitoring thread succeeds"""
 
-        self.mock_greenthread.sleep.side_effect = [
+        self.mock_sleep.side_effect = [
             None,
-            eventlet.greenlet.GreenletExit(),
+            SystemExit(),
         ]
 
         self.orchestrator_manager.periodic_strategy_monitoring(self.strategy.type)
@@ -941,9 +941,9 @@ class TestOrchestratorManagerStrategyMonitoringThread(BaseTestOrchestratorManage
     def test_periodic_monitoring_thread_succeeds_with_monitor_stopped(self):
         """Test periodic monitoring thread succeeds with monitor stop"""
 
-        self.mock_greenthread.sleep.side_effect = [
+        self.mock_sleep.side_effect = [
             None,
-            eventlet.greenlet.GreenletExit(),
+            SystemExit(),
         ]
 
         self._monitoring_loop.side_effect = self._stop_strategy
@@ -956,9 +956,9 @@ class TestOrchestratorManagerStrategyMonitoringThread(BaseTestOrchestratorManage
     def test_periodic_monitoring_thread_fails_with_strategy_not_found(self):
         """Test periodic monitoring thread fails with strategy not found"""
 
-        self.mock_greenthread.sleep.side_effect = [
+        self.mock_sleep.side_effect = [
             None,
-            eventlet.greenlet.GreenletExit(),
+            SystemExit(),
         ]
         self._monitoring_loop.side_effect = exceptions.StrategyNotFound()
 
@@ -972,9 +972,9 @@ class TestOrchestratorManagerStrategyMonitoringThread(BaseTestOrchestratorManage
     def test_periodic_monitoring_thread_fails_with_generic_exception(self):
         """Test periodic monitoring thread fails with generic exception"""
 
-        self.mock_greenthread.sleep.side_effect = [
+        self.mock_sleep.side_effect = [
             None,
-            eventlet.greenlet.GreenletExit(),
+            SystemExit(),
         ]
 
         self._monitoring_loop.side_effect = Exception("fake")

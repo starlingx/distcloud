@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2025-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -18,9 +18,9 @@ import mock
 from oslo_config import cfg
 
 from dccommon import consts as dccommon_consts
+from dccommon.scheduler import ThreadGroupManager
 from dcmanager.common import consts
 from dcmanager.common import context
-from dcmanager.common.scheduler import ThreadGroupManager
 from dcmanager.db import api as db_api
 from dcmanager.orchestrator import orchestrator_worker
 from dcmanager.orchestrator.states.base import BaseState

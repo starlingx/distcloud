@@ -5,11 +5,14 @@
 #
 
 import json
+import threading
+import time
 import uuid
 
 import mock
 
 from dccommon import exceptions as dccommon_exceptions
+from dccommon import scheduler
 from dcmanager.audit import rpcapi
 from dcmanager.common import consts
 from dcmanager.common import exceptions
@@ -210,35 +213,54 @@ class TestSystemPeerManager(base.DCManagerTestCase):
             "subcloud1", self.data_install, rehome_data=json.dumps(rehome_data)
         )
         self._create_subcloud("subcloud2", rehome_data=json.dumps(rehome_data))
-        self.mock_dc_client().get_subcloud.side_effect = [
-            self.peer_subcloud1,
-            dccommon_exceptions.SubcloudNotFound,
-            self.peer_subcloud1,
-            dccommon_exceptions.SubcloudNotFound,
-            self.peer_subcloud3,
-        ]
+
+        # Use a function for side_effect to be thread-safe since
+        # _run_parallel_group_operation uses real threads
+        def _get_subcloud_side_effect(name):
+            if name == self.peer_subcloud1.get("name"):
+                return self.peer_subcloud1
+            elif name == self.peer_subcloud2.get("name"):
+                raise dccommon_exceptions.SubcloudNotFound(subcloud_ref=name)
+            elif name == self.peer_subcloud3.get("name"):
+                return self.peer_subcloud3
+            raise dccommon_exceptions.SubcloudNotFound(subcloud_ref=name)
+
+        self.mock_dc_client().get_subcloud.side_effect = _get_subcloud_side_effect
         self.mock_dc_client().get_subcloud_list_by_peer_group.return_value = [
             self.peer_subcloud1,
             self.peer_subcloud2,
             self.peer_subcloud3,
         ]
-        self.mock_dc_client().update_subcloud.side_effect = [
-            self.peer_subcloud1,
-            self.peer_subcloud1,
-            self.peer_subcloud2,
-        ]
+
+        # Like get_subcloud, return by subcloud ref so the result does not
+        # depend on which sync thread calls update_subcloud first
+        def _update_subcloud_side_effect(subcloud_ref, *args, **kwargs):
+            if subcloud_ref == FAKE_SITE1_SUBCLOUD2_REGION_NAME:
+                return self.peer_subcloud2
+            return self.peer_subcloud1
+
+        self.mock_dc_client().update_subcloud.side_effect = _update_subcloud_side_effect
 
         self.spm._sync_subclouds(
             self.ctx, self.peer, self.peer_group.id, FAKE_SITE1_PEER_GROUP_ID
         )
 
-        self.mock_dc_client().get_subcloud.assert_has_calls(
-            [
-                mock.call(self.peer_subcloud1.get("name")),
-                mock.call(self.peer_subcloud2.get("name")),
-                mock.call(self.peer_subcloud3.get("name")),
-            ]
+        get_subcloud_calls = self.mock_dc_client().get_subcloud.call_args_list
+        sync_calls = [
+            mock.call(self.peer_subcloud1.get("name")),
+            mock.call(self.peer_subcloud2.get("name")),
+        ]
+        # _validate_subclouds_for_sync runs sequentially before the sync threads
+        self.assertEqual(sync_calls, get_subcloud_calls[:2])
+        # _run_parallel_group_operation returns results in submission order,
+        # but the sync threads run concurrently, so they can call get_subcloud
+        # in any order
+        self.assertCountEqual(sync_calls, get_subcloud_calls[2:4])
+        # The peer site cleanup runs only after all the sync threads finished
+        self.assertEqual(
+            [mock.call(self.peer_subcloud3.get("name"))], get_subcloud_calls[4:]
         )
+        # The update_subcloud calls are all made by the sync threads
         self.mock_dc_client().update_subcloud.assert_has_calls(
             [
                 mock.call("subcloud1", mock.ANY, mock.ANY, is_region_name=True),
@@ -254,10 +276,56 @@ class TestSystemPeerManager(base.DCManagerTestCase):
                     data={"peer_group": str(FAKE_SITE1_PEER_GROUP_ID)},
                     is_region_name=True,
                 ),
-            ]
+            ],
+            any_order=True,
         )
         self.mock_dc_client().add_subcloud_with_secondary_status.assert_called_once()
         self.mock_dc_client().delete_subcloud.assert_called_once_with("subcloud3")
+
+    def test_run_parallel_group_operation_results_in_submission_order(self):
+        """Results are consumed in submission order, not completion order.
+
+        Each subcloud sleeps longer than the next one, so the threads finish
+        in the reverse order they were started. The processed log messages
+        and the failed subclouds must still follow the submission order.
+        """
+        subclouds = []
+        for i in range(5):
+            subcloud = mock.Mock()
+            subcloud.name = f"subcloud-{i}"
+            subcloud.msg = f"error-{i}"
+            subclouds.append(subcloud)
+        failing_subclouds = [subclouds[1], subclouds[3]]
+        finish_order = []
+        finish_lock = threading.Lock()
+
+        def op_function(subcloud):
+            index = subclouds.index(subcloud)
+            time.sleep((len(subclouds) - 1 - index) * 0.1)
+            with finish_lock:
+                finish_order.append(subcloud)
+            return subcloud, subcloud not in failing_subclouds
+
+        failed_subclouds, error_msg = self.spm._run_parallel_group_operation(
+            "test op",
+            op_function,
+            scheduler.ThreadGroupManager(thread_pool_size=len(subclouds)),
+            subclouds,
+        )
+
+        # The threads finished in the reverse order they were started
+        self.assertEqual(list(reversed(subclouds)), finish_order)
+        self.assertEqual(failing_subclouds, failed_subclouds)
+        self.assertEqual({"subcloud-1": "error-1", "subcloud-3": "error-3"}, error_msg)
+        expected_logs = [
+            mock.call(
+                f"Processed subcloud {subcloud.name} for test op (operation "
+                f"{(i + 1) * 20}% complete, {len(subclouds) - i - 1} "
+                "subcloud(s) remaining)"
+            )
+            for i, subcloud in enumerate(subclouds)
+        ]
+        self.assertEqual(expected_logs, self.mock_log.info.call_args_list)
 
     def test_sync_subcloud_peer_group(self):
         self.mock_get_local_system().get_local_system = mock.MagicMock()

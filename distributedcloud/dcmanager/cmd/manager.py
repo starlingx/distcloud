@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (c) 2017-2021, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2024-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,10 +19,12 @@
 DC Manager Engine Server.
 """
 
-# pylint: disable=wrong-import-position
-import eventlet
+from oslo_service.backend import BackendType  # noqa: E402
+from oslo_service.backend import init_backend  # noqa: E402
 
-eventlet.monkey_patch()
+init_backend(BackendType.THREADING)
+
+# pylint: disable=wrong-import-position,ungrouped-imports
 
 import multiprocessing  # noqa: E402  # pylint: disable=wrong-import-order
 
