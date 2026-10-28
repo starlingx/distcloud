@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024, 2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,10 +9,8 @@ import pecan
 from keystonemiddleware import auth_token
 from oslo_config import cfg
 from oslo_middleware import request_id
-from oslo_service import service
 
 from dcagent.common import context as ctx
-from dcagent.common.i18n import _
 
 
 def setup_app(*args, **kwargs):
@@ -56,18 +54,3 @@ def _wrap_app(app):
         return auth_token.AuthProtocol(app, conf)
     else:
         return app
-
-
-_launcher = None
-
-
-def serve(api_service, conf, workers=1):
-    global _launcher
-    if _launcher:
-        raise RuntimeError(_("serve() can only be called once"))
-
-    _launcher = service.launch(conf, api_service, workers=workers)
-
-
-def wait():
-    _launcher.wait()

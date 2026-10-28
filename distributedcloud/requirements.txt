@@ -4,7 +4,6 @@
 
 babel!=2.4.0,>=2.3.4 # BSD
 cotyledon # Apache-2.0
-eventlet # MIT
 gunicorn # MIT
 keyring # MIT
 keystonemiddleware>=4.12.0 # Apache-2.0

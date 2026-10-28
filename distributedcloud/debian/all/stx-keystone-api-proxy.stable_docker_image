@@ -6,7 +6,6 @@ PROJECT_REPO=nil
 PIP_PACKAGES="
         distributedcloud \
         tsconfig \
-        eventlet \
         gunicorn \
         pecan \
         SQLAlchemy \

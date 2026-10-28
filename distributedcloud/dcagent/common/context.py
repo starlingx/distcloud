@@ -49,35 +49,19 @@ class RequestContext(base_context.RequestContext):
     ):
 
         # Initializer of request context.
-        # oslo.context >= 5.2 renamed 'user'/'tenant' to 'user_id'/'project_id'.
-        # Use try/except for compatibility with both old and new versions.
         # pylint: disable=E1123
-        try:
-            super(RequestContext, self).__init__(
-                auth_token=auth_token,
-                user_id=user,
-                project_id=project,
-                domain=domain,
-                user_domain=user_domain,
-                project_domain=project_domain,
-                roles=roles,
-                read_only=read_only,
-                show_deleted=show_deleted,
-                request_id=request_id,
-            )
-        except TypeError:
-            super(RequestContext, self).__init__(
-                auth_token=auth_token,
-                user=user,
-                tenant=project,
-                domain=domain,
-                user_domain=user_domain,
-                project_domain=project_domain,
-                roles=roles,
-                read_only=read_only,
-                show_deleted=show_deleted,
-                request_id=request_id,
-            )
+        super(RequestContext, self).__init__(
+            auth_token=auth_token,
+            user_id=user,
+            project_id=project,
+            domain_id=domain,
+            user_domain_id=user_domain,
+            project_domain_id=project_domain,
+            roles=roles,
+            read_only=read_only,
+            show_deleted=show_deleted,
+            request_id=request_id,
+        )
 
         # request_id might be a byte array
         self.request_id = encodeutils.safe_decode(self.request_id)
@@ -112,15 +96,15 @@ class RequestContext(base_context.RequestContext):
             "auth_url": self.auth_url,
             "auth_token": self.auth_token,
             "auth_token_info": self.auth_token_info,
-            "user": self.user,
+            "user": self.user_id,
             "user_name": self.user_name,
-            "user_domain": self.user_domain,
+            "user_domain": self.user_domain_id,
             "user_domain_name": self.user_domain_name,
             "project": self.project,
             "project_name": self.project_name,
-            "project_domain": self.project_domain,
+            "project_domain": self.project_domain_id,
             "project_domain_name": self.project_domain_name,
-            "domain": self.domain,
+            "domain": self.domain_id,
             "domain_name": self.domain_name,
             "trusts": self.trusts,
             "region_name": self.region_name,

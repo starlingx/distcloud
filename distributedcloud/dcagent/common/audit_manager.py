@@ -4,15 +4,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import time
+
 from cgtsclient.exc import HTTPUnauthorized
-import eventlet
-from eventlet.greenpool import GreenPool
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from dcagent.common import exceptions
 from dcagent.common import utils
 from dccommon import consts as dccommon_consts
+from dccommon import scheduler
 from dccommon import utils as dccommon_utils
 from dcmanager.audit.base_audit import get_subcloud_base_audit
 from dcmanager.audit.firmware_audit import FirmwareAudit
@@ -50,13 +51,10 @@ class PeriodicAudit(utils.BaseAuditManager):
             try:
                 self.initialize_clients(use_cache=False)
                 self._run_periodic_audit_loop()
-                eventlet.greenthread.sleep(CONF.scheduler.dcagent_audit_interval)
-            except eventlet.greenlet.GreenletExit:
-                # We have been told to exit
-                return
+                time.sleep(CONF.scheduler.dcagent_audit_interval)
             except Exception:
                 LOG.exception("Error in periodic audit loop")
-                eventlet.greenthread.sleep(2)
+                time.sleep(2)
 
     def _run_with_retry_if_unauthorized(self, func, arg_getter, **kwargs):
         # If any exception is raised, we just ignore them and wait
@@ -68,10 +66,14 @@ class PeriodicAudit(utils.BaseAuditManager):
         except Exception as ex:
             # Since FM doesn't have a specific exception for unauthorized like
             # cgtsclient (raising only a generic HTTPClientError), we also handle
-            # the exception here by the message returned by keystone itself
-            if isinstance(
-                ex, HTTPUnauthorized
-            ) or "The request you have made requires authentication" in str(ex):
+            # the exception here by the message returned by keystone itself.
+            # SoftwareClient raises ApiException with "status code: 401" in
+            # the message, which also needs to be handled here.
+            if (
+                isinstance(ex, HTTPUnauthorized)
+                or "The request you have made requires authentication" in str(ex)
+                or "status code: 401" in str(ex)
+            ):
                 try:
                     LOG.warning(
                         "Getting new keystone token and retrying "
@@ -156,19 +158,23 @@ class RequestedAudit(utils.BaseAuditManager):
 
     def get_sync_status(self, payload):
         sync_resp = {}
-        pool = GreenPool(size=10)
-        jobs = [
-            pool.spawn(
-                self.get_single_audit_status,
-                audit_type,
-                regionone_audit_data,
-            )
+
+        def _audit_and_store(audit_type, regionone_audit_data):
+            _, resp = self.get_single_audit_status(audit_type, regionone_audit_data)
+            sync_resp[audit_type] = resp
+
+        thread_group = scheduler.ThreadGroupManager(thread_pool_size=10)
+        threads = [
+            thread_group.start(_audit_and_store, audit_type, regionone_audit_data)
             for audit_type, regionone_audit_data in payload.items()
         ]
-
-        for job in jobs:
-            audit_type, resp = job.wait()
-            sync_resp[audit_type] = resp
+        timeout = CONF.scheduler.dcagent_audit_interval
+        for thread in threads:
+            try:
+                thread.wait(timeout=timeout)
+            except TimeoutError:
+                LOG.error(f"Audit thread timed out after {timeout} seconds")
+        thread_group.stop()
 
         LOG.debug(f"Audit response: {sync_resp}")
 

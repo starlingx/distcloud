@@ -123,7 +123,6 @@ ignore-mixin-members=yes
 ignored-modules = cgcs_patch.patch_functions,
                   cgtsclient,
                   distutils,
-                  eventlet.green.subprocess,
                   fmclient,
                   fm_api,
                   nfv_client.openstack,
