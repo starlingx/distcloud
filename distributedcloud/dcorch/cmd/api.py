@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -21,16 +21,17 @@
 import logging as std_logging
 import sys
 
-import eventlet
 
-eventlet.monkey_patch(os=False)
+from oslo_service.backend import BackendType  # noqa: E402
+from oslo_service.backend import init_backend  # noqa: E402
+
+init_backend(BackendType.THREADING)
 
 # pylint: disable=wrong-import-position
 from oslo_config import cfg  # noqa: E402
 from oslo_log import log as logging  # noqa: E402
-from oslo_service import systemd  # noqa: E402
-from oslo_service import wsgi  # noqa: E402
 
+from dccommon.wsgi import DCApplication  # noqa: E402
 from dcorch.api import api_config  # noqa: E402
 from dcorch.api import app  # noqa: E402
 from dcorch.common import config  # noqa: E402
@@ -61,16 +62,13 @@ def main():
         {"host": host, "port": port, "workers": workers},
     )
     messaging.setup()
-    systemd.notify_once()
-    service = wsgi.Server(CONF, "OrchEngine", application, host, port)
-
-    app.serve(service, CONF, workers)
+    service = DCApplication(application, "dcorch-api", host, port, workers=workers)
 
     LOG.info("Starting...")
     LOG.debug("Configuration:")
     CONF.log_opt_values(LOG, std_logging.DEBUG)
 
-    app.wait()
+    service.run()
 
 
 if __name__ == "__main__":

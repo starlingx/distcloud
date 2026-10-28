@@ -10,10 +10,11 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
-# Copyright (c) 2020, 2024 Wind River Systems, Inc.
+# Copyright (c) 2020, 2024, 2026 Wind River Systems, Inc.
 #
 
-import eventlet
+import time
+
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -70,9 +71,9 @@ class InitialSyncManager(object):
         while True:
             # Catch exceptions so the thread does not die.
             try:
-                eventlet.greenthread.sleep(SYNC_INTERVAL)
+                time.sleep(SYNC_INTERVAL)
                 self._initial_sync_subclouds()
-            except eventlet.greenlet.GreenletExit:
+            except SystemExit:
                 # We have been told to exit
                 return
             except Exception as e:

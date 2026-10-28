@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Huawei, Tech. Co,. Ltd.
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,11 +19,9 @@ import pecan
 from keystonemiddleware import auth_token
 from oslo_config import cfg
 from oslo_middleware import request_id
-from oslo_service import service
 from oslo_service import wsgi
 
 from dcorch.common import context as ctx
-from dcorch.common.i18n import _
 
 
 def setup_app(*args, **kwargs):
@@ -79,18 +77,3 @@ def _wrap_app(app):
         return auth_token.AuthProtocol(app, conf)
     else:
         return app
-
-
-_launcher = None
-
-
-def serve(api_service, conf, workers=1):
-    global _launcher
-    if _launcher:
-        raise RuntimeError(_("serve() can only be called once"))
-
-    _launcher = service.launch(conf, api_service, workers=workers)
-
-
-def wait():
-    _launcher.wait()

@@ -1,19 +1,19 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024, 2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import eventlet
+import threading
 
 from oslo_log import log as logging
 
+from dccommon import scheduler
 from dcorch.common import consts
 from dcorch.common import context
 from dcorch.common import utils
 from dcorch.db import api as db_api
 from dcorch.engine.fernet_key_manager import FernetKeyManager
-from dcorch.engine import scheduler
 
 LOG = logging.getLogger(__name__)
 
@@ -157,9 +157,13 @@ class InitialSyncWorkerManager(object):
                 # This thread is not taken from the thread pool, because we
                 # don't want a large number of failed syncs to prevent new
                 # subclouds from syncing.
-                eventlet.greenthread.spawn_after(
-                    SYNC_FAIL_HOLD_OFF, self._reattempt_sync, subcloud_name
+                reattempt_timer = threading.Timer(
+                    SYNC_FAIL_HOLD_OFF,
+                    self._reattempt_sync,
+                    args=(subcloud_name,),
                 )
+                reattempt_timer.daemon = True
+                reattempt_timer.start()
             else:
                 LOG.error(
                     f"Unexpected new_state {new_state} for subcloud {subcloud_name}"

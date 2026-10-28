@@ -1,19 +1,18 @@
 #
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import eventlet
 from oslo_log import log as logging
 
 from dccommon import consts as dccommon_consts
+from dccommon import scheduler
 from dcorch.common import consts as dco_consts
 from dcorch.common import context
 from dcorch.common import exceptions
 from dcorch.common import utils
 from dcorch.db import api as db_api
-from dcorch.engine import scheduler
 from dcorch.engine.sync_services.identity import IdentitySyncThread
 from dcorch.engine.sync_services.sysinv import SysinvSyncThread
 from dcorch.engine.sync_thread import SyncThread
@@ -379,19 +378,18 @@ class GenericSyncWorkerManager(object):
 
     def _audit_subcloud(self, context, subcloud_name, endpoint_type, sync_obj):
         new_state = dco_consts.AUDIT_STATUS_COMPLETED
-        timeout = eventlet.timeout.Timeout(AUDIT_TIMEOUT)
+        audit_pool = scheduler.ThreadGroupManager(thread_pool_size=1)
         try:
-            sync_obj.run_sync_audit(self.engine_id)
-        except eventlet.timeout.Timeout as t:
-            if t is not timeout:
-                raise  # not my timeout
+            thread = audit_pool.start(sync_obj.run_sync_audit, self.engine_id)
+            thread.wait(timeout=AUDIT_TIMEOUT)
+        except TimeoutError:
             new_state = dco_consts.AUDIT_STATUS_FAILED
             LOG.exception(f"Audit timed out for {subcloud_name}/{endpoint_type}.")
         except Exception as e:
             LOG.exception(f"Audit failed for {subcloud_name}/{endpoint_type}: {e}")
             new_state = dco_consts.AUDIT_STATUS_FAILED
         finally:
-            timeout.cancel()
+            audit_pool.stop()
 
         db_api.subcloud_sync_update(
             context, subcloud_name, endpoint_type, values={"audit_status": new_state}

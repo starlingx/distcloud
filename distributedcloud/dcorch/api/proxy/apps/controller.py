@@ -21,11 +21,11 @@ import os
 import pathlib
 import pwd
 import shutil
+import subprocess
 import tempfile
 import threading
 import time
 
-from eventlet.green import subprocess
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service.wsgi import Request

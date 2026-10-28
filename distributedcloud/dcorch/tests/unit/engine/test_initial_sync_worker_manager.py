@@ -1,19 +1,17 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024, 2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import mock
-
-from eventlet import greenthread
 from oslo_utils import uuidutils
 
+from dccommon.scheduler import ThreadGroupManager
 from dcorch.common import consts
 from dcorch.db import api as db_api
 from dcorch.engine.fernet_key_manager import FernetKeyManager
 from dcorch.engine import initial_sync_worker_manager
-from dcorch.engine.scheduler import ThreadGroupManager
 from dcorch.tests import base
 from dcorch.tests import utils
 
@@ -100,8 +98,11 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
             self.fake_gswm, self.engine_id
         )
 
-        # Mock eventlet
-        self.mock_eventlet_spawn_after = self._mock_object(greenthread, "spawn_after")
+        # Mock threading.Timer
+        self.mock_timer = mock.MagicMock()
+        self.mock_timer_class = mock.patch(
+            "threading.Timer", return_value=self.mock_timer
+        ).start()
 
         # Mock FernetKeyManager distribute_Keys
         self.mock_distribute_keys = self._mock_object(
@@ -247,9 +248,12 @@ class TestInitialSyncWorkerManager(base.OrchestratorTestCase):
         self.iswm.enable_subcloud.assert_not_called()
 
         # Verify the initial sync was retried
-        self.mock_eventlet_spawn_after.assert_called_with(
-            initial_sync_worker_manager.SYNC_FAIL_HOLD_OFF, mock.ANY, "subcloud1"
+        self.mock_timer_class.assert_called_with(
+            initial_sync_worker_manager.SYNC_FAIL_HOLD_OFF,
+            mock.ANY,
+            args=("subcloud1",),
         )
+        self.mock_timer.start.assert_called_once()
 
     def test_reattempt_sync(self):
         utils.create_subcloud_static(

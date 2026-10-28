@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2022, 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024-2026 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 # limitations under the License.
 
 import os
+import subprocess
 
-from eventlet.green import subprocess
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils

@@ -16,9 +16,9 @@
 
 import random
 import string
+import time
 import uuid
 
-import eventlet
 from oslo_config import cfg
 from oslo_db import options
 import sqlalchemy
@@ -86,9 +86,14 @@ def dummy_context(user="test_username", tenant="test_project_id", region_name=No
 
 
 def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
-    with eventlet.timeout.Timeout(timeout, exception):
-        while not predicate():
-            eventlet.sleep(sleep)
+    elapsed = 0
+    while not predicate():
+        if elapsed >= timeout:
+            if exception:
+                raise exception
+            raise Exception("Timed out after %d seconds" % timeout)
+        time.sleep(sleep)
+        elapsed += sleep
 
 
 def create_subcloud_static(ctxt, name, **kwargs):

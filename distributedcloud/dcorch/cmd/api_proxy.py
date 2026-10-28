@@ -1,5 +1,5 @@
 # Copyright 2015 Huawei Technologies Co., Ltd.
-# Copyright (c) 2018-2022, 2024 Wind River Systems, Inc.
+# Copyright (c) 2018-2022, 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -21,17 +21,18 @@ import logging as std_logging
 import os
 import sys
 
-import eventlet
 
-eventlet.monkey_patch(os=False)
+from oslo_service.backend import BackendType  # noqa: E402
+from oslo_service.backend import init_backend  # noqa: E402
+
+init_backend(BackendType.THREADING)
 
 # pylint: disable=wrong-import-position
 from oslo_config import cfg  # noqa: E402
 from oslo_log import log as logging  # noqa: E402
-from oslo_service import systemd  # noqa: E402
-from oslo_service import wsgi  # noqa: E402
 
 from dccommon import consts  # noqa: E402
+from dccommon.wsgi import DCApplication  # noqa: E402
 from dcmanager.common import messaging as dcmanager_messaging  # noqa: E402
 from dcorch.api import api_config  # noqa: E402
 from dcorch.api import app  # noqa: E402
@@ -98,8 +99,6 @@ def main():
         "Server on http://%(host)s:%(port)s with %(workers)s",
         {"host": host, "port": port, "workers": workers},
     )
-    systemd.notify_once()
-
     # For platorm and usm, create a temp directory under /scratch
     # and set TMPDIR environment variable to this directory, so that
     # the file created using tempfile will not use the default directory.
@@ -108,15 +107,13 @@ def main():
     elif CONF.type == consts.ENDPOINT_TYPE_USM:
         make_tempdir(constants.ENDPOINT_TYPE_USM_TMPDIR)
 
-    service = wsgi.Server(CONF, CONF.prog, application, host, port)
-
-    app.serve(service, CONF, workers)
+    service = DCApplication(application, CONF.prog, host, port, workers=workers)
 
     LOG.info("Starting...")
     LOG.debug("Configuration:")
     CONF.log_opt_values(LOG, std_logging.DEBUG)
 
-    app.wait()
+    service.run()
 
 
 if __name__ == "__main__":

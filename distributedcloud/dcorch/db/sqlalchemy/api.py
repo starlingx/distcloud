@@ -1,5 +1,5 @@
 # Copyright (c) 2015 Ericsson AB.
-# Copyright (c) 2017-2021, 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2017-2021, 2023-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -23,8 +23,8 @@ Implementation of SQLAlchemy backend.
 import datetime
 import functools
 import sys
+import threading
 
-import eventlet
 from oslo_db import exception as db_exc
 from oslo_db.sqlalchemy import enginefacade
 from oslo_log import log as logging
@@ -54,6 +54,27 @@ _facade = None
 
 _main_context_manager = None
 
+_tls = threading.local()
+
+
+class _DBContext:
+    """Minimal attribute bag used as the oslo_db enginefacade context.
+
+    enginefacade attaches transaction state to this object via setattr.
+    One instance is created per thread (stored in ``_tls``) so that:
+    - Nested write_session()/read_session() calls share the same transaction.
+    - Concurrent threads each get their own independent transaction.
+    """
+
+    pass
+
+
+def _get_context():
+    """Return the per-thread DB context for oslo_db enginefacade."""
+    if not hasattr(_tls, "db_context"):
+        _tls.db_context = _DBContext()
+    return _tls.db_context
+
 
 def _get_main_context_manager():
     global _main_context_manager
@@ -71,13 +92,11 @@ def get_session():
 
 
 def read_session():
-    _context = eventlet.greenthread.getcurrent()
-    return _get_main_context_manager().reader.using(_context)
+    return _get_main_context_manager().reader.using(_get_context())
 
 
 def write_session():
-    _context = eventlet.greenthread.getcurrent()
-    return _get_main_context_manager().writer.using(_context)
+    return _get_main_context_manager().writer.using(_get_context())
 
 
 def get_backend():
@@ -91,7 +110,7 @@ def db_session_cleanup(cls):
     def method_decorator(method):
         @functools.wraps(method)
         def wrapper(self, *args, **kwargs):
-            _context = eventlet.greenthread.getcurrent()
+            _context = _get_context()
             exc_info = (None, None, None)
 
             try:
@@ -138,7 +157,7 @@ def model_query(context, *args, **kwargs):
     """
     session = kwargs.get("session")
     if not session:
-        _context = eventlet.greenthread.getcurrent()
+        _context = _get_context()
         if hasattr(_context, "_db_session") and _context._db_session is not None:
             session = _context._db_session
         else:

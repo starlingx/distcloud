@@ -16,7 +16,6 @@
 
 import collections
 import datetime
-import eventlet
 import threading
 
 from oslo_concurrency import lockutils
@@ -27,6 +26,7 @@ from oslo_utils import timeutils
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack import sdk_platform as sdk
 from dccommon.endpoint_cache import EndpointCache
+from dccommon import scheduler
 from dccommon import utils as cutils
 from dcdbsync.dbsyncclient import client as dbsyncclient
 from dcmanager.rpc import client as dcmanager_rpc_client
@@ -363,6 +363,139 @@ class SyncThread(object):
             },
         )
 
+    def _sync_requests(self, actual_sync_requests, abort_event):
+        """Process sync requests. Returns True if request was aborted.
+
+        Native threads can't be interrupted, so when sync() times out it
+        sets abort_event and this method stops at the next check point:
+        before each request, before each retry and during the retry
+        backoff. A sync_resource() call that is already running is not
+        interrupted. Unprocessed requests are left in a pending state and
+        are picked up by the next sync.
+        """
+        request_aborted = False
+        for request in actual_sync_requests:
+            if abort_event.is_set():
+                self._log_sync_requests_aborted()
+                return request_aborted
+            if db_api.should_stop_subcloud_sync(
+                self.ctxt, self.subcloud_name, self.endpoint_type
+            ):
+                # Oops, someone disabled the endpoint while
+                # we were processing work for it.
+                raise exceptions.EndpointNotReachable()
+            request.state = consts.ORCH_REQUEST_STATE_IN_PROGRESS
+            try:
+                request.save()  # save to DB
+            except exceptions.OrchRequestNotFound:
+                # This case is handled in loop below, but should also be
+                # handled here as well.
+                LOG.info(
+                    "Orch request already deleted request uuid=%s state=%s"
+                    % (request.uuid, request.state),
+                    extra=self.log_extra,
+                )
+                continue
+
+            retry_count = 0
+            while retry_count < self.MAX_RETRY:
+                if abort_event.is_set():
+                    # The request stays in a pending state and will be
+                    # retried in the next sync
+                    self._log_sync_requests_aborted()
+                    return request_aborted
+                try:
+                    self.sync_resource(request)
+                    # Sync succeeded, mark the request as
+                    # completed for tracking/debugging purpose
+                    # and tag it for purge when its deleted
+                    # time exceeds the data retention period.
+                    request.state = consts.ORCH_REQUEST_STATE_COMPLETED
+                    request.deleted = 1
+                    request.deleted_at = timeutils.utcnow()
+                    request.save()
+                    break
+                except exceptions.OrchRequestNotFound:
+                    LOG.info(
+                        "Orch request already deleted request uuid=%s state=%s"
+                        % (request.uuid, request.state),
+                        extra=self.log_extra,
+                    )
+                    break
+                except exceptions.SyncRequestTimeout:
+                    request.try_count += 1
+                    request.save()
+                    retry_count += 1
+                    if retry_count >= self.MAX_RETRY:
+                        raise exceptions.EndpointNotReachable()
+                except exceptions.SyncRequestFailedRetry:
+                    LOG.info(
+                        "SyncRequestFailedRetry for {}/{}".format(
+                            self.subcloud_name, self.endpoint_type
+                        ),
+                        extra=self.log_extra,
+                    )
+                    request.try_count += 1
+                    request.state = consts.ORCH_REQUEST_STATE_FAILED
+                    request.save()
+                    retry_count += 1
+
+                    # Incremental backoff retry is implemented to define the
+                    # wait time between each attempt to retry the sync.
+                    #   1st retry: 1s.
+                    #   2nd retry: 3s.
+                    if retry_count < self.MAX_RETRY:
+                        # Only sleep if this is not the last retry
+                        sleep_duration = 1 + (retry_count - 1) * 2
+                        # Same as time.sleep(), but wakes up early if sync()
+                        # reached SYNC_TIMEOUT and set abort_event
+                        abort_event.wait(sleep_duration)
+                    else:
+                        LOG.error(
+                            "SyncRequestFailedRetry: max retries reached "
+                            "for {}/{}".format(self.subcloud_name, self.endpoint_type),
+                            extra=self.log_extra,
+                        )
+                except exceptions.SyncRequestFailed:
+                    LOG.error(
+                        "SyncRequestFailed for {}/{}".format(
+                            self.subcloud_name, self.endpoint_type
+                        ),
+                        extra=self.log_extra,
+                    )
+                    request.state = consts.ORCH_REQUEST_STATE_FAILED
+                    request.save()
+                    retry_count = self.MAX_RETRY
+                    request_aborted = True
+                except exceptions.SyncRequestAbortedBySystem:
+                    request.state = consts.ORCH_REQUEST_STATE_FAILED
+                    request.save()
+                    retry_count = self.MAX_RETRY
+                    request_aborted = True
+                except Exception as e:
+                    LOG.error(
+                        f"Unexpected error during sync: {e}",
+                        extra=self.log_extra,
+                    )
+                    request.state = consts.ORCH_REQUEST_STATE_FAILED
+                    request.save()
+                    retry_count = self.MAX_RETRY
+
+            # If we fall out of the retry loop we either succeeded
+            # or failed multiple times and want to move to the next
+            # request.
+        if abort_event.is_set():
+            # The last request finished after the sync timed out
+            self._log_sync_requests_aborted()
+        return request_aborted
+
+    def _log_sync_requests_aborted(self):
+        LOG.warning(
+            f"Sync thread for {self.subcloud_name}/{self.endpoint_type} "
+            "exiting after sync timeout.",
+            extra=self.log_extra,
+        )
+
     def sync(self):
         LOG.debug(
             "{}: starting sync routine".format(self.subcloud_name), extra=self.log_extra
@@ -417,119 +550,22 @@ class SyncThread(object):
         # Subcloud is enabled and there are pending sync requests, so
         # we have work to do.
         request_aborted = False
-        timeout = eventlet.timeout.Timeout(SYNC_TIMEOUT)
+        abort_event = threading.Event()
+        sync_pool = scheduler.ThreadGroupManager(thread_pool_size=1)
         try:
-            for request in actual_sync_requests:
-                if db_api.should_stop_subcloud_sync(
-                    self.ctxt, self.subcloud_name, self.endpoint_type
-                ):
-                    # Oops, someone disabled the endpoint while
-                    # we were processing work for it.
-                    raise exceptions.EndpointNotReachable()
-                request.state = consts.ORCH_REQUEST_STATE_IN_PROGRESS
-                try:
-                    request.save()  # save to DB
-                except exceptions.OrchRequestNotFound:
-                    # This case is handled in loop below, but should also be
-                    # handled here as well.
-                    LOG.info(
-                        "Orch request already deleted request uuid=%s state=%s"
-                        % (request.uuid, request.state),
-                        extra=self.log_extra,
-                    )
-                    continue
-
-                retry_count = 0
-                while retry_count < self.MAX_RETRY:
-                    try:
-                        self.sync_resource(request)
-                        # Sync succeeded, mark the request as
-                        # completed for tracking/debugging purpose
-                        # and tag it for purge when its deleted
-                        # time exceeds the data retention period.
-                        request.state = consts.ORCH_REQUEST_STATE_COMPLETED
-                        request.deleted = 1
-                        request.deleted_at = timeutils.utcnow()
-                        request.save()
-                        break
-                    except exceptions.OrchRequestNotFound:
-                        LOG.info(
-                            "Orch request already deleted request uuid=%s state=%s"
-                            % (request.uuid, request.state),
-                            extra=self.log_extra,
-                        )
-                        break
-                    except exceptions.SyncRequestTimeout:
-                        request.try_count += 1
-                        request.save()
-                        retry_count += 1
-                        if retry_count >= self.MAX_RETRY:
-                            raise exceptions.EndpointNotReachable()
-                    except exceptions.SyncRequestFailedRetry:
-                        LOG.info(
-                            "SyncRequestFailedRetry for {}/{}".format(
-                                self.subcloud_name, self.endpoint_type
-                            ),
-                            extra=self.log_extra,
-                        )
-                        request.try_count += 1
-                        request.state = consts.ORCH_REQUEST_STATE_FAILED
-                        request.save()
-                        retry_count += 1
-
-                        # Incremental backoff retry is implemented to define the wait
-                        # time between each attempt to retry the sync.
-                        #   1st retry: 1s.
-                        #   2nd retry: 3s.
-                        if retry_count < self.MAX_RETRY:
-                            # Only sleep if this is not the last retry
-                            sleep_duration = 1 + (retry_count - 1) * 2
-                            eventlet.greenthread.sleep(sleep_duration)
-                        else:
-                            LOG.error(
-                                "SyncRequestFailedRetry: max retries reached "
-                                "for {}/{}".format(
-                                    self.subcloud_name, self.endpoint_type
-                                ),
-                                extra=self.log_extra,
-                            )
-                    except exceptions.SyncRequestFailed:
-                        LOG.error(
-                            "SyncRequestFailed for {}/{}".format(
-                                self.subcloud_name, self.endpoint_type
-                            ),
-                            extra=self.log_extra,
-                        )
-                        request.state = consts.ORCH_REQUEST_STATE_FAILED
-                        request.save()
-                        retry_count = self.MAX_RETRY
-                        request_aborted = True
-                    except exceptions.SyncRequestAbortedBySystem:
-                        request.state = consts.ORCH_REQUEST_STATE_FAILED
-                        request.save()
-                        retry_count = self.MAX_RETRY
-                        request_aborted = True
-                    except Exception as e:
-                        LOG.error(
-                            f"Unexpected error during sync: {e}",
-                            extra=self.log_extra,
-                        )
-                        request.state = consts.ORCH_REQUEST_STATE_FAILED
-                        request.save()
-                        retry_count = self.MAX_RETRY
-
-                # If we fall out of the retry loop we either succeeded
-                # or failed multiple times and want to move to the next
-                # request.
-
-        except eventlet.timeout.Timeout:
-            # The entire sync operation timed out, covering all sync requests.
-            # Just log the exception and continue to check if there are
-            # pending requests.
+            thread = sync_pool.start(
+                self._sync_requests, actual_sync_requests, abort_event
+            )
+            request_aborted = thread.wait(timeout=SYNC_TIMEOUT)
+        except TimeoutError:
+            # The entire sync operation timed out, covering all sync
+            # requests. The sync thread can't be killed, so signal it to
+            # stop at its next check point, log the exception and continue
+            # to check if there are pending requests.
+            abort_event.set()
             LOG.exception(
                 f"Sync timed out for {self.subcloud_name}/{self.endpoint_type}."
             )
-
         except exceptions.EndpointNotReachable:
             # Endpoint not reachable, throw away all the sync requests.
             LOG.info(
@@ -540,9 +576,8 @@ class SyncThread(object):
             )
             # del sync_requests[:] #This fails due to:
             # 'OrchRequestList' object does not support item deletion
-
         finally:
-            timeout.cancel()
+            sync_pool.stop()
 
         sync_requests = orchrequest.OrchRequestList.get_by_attrs(
             self.ctxt,

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -24,6 +24,7 @@ from oslo_service import service
 from oslo_utils import uuidutils
 
 from dccommon import consts as dccommon_consts
+from dccommon import scheduler
 from dcorch.common import consts
 from dcorch.common import context
 from dcorch.common import exceptions
@@ -34,7 +35,6 @@ from dcorch.engine.generic_sync_manager import GenericSyncManager
 from dcorch.engine.generic_sync_worker_manager import GenericSyncWorkerManager
 from dcorch.engine.initial_sync_manager import InitialSyncManager
 from dcorch.engine.initial_sync_worker_manager import InitialSyncWorkerManager
-from dcorch.engine import scheduler
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)

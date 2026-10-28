@@ -1,5 +1,5 @@
 # Copyright 2017 Ericsson AB.
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import eventlet
+import time
+
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -42,8 +43,8 @@ class GenericSyncManager(object):
         while True:
             try:
                 self.sync_subclouds()
-                eventlet.greenthread.sleep(dco_consts.CHECK_SYNC_INTERVAL)
-            except eventlet.greenlet.GreenletExit:
+                time.sleep(dco_consts.CHECK_SYNC_INTERVAL)
+            except SystemExit:
                 # We have been told to exit
                 return
             except Exception as e:
@@ -55,8 +56,8 @@ class GenericSyncManager(object):
         while True:
             try:
                 self.run_sync_audit()
-                eventlet.greenthread.sleep(dco_consts.CHECK_AUDIT_INTERVAL)
-            except eventlet.greenlet.GreenletExit:
+                time.sleep(dco_consts.CHECK_AUDIT_INTERVAL)
+            except SystemExit:
                 # We have been told to exit
                 return
             except Exception as e:
