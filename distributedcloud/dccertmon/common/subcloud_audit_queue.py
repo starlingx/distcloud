@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, 2025 Wind River Systems, Inc.
+# Copyright (c) 2021-2022, 2025-2026 Wind River Systems, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,9 +27,11 @@ LOG = log.getLogger(__name__)
 class SubcloudAuditData(object):
     """Representation of a subcloud under audit."""
 
-    def __init__(self, name, audit_count=0):
+    def __init__(self, name, audit_count=0, push_count=0):
         self.name = name
         self.audit_count = audit_count
+        # Number of intermediate CA pushes attempted for this audit item.
+        self.push_count = push_count
         self.timestamp = 0
 
     def __eq__(self, other):

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -266,11 +266,29 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                 return
 
             cert_chain = txt_ssl_cert + txt_ca_cert
-            if not utils.verify_intermediate_ca_cert(cert_chain, sc_ssl_cert):
+            leaf_verify_ok = utils.verify_intermediate_ca_cert(cert_chain, sc_ssl_cert)
+
+            # A chain verification alone cannot detect a same-key intermediate
+            # CA renewal: when the SystemController renews the intermediate CA
+            # reusing its key (cert-manager rotationPolicy "Never"), the
+            # subcloud's existing leaf still verifies against the renewed CA.
+            # The audit would then report in-sync and never push the renewed
+            # CA, leaving the subcloud on a stale CA until it expires. So, once
+            # the leaf verifies, also check that the CA the subcloud is serving
+            # is the current one. The check is skipped when the leaf already
+            # failed, since an update is needed anyway.
+            ica_serial_mismatch = leaf_verify_ok and self._served_ica_is_stale(
+                subcloud_name, subcloud_sysinv_url, txt_ssl_cert
+            )
+
+            if not leaf_verify_ok or ica_serial_mismatch:
                 # The subcloud needs renewal.
                 LOG.info(
                     f"Updating {subcloud_name} intermediate CA as it is out-of-sync"
                 )
+                # Count the pushes separately from audit_count, which is also
+                # incremented by network-failure retries.
+                sc_audit_item.push_count += 1
                 # reaudit this subcloud after delay
                 self.requeue_audit_subcloud(queue, sc_audit_item)
                 try:
@@ -288,11 +306,86 @@ class CertificateMonitorManager(periodic_task.PeriodicTasks):
                     utils.update_subcloud_status(
                         subcloud_name, constants.SYNC_STATUS_OUT_OF_SYNC
                     )
+                    return
+
+                # A successful push does not write any status, so a subcloud
+                # that never converges (e.g. it cannot install the new
+                # certificate) would keep reporting in-sync. Flag it once after
+                # enough pushes; auditing continues and the in-sync branch
+                # below clears the status when the subcloud converges.
+                threshold = CONF.dccertmon.out_of_sync_after_pushes
+                if sc_audit_item.push_count == threshold:
+                    LOG.warning(
+                        f"{subcloud_name} intermediate CA still not in-sync after "
+                        f"{sc_audit_item.push_count} pushes, marking out-of-sync"
+                    )
+                    try:
+                        utils.update_subcloud_status(
+                            subcloud_name, constants.SYNC_STATUS_OUT_OF_SYNC
+                        )
+                    except Exception:
+                        LOG.exception(f"Failed to mark {subcloud_name} out-of-sync")
             else:
                 LOG.info(f"{subcloud_name} intermediate CA cert is in-sync")
                 utils.update_subcloud_status(
                     subcloud_name, constants.SYNC_STATUS_IN_SYNC
                 )
+
+    def _served_ica_is_stale(self, subcloud_name, sysinv_url, cc_ica_pem):
+        """Check if the subcloud serves a different intermediate CA than the SC's.
+
+        The served chain is the leaf followed by the CA certificate(s) the leaf
+        was issued under. The SystemController's current intermediate CA must be
+        among those CA certificates, otherwise the subcloud is on a stale one.
+        Certificate serial numbers change on every renewal, even when the key
+        is reused.
+
+        Returns False when the check cannot be performed, so the audit falls
+        back to the chain verification result alone and is never blocked.
+        """
+        try:
+            # tls.crt of the SystemController intermediate CA secret starts
+            # with the intermediate CA itself (cert-manager places the issued
+            # certificate first), so reading its first certificate gives the
+            # intermediate CA serial.
+            cc_ica_serial = utils.get_cert_serial(cc_ica_pem)
+            if cc_ica_serial is None:
+                LOG.warning(
+                    f"{subcloud_name}: unable to read the SystemController "
+                    "intermediate CA serial, relying on chain verification only"
+                )
+                return False
+
+            served_chain = utils.get_endpoint_cert_chain(
+                sysinv_url, timeout_secs=CONF.dccertmon.certificate_timeout_secs
+            )
+            served_serials = [
+                serial
+                for serial in (utils.get_cert_serial(c) for c in served_chain[1:])
+                if serial is not None
+            ]
+            if not served_serials:
+                LOG.warning(
+                    f"{subcloud_name}: unable to read the served intermediate CA, "
+                    "relying on chain verification only"
+                )
+                return False
+
+            if cc_ica_serial in served_serials:
+                return False
+
+            LOG.info(
+                f"{subcloud_name} intermediate CA serial mismatch: serving "
+                f"{', '.join(served_serials)}, SystemController has "
+                f"{cc_ica_serial}; subcloud is on a stale CA"
+            )
+            return True
+        except Exception:
+            LOG.exception(
+                f"{subcloud_name}: error during intermediate CA serial check, "
+                "relying on chain verification only"
+            )
+            return False
 
     def requeue_audit_subcloud(self, queue, sc_audit_item, delay_secs=60):
         if not queue.contains(sc_audit_item.name):
