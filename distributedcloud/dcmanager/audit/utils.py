@@ -22,7 +22,6 @@ from oslo_log import log as logging
 from dccommon import consts as dccommon_consts
 from dcmanager.db import api as db_api
 
-
 LOG = logging.getLogger(__name__)
 
 

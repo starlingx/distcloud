@@ -3440,11 +3440,12 @@ class TestSubcloudsPatchPrestage(BaseTestSubcloudsPatchPrestage):
             "verify the password is base64 encoded",
         )
 
-    @mock.patch.object(json, "loads")
-    def test_patch_prestage_fails_with_json_loads_generic_exception(self, mock_json):
-        """Test patch prestage fails with json.loads generic exception"""
+    def test_patch_prestage_fails_with_malformed_payload(self):
+        """Test patch prestage fails with a malformed payload"""
 
-        mock_json.side_effect = Exception()
+        self.method = self.app.patch
+        self.params = "{bad json"
+        self.headers["Content-Type"] = "application/json"
 
         response = self._send_request()
 

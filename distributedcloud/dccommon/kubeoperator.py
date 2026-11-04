@@ -84,7 +84,9 @@ class KubeOperator(object):
             c.delete_namespaced_secret(name, namespace, body=body)
         except ApiException as e:
             if e.status == httplib.NOT_FOUND:
-                LOG.warn("Secret %s under Namespace %s not found." % (name, namespace))
+                LOG.warning(
+                    "Secret %s under Namespace %s not found." % (name, namespace)
+                )
             else:
                 LOG.error(
                     "Failed to clean up Secret %s under Namespace %s: %s"
@@ -238,7 +240,7 @@ class KubeOperator(object):
         except ApiException as e:
             if e.status == httplib.CONFLICT:
                 # Already exist
-                LOG.warn("Namespace %s already exist." % namespace)
+                LOG.warning("Namespace %s already exist." % namespace)
             else:
                 LOG.error("Failed to create Namespace %s: %s" % (namespace, e.body))
                 raise

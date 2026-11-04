@@ -231,7 +231,7 @@ class TestFirmwareAudit(DCManagerTestCase):
         return dict_results
 
     def _get_firmware_audit_data(self):
-        (firmware_audit_data, _, _, _) = self.audit_manager._get_audit_data(
+        firmware_audit_data, _, _, _ = self.audit_manager._get_audit_data(
             True, False, False, False
         )
 

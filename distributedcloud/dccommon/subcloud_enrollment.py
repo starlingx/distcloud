@@ -219,15 +219,13 @@ class SubcloudEnrollmentInit(object):
         if enroll_overrides.get("ipmi_sel_event_monitoring", True) is not False:
             completion_script = os.path.join(scripts_dir, "99-completion-event")
             with open(completion_script, "w") as f:
-                f.write(
-                    f"""#!/bin/bash
+                f.write(f"""#!/bin/bash
         echo "$(date '+%F %H:%M:%S'): INFO: All custom scripts completed successfully"
         tmp_file=$(mktemp /tmp/ipmi_event_XXXXXX.txt)
         echo "{consts.IPMI_CUSTOM_COMPLETE_EVENT}" > "$tmp_file"
         ipmitool sel add "$tmp_file" 2>/dev/null
         rm -f "$tmp_file"
-        """
-                )
+        """)
             os.chmod(completion_script, 0o755)
 
         # Write user-data with runcmd

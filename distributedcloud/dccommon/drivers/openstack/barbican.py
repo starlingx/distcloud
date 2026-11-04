@@ -22,7 +22,6 @@ from dccommon import consts as dccommon_consts
 from dccommon.drivers import base
 from dccommon import exceptions
 
-
 LOG = log.getLogger(__name__)
 API_VERSION = "v1"
 

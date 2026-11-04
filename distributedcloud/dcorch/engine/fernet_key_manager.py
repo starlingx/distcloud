@@ -33,7 +33,6 @@ from dcorch.common import manager
 from dcorch.common import utils
 from dcorch.rpc import client
 
-
 FERNET_REPO_MASTER_ID = "keys"
 KEY_ROTATE_CMD = "/usr/bin/keystone-fernet-keys-rotate-active"
 

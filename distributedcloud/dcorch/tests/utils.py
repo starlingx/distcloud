@@ -66,10 +66,11 @@ def reset_dummy_db():
     meta = sqlalchemy.MetaData()
     meta.reflect(bind=engine)
 
-    for table in reversed(meta.sorted_tables):
-        if table.name in ("migrate_version", "alembic_version"):
-            continue
-        engine.execute(table.delete())
+    with engine.begin() as connection:
+        for table in reversed(meta.sorted_tables):
+            if table.name in ("migrate_version", "alembic_version"):
+                continue
+            connection.execute(table.delete())
 
 
 def dummy_context(user="test_username", tenant="test_project_id", region_name=None):

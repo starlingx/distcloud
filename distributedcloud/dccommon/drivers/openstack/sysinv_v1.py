@@ -29,7 +29,6 @@ from dccommon.drivers import base
 from dccommon import exceptions
 from dccommon import utils
 
-
 LOG = log.getLogger(__name__)
 API_VERSION = "1"
 
@@ -472,7 +471,7 @@ class SysinvClient(base.DriverBase):
                         DOCKER_REGISTRY_CERT_FILE,
                     ]
                 else:
-                    LOG.warn("update_certificate mode {} not supported".format(mode))
+                    LOG.warning("update_certificate mode {} not supported".format(mode))
                     return
             elif signature and signature.startswith(CERT_MODE_SSL_CA):
                 data["mode"] = CERT_MODE_SSL_CA
@@ -487,7 +486,7 @@ class SysinvClient(base.DriverBase):
                     DOCKER_REGISTRY_CERT_FILE,
                 ]
             else:
-                LOG.warn(
+                LOG.warning(
                     "update_certificate signature {} not supported".format(signature)
                 )
                 return
@@ -585,7 +584,7 @@ class SysinvClient(base.DriverBase):
         try:
             iuser = self.get_user()
             if not iuser:
-                LOG.warn("iuser not found %s" % self.region_name)
+                LOG.warning("iuser not found %s" % self.region_name)
                 return iuser
 
             # The "passwd_last_change" attribute may not be implemented in the subcloud

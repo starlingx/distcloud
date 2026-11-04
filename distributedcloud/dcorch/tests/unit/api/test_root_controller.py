@@ -19,7 +19,6 @@ from dcorch.common import config
 from dcorch.tests import base
 from dcorch.tests.unit.common import constants as test_consts
 
-
 config.register_options()
 OPT_GROUP_NAME = "keystone_authtoken"
 cfg.CONF.import_group(OPT_GROUP_NAME, "keystonemiddleware.auth_token")

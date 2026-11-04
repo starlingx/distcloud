@@ -13,7 +13,7 @@ extension-pkg-whitelist=greenlet
 # Add files or directories to the blacklist. They should be base names, not paths.
 # Alembic migration files use dynamic proxy objects (alembic.op) that pylint
 # cannot resolve statically, causing false-positive E1101 (no-member) errors.
-ignore=migrations
+ignore=migrations,migrate_repo
 
 
 # Pickle collected data for later comparisons.

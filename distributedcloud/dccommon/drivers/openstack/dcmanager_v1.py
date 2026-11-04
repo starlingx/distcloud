@@ -12,7 +12,6 @@ from dccommon.drivers import base
 from dccommon import exceptions
 from dcmanager.db.sqlalchemy import models
 
-
 LOG = log.getLogger(__name__)
 
 DCMANAGER_CLIENT_REST_DEFAULT_TIMEOUT = 600

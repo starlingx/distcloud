@@ -18,7 +18,6 @@ from paste.proxy import TransparentProxy
 
 from dcorch.api.proxy.common.service import Application
 
-
 LOG = logging.getLogger(__name__)
 
 HEADERS = ["HTTP_X_DOMAIN_ID", "HTTP_X_DOMAIN_NAME", "HTTP_OPENSTACK_SYSTEM_SCOPE"]

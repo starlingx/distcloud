@@ -78,7 +78,7 @@ class SoftwareAudit(object):
             subcloud_releases = software_client.list()
         except Exception:
             msg = "Cannot retrieve subcloud releases, skip software audit."
-            cutils.log_subcloud_msg(LOG.warn, msg, subcloud_name)
+            cutils.log_subcloud_msg(LOG.warning, msg, subcloud_name)
             return dccommon_consts.SKIP_AUDIT
         return subcloud_releases
 

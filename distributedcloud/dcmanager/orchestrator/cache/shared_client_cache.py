@@ -117,7 +117,7 @@ class SharedClientCache(object):
         """
         # To be called when a client read operation fails with a retryable error
         # After this, read operation should be retried
-        LOG.warn(
+        LOG.warning(
             f"Retryable error occurred while reading from {self._cache_type} client "
             f"(Attempt {attempt}/{self._max_attempts})"
         )

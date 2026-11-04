@@ -59,7 +59,7 @@ def get_subcloud_availability_status(
         svc_groups = sysinv_client.get_service_groups()
     except Exception as e:
         msg = f"Cannot retrieve service groups. Error: {e}"
-        log_subcloud_msg(LOG.warn, msg, subcloud_name)
+        log_subcloud_msg(LOG.warning, msg, subcloud_name)
 
     if svc_groups:
         active_sgs = []

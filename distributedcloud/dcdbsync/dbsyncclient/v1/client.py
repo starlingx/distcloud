@@ -67,7 +67,7 @@ class Client(object):
 
         if auth_url or session:
             if auth_type == "keystone":
-                (dbsync_agent_url, auth_token, project_id, user_id) = authenticate(
+                dbsync_agent_url, auth_token, project_id, user_id = authenticate(
                     dbsync_agent_url,
                     username,
                     api_key,
@@ -116,7 +116,7 @@ class Client(object):
     # update to get a new token
     def update(self, session=None):
         if session:
-            (dbsync_agent_url, auth_token, project_id, user_id) = authenticate(
+            dbsync_agent_url, auth_token, project_id, user_id = authenticate(
                 auth_url=session.auth.auth_url,
                 username=session.auth._username,
                 api_key=session.auth._password,
@@ -145,6 +145,7 @@ def authenticate(
     **kwargs
 ):
     """Get token, project_id, user_id and Endpoint."""
+    token = auth_token
     if project_name and project_id:
         raise RuntimeError("Only project name or project id should be set")
 

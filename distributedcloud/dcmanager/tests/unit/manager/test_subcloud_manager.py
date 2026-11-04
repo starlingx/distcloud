@@ -731,7 +731,7 @@ class TestSubcloudManager(BaseTestSubcloudManager):
 
     def test_mark_invalid_subclouds_for_backup_validation_success(self):
         self.sm._mark_invalid_subclouds_for_backup(self.ctx, [self.subcloud])
-        self.mock_log_subcloud_manager.warn.assert_called_once_with(
+        self.mock_log_subcloud_manager.warning.assert_called_once_with(
             "The following subclouds are not online and/or managed "
             "and/or in a valid deploy state, and will not be backed up: %s",
             self.subcloud.name,
@@ -6909,11 +6909,9 @@ class TestSubcloudMigrate(BaseTestSubcloudManager):
         )
         self.saved_payload = {
             "deploy_status": consts.DEPLOY_STATE_DONE,
-            "rehome_data": (
-                '{"saved_payload": {"system_mode": "simplex",\
+            "rehome_data": ('{"saved_payload": {"system_mode": "simplex",\
                 "name": "testsub", "bootstrap-address": "128.224.119.56",\
-                "admin_password": "TGk2OW51eA=="}}'
-            ),
+                "admin_password": "TGk2OW51eA=="}}'),
         }
 
     @mock.patch.object(subcloud_manager, "db_api", side_effect=db_api)
@@ -7596,7 +7594,7 @@ class TestSubcloudRename(BaseTestSubcloudManager):
             self.ctx, self.subcloud.id, self.subcloud.name, self.new_subcloud_name
         )
         ret = db_api.subcloud_get_by_name(self.ctx, self.new_subcloud_name)
-        self.mock_log_subcloud_manager.warn.assert_called_once_with(
+        self.mock_log_subcloud_manager.warning.assert_called_once_with(
             f"Could not rename inventory file {dccommon_consts.ANSIBLE_OVERRIDES_PATH}/"
             "testsubcloud_inventory.yml because it does not exist."
         )

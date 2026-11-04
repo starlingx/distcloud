@@ -143,6 +143,7 @@ def model_query(context, *args, **kwargs):
             session = _context._db_session
         else:
             session_context = read_session()
+            # pylint: disable=unnecessary-dunder-call
             session = session_context.__enter__()  # pylint: disable=no-member
             _context._db_session = session
             # Need to store the session context to call __exit__ method later

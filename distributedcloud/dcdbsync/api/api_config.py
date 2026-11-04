@@ -31,7 +31,6 @@ from oslo_log import log as logging
 
 from dcdbsync.common.i18n import _
 
-
 # from dcdbsync import policy
 from dcdbsync.common import version
 

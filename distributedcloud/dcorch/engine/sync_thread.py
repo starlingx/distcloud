@@ -44,7 +44,6 @@ from dcorch.objects import subcloud_resource
 
 from keystoneclient import client as keystoneclient
 
-
 # Some of the variables defined in this file cannot be recognized by the
 # current pylint check, thus will raise error which will fail tox check
 # The pylint check is temporarily skipped on this file
@@ -615,7 +614,7 @@ class SyncThread(object):
 
     def run_sync_audit(self, engine_id=None):
         if self.endpoint_type in cfg.CONF.disable_audit_endpoints:
-            LOG.warn("Audit disabled!", extra=self.log_extra)
+            LOG.warning("Audit disabled!", extra=self.log_extra)
             return
         LOG.debug(
             "Engine id={}: sync_audit started".format(engine_id), extra=self.log_extra
@@ -671,7 +670,7 @@ class SyncThread(object):
             ):
                 LOG.info(
                     "{}: aborting sync audit, as subcloud is disabled".format(
-                        threading.currentThread().getName()
+                        threading.current_thread().name
                     ),
                     extra=self.log_extra,
                 )
@@ -778,7 +777,7 @@ class SyncThread(object):
             )
 
         LOG.debug(
-            "{}: done sync audit".format(threading.currentThread().getName()),
+            "{}: done sync audit".format(threading.current_thread().name),
             extra=self.log_extra,
         )
 

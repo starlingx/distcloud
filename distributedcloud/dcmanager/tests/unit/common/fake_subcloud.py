@@ -145,16 +145,13 @@ FAKE_SUBCLOUD_INSTALL_VALUES_WITH_PERSISTENT_SIZE = {
     "persistent_size": 40000,
 }
 
-FAKE_UPGRADES_METADATA = (
-    """
+FAKE_UPGRADES_METADATA = """
     <build>\n<version>0.1</version>\n<supported_upgrades>
     \n<upgrade>\n<version>%s</version>\n</upgrade>
     \n<upgrade>\n<version>21.12</version>\n</upgrade>
     \n<upgrade>\n<version>22.12</version>\n</upgrade>
     \n</supported_upgrades>\n</build>
-"""
-    % FAKE_SOFTWARE_VERSION
-)
+""" % FAKE_SOFTWARE_VERSION
 
 # FAKE SYSINV DATA
 FAKE_SITE0_SYSTEM_UUID = str(uuid.uuid4())

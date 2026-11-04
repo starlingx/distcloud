@@ -80,7 +80,7 @@ class BaseState(object, metaclass=abc.ABCMeta):
         )
 
     def warn_log(self, strategy_step, details):
-        LOG.warn(
+        LOG.warning(
             "Stage: %s, State: %s, Subcloud: %s, Details: %s"
             % (
                 strategy_step.stage,

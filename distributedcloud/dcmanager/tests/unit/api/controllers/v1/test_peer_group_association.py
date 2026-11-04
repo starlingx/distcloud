@@ -5,7 +5,6 @@
 #
 
 import http.client
-import json
 import uuid
 
 import mock
@@ -334,20 +333,18 @@ class TestPeerGroupAssociationPost(BaseTestPeerGroupAssociationController):
             "the subcloud peer group priority is 0.",
         )
 
-    @mock.patch.object(json, "loads")
-    def test_post_fails_with_malformed_payload(self, mock_json_loads):
+    def test_post_fails_with_malformed_payload(self):
         """Test post fails when the payload is malformed"""
 
-        mock_json_loads.side_effect = Exception()
-
-        self.params = None
+        self.method = self.app.post
+        self.params = "{bad json"
+        self.headers["Content-Type"] = "application/json"
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "Request body is malformed."
         )
-        mock_json_loads.assert_called_once()
 
     def test_post_fails_with_invalid_payload(self):
         """Test post fails when the payload is invalid"""

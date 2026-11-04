@@ -15,6 +15,7 @@
 """
 File to store all the configurations
 """
+
 from oslo_config import cfg
 
 global_opts = [

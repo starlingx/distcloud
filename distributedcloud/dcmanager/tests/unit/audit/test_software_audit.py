@@ -59,7 +59,7 @@ class TestSoftwareAudit(DCManagerTestCase):
         ]
 
     def _get_software_audit_data(self):
-        (_, _, _, software_audit_data) = self.audit_manager._get_audit_data(
+        _, _, _, software_audit_data = self.audit_manager._get_audit_data(
             False, False, False, True
         )
 
@@ -105,7 +105,7 @@ class TestSoftwareAudit(DCManagerTestCase):
         )
 
         self.assertIsNone(response)
-        self.mock_log.warn.assert_called_with(
+        self.mock_log.warning.assert_called_with(
             "Cannot retrieve subcloud releases, skip software audit."
         )
 

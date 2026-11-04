@@ -19,5 +19,4 @@
 
 import pbr.version
 
-
 __version__ = pbr.version.VersionInfo("distributedcloud").version_string()

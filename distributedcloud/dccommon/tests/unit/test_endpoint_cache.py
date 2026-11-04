@@ -326,7 +326,7 @@ class TestCachedV3Password(base.DCCommonTestCase):
         generated_tokens = []
 
         def mock_get_auth_ref(_, **__):
-            nonlocal call_count, generated_tokens
+            nonlocal call_count
             time.sleep(0.1)  # Simulate network delay
             call_count += 1
             token = f"auth_token_{call_count}"

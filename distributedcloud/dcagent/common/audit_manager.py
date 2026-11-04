@@ -73,7 +73,7 @@ class PeriodicAudit(utils.BaseAuditManager):
                 ex, HTTPUnauthorized
             ) or "The request you have made requires authentication" in str(ex):
                 try:
-                    LOG.warn(
+                    LOG.warning(
                         "Getting new keystone token and retrying "
                         f"call to {func.__name__}"
                     )
@@ -121,7 +121,7 @@ class RequestedAudit(utils.BaseAuditManager):
             use_cache=self.use_cache, request_token=self.request_token
         )
         if audit_type == dccommon_consts.BASE_AUDIT:
-            (availability, inactive_sg, alarms) = get_subcloud_base_audit(
+            availability, inactive_sg, alarms = get_subcloud_base_audit(
                 sysinv_client=sysinv_client, fm_client=fm_client
             )
             resp = {

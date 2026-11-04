@@ -200,7 +200,7 @@ class SystemPeerManager(manager.Manager):
             )
             return os_client.keystone_client
         except Exception:
-            LOG.warn(
+            LOG.warning(
                 f"Failure initializing KeystoneClient for system peer {peer.peer_name}"
             )
             raise
@@ -246,7 +246,7 @@ class SystemPeerManager(manager.Manager):
             peer_subcloud = dc_client.get_subcloud(subcloud_name)
             return peer_subcloud
         except dccommon_exceptions.SubcloudNotFound:
-            LOG.warn(
+            LOG.warning(
                 f"Subcloud '{subcloud_name}' does not exist on "
                 f"peer site '{dc_client.peer.peer_name}'"
             )

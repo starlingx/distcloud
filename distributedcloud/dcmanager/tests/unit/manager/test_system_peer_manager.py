@@ -550,7 +550,7 @@ class TestSystemPeerManager(base.DCManagerTestCase):
     def test_get_peer_ks_client_fail(self):
         self.mock_keystone_client.side_effect = base.FakeException("BOOM")
         self.assertRaises(base.FakeException, self.spm.get_peer_ks_client, self.peer)
-        self.mock_log.warn.assert_called_once_with(
+        self.mock_log.warning.assert_called_once_with(
             "Failure initializing KeystoneClient for system peer "
             f"{self.peer.peer_name}"
         )

@@ -560,7 +560,7 @@ class OrchestratorManager(manager.Manager):
                     prestage.initial_subcloud_validate(subcloud)
                     filtered_valid_subclouds.append((subcloud, sync_status))
                 except exceptions.PrestagePreCheckFailedException:
-                    LOG.warn(warn_msg)
+                    LOG.warning(warn_msg)
             valid_subclouds = filtered_valid_subclouds
 
         if not valid_subclouds:

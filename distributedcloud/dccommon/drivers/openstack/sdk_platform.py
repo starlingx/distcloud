@@ -15,6 +15,7 @@
 """
 OpenStack Driver
 """
+
 import random
 import time
 
@@ -363,7 +364,7 @@ class OpenStackDriver(object):
         :param clear_token: Whether to clear the token cache. Defaults to False.
         :type clear_token: bool
         """
-        LOG.warn(f"delete_region_clients={region_name}, clear_token={clear_token}")
+        LOG.warning(f"delete_region_clients={region_name}, clear_token={clear_token}")
         try:
             del cls.os_clients_dict[region_name]
         except KeyError:

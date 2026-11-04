@@ -38,7 +38,6 @@ from dccommon import utils as cutils
 from dcmanager.common import consts as dcmanager_consts
 from dcmanager.common import utils
 
-
 LOG = logging.getLogger(__name__)
 
 CONF = cfg.CONF
@@ -703,7 +702,7 @@ class IpmiLogger(object):
                         else:
                             LOG.info("%s finished %s", msg, self.name)
                     else:
-                        LOG.warn(
+                        LOG.warning(
                             "%s failed %s, returncode: %s, output: %s",
                             msg,
                             self.name,
@@ -756,7 +755,7 @@ class IpmiLogger(object):
                     result.stdout.decode("utf-8").replace("\n", ", "),
                 )
             else:
-                LOG.warn(
+                LOG.warning(
                     "%s %s failed, returncode: %s, output: %s",
                     msg,
                     self.name,

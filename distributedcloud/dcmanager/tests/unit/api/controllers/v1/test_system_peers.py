@@ -4,7 +4,6 @@
 #
 
 import http.client
-import json
 
 import mock
 from oslo_messaging import RemoteError
@@ -93,18 +92,21 @@ class SystemPeersPropertiesValidationMixin(object):
             response, http.client.BAD_REQUEST, "Body required"
         )
 
-    @mock.patch.object(json, "loads")
-    def test_request_fails_with_json_loads_exception(self, mock_json_loads):
-        """Test request fails with json loads exception"""
+    def test_request_fails_with_malformed_payload(self):
+        """Test request fails with a malformed payload"""
 
-        mock_json_loads.side_effect = Exception()
+        if self.method == self.app.patch_json:
+            self.method = self.app.patch
+        else:
+            self.method = self.app.post
+        self.params = "{bad json"
+        self.headers["Content-Type"] = "application/json"
 
         response = self._send_request()
 
         self._assert_pecan_and_response(
             response, http.client.BAD_REQUEST, "Request body is malformed."
         )
-        mock_json_loads.assert_called_once()
 
     def test_request_fails_with_invalid_payload(self):
         """Test request fails with invalid payload"""
