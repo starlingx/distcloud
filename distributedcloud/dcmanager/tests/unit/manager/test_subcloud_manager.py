@@ -3501,29 +3501,8 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
             state_type, expected_state = expected_states[self.subcloud.name]
             self.assertEqual(expected_state, subcloud.get(state_type))
 
-    def test_handle_subcloud_operations_in_progress_resumes_onsite_restore(self):
-        """on-site restore is resumed, not failed out, on swact/restart"""
-        mock_spawn_n = self._mock_object(subcloud_manager.greenthread, "spawn_n")
-        db_api.subcloud_update(
-            self.ctx,
-            self.subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_ONSITE_RESTORING,
-        )
-
-        self.sm.handle_subcloud_operations_in_progress()
-
-        mock_spawn_n.assert_called_once()
-        spawn_args = mock_spawn_n.call_args[0]
-        self.assertEqual(spawn_args[0], self.sm._resume_onsite_restore_after_swact)
-        self.assertEqual(spawn_args[1].name, self.subcloud.name)
-
-        # The deploy status is NOT set to restore-failed
-        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_ONSITE_RESTORING, updated.deploy_status)
-
     def test_handle_subcloud_operations_in_progress_fails_other_states(self):
         """Other transitory states still flip to their failure state"""
-        mock_spawn_n = self._mock_object(subcloud_manager.greenthread, "spawn_n")
         db_api.subcloud_update(
             self.ctx,
             self.subcloud.id,
@@ -3534,7 +3513,6 @@ class TestSubcloudRedeploy(BaseTestSubcloudManager):
 
         updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
         self.assertEqual(consts.DEPLOY_STATE_RESTORE_FAILED, updated.deploy_status)
-        mock_spawn_n.assert_not_called()
 
 
 class TestSubcloudBackup(BaseTestSubcloudManager):
@@ -5653,527 +5631,6 @@ class TestSubcloudDeployEnrollVcsrFlag(BaseTestSubcloudManager):
         self.assertFalse(self._flag_from_last_update())
 
 
-class TestComposeOnsiteRestoreCommand(BaseTestSubcloudManager):
-    """Tests for compose_onsite_restore_command"""
-
-    INVENTORY_FILE = f"{ANS_PATH}/subcloud1_inventory.yml"
-
-    def test_compose_onsite_restore_command_basic(self):
-        command = self.sm.compose_onsite_restore_command(
-            "subcloud1", self.INVENTORY_FILE
-        )
-        self.assertEqual(
-            command,
-            [
-                "ansible-playbook",
-                subcloud_manager.ANSIBLE_SUBCLOUD_ONSITE_RESTORE_PLAYBOOK,
-                "-i",
-                self.INVENTORY_FILE,
-                "--limit",
-                "subcloud1",
-            ],
-        )
-
-    def test_compose_onsite_restore_command_with_timeout(self):
-        """Test that compose includes the timeout value"""
-        command = self.sm.compose_onsite_restore_command(
-            "subcloud1", self.INVENTORY_FILE, restore_timeout=3600
-        )
-        self.assertIn("-e", command)
-        self.assertIn("restore_timeout=3600", command)
-
-
-class TestTransferBackupToSubcloud(BaseTestSubcloudManager):
-    """Tests for _transfer_backup_to_subcloud"""
-
-    BACKUP_PATH = "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
-    STAGING_DIR = consts.SUBCLOUD_AUTO_RESTORE_DIR
-    SYSADMIN_PASSWORD = "testpass"
-    RSYNC_TIMEOUT = 60
-
-    def setUp(self):
-        super().setUp()
-
-        self.mock_subprocess_run.return_value = mock.MagicMock(returncode=0)
-
-        # Avoid sleeping between retry attempts to keep the tests fast.
-        self.mock_time = self._mock_object(subcloud_manager, "time")
-
-    def _call(self, bootstrap_address="192.168.1.10"):
-        return self.sm._transfer_backup_to_subcloud(
-            self.subcloud,
-            bootstrap_address,
-            self.SYSADMIN_PASSWORD,
-            self.BACKUP_PATH,
-            self.STAGING_DIR,
-            self.RSYNC_TIMEOUT,
-        )
-
-    @staticmethod
-    def _make_timeout_expired():
-        return subprocess.TimeoutExpired(cmd=["rsync"], timeout=1)
-
-    @staticmethod
-    def _make_called_process_error():
-        return subprocess.CalledProcessError(
-            returncode=23, cmd=["rsync"], output="", stderr="permission denied"
-        )
-
-    def test_transfer_success_first_attempt(self):
-        """Successful transfer issues the setup-ssh and rsync calls and returns True."""
-        result = self._call()
-
-        self.assertTrue(result)
-        # One ssh setup call + one rsync call.
-        self.assertEqual(self.mock_subprocess_run.call_count, 2)
-
-        self.mock_time.sleep.assert_not_called()
-
-    def test_transfer_uses_bracketed_host_for_ipv6(self):
-        """IPv6 bootstrap addresses must be bracketed in the rsync target."""
-        ipv6_address = "2620:10a:a001:aa0d::191"
-
-        result = self._call(bootstrap_address=ipv6_address)
-
-        self.assertTrue(result)
-        rsync_call = self.mock_subprocess_run.call_args_list[1]
-        rsync_cmd = rsync_call.args[0]
-        target_arg = rsync_cmd[-1]
-        self.assertEqual(target_arg, f"sysadmin@[{ipv6_address}]:{self.STAGING_DIR}/")
-
-    def test_transfer_uses_plain_host_for_ipv4(self):
-        """IPv4 bootstrap addresses must NOT be bracketed in the rsync target."""
-        ipv4_address = "192.168.1.10"
-
-        result = self._call(bootstrap_address=ipv4_address)
-
-        self.assertTrue(result)
-        rsync_call = self.mock_subprocess_run.call_args_list[1]
-        rsync_cmd = rsync_call.args[0]
-        target_arg = rsync_cmd[-1]
-        self.assertEqual(target_arg, f"sysadmin@{ipv4_address}:{self.STAGING_DIR}/")
-
-    def test_transfer_passes_password_via_env_not_argv(self):
-        """sshpass -e reads the password from $SSHPASS, not the command line."""
-        result = self._call()
-
-        self.assertTrue(result)
-        for call in self.mock_subprocess_run.call_args_list:
-            cmd = call.args[0]
-            env = call.kwargs.get("env", {})
-            self.assertEqual(env.get("SSHPASS"), self.SYSADMIN_PASSWORD)
-
-            self.assertNotIn(self.SYSADMIN_PASSWORD, cmd)
-            self.assertIn("-e", cmd)
-
-    def test_transfer_retries_on_timeout_then_succeeds(self):
-        """A TimeoutExpired on attempt 1 retries and succeeds on attempt 2."""
-
-        self.mock_subprocess_run.side_effect = [
-            mock.MagicMock(returncode=0),  # attempt 1 setup
-            self._make_timeout_expired(),  # attempt 1 rsync (raises)
-            mock.MagicMock(returncode=0),  # attempt 2 setup
-            mock.MagicMock(returncode=0),  # attempt 2 rsync
-        ]
-
-        result = self._call()
-
-        self.assertTrue(result)
-        self.assertEqual(self.mock_subprocess_run.call_count, 4)
-        self.mock_time.sleep.assert_called_once_with(10)
-
-    def test_transfer_retries_on_called_process_error_then_succeeds(self):
-        """A CalledProcessError on attempt 1 retries and succeeds on attempt 2."""
-        self.mock_subprocess_run.side_effect = [
-            mock.MagicMock(returncode=0),  # attempt 1 setup
-            self._make_called_process_error(),  # attempt 1 rsync (raises)
-            mock.MagicMock(returncode=0),  # attempt 2 setup
-            mock.MagicMock(returncode=0),  # attempt 2 rsync
-        ]
-
-        result = self._call()
-
-        self.assertTrue(result)
-        self.assertEqual(self.mock_subprocess_run.call_count, 4)
-        self.mock_time.sleep.assert_called_once_with(10)
-
-    def test_transfer_returns_false_after_three_timeouts(self):
-        """Three consecutive timeouts exhaust the retries and return False."""
-        # Each attempt: setup ok, rsync times out.
-        self.mock_subprocess_run.side_effect = [
-            mock.MagicMock(returncode=0),
-            self._make_timeout_expired(),
-            mock.MagicMock(returncode=0),
-            self._make_timeout_expired(),
-            mock.MagicMock(returncode=0),
-            self._make_timeout_expired(),
-        ]
-
-        result = self._call()
-
-        self.assertFalse(result)
-        self.assertEqual(self.mock_subprocess_run.call_count, 6)
-        self.assertEqual(self.mock_time.sleep.call_count, 2)
-
-    def test_transfer_returns_false_after_three_called_process_errors(self):
-        """Three consecutive non-zero rsync exits return False."""
-        self.mock_subprocess_run.side_effect = [
-            mock.MagicMock(returncode=0),
-            self._make_called_process_error(),
-            mock.MagicMock(returncode=0),
-            self._make_called_process_error(),
-            mock.MagicMock(returncode=0),
-            self._make_called_process_error(),
-        ]
-
-        result = self._call()
-
-        self.assertFalse(result)
-        self.assertEqual(self.mock_subprocess_run.call_count, 6)
-        self.assertEqual(self.mock_time.sleep.call_count, 2)
-
-    def test_transfer_returns_false_immediately_on_unexpected_exception(self):
-        """An unexpected exception aborts the loop without retrying."""
-        self.mock_subprocess_run.side_effect = [
-            mock.MagicMock(returncode=0),  # setup ok
-            RuntimeError("boom"),  # rsync raises something unexpected
-        ]
-
-        result = self._call()
-
-        self.assertFalse(result)
-        self.assertEqual(self.mock_subprocess_run.call_count, 2)
-        self.mock_time.sleep.assert_not_called()
-
-
-class TestRestoreSubcloudBackupOnSite(BaseTestSubcloudManager):
-    """Tests for _restore_subcloud_backup_on_site"""
-
-    def setUp(self):
-        super().setUp()
-
-        self.mock_resolve_bootstrap = self._mock_object(
-            subcloud_manager.SubcloudManager,
-            "_resolve_bootstrap_address",
-            return_value="192.168.1.10",
-        )
-
-        self.mock_create_inventory = self._mock_object(
-            subcloud_manager.SubcloudManager,
-            "_create_subcloud_inventory_file",
-            return_value="inventory_file.yml",
-        )
-
-        self.mock_compose_onsite = self._mock_object(
-            subcloud_manager.SubcloudManager,
-            "compose_onsite_restore_command",
-            return_value=["ansible-playbook", "onsite.yml"],
-        )
-
-        self.mock_transfer = self._mock_object(
-            subcloud_manager.SubcloudManager,
-            "_transfer_backup_to_subcloud",
-            return_value=True,
-        )
-
-        self.mock_spawn_n = self._mock_object(subcloud_manager.greenthread, "spawn_n")
-
-        db_api.subcloud_update(
-            self.ctx,
-            self.subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_DONE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-        )
-
-    def _call(self, payload=None):
-        payload = payload or {"sysadmin_password": "testpass"}
-        return self.sm._restore_subcloud_backup_on_site(
-            self.ctx, payload, self.subcloud
-        )
-
-    def test_restore_subcloud_backup_on_site_local_only_success(self):
-        """local_only skips the transfer and spawns the monitor."""
-        success = self._call({"sysadmin_password": "testpass", "local_only": True})
-
-        self.assertTrue(success)
-        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_ONSITE_RESTORING, updated.deploy_status)
-        self.mock_transfer.assert_not_called()
-        self.mock_spawn_n.assert_called_once()
-        spawned = self.mock_spawn_n.call_args[0][0]
-        self.assertEqual(spawned, self.sm._monitor_onsite_restore)
-        self.mock_compose_onsite.assert_called_once_with(
-            self.subcloud.name,
-            "inventory_file.yml",
-            restore_timeout=mock.ANY,
-            software_version=self.subcloud.software_version,
-        )
-
-    @mock.patch.object(cutils, "find_central_subcloud_backup")
-    def test_restore_subcloud_backup_on_site_remote_transfer_success(
-        self, mock_find_backup
-    ):
-        """Remote restore runs the transfer before spawning the monitor."""
-        mock_find_backup.return_value = Path(
-            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
-        )
-
-        success = self._call()
-
-        self.assertTrue(success)
-        self.mock_transfer.assert_called_once()
-        transfer_args = self.mock_transfer.call_args
-        # positional args: (subcloud, bootstrap_address, sysadmin_password,
-        #                   backup_source_path, staging_dir); rsync_timeout is kwarg
-        self.assertEqual(transfer_args.args[1], "192.168.1.10")
-        self.assertEqual(transfer_args.args[2], "testpass")
-        self.assertEqual(transfer_args.args[4], consts.SUBCLOUD_AUTO_RESTORE_DIR)
-        self.assertEqual(
-            transfer_args.kwargs["rsync_timeout"],
-            subcloud_manager.RSYNC_TRANSFER_TIMEOUT,
-        )
-        self.mock_spawn_n.assert_called_once()
-        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_ONSITE_RESTORING, updated.deploy_status)
-
-    @mock.patch.object(cutils, "find_central_subcloud_backup")
-    def test_restore_subcloud_backup_on_site_with_restore_values(
-        self, mock_find_backup
-    ):
-        """restore_values with bootstrap_address and restore_timeout is accepted."""
-        mock_find_backup.return_value = Path(
-            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
-        )
-        payload = {
-            "sysadmin_password": "testpass",
-            "restore_values": {
-                "bootstrap_address": {"subcloud1": "192.168.1.10"},
-                "restore_timeout": 3600,
-            },
-        }
-
-        success = self._call(payload)
-
-        self.assertTrue(success)
-        self.mock_transfer.assert_called_once()
-        self.mock_spawn_n.assert_called_once()
-
-    @mock.patch.object(cutils, "find_central_subcloud_backup")
-    def test_restore_subcloud_backup_on_site_transfer_failure(self, mock_find_backup):
-        """Transfer failure flips state to RESTORE_FAILED and skips spawn."""
-        mock_find_backup.return_value = Path(
-            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
-        )
-        self.mock_transfer.return_value = False
-
-        success = self._call()
-
-        self.assertFalse(success)
-        self.mock_spawn_n.assert_not_called()
-        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_RESTORE_FAILED, updated.deploy_status)
-
-    @mock.patch.object(cutils, "find_central_subcloud_backup")
-    def test_restore_subcloud_backup_on_site_creates_inventory_with_password(
-        self, mock_find_backup
-    ):
-        """Test that restore forwards password to _create_subcloud_inventory_file"""
-        mock_find_backup.return_value = Path(
-            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
-        )
-
-        self._call({"sysadmin_password": "passwd"})
-
-        self.mock_create_inventory.assert_called_once_with(
-            self.subcloud,
-            bootstrap_address="192.168.1.10",
-            sysadmin_password="passwd",
-        )
-
-    @mock.patch.object(cutils, "find_central_subcloud_backup")
-    def test_restore_subcloud_backup_on_site_prep_failure(self, mock_find_backup):
-        """Test restore prep failure path"""
-        self.mock_resolve_bootstrap.side_effect = Exception("address lookup failed")
-        mock_find_backup.return_value = Path(
-            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
-        )
-
-        success = self._call()
-
-        self.assertFalse(success)
-        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_RESTORE_PREP_FAILED, updated.deploy_status)
-        self.mock_transfer.assert_not_called()
-        self.mock_spawn_n.assert_not_called()
-
-
-class TestRestoreSubcloudBackupsOnSiteRpc(BaseTestSubcloudManager):
-    """Tests for the synchronous on-site RPC entry point."""
-
-    def setUp(self):
-        super().setUp()
-
-        self.payload = {
-            "subcloud": self.subcloud.id,
-            "sysadmin_password": "pass",
-        }
-
-        self.mock_inner_restore_method = self._mock_object(
-            subcloud_manager.SubcloudManager,
-            "_restore_subcloud_backup_on_site",
-        )
-        db_api.subcloud_update(
-            self.ctx,
-            self.subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_DONE,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-        )
-
-    def test_dispatches_to_inner_on_site_restore_method(self):
-        self.mock_inner_restore_method.return_value = True
-
-        self.sm.restore_subcloud_from_backup_on_site(self.ctx, self.payload)
-
-        self.mock_inner_restore_method.assert_called_once()
-
-    def test_validation_failure_raises(self):
-        # set to managed so the validation fails
-        db_api.subcloud_update(
-            self.ctx,
-            self.subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_DONE,
-            management_state=dccommon_consts.MANAGEMENT_MANAGED,
-        )
-
-        self.assertRaises(
-            exceptions.ValidateFail,
-            self.sm.restore_subcloud_from_backup_on_site,
-            self.ctx,
-            self.payload,
-        )
-
-    def test_failure_raises(self):
-        self.mock_inner_restore_method.return_value = False
-
-        self.assertRaises(
-            exceptions.SubcloudBackupOperationFailed,
-            self.sm.restore_subcloud_from_backup_on_site,
-            self.ctx,
-            self.payload,
-        )
-
-
-class TestMonitorOnsiteRestore(BaseTestSubcloudManager):
-    """Tests for _monitor_onsite_restore"""
-
-    RESTORE_TIMEOUT = 3600
-
-    def setUp(self):
-        super().setUp()
-
-        db_api.subcloud_update(
-            self.ctx,
-            self.subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_ONSITE_RESTORING,
-            management_state=dccommon_consts.MANAGEMENT_UNMANAGED,
-        )
-
-    def _call(self):
-        self.sm._monitor_onsite_restore(
-            self.ctx,
-            self.subcloud,
-            ["ansible-playbook", "onsite.yml"],
-            "/tmp/subcloud1_playbook_output.log",
-            restore_timeout=self.RESTORE_TIMEOUT,
-        )
-
-    def test_monitor_onsite_restore_success(self):
-        """Test the restore monitoring playbook success path"""
-        self._call()
-
-        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_DONE, updated.deploy_status)
-        self.mock_ansible_run_playbook.assert_called_once_with(
-            "/tmp/subcloud1_playbook_output.log",
-            mock.ANY,
-            timeout=self.RESTORE_TIMEOUT + 300,
-        )
-
-    @mock.patch.object(cutils, "find_central_subcloud_backup")
-    @mock.patch.object(subcloud_manager.utils, "find_and_save_ansible_error_msg")
-    def test_monitor_onsite_restore_playbook_execution_failed(
-        self, mock_find_msg, mock_find_backup
-    ):
-        """Test the restore monitoring playbook failure path"""
-        self.mock_ansible_run_playbook.side_effect = PlaybookExecutionFailed()
-        mock_find_backup.return_value = Path(
-            "/opt/dc-vault/subcloud1/25.09/subcloud1_platform_backup_20250101.tgz"
-        )
-
-        self._call()
-
-        mock_find_msg.assert_called_once_with(
-            self.ctx,
-            self.subcloud,
-            "/tmp/subcloud1_playbook_output.log",
-            exception=mock.ANY,
-            stage=consts.DEPLOY_STATE_ONSITE_RESTORING,
-            deploy_status=consts.DEPLOY_STATE_RESTORE_FAILED,
-        )
-
-    def test_monitor_onsite_restore_unexpected_exception(self):
-        """Test that the restore monitoring fails with an unexpected exception"""
-        self.mock_ansible_run_playbook.side_effect = Exception("boom")
-
-        self._call()
-
-        updated = db_api.subcloud_get_by_name(self.ctx, self.subcloud.name)
-        self.assertEqual(consts.DEPLOY_STATE_RESTORE_FAILED, updated.deploy_status)
-
-
-class TestResumeOnsiteRestoreAfterSwact(BaseTestSubcloudManager):
-    """Tests for _resume_onsite_restore_after_swact"""
-
-    def setUp(self):
-        super().setUp()
-
-        self.mock_spawn_n = self._mock_object(subcloud_manager.greenthread, "spawn_n")
-        self.mock_get_ansible_filename = self._mock_object(
-            subcloud_manager.SubcloudManager,
-            "_get_ansible_filename",
-            return_value=f"{ANS_PATH}/subcloud1_inventory.yml",
-        )
-
-        db_api.subcloud_update(
-            self.ctx,
-            self.subcloud.id,
-            deploy_status=consts.DEPLOY_STATE_ONSITE_RESTORING,
-        )
-
-    def test_resume_spawns_monitor_playbook(self):
-        """Resume re-spawns the monitor playbook"""
-        self.sm._resume_onsite_restore_after_swact(self.subcloud)
-
-        self.mock_spawn_n.assert_called_once()
-        args = self.mock_spawn_n.call_args[0]
-
-        self.assertEqual(args[0], self.sm._monitor_onsite_restore)
-        self.assertEqual(args[1], self.ctx)
-        self.assertEqual(args[2], self.subcloud)
-        onsite_command = args[3]
-        log_file = args[4]
-        restore_timeout = args[5]
-
-        # The resumed monitor uses the default timeout (CONF.playbook_timeout * 1.5)
-        self.assertEqual(restore_timeout, int(DEFAULT_RESTORE_TIMEOUT))
-        self.assertIn(f"restore_timeout={int(DEFAULT_RESTORE_TIMEOUT)}", onsite_command)
-        self.assertTrue(log_file.endswith("subcloud1_playbook_output.log"))
-        # The inventory file is reused, not recreated
-        self.mock_get_ansible_filename.assert_called_once_with(
-            self.subcloud.name, subcloud_manager.INVENTORY_FILE_POSTFIX
-        )
-
-
 class TestSubcloudStageAutoRestoreFiles(BaseTestSubcloudManager):
     """Test class for testing _stage_auto_restore_files method"""
 
@@ -6623,6 +6080,51 @@ class TestRestoreSubcloudBackup(BaseTestSubcloudManager):
 
         self.assertEqual(result, (self.subcloud, True))
 
+    def _create_on_factory_install_payload(self, on_site=False):
+        payload = {
+            "override_values": {},
+            "sysadmin_password": "testpass",
+            "restore_values": {consts.RESTORE_VALUES_ON_FACTORY_INSTALL: True},
+            "software_version": "25.09",
+        }
+        if on_site:
+            payload["on_site"] = True
+        return payload
+
+    def test_restore_subcloud_backup_on_factory_install_reconfigures_network(self):
+        """A standalone on_factory_install restore reconfigures over the BMC"""
+        mock_resolve = self._mock_object(
+            subcloud_manager.SubcloudManager, "_resolve_bootstrap_address"
+        )
+        mock_resolve.return_value = "192.168.1.100"
+        mock_reconfigure = self._mock_object(
+            subcloud_manager.SubcloudManager, "_reconfigure_subcloud_network"
+        )
+
+        payload = self._create_on_factory_install_payload(on_site=False)
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        mock_reconfigure.assert_called_once()
+        self.assertEqual(result, (self.subcloud, True))
+
+    def test_restore_subcloud_backup_on_site_skips_network_reconfig(self):
+        """An on-site restore skips the BMC network reconfiguration"""
+        mock_resolve = self._mock_object(
+            subcloud_manager.SubcloudManager, "_resolve_bootstrap_address"
+        )
+        mock_resolve.return_value = "192.168.1.100"
+        mock_reconfigure = self._mock_object(
+            subcloud_manager.SubcloudManager, "_reconfigure_subcloud_network"
+        )
+
+        payload = self._create_on_factory_install_payload(on_site=True)
+        result = self.sm._restore_subcloud_backup(self.ctx, payload, self.subcloud)
+
+        # The subcloud reconfigured its own network before sending the request,
+        # so the BMC network reconfiguration must not run for on-site.
+        mock_reconfigure.assert_not_called()
+        self.assertEqual(result, (self.subcloud, True))
+
 
 class TestDetermineRestoreMode(BaseTestSubcloudManager):
     """Test class for testing _determine_restore_mode method"""
@@ -6656,6 +6158,29 @@ class TestDetermineRestoreMode(BaseTestSubcloudManager):
     def test_determine_restore_mode_factory_takes_precedence(self):
         """Test that factory takes precedence over auto when both are set"""
         self._assert_restore_mode({"factory": True, "auto": True}, "factory", True)
+
+    def test_determine_restore_mode_on_factory_install(self):
+        """A standalone on_factory_install restore uses the standard playbook"""
+        payload = {"restore_values": {consts.RESTORE_VALUES_ON_FACTORY_INSTALL: True}}
+        result = subcloud_manager.SubcloudManager._determine_restore_mode(payload)
+        self.assertIsNone(result.auto_restore_mode)
+        self.assertFalse(result.bmc_access_only)
+        self.assertFalse(result.ipmi_sel_event_monitoring)
+        self.assertTrue(result.on_factory_install)
+        self.assertFalse(result.on_site)
+
+    def test_determine_restore_mode_on_site(self):
+        """An on_site restore is on_factory_install with the on_site flag set"""
+        payload = {
+            "on_site": True,
+            "restore_values": {consts.RESTORE_VALUES_ON_FACTORY_INSTALL: True},
+        }
+        result = subcloud_manager.SubcloudManager._determine_restore_mode(payload)
+        self.assertIsNone(result.auto_restore_mode)
+        self.assertFalse(result.bmc_access_only)
+        self.assertFalse(result.ipmi_sel_event_monitoring)
+        self.assertTrue(result.on_factory_install)
+        self.assertTrue(result.on_site)
 
 
 class TestResolveBootstrapAddress(BaseTestSubcloudManager):
@@ -6910,13 +6435,7 @@ class TestPrepareRestoreFiles(BaseTestRestoreHelpers):
 
 
 class TestCreateOverridesOnFactoryInstall(BaseTestRestoreHelpers):
-    """Test the OAM/bootstrap override injection for on_factory_install restore."""
-
-    FAKE_BOOTSTRAP_VALUES = {
-        "external_oam_subnet": "10.10.10.0/24",
-        "external_oam_gateway_address": "10.10.10.1",
-        "external_oam_floating_address": "10.10.10.12",
-    }
+    """Test the bootstrap override injection for on_factory_install restore."""
 
     def setUp(self):
         super().setUp()
@@ -6925,11 +6444,6 @@ class TestCreateOverridesOnFactoryInstall(BaseTestRestoreHelpers):
             subcloud_manager.SubcloudManager, "_create_backup_overrides_file"
         )
         self.mock_create_backup_overrides_file.return_value = "overrides_file.yml"
-        self.mock_load_yaml_file = self._mock_object(
-            subcloud_manager.utils, "load_yaml_file"
-        )
-        self.mock_load_yaml_file.return_value = dict(self.FAKE_BOOTSTRAP_VALUES)
-        self._mock_object(subcloud_manager.psd_common, "get_config_file_path")
 
     def _create_overrides(self, on_factory_install, auto_restore_mode=None):
         payload = {
@@ -6949,14 +6463,9 @@ class TestCreateOverridesOnFactoryInstall(BaseTestRestoreHelpers):
         )
         return payload["override_values"]
 
-    def test_injects_oam_and_bootstrap_values(self):
+    def test_injects_bootstrap_values(self):
         override_values = self._create_overrides(on_factory_install=True)
 
-        self.assertEqual(override_values["external_oam_subnet"], "10.10.10.0/24")
-        self.assertEqual(override_values["external_oam_gateway_address"], "10.10.10.1")
-        self.assertEqual(
-            override_values["external_oam_floating_address"], "10.10.10.12"
-        )
         # bootstrap_interface/vlan come from the subcloud install values
         self.assertEqual(
             override_values["bootstrap_interface"],
@@ -6967,22 +6476,14 @@ class TestCreateOverridesOnFactoryInstall(BaseTestRestoreHelpers):
             fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES["bootstrap_vlan"],
         )
 
-    def test_splits_comma_separated_oam_values(self):
-        # Dual-stack bootstrap values are comma-separated; only the primary
-        # (first) value is injected.
-        self.mock_load_yaml_file.return_value = {
-            "external_oam_subnet": "10.10.10.0/24,fd04::/64",
-            "external_oam_gateway_address": "10.10.10.1,fd04::1",
-            "external_oam_floating_address": "10.10.10.12,fd04::10",
-        }
-
+    def test_omits_oam_values(self):
+        # The restore playbook persists the OAM interface, not the addresses,
+        # so the OAM bootstrap values are not injected.
         override_values = self._create_overrides(on_factory_install=True)
 
-        self.assertEqual(override_values["external_oam_subnet"], "10.10.10.0/24")
-        self.assertEqual(override_values["external_oam_gateway_address"], "10.10.10.1")
-        self.assertEqual(
-            override_values["external_oam_floating_address"], "10.10.10.12"
-        )
+        self.assertNotIn("external_oam_subnet", override_values)
+        self.assertNotIn("external_oam_gateway_address", override_values)
+        self.assertNotIn("external_oam_floating_address", override_values)
 
     def test_omits_bootstrap_vlan_when_absent(self):
         install_values = dict(fake_subcloud.FAKE_SUBCLOUD_INSTALL_VALUES)
@@ -7002,7 +6503,6 @@ class TestCreateOverridesOnFactoryInstall(BaseTestRestoreHelpers):
     def test_no_injection_when_not_on_factory_install(self):
         override_values = self._create_overrides(on_factory_install=False)
 
-        self.assertNotIn("external_oam_subnet", override_values)
         self.assertNotIn("bootstrap_interface", override_values)
 
     def test_no_injection_on_auto_path(self):

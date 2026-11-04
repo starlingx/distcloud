@@ -281,13 +281,6 @@ class ManagerClient(RPCClient):
             ctxt, self.make_msg("restore_subcloud_backups", payload=payload)
         )
 
-    def restore_subcloud_from_backup_on_site(self, ctxt, payload):
-        return self.call(
-            ctxt,
-            self.make_msg("restore_subcloud_from_backup_on_site", payload=payload),
-            timeout=consts.RPC_ON_SITE_RESTORE_TIMEOUT,
-        )
-
     def update_subcloud_sync_endpoint_type(
         self, ctxt, subcloud_region, endpoint_type_list, openstack_installed
     ):
