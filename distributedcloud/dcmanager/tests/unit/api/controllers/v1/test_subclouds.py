@@ -1608,8 +1608,6 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
         The nexthop gateway and network mask are required when the network address
         is present.
         """
-        # TODO(abailey): None will cause the API to fail
-
         self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
         self.install_data["nexthop_gateway"] = "192.168.1.2"
         self.install_data["network_mask"] = 32
@@ -1623,6 +1621,28 @@ class TestSubcloudsPostInstallData(BaseTestSubcloudsPost):
             response,
             http.client.BAD_REQUEST,
             "network address invalid: IPv6 minimum prefix length is 64",
+        )
+
+    def test_post_fails_with_none_network_address_in_install_values(self):
+        """Test post fails with a None network address in install values
+
+        A None network address must be rejected as a bad request, rather than
+        raising a TypeError while the network string is assembled.
+        """
+
+        self.install_data = copy.copy(self.FAKE_INSTALL_DATA)
+        self.install_data["nexthop_gateway"] = "192.168.1.2"
+        self.install_data["network_mask"] = 32
+        self.install_data["network_address"] = None
+
+        self.upload_files = self.get_post_upload_files()
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response,
+            http.client.BAD_REQUEST,
+            "network address invalid: Invalid subnet - not a valid IP subnet",
         )
 
     def test_post_fails_with_invalid_network_mask_in_install_values(self):
