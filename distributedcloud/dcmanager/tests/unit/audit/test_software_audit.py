@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -41,8 +41,15 @@ class TestSoftwareAudit(DCManagerTestCase):
 
         self.subcloud = create_fake_subcloud(self.ctx)
 
-    def _create_fake_release(self, release_id, state, sw_version):
-        return {"release_id": release_id, "state": state, "sw_version": sw_version}
+    def _create_fake_release(self, release_id, state, sw_version, metapackages=None):
+        release = {
+            "release_id": release_id,
+            "state": state,
+            "sw_version": sw_version,
+        }
+        if metapackages is not None:
+            release["metapackages"] = metapackages
+        return release
 
     def _setup_fake_releases(self):
         self.fake_regionone_releases = [
@@ -118,3 +125,134 @@ class TestSoftwareAudit(DCManagerTestCase):
         self.mock_log.exception.assert_called_with(
             "Failure initializing OS Client, skip software audit."
         )
+
+    def test_software_audit_deployed_partial_in_sync(self):
+        """Same metapackages deployed on RegionOne and subcloud -> in-sync."""
+        metapackages = {
+            "infra_9.0.2": {"state": "deployed"},
+            "distcloud_9.0.2": {"state": "available"},
+        }
+        self.mock_regionone_softwareclient().list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", metapackages
+            ),
+        ]
+        self.mock_subcloud_softwareclient.list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", metapackages
+            ),
+        ]
+
+        self._test_software_audit(dccommon_consts.SYNC_STATUS_IN_SYNC, "9.0")
+
+    def test_software_audit_deployed_partial_metapackages_differ(self):
+        """Different deployed metapackages -> out-of-sync."""
+        central_metapackages = {
+            "infra_9.0.2": {"state": "deployed"},
+            "distcloud_9.0.2": {"state": "deployed"},
+        }
+        subcloud_metapackages = {
+            "infra_9.0.2": {"state": "deployed"},
+            "distcloud_9.0.2": {"state": "available"},
+        }
+        self.mock_regionone_softwareclient().list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", central_metapackages
+            ),
+        ]
+        self.mock_subcloud_softwareclient.list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", subcloud_metapackages
+            ),
+        ]
+
+        self._test_software_audit(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, "9.0")
+
+    def test_software_audit_deployed_partial_vs_deployed(self):
+        """Deployed-partial on RegionOne, fully deployed on subcloud ->
+
+        out-of-sync, since the subcloud has no deployed metapackages to match.
+        """
+        central_metapackages = {
+            "infra_9.0.2": {"state": "deployed"},
+            "distcloud_9.0.2": {"state": "available"},
+        }
+        self.mock_regionone_softwareclient().list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", central_metapackages
+            ),
+        ]
+        self.mock_subcloud_softwareclient.list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release("starlingx-9.0.2", "deployed", "9.0.2"),
+        ]
+
+        self._test_software_audit(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, "9.0")
+
+    def test_software_audit_subcloud_no_metapackage_deployed(self):
+        """Subcloud returns no metapackage deployed -> out-of-sync.
+
+        RegionOne has metapackages deployed in the deployed-partial release
+        while the subcloud has the same release in deployed-partial but with
+        none of its metapackages deployed.
+        """
+        central_metapackages = {
+            "infra_9.0.2": {"state": "deployed"},
+            "distcloud_9.0.2": {"state": "deployed"},
+        }
+        subcloud_metapackages = {
+            "infra_9.0.2": {"state": "available"},
+            "distcloud_9.0.2": {"state": "available"},
+        }
+        self.mock_regionone_softwareclient().list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", central_metapackages
+            ),
+        ]
+        self.mock_subcloud_softwareclient.list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", subcloud_metapackages
+            ),
+        ]
+
+        self._test_software_audit(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, "9.0")
+
+    def test_software_audit_deployed_vs_deployed_partial(self):
+        """System controller deployed, subcloud deployed-partial ->
+
+        out-of-sync, since the subcloud has deployed metapackages that the
+        system controller does not.
+        """
+        subcloud_metapackages = {
+            "infra_9.0.2": {"state": "deployed"},
+            "distcloud_9.0.2": {"state": "available"},
+        }
+        self.mock_regionone_softwareclient().list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release("starlingx-9.0.2", "deployed", "9.0.2"),
+        ]
+        self.mock_subcloud_softwareclient.list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", subcloud_metapackages
+            ),
+        ]
+
+        self._test_software_audit(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, "9.0")

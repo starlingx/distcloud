@@ -2408,6 +2408,29 @@ def get_major_releases(releases):
     return major_releases
 
 
+def get_deployed_metapackages(software_list: list) -> set:
+    """Get the deployed metapackages from a software list.
+
+    A release in the deployed-partial state exposes a per-metapackage
+    state under its "metapackages" field. This collects the IDs of the
+    metapackages that are currently deployed, so that two systems can be
+    compared to decide whether they have the same metapackages applied.
+
+    :param software_list: list of software releases from the USM API.
+
+    :returns: set of metapackage IDs that are in the deployed state.
+    """
+    deployed_metapackages = set()
+
+    for release in software_list:
+        metapackages = release.get("metapackages") or {}
+        for metapackage_id, metapackage in metapackages.items():
+            if metapackage.get("state") == software_v1.DEPLOYED:
+                deployed_metapackages.add(metapackage_id)
+
+    return deployed_metapackages
+
+
 def get_formatted_release_list(
     software_list: list = None, software_version: str = None
 ) -> list:
