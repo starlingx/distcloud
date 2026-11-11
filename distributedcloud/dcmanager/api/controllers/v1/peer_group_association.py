@@ -191,10 +191,18 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         return True
 
     def _validate_peer_group_priority(self, peer_group_priority):
+        # bool is a subclass of int, and int(True) is 1, so a boolean would pass
+        # the conversion below. A float must be rejected rather than truncated:
+        # int(65536.9) is 65536 and passes the range check, but the value that
+        # gets stored is the original one, which the integer column rounds to
+        # 65537, one above the maximum.
+        if isinstance(peer_group_priority, (bool, float)):
+            LOG.debug("Peer Group Priority is not Integer: %s" % peer_group_priority)
+            return False
         try:
             # Check the value is an integer
             val = int(peer_group_priority)
-        except ValueError:
+        except (TypeError, ValueError):
             LOG.debug("Peer Group Priority is not Integer: %s" % peer_group_priority)
             return False
         # Less than min or greater than max priority is not supported.
