@@ -1031,10 +1031,12 @@ class InstallValuesValidator:
                     _("The network mask is required when network address is present"),
                 )
 
+            # Interpolate rather than concatenate, so that a non-string value such
+            # as None reaches validate_network_str and is reported as a bad
+            # request instead of raising a TypeError here.
             network_str = (
-                self.install_values["network_address"]
-                + "/"
-                + str(self.install_values["network_mask"])
+                f"{self.install_values['network_address']}"
+                f"/{self.install_values['network_mask']}"
             )
             try:
                 networks = utils.validate_network_str(network_str, 1)
