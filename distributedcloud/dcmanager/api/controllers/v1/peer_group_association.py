@@ -169,12 +169,17 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
                 "Subcloud Peer Group Not Found, peer group id: %s" % peer_group_id
             )
             return False
-        except Exception as e:
-            LOG.warning(
-                "Get Subcloud Peer Group failed: %s; peer_group_id: %s"
-                % (e, peer_group_id)
+        except Exception:
+            # Only a missing peer group means the request was bad. Any other
+            # failure is a server-side problem, so it must not be reported as
+            # an invalid peer_group_id, which would blame a valid request.
+            LOG.exception(
+                "Get Subcloud Peer Group failed; peer_group_id: %s" % peer_group_id
             )
-            return False
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR,
+                _("Unable to validate peer_group_id"),
+            )
         return True
 
     def _validate_system_peer_id(self, context, system_peer_id):
@@ -183,11 +188,13 @@ class PeerGroupAssociationsController(restcomm.GenericPathController):
         except exception.SystemPeerNotFound:
             LOG.debug("System Peer Not Found, system peer id: %s" % system_peer_id)
             return False
-        except Exception as e:
-            LOG.warning(
-                "Get System Peer failed: %s; system_peer_id: %s" % (e, system_peer_id)
+        except Exception:
+            # As above, only a missing system peer makes the request bad.
+            LOG.exception("Get System Peer failed; system_peer_id: %s" % system_peer_id)
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR,
+                _("Unable to validate system_peer_id"),
             )
-            return False
         return True
 
     def _validate_peer_group_priority(self, peer_group_priority):

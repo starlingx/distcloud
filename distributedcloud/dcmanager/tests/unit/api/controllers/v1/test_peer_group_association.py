@@ -13,6 +13,7 @@ from oslo_messaging import RemoteError
 from dccommon.endpoint_cache import EndpointCache
 from dcmanager.api.controllers.v1 import peer_group_association
 from dcmanager.common import consts
+from dcmanager.common import exceptions
 from dcmanager.db import api as db_api
 from dcmanager.rpc import client as rpc_client
 from dcmanager.tests.unit.api.controllers.v1.mixins import APIMixin
@@ -251,6 +252,22 @@ class TestPeerGroupAssociationPost(BaseTestPeerGroupAssociationController):
             )
 
     @mock.patch.object(db_api, "system_peer_get")
+    def test_post_fails_with_system_peer_not_found(self, mock_system_peer_get):
+        """Test post fails when the system peer does not exist
+
+        A missing system peer is the caller's mistake, so it stays a bad
+        request. This is the counterpart to the generic exception case below.
+        """
+
+        mock_system_peer_get.side_effect = exceptions.SystemPeerNotFound(peer_id=1)
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid system_peer_id"
+        )
+
+    @mock.patch.object(db_api, "system_peer_get")
     def test_post_fails_with_generic_exception_while_validating_system_peer_id(
         self, mock_system_peer_get
     ):
@@ -261,7 +278,9 @@ class TestPeerGroupAssociationPost(BaseTestPeerGroupAssociationController):
         response = self._send_request()
 
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Invalid system_peer_id"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Unable to validate system_peer_id",
         )
 
     def test_post_fails_with_textual_peer_group_id(self):
@@ -269,6 +288,26 @@ class TestPeerGroupAssociationPost(BaseTestPeerGroupAssociationController):
 
         # A string peer group priority is not permitted.
         self.params["peer_group_id"] = "peer-group-id"
+
+        response = self._send_request()
+
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid peer_group_id"
+        )
+
+    @mock.patch.object(db_api, "subcloud_peer_group_get")
+    def test_post_fails_with_subcloud_peer_group_not_found(
+        self, mock_subcloud_peer_group_get
+    ):
+        """Test post fails when the subcloud peer group does not exist
+
+        A missing peer group is the caller's mistake, so it stays a bad
+        request. This is the counterpart to the generic exception case below.
+        """
+
+        mock_subcloud_peer_group_get.side_effect = exceptions.SubcloudPeerGroupNotFound(
+            group_id=1
+        )
 
         response = self._send_request()
 
@@ -286,11 +325,10 @@ class TestPeerGroupAssociationPost(BaseTestPeerGroupAssociationController):
 
         response = self._send_request()
 
-        # TODO(rlima): the correct behavior should be raising an Internal Server
-        # Error exception instead of a Bad Request. This also applies to all of the
-        # others validations when a generic exception occurs.
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Invalid peer_group_id"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Unable to validate peer_group_id",
         )
 
     def test_post_fails_with_invalid_peer_group_priority(self):
