@@ -297,6 +297,42 @@ def validate_expiry_date(expiry_date):
     return True, ""
 
 
+def validate_certificate_key_parameters(algorithm, key_size):
+    """Validate the algorithm and key size of a certificate
+
+    Duplicate the get_private_key_params validation logic defined in:
+    sysinv/api/controllers/v1/kube_rootca_update.py
+    Returns a tuple of True, "" if both inputs are None
+    Returns a tuple of True, "" if the inputs are valid
+    Returns a tuple of False, "<error details>" if the inputs are invalid
+    """
+    valid_key_params = {"ECDSA": (384, 521), "RSA": (4096,)}
+
+    if algorithm is None:
+        if key_size is not None:
+            return False, "Parameter 'key_size' was provided without 'algorithm'."
+        return True, ""
+
+    if algorithm not in valid_key_params:
+        supported_algs = ", ".join(valid_key_params.keys())
+        return False, (
+            "Algorithm '%s' is not supported. Supported values are: %s"
+            % (algorithm, supported_algs)
+        )
+
+    if key_size is None:
+        return True, ""
+
+    if key_size not in valid_key_params[algorithm]:
+        supported_sizes = ", ".join(str(s) for s in valid_key_params[algorithm])
+        return False, (
+            "Key size %s is not supported for algorithm '%s'. "
+            "Supported values are: %s" % (key_size, algorithm, supported_sizes)
+        )
+
+    return True, ""
+
+
 def get_sw_update_opts(context, for_sw_update=False, subcloud_id=None):
     """Get sw update options for a subcloud
 

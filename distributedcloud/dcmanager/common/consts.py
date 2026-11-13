@@ -327,6 +327,8 @@ EXTRA_ARGS_TO_VERSION = "to-version"
 # extra_args for kube rootca update
 EXTRA_ARGS_EXPIRY_DATE = "expiry-date"
 EXTRA_ARGS_SUBJECT = "subject"
+EXTRA_ARGS_ALGORITHM = "algorithm"
+EXTRA_ARGS_KEY_SIZE = "key-size"
 EXTRA_ARGS_SYSADMIN_PASSWORD = "sysadmin_password"
 
 # extra_args for software
@@ -471,6 +473,11 @@ LAST_SW_VERSION_REQUIRING_ANSIBLE_COMPAT = "26.03"
 # keys for the platform issuer certificate.
 # TODO(rdossant) Remove once the N-2 release supports non-RSA keys.
 FIRST_SW_VERSION_SUPPORTING_ECDSA = "26.10"
+
+# Subclouds running releases below this version do not accept the algorithm and
+# key-size parameters of the kube rootca update strategy.
+# TODO(rdossant) Remove once the N-2 release supports these parameters.
+FIRST_SW_VERSION_SUPPORTING_KUBE_ROOTCA_KEY_PARAMS = "27.03"
 
 # Subcloud backup locations
 CENTRAL_BACKUP_DIR = "/opt/dc-vault/backups"
