@@ -19,10 +19,12 @@ import random
 import sys
 
 import mock
+from oslo_serialization import jsonutils
 
 from dccommon import consts as dccommon_consts
 from dccommon.endpoint_cache import EndpointCache
 from dcmanager.audit import rpcapi
+from dcmanager.audit.software_audit import SoftwareAuditData
 from dcmanager.audit import subcloud_audit_manager
 from dcmanager.audit import subcloud_audit_worker_manager
 from dcmanager.common import consts
@@ -1335,3 +1337,147 @@ class TestAuditWorkerManager(base.DCManagerTestCase):
         self.assertEqual(audits.firmware_audit_requested, True)
         self.assertEqual(audits.kubernetes_audit_requested, True)
         self.assertEqual(audits.kube_rootca_update_audit_requested, True)
+
+    def _build_software_payload(
+        self, software_audit_data, should_perform_additional_audit=True
+    ):
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+        return wm._build_dcagent_payload(
+            should_perform_additional_audit,
+            None,
+            None,
+            None,
+            software_audit_data,
+            False,
+            False,
+            False,
+            True,
+            True,
+            None,
+        )
+
+    def test_dcagent_payload_omits_empty_deployed_metapackages(self):
+        """The RPC serializer sends the object attributes, empty ones included.
+
+        An N-1/N-2 subcloud dcagent does not know deployed_metapackages and
+        fails the audit when it receives the field in the software audit
+        data, so it must not be sent when it is empty.
+        """
+        payload = self._build_software_payload(
+            {"deployed_release_ids": ["starlingx-9.0.0"], "deployed_metapackages": []}
+        )
+
+        self.assertEqual(
+            {"deployed_release_ids": ["starlingx-9.0.0"]},
+            payload[dccommon_consts.SOFTWARE_AUDIT],
+        )
+        self.assertNotIn("extra_args", payload)
+
+    def test_dcagent_payload_sends_deployed_metapackages_in_extra_args(self):
+        """A non-empty list goes in the extra_args, never in the software audit."""
+        payload = self._build_software_payload(
+            {
+                "deployed_release_ids": ["starlingx-9.0.0"],
+                "deployed_metapackages": ["infra_9.0.0"],
+            }
+        )
+
+        self.assertEqual(
+            {"deployed_release_ids": ["starlingx-9.0.0"]},
+            payload[dccommon_consts.SOFTWARE_AUDIT],
+        )
+        self.assertEqual(
+            {dccommon_consts.DEPLOYED_METAPACKAGES: ["infra_9.0.0"]},
+            payload["extra_args"],
+        )
+
+    def test_dcagent_payload_no_extra_args_without_software_audit(self):
+        """The metapackages are only sent together with the software audit."""
+        payload = self._build_software_payload(
+            {
+                "deployed_release_ids": ["starlingx-9.0.0"],
+                "deployed_metapackages": ["infra_9.0.0"],
+            },
+            should_perform_additional_audit=False,
+        )
+
+        self.assertNotIn(dccommon_consts.SOFTWARE_AUDIT, payload)
+        self.assertNotIn("extra_args", payload)
+
+    def test_dcagent_payload_does_not_change_the_audit_data(self):
+        """The audit data is shared by all the subclouds audited by the worker."""
+        software_audit_data = {
+            "deployed_release_ids": ["starlingx-9.0.0"],
+            "deployed_metapackages": ["infra_9.0.0"],
+        }
+
+        self._build_software_payload(software_audit_data)
+
+        self.assertEqual(
+            {
+                "deployed_release_ids": ["starlingx-9.0.0"],
+                "deployed_metapackages": ["infra_9.0.0"],
+            },
+            software_audit_data,
+        )
+
+    def test_split_software_audit_data_with_non_dict_input(self):
+        """A software audit data that is not a dict is returned as it is.
+
+        There is nothing to split, so the data is not changed and the
+        metapackages are None, not an empty list.
+        """
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+
+        for software_audit_data in ("software-audit-data", ["starlingx-9.0.0"], 42):
+            with self.subTest(software_audit_data=software_audit_data):
+                result = wm._split_software_audit_data(software_audit_data)
+
+                self.assertEqual((software_audit_data, None), result)
+
+    def test_split_software_audit_data_metapackages_values(self):
+        """The metapackages are returned as they come in the audit data.
+
+        A missing key gives None and an empty list stays an empty list. In
+        every case the key is removed from the software audit data.
+        """
+        wm = subcloud_audit_worker_manager.SubcloudAuditWorkerManager()
+        release_ids = {"deployed_release_ids": ["starlingx-9.0.0"]}
+
+        for metapackages in ({}, {"deployed_metapackages": []}):
+            with self.subTest(metapackages=metapackages):
+                result = wm._split_software_audit_data({**release_ids, **metapackages})
+
+                self.assertEqual(
+                    (release_ids, metapackages.get("deployed_metapackages")), result
+                )
+
+        result = wm._split_software_audit_data(
+            {**release_ids, "deployed_metapackages": ["infra_9.0.0"]}
+        )
+        self.assertEqual((release_ids, ["infra_9.0.0"]), result)
+
+    def test_dcagent_payload_is_accepted_by_older_release_dcagent(self):
+        """The audit data serialized as in the RPC loads in an older dcagent.
+
+        The audit data is serialized by the RPC with to_primitive, which sends
+        the object attributes and not the result of to_dict(). An older dcagent
+        builds the audit data with a constructor that only accepts
+        deployed_release_ids, so it fails with any other key in the software
+        audit data, with or without deployed-partial releases.
+        """
+
+        class OlderSoftwareAuditData(object):
+            def __init__(self, deployed_release_ids):
+                self.deployed_release_ids = deployed_release_ids
+
+        for metapackages in ([], ["infra_9.0.0"]):
+            software_audit_data = jsonutils.to_primitive(
+                SoftwareAuditData(["starlingx-9.0.0"], metapackages),
+                convert_instances=True,
+            )
+
+            payload = self._build_software_payload(software_audit_data)
+
+            older = OlderSoftwareAuditData(**payload[dccommon_consts.SOFTWARE_AUDIT])
+            self.assertEqual(["starlingx-9.0.0"], older.deployed_release_ids)

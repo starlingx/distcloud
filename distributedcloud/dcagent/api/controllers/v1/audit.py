@@ -62,6 +62,17 @@ class AuditController(object):
             f"Payload sent by system controller: {payload}. Extra args: {extra_args}"
         )
 
+        # The metapackages deployed on the system controller are sent via
+        # extra_args, since a dcagent that does not know them fails the audit if
+        # they come inside the software audit data. Put them back there.
+        deployed_metapackages = extra_args.get(dccommon_consts.DEPLOYED_METAPACKAGES)
+        software_audit_data = payload.get(dccommon_consts.SOFTWARE_AUDIT)
+        if deployed_metapackages and isinstance(software_audit_data, dict):
+            payload[dccommon_consts.SOFTWARE_AUDIT] = {
+                **software_audit_data,
+                dccommon_consts.DEPLOYED_METAPACKAGES: deployed_metapackages,
+            }
+
         try:
             # Delete "use_cache" from payload so it doesn't get passed as an audit
             use_cache = payload.pop("use_cache", True)

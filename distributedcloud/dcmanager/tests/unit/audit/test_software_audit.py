@@ -256,3 +256,65 @@ class TestSoftwareAudit(DCManagerTestCase):
         ]
 
         self._test_software_audit(dccommon_consts.SYNC_STATUS_OUT_OF_SYNC, "9.0")
+
+    def _fully_deployed_release_with_metapackages(self):
+        """Fully deployed release as returned by the USM API.
+
+        The API also lists the metapackages of a release in the deployed state,
+        all of them deployed.
+        """
+        metapackages = {
+            "infra_9.0.2": {"state": "deployed", "deployable": "N"},
+            "distcloud_9.0.2": {"state": "deployed", "deployable": "N"},
+        }
+        return self._create_fake_release(
+            "starlingx-9.0.2", "deployed", "9.0.2", metapackages
+        )
+
+    def test_software_audit_deployed_release_with_metapackages_in_sync(self):
+        """Fully deployed release listing its metapackages on both sides -> in-sync."""
+        releases = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._fully_deployed_release_with_metapackages(),
+        ]
+        self.mock_regionone_softwareclient().list.return_value = releases
+        self.mock_subcloud_softwareclient.list.return_value = releases
+
+        self._test_software_audit(dccommon_consts.SYNC_STATUS_IN_SYNC, "9.0")
+
+    def test_software_audit_to_dict_omits_metapackages_when_fully_deployed(self):
+        """to_dict() has no deployed_metapackages without a partial release.
+
+        A fully deployed release lists its metapackages in the USM API, but they
+        must not be part of the audit data.
+        """
+        self.mock_regionone_softwareclient().list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._fully_deployed_release_with_metapackages(),
+        ]
+
+        payload = self._get_software_audit_data()
+
+        self.assertEqual(
+            {"deployed_release_ids": payload["deployed_release_ids"]}, payload
+        )
+
+    def test_software_audit_to_dict_includes_metapackages_when_partial(self):
+        """to_dict() has deployed_metapackages for a deployed-partial release."""
+        metapackages = {
+            "infra_9.0.2": {"state": "deployed"},
+            "distcloud_9.0.2": {"state": "available"},
+        }
+        self.mock_regionone_softwareclient().list.return_value = [
+            self._create_fake_release("starlingx-9.0.0", "deployed", "9.0.0"),
+            self._create_fake_release("starlingx-9.0.1", "deployed", "9.0.1"),
+            self._create_fake_release(
+                "starlingx-9.0.2", "deployed-partial", "9.0.2", metapackages
+            ),
+        ]
+
+        payload = self._get_software_audit_data()
+
+        self.assertEqual(["infra_9.0.2"], payload["deployed_metapackages"])

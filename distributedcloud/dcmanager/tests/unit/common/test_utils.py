@@ -475,6 +475,75 @@ class TestVersionChecksForDeployedPartial(DCManagerTestCase):
         )
 
 
+class TestGetDeployedMetapackages(DCManagerTestCase):
+    """Tests for get_deployed_metapackages"""
+
+    @staticmethod
+    def _release(release_id, state, metapackages):
+        return {
+            "release_id": release_id,
+            "state": state,
+            "metapackages": metapackages,
+        }
+
+    def test_fully_deployed_release_is_ignored(self):
+        """A deployed release lists deployed metapackages, none must be returned."""
+        software_list = [
+            self._release(
+                "starlingx-25.09.0",
+                "deployed",
+                {
+                    "infra_25.09.0": {"state": "deployed", "deployable": "N"},
+                    "distcloud_25.09.0": {"state": "deployed", "deployable": "N"},
+                },
+            )
+        ]
+
+        self.assertEqual(set(), utils.get_deployed_metapackages(software_list))
+
+    def test_deployed_partial_release_returns_only_deployed_metapackages(self):
+        software_list = [
+            self._release(
+                "starlingx-25.09.1",
+                "deployed-partial",
+                {
+                    "infra_25.09.1": {"state": "deployed"},
+                    "distcloud_25.09.1": {"state": "available"},
+                },
+            )
+        ]
+
+        self.assertEqual(
+            {"infra_25.09.1"}, utils.get_deployed_metapackages(software_list)
+        )
+
+    def test_mixed_releases_only_count_deployed_partial(self):
+        software_list = [
+            self._release(
+                "starlingx-25.09.0",
+                "deployed",
+                {"infra_25.09.0": {"state": "deployed"}},
+            ),
+            self._release(
+                "starlingx-25.09.1",
+                "deployed-partial",
+                {"infra_25.09.1": {"state": "deployed"}},
+            ),
+            self._release("starlingx-25.09.2", "available", {}),
+        ]
+
+        self.assertEqual(
+            {"infra_25.09.1"}, utils.get_deployed_metapackages(software_list)
+        )
+
+    def test_release_without_metapackages_field(self):
+        software_list = [
+            {"release_id": "starlingx-25.09.1", "state": "deployed-partial"}
+        ]
+
+        self.assertEqual(set(), utils.get_deployed_metapackages(software_list))
+
+
 class TestGetRegionName(DCManagerTestCase):
     """Test class for get_region_name function"""
 

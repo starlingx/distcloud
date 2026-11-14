@@ -149,6 +149,70 @@ class TestRequestedAudit(BaseTestAudit):
         self._assert_pecan_and_response(response, http.client.BAD_REQUEST, error_msg)
 
 
+class TestDeployedMetapackagesExtraArgs(BaseTestAudit):
+    """Test class for the deployed metapackages sent via extra_args."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.mock_software_audit = self._mock_object(
+            SoftwareAudit, "get_subcloud_sync_status"
+        )
+        self.mock_software_audit.return_value = "software_audit_response"
+
+    def _get_software_audit_data_received(self):
+        """Software audit data that reached the software audit of the subcloud."""
+        self.mock_software_audit.assert_called_once()
+        return self.mock_software_audit.call_args[0][1]
+
+    def test_patch_audit_restores_deployed_metapackages_from_extra_args(self):
+        """The metapackages sent via extra_args are given back to the software audit"""
+        self.params = {
+            dccommon_consts.SOFTWARE_AUDIT: {
+                "deployed_release_ids": ["starlingx-9.0.0"]
+            },
+            "extra_args": {dccommon_consts.DEPLOYED_METAPACKAGES: ["infra_9.0.0"]},
+        }
+
+        self._send_request()
+
+        self.assertEqual(
+            {
+                "deployed_release_ids": ["starlingx-9.0.0"],
+                dccommon_consts.DEPLOYED_METAPACKAGES: ["infra_9.0.0"],
+            },
+            self._get_software_audit_data_received(),
+        )
+
+    def test_patch_audit_software_audit_unchanged_without_metapackages(self):
+        """Nothing is added to the software audit when no metapackages are sent"""
+        self.params = {
+            dccommon_consts.SOFTWARE_AUDIT: {
+                "deployed_release_ids": ["starlingx-9.0.0"]
+            },
+            "extra_args": {},
+        }
+
+        self._send_request()
+
+        self.assertEqual(
+            {"deployed_release_ids": ["starlingx-9.0.0"]},
+            self._get_software_audit_data_received(),
+        )
+
+    def test_patch_audit_metapackages_in_software_audit_still_accepted(self):
+        """A system controller that sends them in the software audit still works"""
+        software_audit_data = {
+            "deployed_release_ids": ["starlingx-9.0.0"],
+            dccommon_consts.DEPLOYED_METAPACKAGES: ["infra_9.0.0"],
+        }
+        self.params = {dccommon_consts.SOFTWARE_AUDIT: software_audit_data}
+
+        self._send_request()
+
+        self.assertEqual(software_audit_data, self._get_software_audit_data_received())
+
+
 class TestSyncOidcLoginConfig(BaseTestAudit):
     """Test class for OIDC login config sync via audit."""
 
