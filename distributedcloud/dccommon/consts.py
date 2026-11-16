@@ -123,6 +123,11 @@ KUBE_ROOTCA_AUDIT = "kube_rootca_audit"
 SOFTWARE_AUDIT = "software_audit"
 SKIP_AUDIT = "skip"
 
+# Metapackages deployed on the system controller for the deployed-partial releases.
+# It is sent to the dcagent in the audit extra_args, because the dcagent of older
+# releases does not accept it in the software audit data.
+DEPLOYED_METAPACKAGES = "deployed_metapackages"
+
 DCAGENT_ENDPOINT_TYPE_MAP = {
     FIRMWARE_AUDIT: ENDPOINT_TYPE_FIRMWARE,
     KUBERNETES_AUDIT: ENDPOINT_TYPE_KUBERNETES,

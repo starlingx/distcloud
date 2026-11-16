@@ -277,6 +277,29 @@ class SubcloudAuditWorkerManager(manager.Manager):
             LOG.debug("Failed to read OIDC login config")
             return None
 
+    @staticmethod
+    def _split_software_audit_data(software_audit_data):
+        """Split deployed_metapackages from the software audit data.
+
+        :returns: tuple of (software audit data, deployed metapackages list).
+            The software audit data is returned without the metapackages key.
+            If the input is not a dict, there are no metapackages to split and
+            None is returned in place of the list.
+        """
+        if not isinstance(software_audit_data, dict):
+            return software_audit_data, None
+
+        software_payload = {
+            key: value
+            for key, value in software_audit_data.items()
+            if key != dccommon_consts.DEPLOYED_METAPACKAGES
+        }
+        deployed_metapackages = software_audit_data.get(
+            dccommon_consts.DEPLOYED_METAPACKAGES
+        )
+
+        return software_payload, deployed_metapackages
+
     def _build_dcagent_payload(
         self,
         should_perform_additional_audit,
@@ -292,6 +315,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         oidc_login_config,
     ):
         audit_payload = {dccommon_consts.BASE_AUDIT: ""}
+        extra_args = {}
         if should_perform_additional_audit:
             if do_firmware_audit and firmware_audit_data:
                 audit_payload[dccommon_consts.FIRMWARE_AUDIT] = firmware_audit_data
@@ -302,7 +326,14 @@ class SubcloudAuditWorkerManager(manager.Manager):
                     kube_rootca_update_audit_data
                 )
             if do_software_audit and software_audit_data:
-                audit_payload[dccommon_consts.SOFTWARE_AUDIT] = software_audit_data
+                software_payload, deployed_metapackages = (
+                    self._split_software_audit_data(software_audit_data)
+                )
+                audit_payload[dccommon_consts.SOFTWARE_AUDIT] = software_payload
+                if deployed_metapackages:
+                    extra_args[dccommon_consts.DEPLOYED_METAPACKAGES] = (
+                        deployed_metapackages
+                    )
         # If the audit was forced, we don't want to use the cache
         if not use_cache:
             audit_payload["use_cache"] = use_cache
@@ -311,7 +342,6 @@ class SubcloudAuditWorkerManager(manager.Manager):
         # exists on the system controller. Using extra_args ensures backward
         # compatibility with N-1/N-2 subclouds that do not understand this
         # field (they simply pop and ignore extra_args).
-        extra_args = {}
         if oidc_login_config:
             extra_args["oidc_login_config"] = oidc_login_config
         if extra_args:

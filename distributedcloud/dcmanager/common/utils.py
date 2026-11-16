@@ -2445,20 +2445,30 @@ def get_major_releases(releases):
 
 
 def get_deployed_metapackages(software_list: list) -> set:
-    """Get the deployed metapackages from a software list.
+    """Get the deployed metapackages of the deployed-partial releases.
 
     A release in the deployed-partial state exposes a per-metapackage
     state under its "metapackages" field. This collects the IDs of the
     metapackages that are currently deployed, so that two systems can be
     compared to decide whether they have the same metapackages applied.
 
+    Only releases in the deployed-partial state are considered. A fully
+    deployed release also reports its metapackages in the USM API, but all
+    of them are deployed by definition, so they carry nothing to compare.
+    Ignoring them keeps the result empty when there is no deployed-partial
+    release, so the audit payload sent to N-1/N-2 subclouds does not carry a
+    field their dcagent does not understand.
+
     :param software_list: list of software releases from the USM API.
 
-    :returns: set of metapackage IDs that are in the deployed state.
+    :returns: set of metapackage IDs that are in the deployed state, for
+        releases in the deployed-partial state.
     """
     deployed_metapackages = set()
 
     for release in software_list:
+        if release.get("state") != software_v1.DEPLOYED_PARTIAL:
+            continue
         metapackages = release.get("metapackages") or {}
         for metapackage_id, metapackage in metapackages.items():
             if metapackage.get("state") == software_v1.DEPLOYED:
