@@ -373,11 +373,10 @@ class TestSubcloudPeerGroupControllerPost(
 
         response = self._send_request()
 
-        # TODO(rlima): a generic exception should return an Internal Server Error
-        # instead of a Bad Request. Once the code is updated, this test will need
-        # to be fixed.
         self._assert_pecan_and_response(
-            response, http.client.BAD_REQUEST, "Failed to get local system info"
+            response,
+            http.client.INTERNAL_SERVER_ERROR,
+            "Failed to get local system info",
         )
 
     @mock.patch.object(db_api, "subcloud_peer_group_create")
