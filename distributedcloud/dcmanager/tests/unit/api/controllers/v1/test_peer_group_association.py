@@ -296,12 +296,12 @@ class TestPeerGroupAssociationPost(BaseTestPeerGroupAssociationController):
     def test_post_fails_with_invalid_peer_group_priority(self):
         """Test post fails with invalid peer group priority"""
 
-        # peer_group_priority must be an integer between 1 and 65536
-        # All the entries in bad_values should be considered invalid
-        # TODO(rlima): a floting point value should also raise an invalid
-        # peer_group_priority, but, currently, it doesn't since the validation
-        # updates the value to an integer
-        bad_values = [65537, -2, "abc", 0]
+        # peer_group_priority must be an integer between 1 and 65536.
+        # All the entries in bad_values should be considered invalid. Floats and
+        # booleans are covered because int() accepts both: int(65536.9) is 65536
+        # and passes the range check even though 65537 is what gets stored, and
+        # int(True) is 1.
+        bad_values = [65537, -2, "abc", 0, 22.1, 65536.9, True, False]
         for index, bad_value in enumerate(bad_values, start=1):
             self.params["peer_group_priority"] = bad_value
 
@@ -571,9 +571,10 @@ class TestPeerGroupAssociationPatch(BaseTestPeerGroupAssociationPatch):
     def test_patch_fails_with_invalid_peer_group_priority_in_payload(self):
         """Test patch fails with invalid peer group priority in payload"""
 
-        # peer_group_priority must be an integer between 1 and 65536
-        # All the entries in bad_values should be considered invalid
-        bad_values = [65537, -2, "abc", 0]
+        # peer_group_priority must be an integer between 1 and 65536.
+        # All the entries in bad_values should be considered invalid. Floats and
+        # booleans are covered for the same reason as in the post test.
+        bad_values = [65537, -2, "abc", 0, 22.1, 65536.9, True, False]
         for index, bad_value in enumerate(bad_values, start=1):
             self.params["peer_group_priority"] = bad_value
 
