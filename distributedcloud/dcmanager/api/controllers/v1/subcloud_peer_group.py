@@ -78,8 +78,12 @@ class SubcloudPeerGroupsController(restcomm.GenericPathController):
             )
             system = sysinv_client.get_system()
             return system
-        except Exception:
-            pecan.abort(httpclient.BAD_REQUEST, _("Failed to get local system info"))
+        except Exception as e:
+            LOG.exception(e)
+            pecan.abort(
+                httpclient.INTERNAL_SERVER_ERROR,
+                _("Failed to get local system info"),
+            )
 
     def _get_subcloud_status_for_peer_group(self, context, group):
         subclouds = db_api.subcloud_get_for_peer_group(context, group.id)
