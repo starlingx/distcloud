@@ -11,6 +11,7 @@ Build-Depends:
  python3-cryptography,
  python3-dev,
  python3-eventlet,
+ python3-gunicorn,
  python3-jsonschema (>= 2.0.0),
  python3-keyring,
  python3-keystoneauth1 (>= 3.1.0),

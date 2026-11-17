@@ -20,13 +20,12 @@ import json
 import multiprocessing
 import os
 import random
+import subprocess
 import threading
 import time
 from typing import Callable
 from typing import NamedTuple
 
-from eventlet.green import subprocess
-from eventlet import greenpool
 import netaddr
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -37,6 +36,7 @@ from dccommon import consts
 from dccommon.exceptions import PlaybookExecutionFailed
 from dccommon.exceptions import PlaybookExecutionTimeout
 from dccommon import rvmc
+from dccommon import scheduler
 from dccommon.subprocess_cleanup import kill_subprocess_group
 from dccommon.subprocess_cleanup import SubprocessCleanup
 
@@ -561,12 +561,24 @@ def probe_bmcs_in_parallel(
     if not subclouds:
         return {}
 
+    results = {}
+
     def _probe(subcloud):
         install_values = safe_parse_install_values(subcloud.data_install)
-        return subcloud.id, bmc_is_reachable(install_values)
+        subcloud_id, result = subcloud.id, bmc_is_reachable(install_values)
+        results[subcloud_id] = result
 
-    pool = greenpool.GreenPool(size=min(len(subclouds), pool_size))
-    return dict(pool.imap(_probe, subclouds))
+    thread_group = scheduler.ThreadGroupManager(
+        thread_pool_size=min(len(subclouds), pool_size)
+    )
+    try:
+        threads = [thread_group.start(_probe, sc) for sc in subclouds]
+        for thread in threads:
+            thread.wait()
+    finally:
+        thread_group.stop()
+
+    return results
 
 
 def subcloud_has_dcagent(software_version: str):

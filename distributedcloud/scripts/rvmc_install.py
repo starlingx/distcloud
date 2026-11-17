@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 ###############################################################################
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -120,8 +120,6 @@ import os
 import signal
 import sys
 import time
-
-import eventlet
 
 from dccommon import rvmc
 
@@ -312,9 +310,13 @@ if __name__ == "__main__":
     if target_object:
         prepare_execution(rvmc_pid_file)
         # TODO(lzhu1): support --timeout <value> option
-        script_timeout = eventlet.timeout.Timeout(
-            int(os.environ.get("RVMC_SCRIPT_TIMEOUT", 1800))
-        )
+        timeout_seconds = int(os.environ.get("RVMC_SCRIPT_TIMEOUT", 1800))
+
+        def _timeout_handler(signum, frame):
+            raise TimeoutError("RVMC script execution timed out.")
+
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(timeout_seconds)
         try:
             # Load the Iso for the target
             logging_util.ilog("BMC Target  : %s" % target_object.target)
@@ -332,16 +334,14 @@ if __name__ == "__main__":
 
                 logging_util.ilog(f"Excluded operations: {excluded_operations}")
                 target_object.execute(excluded_operations)
-        except eventlet.timeout.Timeout as e:
-            if e is not script_timeout:
-                raise
+        except TimeoutError:
             logging_util.elog("RVMC script execution timed out.")
             exit_handler.exit(2)
         except Exception as e:
             logging_util.elog("Got exception: %s" % e)
             exit_handler.exit(1)
         finally:
-            script_timeout.cancel()
+            signal.alarm(0)
     else:
         logging_util.elog("Operation aborted ; no valid bmc information found")
         if config_file and config:
