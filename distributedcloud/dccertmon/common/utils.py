@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -326,6 +326,104 @@ def get_endpoint_certificate(endpoint, timeout_secs=10):
     except Exception:
         LOG.warning(f"get_endpoint_certificate: connection failed to {host}:{port}")
         raise
+
+
+def get_endpoint_cert_chain(endpoint, timeout_secs=10):
+    """Retrieve the full certificate chain served by a remote endpoint.
+
+    Unlike get_endpoint_certificate(), which returns only the leaf certificate
+    (ssl.getpeercert() exposes just the peer cert), this returns every
+    certificate the server presents during the TLS handshake, i.e. the leaf
+    followed by any intermediate CA(s). This is needed to inspect the
+    intermediate CA the subcloud is actually serving.
+
+    Implemented via "openssl s_client -showcerts" rather than
+    ssl.SSLSocket.get_unverified_chain(), which is only public from Python
+    3.13; the unit tests still run on Python 3.9.
+
+    :param endpoint: URL (e.g. https://host:port)
+    :param timeout_secs: connection timeout in seconds
+    :returns: list of PEM-formatted certificates, leaf first. Empty list if
+        the chain could not be retrieved.
+    """
+    url = urlparse(endpoint)
+    host = url.hostname
+    port = url.port
+
+    # urlparse() strips the brackets from an IPv6 literal, but "openssl
+    # s_client -connect" needs them to tell the address from the port.
+    target = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    cmd = [
+        "openssl",
+        "s_client",
+        "-connect",
+        target,
+        "-showcerts",
+    ]
+    proc = None
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+        )
+        stdout, _ = proc.communicate(input="", timeout=timeout_secs)
+    except Exception as exc:
+        # Includes a timeout. Stop and reap the child instead of leaving it
+        # running (or as a zombie) after a failed attempt.
+        LOG.warning(
+            f"get_endpoint_cert_chain: failed to get the chain from "
+            f"{host}:{port}: {type(exc).__name__}"
+        )
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            proc.communicate()
+        return []
+
+    chain = re.findall(
+        r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
+        stdout,
+        re.DOTALL,
+    )
+    return chain
+
+
+def get_cert_serial(cert_pem):
+    """Return the serial number of a PEM-encoded certificate.
+
+    Only the first certificate is read: if cert_pem holds a bundle, openssl
+    x509 parses the first PEM block and ignores the rest. Callers must pass
+    the certificate to identify first.
+
+    :param cert_pem: PEM-formatted certificate (str)
+    :returns: serial number as an uppercase hex string, or None on failure.
+    """
+    if not cert_pem:
+        return None
+    cmd = ["openssl", "x509", "-noout", "-serial"]
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+        )
+        stdout, stderr = proc.communicate(input=cert_pem)
+        if proc.returncode != 0:
+            LOG.warning(f"get_cert_serial: openssl failed: {stderr}")
+            return None
+    except Exception:
+        LOG.warning("get_cert_serial: failed to parse certificate serial")
+        return None
+
+    # openssl prints "serial=ABCDEF..."
+    out = stdout.strip()
+    if "=" in out:
+        return out.split("=", 1)[1].strip().upper()
+    return out.strip().upper() or None
 
 
 class SubcloudSysinvEndpointCache(object):

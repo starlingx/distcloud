@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -57,6 +57,17 @@ class CertMonManagerBase(DCCertMonTestCase):
         self.mock_update_ca_cert = self._mock_object(
             cert_mon_manager.utils, "update_subcloud_ca_cert"
         )
+        # Same-key intermediate CA drift detection: the audit
+        # compares the serial of the intermediate CA the subcloud is serving
+        # against the serial of the SystemController's current intermediate CA.
+        # Default these so the served and SystemController serials match (no
+        # drift) unless a test overrides them.
+        self.mock_get_cert_chain = self._mock_object(
+            cert_mon_manager.utils, "get_endpoint_cert_chain"
+        )
+        self.mock_get_cert_serial = self._mock_object(
+            cert_mon_manager.utils, "get_cert_serial"
+        )
         self._mock_object(EndpointCache, "get_admin_session")
         self.mock_get_token = self._mock_object(session.Session, "get_token")
 
@@ -71,6 +82,10 @@ class CertMonManagerBase(DCCertMonTestCase):
             self._get_sc_intermediate_ca_secret()
         )
         self.mock_is_subcloud_online.return_value = True
+        # Subcloud serves [leaf, intermediate CA]; serials match by default so
+        # the serial-drift check is a no-op unless a test says otherwise.
+        self.mock_get_cert_chain.return_value = ["fake-leaf-pem", "fake-ica-pem"]
+        self.mock_get_cert_serial.return_value = "AABBCCDD"
 
     def _mock_token_cache(self):
         mock_token_cache = mock.Mock()
@@ -349,6 +364,201 @@ class TestSubcloudAuditFlow(CertMonManagerBase):
         self.mock_update_subcloud_status.assert_called_once_with(
             "subcloud1",
             mock.ANY,
+        )
+
+    def test_subcloud_audit_same_key_ica_serial_mismatch_pushes(self):
+        """Same-key ICA renewal: chain verify passes but serials differ.
+
+        with a same-key intermediate CA renewal the subcloud's
+        old leaf still verifies against the renewed CA, so verify_ca returns
+        True. The serial of the CA the subcloud is serving no longer matches
+        the SystemController's current CA, so the audit must still push.
+        """
+
+        item = subcloud_audit_queue.SubcloudAuditData("subcloud1")
+        # Chain verification passes (same key) ...
+        self.mock_verify_ca.return_value = True
+        # ... but the served intermediate CA serial differs from the
+        # SystemController's current intermediate CA serial.
+        # get_cert_serial is called first for the SystemController CA
+        # (secret tls.crt), then for the served intermediate CA (chain[1]).
+        self.mock_get_cert_serial.side_effect = ["NEW_SERIAL", "OLD_SERIAL"]
+
+        self.manager._subcloud_audit(
+            self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+        )
+
+        # Must push the renewed CA despite chain verification passing.
+        self.mock_update_ca_cert.assert_called_once()
+        self.mock_update_subcloud_status.assert_not_called()
+
+    def test_subcloud_audit_serial_match_stays_in_sync(self):
+        """Chain verify passes and serials match -> in-sync, no push."""
+
+        item = subcloud_audit_queue.SubcloudAuditData("subcloud1")
+        self.mock_verify_ca.return_value = True
+        self.mock_get_cert_serial.side_effect = ["SAME_SERIAL", "SAME_SERIAL"]
+
+        self.manager._subcloud_audit(
+            self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+        )
+
+        self.mock_update_ca_cert.assert_not_called()
+        self.mock_update_subcloud_status.assert_called_once_with("subcloud1", mock.ANY)
+
+    def test_subcloud_audit_served_chain_unavailable_falls_back(self):
+        """If the served chain can't be read, fall back to verify-only.
+
+        When get_endpoint_cert_chain returns fewer than 2 certs (subcloud did
+        not present its intermediate CA), the serial check is skipped and the
+        decision relies solely on chain verification. verify_ca True -> in-sync.
+        """
+
+        item = subcloud_audit_queue.SubcloudAuditData("subcloud1")
+        self.mock_verify_ca.return_value = True
+        self.mock_get_cert_chain.return_value = ["only-leaf-pem"]
+
+        self.manager._subcloud_audit(
+            self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+        )
+
+        self.mock_update_ca_cert.assert_not_called()
+        self.mock_update_subcloud_status.assert_called_once_with("subcloud1", mock.ANY)
+
+    def test_subcloud_audit_serial_check_error_falls_back(self):
+        """If the serial check raises, fall back to verify-only, never crash."""
+
+        item = subcloud_audit_queue.SubcloudAuditData("subcloud1")
+        self.mock_verify_ca.return_value = True
+        self.mock_get_cert_chain.side_effect = Exception("boom")
+
+        self.manager._subcloud_audit(
+            self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+        )
+
+        # Fallback to verify-only result (True -> in-sync), no crash/push.
+        self.mock_update_ca_cert.assert_not_called()
+        self.mock_update_subcloud_status.assert_called_once_with("subcloud1", mock.ANY)
+
+    def test_subcloud_audit_current_ica_in_longer_chain_stays_in_sync(self):
+        """The current CA can be anywhere after the leaf, e.g. leaf, root, CA."""
+
+        item = subcloud_audit_queue.SubcloudAuditData("subcloud1")
+        self.mock_verify_ca.return_value = True
+        self.mock_get_cert_chain.return_value = ["leaf-pem", "root-pem", "ica-pem"]
+        serials = {"root-pem": "ROOT", "ica-pem": "CURRENT"}
+        # The SystemController CA is the first certificate looked up.
+        self.mock_get_cert_serial.side_effect = lambda pem: serials.get(pem, "CURRENT")
+
+        self.manager._subcloud_audit(
+            self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+        )
+
+        self.mock_update_ca_cert.assert_not_called()
+        self.mock_update_subcloud_status.assert_called_once_with("subcloud1", mock.ANY)
+
+    def test_subcloud_audit_skips_chain_fetch_when_leaf_verify_fails(self):
+        """No extra connection is made when an update is needed anyway."""
+
+        item = subcloud_audit_queue.SubcloudAuditData("subcloud1")
+        self.mock_verify_ca.return_value = False
+
+        self.manager._subcloud_audit(
+            self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+        )
+
+        self.mock_get_cert_chain.assert_not_called()
+        self.mock_update_ca_cert.assert_called_once()
+
+    def test_subcloud_audit_marks_out_of_sync_after_threshold(self):
+        """A subcloud that does not converge is flagged once, and still retried."""
+
+        threshold = cert_mon_manager.CONF.dccertmon.out_of_sync_after_pushes
+        self.mock_verify_ca.return_value = True
+        self.mock_get_cert_serial.side_effect = lambda pem: (
+            "CURRENT" if pem != "fake-ica-pem" else "STALE"
+        )
+        out_of_sync = cert_mon_manager.constants.SYNC_STATUS_OUT_OF_SYNC
+
+        # push_count is incremented by the audit itself, so these are the
+        # counts before the push: the push made at "threshold - 1" is the
+        # threshold-th one.
+        for pushes_before in (threshold - 2, threshold - 1, threshold):
+            self.mock_update_subcloud_status.reset_mock()
+            item = subcloud_audit_queue.SubcloudAuditData(
+                "subcloud1", push_count=pushes_before
+            )
+
+            self.manager._subcloud_audit(
+                self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+            )
+            # Every push requeues; only the threshold-th push flags.
+            self.mock_requeue.assert_called_with(self.manager.sc_audit_queue, item)
+            if pushes_before + 1 == threshold:
+                self.mock_update_subcloud_status.assert_called_once_with(
+                    "subcloud1", out_of_sync
+                )
+            else:
+                self.mock_update_subcloud_status.assert_not_called()
+
+        self.assertEqual(3, self.mock_update_ca_cert.call_count)
+
+    def test_subcloud_audit_out_of_sync_ignores_network_retries(self):
+        """Network retries must not shift when a stuck subcloud is flagged.
+
+        audit_count is also incremented by the network-failure retry path, so
+        the threshold has to be driven by the number of pushes only.
+        """
+
+        threshold = cert_mon_manager.CONF.dccertmon.out_of_sync_after_pushes
+        self.mock_verify_ca.return_value = True
+        self.mock_get_cert_serial.side_effect = lambda pem: (
+            "CURRENT" if pem != "fake-ica-pem" else "STALE"
+        )
+        out_of_sync = cert_mon_manager.constants.SYNC_STATUS_OUT_OF_SYNC
+
+        # One past the threshold, and one below it, of earlier network retries.
+        for network_retries in (threshold + 2, 3):
+            self.mock_update_subcloud_status.reset_mock()
+            item = subcloud_audit_queue.SubcloudAuditData(
+                "subcloud1", audit_count=network_retries
+            )
+
+            for push in range(1, threshold + 1):
+                self.manager._subcloud_audit(
+                    self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+                )
+                if push < threshold:
+                    self.mock_update_subcloud_status.assert_not_called()
+
+            # Flagged exactly once, on the threshold-th push.
+            self.mock_update_subcloud_status.assert_called_once_with(
+                "subcloud1", out_of_sync
+            )
+            self.assertEqual(threshold, item.push_count)
+
+    def test_subcloud_audit_failed_push_marks_out_of_sync_once(self):
+        """A failed push marks out-of-sync once and the audit is retried.
+
+        The push failure already marks the subcloud out-of-sync, so the
+        threshold check must not mark it again, even on the threshold-th push.
+        """
+
+        threshold = cert_mon_manager.CONF.dccertmon.out_of_sync_after_pushes
+        self.mock_verify_ca.return_value = False
+        self.mock_update_ca_cert.side_effect = Exception("push failed")
+        item = subcloud_audit_queue.SubcloudAuditData(
+            "subcloud1", push_count=threshold - 1
+        )
+
+        self.manager._subcloud_audit(
+            self.manager.sc_audit_queue, item, subcloud_name="subcloud1"
+        )
+
+        self.assertEqual(threshold, item.push_count)
+        self.mock_requeue.assert_called_once_with(self.manager.sc_audit_queue, item)
+        self.mock_update_subcloud_status.assert_called_once_with(
+            "subcloud1", cert_mon_manager.constants.SYNC_STATUS_OUT_OF_SYNC
         )
 
 

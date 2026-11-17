@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -121,6 +121,16 @@ dc_cert_mon_opts = [
         "certificate_timeout_secs",
         default=5,
         help="Connection timeout for certificate check (in seconds)",
+    ),
+    cfg.IntOpt(
+        "out_of_sync_after_pushes",
+        default=10,
+        help=(
+            "Number of consecutive intermediate CA pushes that do not make the "
+            "subcloud converge, after which the subcloud is marked "
+            "out-of-sync. Network retries are not counted. Auditing continues "
+            "until it is in-sync."
+        ),
     ),
 ]
 
