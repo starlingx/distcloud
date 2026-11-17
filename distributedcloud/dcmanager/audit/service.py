@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2024, 2026 Wind River Systems, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,6 +20,7 @@ from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import service
 
+from dccommon import scheduler
 from dcmanager.audit.subcloud_audit_manager import SubcloudAuditManager
 from dcmanager.audit.subcloud_audit_worker_manager import SubcloudAuditWorkerManager
 from dcmanager.common import consts
@@ -27,7 +28,6 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import messaging as rpc_messaging
-from dcmanager.common import scheduler
 from dcmanager.common import utils
 
 CONF = cfg.CONF

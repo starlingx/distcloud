@@ -21,10 +21,8 @@ import pecan
 from keystonemiddleware import auth_token
 from oslo_config import cfg
 from oslo_middleware import request_id
-from oslo_service import service
 
 from dcmanager.common import context as ctx
-from dcmanager.common.i18n import _
 
 
 def setup_app(*args, **kwargs):
@@ -75,24 +73,9 @@ def _wrap_app(app):
     return app
 
 
-_launcher = None
-
-
 def _get_auth_type():
     """Get authentication type from environment or config"""
     env_auth_type = os.environ.get("STX_AUTH_TYPE")
     if env_auth_type and env_auth_type.lower() in ["keystone", "oidc"]:
         return env_auth_type.lower()
     return cfg.CONF.auth_strategy
-
-
-def serve(api_service, conf, workers=1):
-    global _launcher
-    if _launcher:
-        raise RuntimeError(_("serve() can only be called once"))
-
-    _launcher = service.launch(conf, api_service, workers=workers)
-
-
-def wait():
-    _launcher.wait()

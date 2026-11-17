@@ -1,4 +1,4 @@
-# Copyright (c) 2021, 2024 Wind River Systems, Inc.
+# Copyright (c) 2021, 2024, 2026 Wind River Systems, Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -18,11 +18,12 @@
 DC Manager Audit Service.
 """
 
-import eventlet
+from oslo_service.backend import BackendType  # noqa: E402
+from oslo_service.backend import init_backend  # noqa: E402
 
-eventlet.monkey_patch()
+init_backend(BackendType.THREADING)
 
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position,ungrouped-imports
 from oslo_config import cfg  # noqa: E402
 from oslo_i18n import _lazy  # noqa: E402
 from oslo_log import log as logging  # noqa: E402

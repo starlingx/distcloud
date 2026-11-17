@@ -27,6 +27,7 @@ from oslo_utils import timeutils
 from dccommon import consts as dccommon_consts
 from dccommon.drivers.openstack.dcagent_v1 import DcagentClient
 from dccommon import endpoint_cache
+from dccommon import scheduler
 from dccommon import utils as dccommon_utils
 from dcmanager.audit import alarm_aggregation
 from dcmanager.audit import firmware_audit
@@ -39,7 +40,6 @@ from dcmanager.common import context
 from dcmanager.common import exceptions
 from dcmanager.common.i18n import _
 from dcmanager.common import manager
-from dcmanager.common import scheduler
 from dcmanager.common import utils
 from dcmanager.db import api as db_api
 from dcmanager.db.sqlalchemy import models
@@ -71,7 +71,7 @@ class SubcloudAuditWorkerManager(manager.Manager):
         self.dcmanager_rpc_client = dcmanager_rpc_client.ManagerClient()
         self.dcorch_client = dcorch_rpc_client.EngineWorkerClient()
         self.state_rpc_client = dcmanager_rpc_client.SubcloudStateClient()
-        # Keeps track of greenthreads we create to do work.
+        # Keeps track of threads we create to do work.
         self.thread_group_manager = scheduler.ThreadGroupManager(thread_pool_size=150)
         self.thread_group_manager.start(self._update_subclouds_end_audit)
         # Track workers created for each subcloud.
@@ -155,8 +155,8 @@ class SubcloudAuditWorkerManager(manager.Manager):
             update_subcloud_state = subcloud_audits.state_update_requested
             do_software_audit = subcloud_audits.software_audit_requested
 
-            # Create a new greenthread for each subcloud to allow the audits
-            # to be done in parallel. If there are not enough greenthreads
+            # Create a new thread for each subcloud to allow the audits
+            # to be done in parallel. If there are not enough threads
             # in the pool, this will block until one becomes available.
             self.subcloud_workers[subcloud.region_name] = (
                 self.thread_group_manager.start(

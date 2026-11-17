@@ -25,6 +25,7 @@ import os
 from os import path as os_path
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -33,7 +34,6 @@ from urllib import request
 import uuid
 import yaml
 
-from eventlet.green import subprocess
 import mock
 import netaddr
 from oslo_concurrency import lockutils
@@ -3695,6 +3695,205 @@ class TestSubcloudBackup(BaseTestSubcloudManager):
         self.assertIn("Timeout", updated_subcloud.error_description)
         self.assertIn(self.subcloud.name, updated_subcloud.error_description)
         self.assertEqual(consts.BACKUP_STATE_FAILED, updated_subcloud.backup_status)
+
+    @mock.patch.object(cutils, "is_subcloud_healthy", return_value=True)
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager,
+        "_clear_subcloud_backup_failure_alarm_if_exists",
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_overrides_for_backup_or_restore"
+    )
+    @mock.patch.object(
+        subcloud_manager.SubcloudManager, "_create_subcloud_inventory_file"
+    )
+    def test_backup_create_in_parallel_with_unhandled_exceptions(
+        self,
+        mock_create_inventory_file,
+        mock_create_overrides,
+        mock_clear_alarm,
+        mock_is_healthy,
+    ):
+        """Test 250 concurrent backups where 10% raise an unhandled exception.
+
+        Each backup playbook sleeps between 0 and 1.9 seconds. Every tenth
+        subcloud, starting with the second, raises after its sleep. The
+        first exception is raised after 0.2 seconds, while most of the
+        other backups are still running. The exception must reach the
+        caller only after all the other backups have finished.
+        """
+        num_subclouds = 250
+        mock_create_inventory_file.return_value = "inventory_file.yml"
+        mock_create_overrides.return_value = "overrides_file.yml"
+        mock_scheduler_log = self._mock_object(subcloud_manager.scheduler, "LOG")
+
+        # In-memory SQLite does not support concurrent writes from different
+        # threads, so serialise the DB updates done by the backup threads.
+        db_lock = threading.Lock()
+        subcloud_update = db_api.subcloud_update
+
+        def locked_subcloud_update(*args, **kwargs):
+            with db_lock:
+                return subcloud_update(*args, **kwargs)
+
+        self._mock_object(db_api, "subcloud_update", side_effect=locked_subcloud_update)
+
+        group = fake_subcloud.create_fake_subcloud_group(self.ctx, name="backup-group")
+        delays = {}
+        for i in range(1, num_subclouds + 1):
+            subcloud = self.create_subcloud_static(
+                self.ctx,
+                name=f"backup-subcloud-{i}",
+                region_name=uuidutils.generate_uuid().replace("-", ""),
+                group_id=group.id,
+                deploy_status=consts.DEPLOY_STATE_DONE,
+            )
+            subcloud_update(
+                self.ctx,
+                subcloud.id,
+                availability_status=dccommon_consts.AVAILABILITY_ONLINE,
+                management_state=dccommon_consts.MANAGEMENT_MANAGED,
+            )
+            delays[subcloud.name] = (i % 20) * 0.1
+        failing_subclouds = {
+            f"backup-subcloud-{i}" for i in range(2, num_subclouds + 1, 10)
+        }
+
+        results_lock = threading.Lock()
+        started = set()
+        completed = set()
+
+        def fake_backup_playbook(subcloud, backup_command, context, local_only):
+            with results_lock:
+                started.add(subcloud.name)
+            time.sleep(delays[subcloud.name])
+            if subcloud.name in failing_subclouds:
+                raise RuntimeError("boom")
+            with results_lock:
+                completed.add(subcloud.name)
+            return True
+
+        self._mock_object(
+            subcloud_manager.SubcloudManager,
+            "_run_subcloud_backup_create_playbook",
+            side_effect=fake_backup_playbook,
+        )
+
+        payload = {"sysadmin_password": "testpasswd", "group": group.id}
+
+        start = time.monotonic()
+        self.assertRaises(
+            RuntimeError, self.sm.create_subcloud_backups, self.ctx, payload
+        )
+        elapsed = time.monotonic() - start
+
+        # Every backup started, and every backup except the failing ones
+        # completed before the exception reached the caller.
+        self.assertEqual(25, len(failing_subclouds))
+        self.assertEqual(set(delays), started)
+        self.assertEqual(set(delays) - failing_subclouds, completed)
+        # The scheduler logs each failing backup, not only the first one
+        # that reaches the caller.
+        self.assertEqual(
+            [mock.call("Unhandled exception in scheduler task")]
+            * len(failing_subclouds),
+            mock_scheduler_log.exception.call_args_list,
+        )
+        # Run sequentially, the sleeps would take up to 2 seconds per subcloud, so
+        # finishing well under that shows the backups ran concurrently.
+        self.assertLess(elapsed, 5)
+
+    @staticmethod
+    def _create_fake_subclouds(num_subclouds):
+        subclouds = []
+        for i in range(num_subclouds):
+            subcloud = mock.Mock()
+            subcloud.name = f"subcloud-{i}"
+            subclouds.append(subcloud)
+        return subclouds
+
+    def test_run_parallel_group_operation_results_in_submission_order(self):
+        """Results are consumed in submission order, not completion order.
+
+        Each subcloud sleeps longer than the next one, so the threads finish
+        in the reverse order they were started. The processed log messages
+        and the failed subclouds must still follow the submission order.
+        """
+        subclouds = self._create_fake_subclouds(5)
+        failing_subclouds = [subclouds[1], subclouds[3]]
+        finish_order = []
+        finish_lock = threading.Lock()
+
+        def op_function(subcloud):
+            index = subclouds.index(subcloud)
+            time.sleep((len(subclouds) - 1 - index) * 0.1)
+            with finish_lock:
+                finish_order.append(subcloud)
+            return subcloud, subcloud not in failing_subclouds
+
+        failed_subclouds = self.sm._run_parallel_group_operation(
+            "test op",
+            op_function,
+            subcloud_manager.scheduler.ThreadGroupManager(
+                thread_pool_size=len(subclouds)
+            ),
+            subclouds,
+        )
+
+        # The threads finished in the reverse order they were started
+        self.assertEqual(list(reversed(subclouds)), finish_order)
+        self.assertEqual(failing_subclouds, failed_subclouds)
+        expected_logs = [
+            mock.call(
+                f"Processed subcloud {subcloud.name} for test op (operation "
+                f"{(i + 1) * 20}% complete, {len(subclouds) - i - 1} "
+                "subcloud(s) remaining)"
+            )
+            for i, subcloud in enumerate(subclouds)
+        ]
+        self.assertEqual(
+            expected_logs, self.mock_log_subcloud_manager.info.call_args_list
+        )
+
+    def test_run_parallel_group_operation_waits_for_threads_on_exception(self):
+        """An exception reaches the caller only after all threads finish.
+
+        The first subcloud raises right away, so the first thread.wait()
+        re-raises while the other subclouds are still running. The pool
+        must be stopped gracefully, so the other subclouds complete before
+        the exception reaches the caller.
+        """
+        subclouds = self._create_fake_subclouds(5)
+        completed = set()
+        completed_lock = threading.Lock()
+        self._mock_object(subcloud_manager.scheduler, "LOG")
+
+        def op_function(subcloud):
+            if subcloud is subclouds[0]:
+                raise RuntimeError("boom")
+            time.sleep(0.5)
+            with completed_lock:
+                completed.add(subcloud.name)
+            return subcloud, True
+
+        thread_pool = subcloud_manager.scheduler.ThreadGroupManager(
+            thread_pool_size=len(subclouds)
+        )
+        mock_stop = self._mock_object(thread_pool, "stop", wraps=thread_pool.stop)
+
+        self.assertRaises(
+            RuntimeError,
+            self.sm._run_parallel_group_operation,
+            "test op",
+            op_function,
+            thread_pool,
+            subclouds,
+        )
+
+        mock_stop.assert_called_once_with(graceful=True)
+        self.assertEqual({subcloud.name for subcloud in subclouds[1:]}, completed)
+        # The exception was raised on the first subcloud, so none was processed
+        self.mock_log_subcloud_manager.info.assert_not_called()
 
     def test_backup_create_managed_online_backup_state_in_progess(self):
         self.backup_values["local_only"] = False

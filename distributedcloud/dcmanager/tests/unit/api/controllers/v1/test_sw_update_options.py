@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Wind River Systems, Inc.
+# Copyright (c) 2024-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -254,13 +254,9 @@ class TestSwUpdateOptionsPostUpdate(BaseTestSwUpdateOptionsPost, SwUpdateOptions
 
         mock_db_api.side_effect = FakeException()
 
-        self.assertRaises(
-            FakeException,
-            self.method,
-            self.url,
-            headers=self.headers,
-            params=self.params,
-        )
+        response = self._send_request()
+
+        self.assertEqual(http.client.INTERNAL_SERVER_ERROR, response.status_code)
 
 
 class TestSwUpdateOptionsPostCreate(BaseTestSwUpdateOptionsPost, SwUpdateOptionsMixin):
@@ -297,13 +293,9 @@ class TestSwUpdateOptionsPostCreate(BaseTestSwUpdateOptionsPost, SwUpdateOptions
 
         mock_db_api.side_effect = FakeException()
 
-        self.assertRaises(
-            FakeException,
-            self.method,
-            self.url,
-            headers=self.headers,
-            params=self.params,
-        )
+        response = self._send_request()
+
+        self.assertEqual(http.client.INTERNAL_SERVER_ERROR, response.status_code)
 
 
 class TestSwUpdateOptionsDelete(

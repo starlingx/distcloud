@@ -18,7 +18,6 @@ import datetime
 import os
 import time
 
-import eventlet
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import timeutils
@@ -230,9 +229,9 @@ class SubcloudAuditManager(manager.Manager):
         # does not die.
         while True:
             try:
-                eventlet.greenthread.sleep(AUDIT_LOOP_INTERVAL)
+                time.sleep(AUDIT_LOOP_INTERVAL)
                 self._periodic_subcloud_audit_loop()
-            except eventlet.greenlet.GreenletExit:
+            except SystemExit:
                 # We have been told to exit
                 return
             except Exception:

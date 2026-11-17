@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,11 +7,12 @@
 DC Manager Orchestrator Worker Service.
 """
 
-import eventlet
+from oslo_service.backend import BackendType  # noqa: E402
+from oslo_service.backend import init_backend  # noqa: E402
 
-eventlet.monkey_patch()
+init_backend(BackendType.THREADING)
 
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position,ungrouped-imports
 from oslo_config import cfg  # noqa: E402
 from oslo_i18n import _lazy  # noqa: E402
 from oslo_log import log as logging  # noqa: E402
