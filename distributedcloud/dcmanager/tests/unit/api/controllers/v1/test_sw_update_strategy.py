@@ -101,19 +101,16 @@ class TestSwUpdateStrategyGet(BaseTestSwUpdateStrategyGet):
         self._assert_response(response)
         self._assert_response_payload(response)
 
-    def test_get_succeeds_with_invalid_verb(self):
-        """Test get succeeds with invalid verb"""
-
-        # TODO(rlima): when a get request is made with an invalid verb, the steps
-        # variable from the controller is not mapped to a correct execution and,
-        # therefore, it results in a successful response while it should've been
-        # a bad request.
+    def test_get_fails_with_invalid_verb(self):
+        """Test get fails with invalid verb"""
 
         self.url = f"{self.url}/fake"
 
         response = self._send_request()
 
-        self._assert_response(response)
+        self._assert_pecan_and_response(
+            response, http.client.BAD_REQUEST, "Invalid request"
+        )
 
     def test_get_fails_with_db_api_not_found_exception(self):
         """Test get fails with db api not found exception"""

@@ -266,6 +266,8 @@ class SwUpdateStrategyController(object):
                         ]
 
                 return strategy_step_dict
+        else:
+            pecan.abort(400, _("Invalid request"))
 
     @index.when(method="POST", template="json")
     def post(self, actions=None):
