@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import socket
 import time
 
 import gunicorn.app.base
@@ -67,9 +68,23 @@ class DCApplication(gunicorn.app.base.BaseApplication):
         self._post_worker_init_hook = post_worker_init_hook
         super().__init__()
 
+    def _get_bind_address(self):
+        """Resolve the host into a gunicorn bind string.
+
+        Gunicorn creates an IPv4 socket for any host that is not an IPv6
+        literal, so a hostname that only resolves to IPv6 fails to bind.
+        Resolve it here and bracket IPv6 results.
+        """
+        family, _, _, _, sockaddr = socket.getaddrinfo(
+            self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )[0]
+        address = sockaddr[0]
+        if family == socket.AF_INET6:
+            address = "[%s]" % address
+        return "%s:%s" % (address, self.port)
+
     def load_config(self):
-        bind = "%s:%s" % (self.host, self.port)
-        self.cfg.set("bind", bind)
+        self.cfg.set("bind", self._get_bind_address())
         self.cfg.set("workers", self.workers)
         self.cfg.set("worker_class", "gthread")
         # Setting 100 threads to mimic previous wsgi from oslo_service

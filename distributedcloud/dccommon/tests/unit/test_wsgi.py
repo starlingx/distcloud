@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import socket
+
 import mock
 from oslotest import base
 
@@ -175,10 +177,14 @@ class TestDCApplication(base.BaseTestCase):
 
         self.assertIs(dc_app.load(), dc_app.application)
 
+    @mock.patch.object(wsgi.socket, "getaddrinfo")
     @mock.patch("gunicorn.app.base.BaseApplication.__init__")
-    def test_load_config_sets_expected_values(self, mock_super_init):
+    def test_load_config_sets_expected_values(self, mock_super_init, mock_getaddrinfo):
         """Test that load_config sets all gunicorn configuration values."""
         mock_super_init.return_value = None
+        mock_getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("0.0.0.0", 8080))
+        ]
         app = mock.MagicMock()
 
         dc_app = wsgi.DCApplication(app, "TestApp", "0.0.0.0", 8080, workers=2)
@@ -191,6 +197,61 @@ class TestDCApplication(base.BaseTestCase):
         dc_app.cfg.set.assert_any_call("threads", 100)
         dc_app.cfg.set.assert_any_call("accesslog", None)
         dc_app.cfg.set.assert_any_call("proc_name", "TestApp")
+
+    def _make_app_with_cfg(self, host, port):
+        with mock.patch("gunicorn.app.base.BaseApplication.__init__") as m:
+            m.return_value = None
+            dc_app = wsgi.DCApplication(mock.MagicMock(), "TestApp", host, port)
+        dc_app.cfg = mock.MagicMock()
+        return dc_app
+
+    @mock.patch.object(wsgi.socket, "getaddrinfo")
+    def test_load_config_resolves_ipv6_only_hostname(self, mock_getaddrinfo):
+        """Test that a hostname resolving to IPv6 is bound as a bracketed IP."""
+        mock_getaddrinfo.return_value = [
+            (
+                socket.AF_INET6,
+                socket.SOCK_STREAM,
+                6,
+                "",
+                ("2620:10a:a001:aa2f::d00", 25497, 0, 0),
+            )
+        ]
+        dc_app = self._make_app_with_cfg("controller.internal", 25497)
+
+        dc_app.load_config()
+
+        mock_getaddrinfo.assert_called_once_with(
+            "controller.internal", 25497, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )
+        dc_app.cfg.set.assert_any_call("bind", "[2620:10a:a001:aa2f::d00]:25497")
+
+    @mock.patch.object(wsgi.socket, "getaddrinfo")
+    def test_load_config_resolves_ipv4_hostname(self, mock_getaddrinfo):
+        """Test that a hostname resolving to IPv4 is bound as a plain IP."""
+        mock_getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.204.1", 25497))
+        ]
+        dc_app = self._make_app_with_cfg("controller.internal", 25497)
+
+        dc_app.load_config()
+
+        dc_app.cfg.set.assert_any_call("bind", "192.168.204.1:25497")
+
+    @mock.patch.object(wsgi.socket, "getaddrinfo")
+    def test_load_config_brackets_ipv6_literal(self, mock_getaddrinfo):
+        """Test that an unbracketed IPv6 literal host is bracketed."""
+        mock_getaddrinfo.return_value = [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 8080, 0, 0))
+        ]
+        dc_app = self._make_app_with_cfg("::1", 8080)
+
+        dc_app.load_config()
+
+        mock_getaddrinfo.assert_called_once_with(
+            "::1", 8080, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )
+        dc_app.cfg.set.assert_any_call("bind", "[::1]:8080")
 
     @mock.patch("gunicorn.app.base.BaseApplication.__init__")
     def test_default_workers_is_one(self, mock_super_init):
